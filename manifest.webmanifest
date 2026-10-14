@@ -1,0 +1,25 @@
+{
+  "name": "Campo e Stalla",
+  "short_name": "Campo e Stalla",
+  "description": "Campi sulla mappa con catasto, quaderno di campagna, stalla da latte, magazzino e mezzi.",
+  "lang": "it",
+  "start_url": "./",
+  "scope": "./",
+  "id": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F2F3EE",
+  "theme_color": "#12382A",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Registra un lavoro in campo", "short_name": "Lavoro", "url": "./?azione=operazione" },
+    { "name": "Latte del giorno", "short_name": "Latte", "url": "./?azione=latte" },
+    { "name": "Evento di stalla", "short_name": "Stalla", "url": "./?azione=evento" },
+    { "name": "Mappa dei campi", "short_name": "Mappa", "url": "./#mappa" }
+  ]
+}
