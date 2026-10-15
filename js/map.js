@@ -4,7 +4,7 @@ import { $, esc, nf, N, fd, lsGet, lsSet, debounce } from './util.js';
 import { ic } from './icons.js';
 import { areaHa, centroid, bbox, perimeterM, parseGeoFile } from './geo.js';
 import { cropColor, cropColorName, cropOf, campoInfo, campoHa, storicoColture } from './domain.js';
-import { getMeteo, wmo } from './meteo.js';
+import { getMeteo, wmo, farmPosition } from './meteo.js';
 import { openSheet, closeSheet } from './ui.js';
 import { diff, today } from './util.js';
 import * as store from './store.js';
@@ -13,8 +13,24 @@ import { openEdit } from './forms.js';
 
 const CAT_URL = 'https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php';
 let map = null, fieldsGroup = null, base = {}, overlays = {}, mode = 'view', selected = null, editLayer = null, editId = null, drawFor = null, gpsMarker = null, gpsCircle = null, clickMarker = null;
-const prefs = Object.assign({ base: 'sat', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura', intensita: 70, satFx: 'forte' }, lsGet('ces.map', {}));
+const prefs = Object.assign({ base: 'sat', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura', intensita: 70, satFx: 'vivace' }, lsGet('ces.map', {}));
 let notesGroup = null;
+const FVG_BOUNDS = window.L ? L.latLngBounds([[45.57, 12.30], [46.66, 13.94]]) : null;
+const inFVG = (lat, lon) => lat > 45.57 && lat < 46.66 && lon > 12.30 && lon < 13.94;
+let googleLayer = null;
+async function getGoogle() {
+  const key = (azienda().gkey || '').trim(); if (!key) return null;
+  if (googleLayer && googleLayer._key === key) return googleLayer;
+  let ses = lsGet('ces.gses', null);
+  if (!ses || ses.key !== key || Date.now() / 1000 > +ses.expiry - 3600) {
+    const r = await fetch('https://tile.googleapis.com/v1/createSession?key=' + encodeURIComponent(key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mapType: 'satellite', language: 'it-IT', region: 'IT' }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error('Google ha rifiutato la chiave: ' + ((j.error && j.error.message) || r.status));
+    ses = { key, session: j.session, expiry: j.expiry }; lsSet('ces.gses', ses);
+  }
+  googleLayer = L.tileLayer(`https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${ses.session}&key=${encodeURIComponent(key)}`, { maxZoom: 22, maxNativeZoom: 21, className: 'sat-tiles g-tiles', attribution: 'Immagini © Google' });
+  googleLayer._key = key; return googleLayer;
+}
 const savePrefs = () => lsSet('ces.map', prefs);
 
 // Il WMS catastale accetta solo coordinate geografiche (EPSG:6706, WMS 1.1.1, ordine lon,lat)
@@ -37,6 +53,11 @@ function buildMap() {
   base.sat2 = L.tileLayer('https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Immagini © Esri World Imagery (Clarity)' });
   base.osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21, attribution: '© OpenStreetMap' });
   base.topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { subdomains: 'abc', maxNativeZoom: 17, maxZoom: 21, attribution: '© OpenStreetMap, SRTM · OpenTopoMap' });
+  // Ortofoto della Regione FVG (true ortofoto 2017-2020, alta risoluzione), sopra al satellite Esri fuori regione
+  const CRS900913 = Object.assign({}, L.CRS.EPSG3857, { code: 'EPSG:900913' });
+  const fvg = L.tileLayer.wms('https://irdat-ortofoto.regione.fvg.it/geoserver/ortofoto/wms', { layers: 'trueorto_FVG_1720', format: 'image/jpeg', transparent: false, version: '1.1.1', crs: CRS900913, maxZoom: 21, maxNativeZoom: 20, bounds: FVG_BOUNDS, className: 'sat-tiles', attribution: 'Ortofoto © Regione Autonoma Friuli Venezia Giulia' });
+  base.fvg = L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Esri' }), fvg]);
+  if (!lsGet('ces.map', {}).base) { const fp = farmPosition(); if (fp && inFVG(fp.lat, fp.lon)) prefs.base = 'fvg'; }
   overlays.nomi = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { pane: 'labels', maxNativeZoom: 19, maxZoom: 21 });
   overlays.particelle = new CatastoLayer('CP.CadastralParcel', { pane: 'catasto', minZoom: 15, maxZoom: 21, maxNativeZoom: 20, attribution: 'Catasto © Agenzia delle Entrate (CC BY 4.0)', className: 'catasto-tiles' });
   overlays.fogli = new CatastoLayer('CP.CadastralZoning', { pane: 'catasto', minZoom: 12, maxZoom: 21, maxNativeZoom: 20, className: 'catasto-tiles fogli' });
@@ -60,10 +81,12 @@ function buildMap() {
 }
 
 function applyLayers() {
-  const mp = document.getElementById('map'); if (mp) { mp.classList.remove('fx-normale', 'fx-vivace', 'fx-forte'); mp.classList.add('fx-' + (prefs.satFx || 'forte')); }
+  const mp = document.getElementById('map'); if (mp) { mp.classList.remove('fx-normale', 'fx-vivace', 'fx-forte'); mp.classList.add('fx-' + (prefs.satFx || 'vivace')); }
   Object.values(base).forEach(l => map.removeLayer(l));
-  (base[prefs.base] || base.sat).addTo(map);
-  ['nomi', 'particelle', 'fogli'].forEach(k => { const on = prefs[k] && (k !== 'nomi' || prefs.base === 'sat' || prefs.base === 'sat2'); if (on) overlays[k].addTo(map); else map.removeLayer(overlays[k]); });
+  if (googleLayer) map.removeLayer(googleLayer);
+  if (prefs.base === 'google') { getGoogle().then(l => { if (l && prefs.base === 'google') { l.addTo(map); l.bringToBack(); } else if (!l) { prefs.base = 'sat'; applyLayers(); } }).catch(e => { toast(e.message, 'err'); prefs.base = 'sat'; savePrefs(); applyLayers(); }); }
+  else (base[prefs.base] || base.sat).addTo(map);
+  ['nomi', 'particelle', 'fogli'].forEach(k => { const on = prefs[k] && (k !== 'nomi' || ['sat', 'sat2', 'fvg', 'google'].includes(prefs.base)); if (on) overlays[k].addTo(map); else map.removeLayer(overlays[k]); });
   $('#map') && $('#map').classList.toggle('show-labels', map.getZoom && map.getZoom() >= 14 && prefs.etichette);
   updateCatHint();
 }
@@ -257,13 +280,13 @@ export function goPlace(b) {
 
 /* ---------- strati ---------- */
 export function layersPanel() {
-  const bases = [['sat', 'Satellite'], ['sat2', 'Satellite 2'], ['osm', 'Stradale'], ['topo', 'Rilievo']];
+  const bases = [['fvg', 'Ortofoto FVG'], ...(azienda().gkey ? [['google', 'Google']] : []), ['sat', 'Satellite'], ['sat2', 'Satellite 2'], ['osm', 'Stradale'], ['topo', 'Rilievo']];
   const radio = (k, l) => `<label class="lp-row"><span>${l}</span><input type="radio" name="colorBy" value="${k}"${prefs.colorBy === k ? ' checked' : ''}></label>`;
   const sw = (k, l, s) => `<label class="lp-row"><span>${l}${s ? `<small>${s}</small>` : ''}</span><input type="checkbox" class="switch" name="${k}"${prefs[k] ? ' checked' : ''}></label>`;
   openSheet('Livelli mappa', `<form id="lpForm" class="lp">
     <h3>Sfondo</h3><div class="lm-bases">${bases.map(([k, l]) => `<label><input type="radio" name="base" value="${k}"${prefs.base === k ? ' checked' : ''}><span class="lm-prev ${k}"></span>${l}</label>`).join('')}</div>
     <h3>Colora campi per</h3>${radio('coltura', 'Colture')}${radio('conduzione', 'Conduzione')}${radio('attivita', 'Ultime attività')}${radio('nessuno', 'Nessun colore')}
-    <h3>Colori del satellite</h3><div class="seg wide">${[['normale', 'Originali'], ['vivace', 'Vivaci'], ['forte', 'Molto vivaci']].map(([k, l]) => `<label><input type="radio" name="satFx" value="${k}"${(prefs.satFx || 'forte') === k ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
+    ${azienda().gkey ? '' : '<p class="muted small">Per le immagini di Google inserisci una chiave in La mia azienda → Mappe.</p>'}<h3>Colori del satellite</h3><div class="seg wide">${[['normale', 'Originali'], ['vivace', 'Vivaci'], ['forte', 'Molto vivaci']].map(([k, l]) => `<label><input type="radio" name="satFx" value="${k}"${(prefs.satFx || 'vivace') === k ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
     <label class="lp-row slider"><span>Intensità dei colori<small>Più alta = campi più pieni, meno satellite visibile</small></span><input type="range" name="intensita" min="20" max="90" step="5" value="${prefs.intensita || 70}"></label>
     <h3>Visualizza</h3>${sw('etichette', 'Nomi dei campi')}${sw('note', 'Note')}${sw('nomi', 'Strade e luoghi', 'Solo sul satellite')}
     <h3>Mostra livelli su mappa</h3>${sw('particelle', 'Catasto: particelle', 'Agenzia delle Entrate, visibili da vicino')}${sw('fogli', 'Catasto: fogli di mappa')}

@@ -36,3 +36,8 @@ Librerie: Leaflet, Leaflet-Geoman, supabase-js, icone Lucide.
 ## Aggiornare l'app
 
 Ogni modifica pubblicata sul repository arriva da sola sui dispositivi: alla riapertura compare "Nuova versione disponibile". Quando modifichi i file, aumenta `VERSION` in `sw.js` e in `js/version.js`.
+
+## Immagini della mappa
+
+- **Ortofoto FVG** (predefinita in Friuli Venezia Giulia): true ortofoto 2017-2020 della Regione, servizio WMS pubblico. Fuori regione sotto c'è il satellite Esri.
+- **Google** (facoltativo): su [console.cloud.google.com](https://console.cloud.google.com) crea un progetto, attiva **Map Tiles API**, crea una **chiave API** e limitala ai siti `https://cekku.github.io/*`. Incollala in *La mia azienda → Mappe*. Google regala 100.000 riquadri al mese, poi addebita circa 0,60 $ ogni 1.000: serve un account di fatturazione, imposta un limite di spesa.

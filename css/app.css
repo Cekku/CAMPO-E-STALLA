@@ -790,5 +790,7 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 .lp-row.slider { flex-wrap: wrap; } .lp-row.slider input[type=range] { width: 100%; accent-color: var(--bar); height: 28px; }
 .field-label b { font-size: 14.5px; } .field-label { text-shadow: 0 1px 2px rgba(0,0,0,.95), 0 0 10px rgba(0,0,0,.7); }
 
-.lp .lm-bases { grid-template-columns: repeat(4, 1fr); }
+.lp .lm-bases { grid-template-columns: repeat(3, 1fr); }
+.lm-prev.fvg { background: linear-gradient(120deg, #3c6b2a 0 30%, #a88b4e 30% 45%, #4f8a35 45% 70%, #c9b27a 70%); }
+.lm-prev.google { background: linear-gradient(150deg, #2d5e22 0 40%, #9db04a 40% 55%, #356f2a 55%); }
 .lm-prev.sat2 { background: linear-gradient(135deg, #2f5a24 0 35%, #8a9a3a 35% 60%, #3f7a2c 60% 80%, #b39b5c 80%); }

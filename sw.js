@@ -1,5 +1,5 @@
 // Service worker: app disponibile offline, mappe e meteo in copia locale
-const VERSION = 'ces-1.1.4';
+const VERSION = 'ces-1.2.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/state.js', './js/util.js', './js/icons.js', './js/geo.js', './js/domain.js', './js/store.js', './js/config.js', './js/ui.js', './js/forms.js', './js/map.js', './js/meteo.js', './js/install.js', './js/esempi.js', './js/version.js',
@@ -21,7 +21,7 @@ self.addEventListener('fetch', e => {
   // dati e autenticazione: sempre dalla rete
   if (url.hostname.endsWith('supabase.co') || url.hostname.includes('nominatim') || url.search.includes('GetFeatureInfo')) return;
   // pezzi di mappa (satellite, stradale, catasto): prima la copia locale, aggiornata in background
-  if (/arcgisonline|arcgis\.com|tile\.openstreetmap|opentopomap|cartografia\.agenziaentrate/.test(url.hostname)) {
+  if (/arcgisonline|arcgis\.com|tile\.openstreetmap|opentopomap|cartografia\.agenziaentrate|regione\.fvg/.test(url.hostname)) {
     e.respondWith(caches.open(TILE_CACHE).then(async c => {
       const hit = await c.match(req);
       const net = fetch(req).then(r => { if (r && (r.ok || r.type === 'opaque')) { c.put(req, r.clone()); trim(TILE_CACHE, TILE_MAX); } return r; }).catch(() => hit);
