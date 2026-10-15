@@ -265,6 +265,9 @@ document.addEventListener('click', async e => {
       case 'mapDeselect': return MAP.select(null);
       case 'mapLayers': return MAP.layersPanel();
       case 'mapApply': return MAP.applyPanel();
+      case 'mapFx': return MAP.fxPanel();
+      case 'fxDone': return MAP.fxDone();
+      case 'fxReset': return MAP.fxReset();
       case 'mapLegend': return MAP.toggleLegend();
       case 'mapPlus': return MAP.plusMenu();
       case 'mapNoteHere': return MAP.noteHere();
@@ -341,6 +344,7 @@ function gpsAzienda() {
     <div id="mapLegend" class="map-legend" hidden></div>
     <button class="map-plus" data-act="mapPlus" aria-label="Aggiungi">${ic('plus')}</button>
     <div id="mapBar" class="map-bar" hidden></div>
+    <div id="fxPanel" class="fx-panel" hidden></div>
     <div id="catCard" class="cat-card" hidden></div>
     <div id="mapCard" class="map-card" hidden></div>`;
   const h = (location.hash || '').slice(1); if (VIEWS[h] || h === 'mappa') UI.tab = h;
