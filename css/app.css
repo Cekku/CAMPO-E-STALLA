@@ -513,7 +513,9 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 @media (max-width: 899px) { .mapview { left: 0; bottom: 0; } }
 .leaflet-container { font-family: var(--f-body); }
 .leaflet-control-attribution { font-size: 10px; background: rgba(255, 255, 255, .7) !important; }
-.catasto-tiles { mix-blend-mode: normal; }
+.catasto-tiles { mix-blend-mode: multiply; filter: contrast(1.6) brightness(.95); }
+.leaflet-pane .catasto-tiles img { mix-blend-mode: multiply; }
+.sat-tiles { filter: saturate(1.3) contrast(1.1) brightness(1.03); }
 #map .field-label { display: none; }
 #map.show-labels .field-label { display: flex; }
 .field-label { flex-direction: column; align-items: center; transform: translate(-50%, -50%); white-space: nowrap; pointer-events: none; text-align: center; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .9), 0 0 8px rgba(0, 0, 0, .6); }
