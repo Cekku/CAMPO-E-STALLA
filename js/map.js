@@ -3,14 +3,18 @@ import { S, UI, get, azienda } from './state.js';
 import { $, esc, nf, N, fd, lsGet, lsSet, debounce } from './util.js';
 import { ic } from './icons.js';
 import { areaHa, centroid, bbox, perimeterM, parseGeoFile } from './geo.js';
-import { cropColor, campoInfo, campoHa } from './domain.js';
+import { cropColor, cropColorName, cropOf, campoInfo, campoHa, storicoColture } from './domain.js';
+import { getMeteo, wmo } from './meteo.js';
+import { openSheet, closeSheet } from './ui.js';
+import { diff, today } from './util.js';
 import * as store from './store.js';
 import { toast } from './ui.js';
 import { openEdit } from './forms.js';
 
 const CAT_URL = 'https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php';
 let map = null, fieldsGroup = null, base = {}, overlays = {}, mode = 'view', selected = null, editLayer = null, editId = null, drawFor = null, gpsMarker = null, gpsCircle = null, clickMarker = null;
-const prefs = Object.assign({ base: 'sat', particelle: true, fogli: false, nomi: true, etichette: true }, lsGet('ces.map', {}));
+const prefs = Object.assign({ base: 'sat', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura' }, lsGet('ces.map', {}));
+let notesGroup = null;
 const savePrefs = () => lsSet('ces.map', prefs);
 
 // Il WMS catastale accetta solo coordinate geografiche (EPSG:6706, WMS 1.1.1, ordine lon,lat)
@@ -36,6 +40,7 @@ function buildMap() {
   overlays.particelle = new CatastoLayer('CP.CadastralParcel', { pane: 'catasto', minZoom: 15, maxZoom: 21, maxNativeZoom: 20, attribution: 'Catasto © Agenzia delle Entrate (CC BY 4.0)', className: 'catasto-tiles' });
   overlays.fogli = new CatastoLayer('CP.CadastralZoning', { pane: 'catasto', minZoom: 12, maxZoom: 21, maxNativeZoom: 20, className: 'catasto-tiles fogli' });
   fieldsGroup = L.featureGroup().addTo(map);
+  notesGroup = L.layerGroup().addTo(map);
   applyLayers();
   const v = lsGet('ces.mapview', null);
   if (v) map.setView([v.lat, v.lng], v.z); else fitAll(true);
@@ -62,8 +67,23 @@ function applyLayers() {
 }
 function updateCatHint() { const h = $('#catHint'); if (!h || !map) return; h.hidden = !(prefs.particelle && map.getZoom() < 15); }
 
+const COND = { 'Proprietà': '#3E8E5A', 'Affitto': '#D9853B', 'Comodato': '#5B7FC7' };
+function lastAge(c) { let last = null; S.operazioni.forEach(o => { if (o.campoId === c.id && o.stato !== 'Pianificata' && (!last || o.data > last)) last = o.data; }); return last ? diff(last, today()) : null; }
+function colorFor(c) {
+  if (prefs.colorBy === 'conduzione') return COND[c.conduzione] || '#8A958F';
+  if (prefs.colorBy === 'attivita') { const a = lastAge(c); return a === null ? '#8A958F' : a <= 7 ? '#2E9E5B' : a <= 30 ? '#E0B12E' : '#D2553C'; }
+  if (prefs.colorBy === 'nessuno') return '#F2F2F2';
+  return cropColor(c);
+}
+function legendItems() {
+  const items = new Map(); const fs = S.campi.filter(c => c.geom);
+  if (prefs.colorBy === 'conduzione') fs.forEach(c => { const k = c.conduzione || 'Non indicata'; items.set(k, { col: COND[c.conduzione] || '#8A958F', ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
+  else if (prefs.colorBy === 'attivita') fs.forEach(c => { const a = lastAge(c); const k = a === null ? 'Nessuna attività' : a <= 7 ? 'Ultima settimana' : a <= 30 ? 'Ultimo mese' : 'Oltre un mese'; items.set(k, { col: colorFor(c), ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
+  else fs.forEach(c => { const k = cropOf(c) || 'Senza coltura'; items.set(k, { col: cropColor(c), ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
+  return [...items.entries()].sort((a, b) => b[1].ha - a[1].ha);
+}
 function styleFor(c, sel) {
-  const col = cropColor(c);
+  const col = colorFor(c);
   return sel ? { color: '#F5D547', weight: 3.5, fillColor: col, fillOpacity: .42, dashArray: null } : { color: col, weight: 2.2, fillColor: col, fillOpacity: prefs.base === 'sat' ? .28 : .35 };
 }
 function drawFields() {
@@ -78,16 +98,35 @@ function drawFields() {
     if (ct) L.marker([ct[1], ct[0]], { icon: L.divIcon({ className: 'field-label', html: `<b>${esc(c.nome)}</b><span>${nf(campoHa(c), 2)} ha</span>`, iconSize: null }), interactive: false, pmIgnore: true }).addTo(lyr);
     lyr.addTo(fieldsGroup);
   });
-  renderLegend();
+  drawNotes(); renderLegend(); renderWeather();
+}
+function drawNotes() {
+  if (!notesGroup) return; notesGroup.clearLayers(); if (!prefs.note) return;
+  S.note.forEach(n => {
+    let ll = null; if (n.lat && n.lon) ll = [+n.lat, +n.lon]; else { const c = get('campi', n.campoId); const ct = c && c.geom && centroid(c.geom); if (ct) ll = [ct[1], ct[0]]; }
+    if (!ll) return;
+    const m = L.marker(ll, { icon: L.divIcon({ className: 'note-pin', html: ic('pencil'), iconSize: [30, 30], iconAnchor: [15, 30] }), pmIgnore: true, title: n.titolo || 'Nota' });
+    m.on('click', e => { L.DomEvent.stopPropagation(e); openEdit('note', n.id); });
+    m.addTo(notesGroup);
+  });
+}
+function renderWeather() {
+  const el = $('#mapWeather'); if (!el) return; const { data } = getMeteo();
+  if (!data) { el.hidden = true; return; }
+  const c = data.current, d = data.daily; el.hidden = false;
+  el.innerHTML = `<button data-act="nav" data-tab="meteo">${ic(wmo(c.weather_code)[0])}<b>${Math.round(c.temperature_2m)}°</b></button><span>${ic('thermometer')}${Math.round(d.temperature_2m_min[0])}°</span><span>${ic('thermometer')}${Math.round(d.temperature_2m_max[0])}°</span>`;
 }
 export function mapUpdate() { if (map) { drawFields(); if (selected) renderCard(); } }
 
+let legendOpen = false;
 function renderLegend() {
   const el = $('#mapLegend'); if (!el) return;
-  const seen = new Map(); S.campi.filter(c => c.geom).forEach(c => { const k = c.coltura || 'Coltura non indicata'; seen.set(k, (seen.get(k) || 0) + campoHa(c)); });
-  el.innerHTML = [...seen.entries()].sort((a, b) => b[1] - a[1]).map(([k, ha]) => `<span><i style="background:${cropColor({ coltura: k })}"></i>${esc(k)} <em>${nf(ha, 1)} ha</em></span>`).join('');
-  el.hidden = !seen.size;
+  const it = legendItems(); const t = { coltura: 'Colture ' + UI.anno, conduzione: 'Conduzione', attivita: 'Ultima attività', nessuno: 'Campi' }[prefs.colorBy];
+  el.innerHTML = `<b>${t}</b>` + it.map(([k, v]) => `<span><i style="background:${v.col}"></i>${esc(k)} <em>${nf(v.ha, 1)} ha</em></span>`).join('');
+  el.hidden = !legendOpen || !it.length;
+  const btn = document.querySelector('.legend-btn'); if (btn) btn.classList.toggle('open', legendOpen);
 }
+export function toggleLegend() { legendOpen = !legendOpen; renderLegend(); }
 
 export function select(id) {
   selected = id;
@@ -100,11 +139,14 @@ function renderCard() {
   const c = selected && get('campi', selected);
   $('#mapView').classList.toggle('has-card', !!c);
   if (!c) { card.hidden = true; card.innerHTML = ''; return; }
-  const i = campoInfo(c); const ct = centroid(c.geom);
+  const i = campoInfo(c); const ct = centroid(c.geom); const h = campoHa(c); const st = storicoColture(c).slice(0, 4);
   card.hidden = false;
-  card.innerHTML = `<div class="mc-head"><span class="swatch" style="background:${cropColor(c)}"></span><div class="mc-title"><b>${esc(c.nome)}</b><span>${esc(c.coltura || 'Coltura non indicata')} · ${nf(campoHa(c), 2)} ha${c.catasto ? ' · ' + esc(c.catasto) : ''}</span></div><button class="iconbtn ghost" data-act="mapDeselect" aria-label="Chiudi">${ic('x')}</button></div>
-  <div class="mc-stats"><div><dt>Operazioni ${UI.anno}</dt><dd>${i.ops.length}</dd></div><div><dt>Costo/ha</dt><dd>${nf(campoHa(c) ? i.tot / campoHa(c) : 0, 0)} €</dd></div><div><dt>Ultimo lavoro</dt><dd>${i.last ? fd(i.last.data) : '—'}</dd></div>${i.carenza ? `<div class="warn"><dt>Carenza</dt><dd>al ${fd(i.carenza.fine)}</dd></div>` : ''}</div>
-  <div class="mc-actions"><button class="btn primary sm" data-act="new" data-form="operazioni" data-campo="${c.id}">${ic('notebook-pen')}Registra lavoro</button><button class="btn sm" data-act="open" data-type="campo" data-id="${c.id}">Scheda</button><button class="btn sm" data-act="mapEdit" data-id="${c.id}">${ic('pencil')}Confine</button>${ct ? `<a class="btn sm ghost" href="https://www.google.com/maps/dir/?api=1&destination=${ct[1].toFixed(6)},${ct[0].toFixed(6)}" target="_blank" rel="noopener">${ic('navigation')}Portami qui</a>` : ''}</div>`;
+  card.innerHTML = `<div class="grab" aria-hidden="true"></div><div class="mc-head">${ic('map-pin')}<div class="mc-title"><b>${esc(c.nome)}</b><span>${nf(h, 2)} ha${c.conduzione ? ' · ' + esc(c.conduzione) : ''}${c.catasto ? ' · ' + esc(c.catasto) : ''}</span></div><button class="iconbtn ghost" data-act="mapDeselect" aria-label="Chiudi">${ic('x')}</button></div>
+  <div class="mc-hist">${st.length ? st.map(e => `<button data-act="coltura" data-id="${c.id}" data-anno="${e.anno}">${ic('sprout')}<span><b>${e.anno}</b> ${esc(e.coltura)}</span><em class="chip ok num">${nf(h, 2)} ha</em></button>`).join('') : `<button data-act="coltura" data-id="${c.id}" data-anno="${UI.anno}">${ic('plus')}<span>Aggiungi la coltura ${UI.anno}</span></button>`}</div>
+  <div class="mc-last">${ic('notebook-pen')}<span>${i.last ? esc(i.last.tipo || 'Attività') + ' il ' + fd(i.last.data) : 'Nessuna attività registrata'}${i.plan.length ? ' · ' + i.plan.length + ' da fare' : ''}${i.carenza ? ' · carenza fino al ' + fd(i.carenza.fine) : ''}</span></div>
+  <div class="mc-actions two"><button class="btn sm" data-act="open" data-type="campo" data-id="${c.id}">${ic('list')}Dettagli</button>${ct ? `<a class="btn sm" href="https://www.google.com/maps/dir/?api=1&destination=${ct[1].toFixed(6)},${ct[0].toFixed(6)}" target="_blank" rel="noopener">${ic('navigation')}Indicazioni</a>` : '<span></span>'}</div>
+  <button class="btn action wide" data-act="new" data-form="operazioni" data-campo="${c.id}">${ic('plus')}Registra attività</button>
+  <div class="mc-actions two"><button class="btn ok sm" data-act="mapNote" data-id="${c.id}">${ic('pencil')}Nuova nota</button><button class="btn sm ghost" data-act="mapEdit" data-id="${c.id}">${ic('pentagon')}Modifica confine</button></div>`;
 }
 
 /* ---------- disegno ---------- */
@@ -130,7 +172,7 @@ function liveArea(layer) {
 }
 function modeBar(html) { const b = $('#mapBar'); b.innerHTML = html; b.hidden = !html; $('#mapCard').hidden = !!html || !selected; $('#map').classList.toggle('drawing', !!html); $('#mapView').classList.toggle('has-bar', !!html); }
 export function startDraw(forId = null) {
-  if (!map) return;
+  if (!map) return; closeSheet();
   endMode(); select(null); mode = 'draw'; drawFor = forId;
   map.pm.enableDraw('Polygon', { finishOn: null, continueDrawing: false });
   const c = forId && get('campi', forId);
@@ -211,16 +253,29 @@ export function goPlace(b) {
 }
 
 /* ---------- strati ---------- */
-export function layerMenu() {
-  const m = $('#layerMenu'); if (!m.hidden) { m.hidden = true; return; }
+export function layersPanel() {
   const bases = [['sat', 'Satellite'], ['osm', 'Stradale'], ['topo', 'Rilievo']];
-  m.innerHTML = `<div class="lm-title">Sfondo</div><div class="lm-bases">${bases.map(([k, l]) => `<button data-act="mapBase" data-k="${k}" aria-pressed="${prefs.base === k}"><span class="lm-prev ${k}"></span>${l}</button>`).join('')}</div>
-  <div class="lm-title">Livelli</div>
-  ${[['particelle', 'Particelle catastali', 'Agenzia delle Entrate, da vicino'], ['fogli', 'Fogli di mappa', 'Confini dei fogli catastali'], ['nomi', 'Nomi di luoghi e strade', 'Solo su satellite'], ['etichette', 'Nomi dei campi', 'Nome e superficie']].map(([k, l, s]) => `<label class="lm-row"><span><b>${l}</b><small>${s}</small></span><input type="checkbox" class="switch" data-act="mapToggle" data-k="${k}"${prefs[k] ? ' checked' : ''}></label>`).join('')}`;
-  m.hidden = false;
+  const radio = (k, l) => `<label class="lp-row"><span>${l}</span><input type="radio" name="colorBy" value="${k}"${prefs.colorBy === k ? ' checked' : ''}></label>`;
+  const sw = (k, l, s) => `<label class="lp-row"><span>${l}${s ? `<small>${s}</small>` : ''}</span><input type="checkbox" class="switch" name="${k}"${prefs[k] ? ' checked' : ''}></label>`;
+  openSheet('Livelli mappa', `<form id="lpForm" class="lp">
+    <h3>Sfondo</h3><div class="lm-bases">${bases.map(([k, l]) => `<label><input type="radio" name="base" value="${k}"${prefs.base === k ? ' checked' : ''}><span class="lm-prev ${k}"></span>${l}</label>`).join('')}</div>
+    <h3>Colora campi per</h3>${radio('coltura', 'Colture')}${radio('conduzione', 'Conduzione')}${radio('attivita', 'Ultime attività')}${radio('nessuno', 'Nessun colore')}
+    <h3>Visualizza</h3>${sw('etichette', 'Nomi dei campi')}${sw('note', 'Note')}${sw('nomi', 'Strade e luoghi', 'Solo sul satellite')}
+    <h3>Mostra livelli su mappa</h3>${sw('particelle', 'Catasto: particelle', 'Agenzia delle Entrate, visibili da vicino')}${sw('fogli', 'Catasto: fogli di mappa')}
+    <button type="button" class="btn ok wide" data-act="mapApply">Applica</button></form>`);
 }
-export function setBase(k) { prefs.base = k; savePrefs(); applyLayers(); drawFields(); layerMenu(); layerMenu(); }
-export function toggleLayer(k, on) { prefs[k] = on; savePrefs(); applyLayers(); }
+export function applyPanel() {
+  const f = $('#lpForm'); if (!f) return;
+  prefs.base = (f.querySelector('input[name=base]:checked') || {}).value || 'sat';
+  prefs.colorBy = (f.querySelector('input[name=colorBy]:checked') || {}).value || 'coltura';
+  ['etichette', 'note', 'nomi', 'particelle', 'fogli'].forEach(k => { prefs[k] = !!f.querySelector(`input[name=${k}]`).checked; });
+  savePrefs(); closeSheet(); applyLayers(); drawFields();
+}
+export function plusMenu() {
+  openSheet('Aggiungi sulla mappa', `<div class="quick"><button data-act="mapDraw"><span class="q-ic">${ic('pentagon')}</span><b>Nuovo campo</b><span>Disegna il confine</span></button><button data-act="mapNoteHere"><span class="q-ic">${ic('pencil')}</span><b>Nota qui</b><span>Al centro della mappa</span></button><button data-act="new" data-form="operazioni"><span class="q-ic">${ic('notebook-pen')}</span><b>Attività</b><span>Su uno o più campi</span></button><label><span class="q-ic">${ic('file-up')}</span><b>Importa confini</b><span>File KML o GeoJSON</span><input type="file" accept=".kml,.geojson,.json" data-act="mapImport" hidden></label></div>`);
+}
+export function noteHere() { closeSheet(); const c = map.getCenter(); setTimeout(() => openEdit('note', null, { lat: +c.lat.toFixed(6), lon: +c.lng.toFixed(6) }), 230); }
+export function noteForField(id) { openEdit('note', null, { campoId: id }); }
 
 export function locate() { map.locate({ setView: true, maxZoom: 17, enableHighAccuracy: true }); }
 export function fitAll(silent) {
@@ -250,7 +305,7 @@ export async function importFile(file) {
 export function showMap() {
   if (!window.L) { $('#map').innerHTML = '<div class="empty">La mappa non è disponibile.</div>'; return; }
   if (!map) buildMap();
-  setTimeout(() => map.invalidateSize(), 60);
+  setTimeout(() => map.invalidateSize(), 60); renderWeather();
 }
 export const mapInfo = () => ({ mode, selected });
 export function perimeterOf(c) { return c.geom ? perimeterM(c.geom) : 0; }

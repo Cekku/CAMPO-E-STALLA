@@ -33,6 +33,7 @@ export const SPEC = {
   operazioni: {
     title: 'Operazione in campo', icon: 'notebook-pen',
     fields: () => [
+      { k: 'stato', l: 'Stato', t: 'seg', opts: [['Fatto', 'Fatta'], ['Pianificata', 'Da fare']] },
       { k: 'tipo', l: 'Operazione', t: 'select', opts: TIPI_OP, req: 1, blank: 'Scegli' },
       { k: 'data', l: 'Data', t: 'date', req: 1, half: 1 },
       { k: 'campoId', l: 'Appezzamento', t: 'select', opts: oCampi, req: 1, half: 1, blank: 'Scegli il campo' },
@@ -50,7 +51,7 @@ export const SPEC = {
       { k: 'operatore', l: 'Operatore', half: 1 },
       { k: 'costoExtra', l: 'Costi extra', t: 'number', half: 1, unit: '€', hint: 'Contoterzi, acqua, manodopera' },
       { k: 'note', l: 'Note', t: 'textarea' }],
-    defaults: () => ({ data: today() }),
+    defaults: () => ({ data: today(), stato: 'Fatto' }),
     onChange(ch, v) {
       const p = get('prodotti', v.prodottoId);
       if (ch === null || ch === 'prodottoId') { setUnit('dose', (p ? p.unita : '') + '/ha'); setUnit('quantita', p ? p.unita : ''); setHint('dose', p && N(p.carenza) ? 'Tempo di carenza: ' + p.carenza + ' giorni' : ''); }
@@ -60,7 +61,7 @@ export const SPEC = {
     async save(id, v) {
       const nid = await store.put('operazioni', id, v);
       const mov = S.movimenti.find(m => m.opId === nid); const c = get('campi', v.campoId);
-      if (v.prodottoId && N(v.quantita) > 0) await store.put('movimenti', mov ? mov.id : null, { data: v.data, prodottoId: v.prodottoId, tipo: 'Scarico', quantita: N(v.quantita), note: (v.tipo || '') + ' · ' + (c ? c.nome : ''), opId: nid });
+      if (v.prodottoId && N(v.quantita) > 0 && v.stato !== 'Pianificata') await store.put('movimenti', mov ? mov.id : null, { data: v.data, prodottoId: v.prodottoId, tipo: 'Scarico', quantita: N(v.quantita), note: (v.tipo || '') + ' · ' + (c ? c.nome : ''), opId: nid });
       else if (mov) await store.remove('movimenti', mov.id);
     },
     async remove(o) { const mov = S.movimenti.find(m => m.opId === o.id); if (mov) await store.remove('movimenti', mov.id); await store.remove('operazioni', o.id); },
@@ -216,6 +217,16 @@ export const SPEC = {
     validate: v => { const ex = S.latte.find(l => l.id === v.data); return ex && ex.id !== (FORM && FORM.id) ? 'Il latte del ' + fd(v.data) + ' è già registrato: aprilo dal registro per modificarlo.' : null; },
     async save(id, v) { await store.put('latte', v.data, v); if (id && id !== v.data) await store.remove('latte', id); },
   },
+  note: {
+    title: 'Nota', icon: 'pencil',
+    fields: () => [
+      { k: 'titolo', l: 'Titolo', req: 1, ph: 'Es. Prova irrigazione pivot' },
+      { k: 'data', l: 'Data', t: 'date', req: 1, half: 1 },
+      { k: 'campoId', l: 'Campo', t: 'select', opts: oCampi, half: 1, blank: 'Nessun campo' },
+      { k: 'colore', l: 'Etichetta', t: 'seg', opts: [['', 'Nessuna'], ['verde', 'Verde'], ['giallo', 'Gialla'], ['rossa', 'Rossa'], ['blu', 'Blu']] },
+      { k: 'testo', l: 'Testo', t: 'textarea', ph: 'Osservazioni, misure, promemoria…' }],
+    defaults: () => ({ data: today(), colore: '' }),
+  },
   razioni: {
     title: 'Razione', icon: 'wheat',
     fields: () => [
@@ -251,5 +262,33 @@ export function openEdit(c, id, pre) {
       document.dispatchEvent(new CustomEvent('ces:deleted', { detail: { c, id } }));
       return true;
     } : null,
+  });
+}
+
+// Coltura di un'annata dentro la scheda del campo
+export function openColtura(campoId, anno) {
+  const c = get('campi', campoId); if (!c) return;
+  const y = anno || new Date().getFullYear();
+  const st = Array.isArray(c.colture) ? c.colture : [];
+  const cur = st.find(x => +x.anno === +y) || (+y === new Date().getFullYear() && c.coltura ? { anno: y, coltura: c.coltura, varieta: c.varieta } : null);
+  const anni = []; for (let a = new Date().getFullYear() + 1; a >= new Date().getFullYear() - 8; a--) anni.push(String(a));
+  openForm({
+    title: cur ? 'Modifica coltura' : 'Aggiungi coltura', sub: c.nome,
+    fields: [
+      { k: 'anno', l: 'Annata', t: 'select', opts: anni, req: 1, half: 1, blank: false },
+      { k: 'coltura', l: 'Coltura', req: 1, half: 1, list: COLTURE },
+      { k: 'varieta', l: 'Varietà o ibrido', half: 1 },
+      { k: 'semina', l: 'Data di semina o trapianto', t: 'date', half: 1 },
+      { k: 'resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha' },
+      { k: 'destinazione', l: 'Destinazione', half: 1, ph: 'Es. trinciato aziendale' }],
+    values: Object.assign({ anno: String(y) }, cur || {}, { anno: String(y) }),
+    onSave: async v => {
+      const list = (Array.isArray(c.colture) ? c.colture : []).filter(x => +x.anno !== +v.anno);
+      list.push(Object.assign({}, v, { anno: +v.anno }));
+      const upd = Object.assign({}, c, { colture: list.sort((a, b) => b.anno - a.anno) });
+      if (+v.anno === new Date().getFullYear()) { upd.coltura = v.coltura; upd.varieta = v.varieta; }
+      await store.put('campi', c.id, upd);
+    },
+    onDelete: cur && st.some(x => +x.anno === +y) ? async () => { await store.put('campi', c.id, Object.assign({}, c, { colture: st.filter(x => +x.anno !== +y) })); return true; } : null,
   });
 }

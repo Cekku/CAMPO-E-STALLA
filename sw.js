@@ -1,9 +1,9 @@
 // Service worker: app disponibile offline, mappe e meteo in copia locale
-const VERSION = 'ces-1.0.0';
+const VERSION = 'ces-1.1.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/state.js', './js/util.js', './js/icons.js', './js/geo.js', './js/domain.js', './js/store.js', './js/config.js', './js/ui.js', './js/forms.js', './js/map.js', './js/meteo.js', './js/install.js', './js/esempi.js', './js/version.js',
-  './js/views/oggi.js', './js/views/campi.js', './js/views/stalla.js', './js/views/magazzino.js', './js/views/mezzi.js', './js/views/impostazioni.js', './js/views/charts.js',
+  './js/views/oggi.js', './js/views/campi.js', './js/views/stalla.js', './js/views/magazzino.js', './js/views/mezzi.js', './js/views/impostazioni.js', './js/views/charts.js', './js/views/attivita.js', './js/views/note.js', './js/views/meteo.js', './js/wizard.js',
   './vendor/leaflet/leaflet.js', './vendor/leaflet/leaflet.css', './vendor/geoman/leaflet-geoman.min.js', './vendor/geoman/leaflet-geoman.css', './vendor/supabase/supabase.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon-64.png',
 ];

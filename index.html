@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Campo e Stalla</title>
 <meta name="description" content="Gestionale per l'azienda agricola e zootecnica: campi sulla mappa con catasto, quaderno di campagna, stalla da latte, magazzino e mezzi.">
-<meta name="theme-color" content="#12382A" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#3E7B52" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0D1411" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -23,28 +23,22 @@
 </head>
 <body>
 <div class="shell">
-  <aside class="side" aria-label="Sezioni">
-    <div class="brand"><img src="icons/icon-192.png" alt="" width="40" height="40"><div><b>Campo e Stalla</b><span id="sideFarm">La tua azienda</span></div></div>
-    <nav id="sideNav" class="side-nav"></nav>
-    <div class="side-foot">
-      <button class="nav-i" id="sideSettings" data-act="tab" data-tab="impostazioni"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>Impostazioni</span></button>
-      <div id="sideSync" class="side-sync"></div>
-    </div>
-  </aside>
+  <aside id="drawer" class="drawer" aria-label="Menu"></aside>
+  <div class="scrim" data-act="drawerClose"></div>
   <div class="main">
-    <header class="top">
-      <button class="iconbtn" id="backBtn" data-act="back" hidden aria-label="Indietro"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
-      <img class="top-logo" src="icons/icon-192.png" alt="" width="30" height="30">
-      <h1 id="topTitle" class="top-title"></h1>
+    <header class="appbar">
+      <button class="ab-btn" id="menuBtn" data-act="menu" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <button class="ab-btn" id="backBtn" data-act="back" hidden aria-label="Indietro"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+      <h1 id="abTitle" class="ab-title"></h1>
+      <select id="yearSel" class="ab-year" aria-label="Annata"></select>
       <span class="sp"></span>
-      <button id="syncPill" class="sync-pill" data-act="tab" data-tab="impostazioni"></button>
-      <select id="yearSel" class="year" aria-label="Annata"></select>
-      <button class="btn primary sm top-reg" data-act="quick"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>Registra</span></button>
+      <button class="ab-btn" data-act="search" aria-label="Cerca"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+      <button class="ab-btn sync" id="syncBtn" data-act="nav" data-tab="impostazioni" aria-label="Sincronizzazione"></button>
+      <button class="ab-reg" data-act="quick"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>Registra</span></button>
     </header>
     <main id="view" class="view" tabindex="-1"></main>
     <section id="mapView" class="mapview" hidden><div id="map"></div><div id="mapControls"></div></section>
   </div>
-  <nav id="bottomNav" class="bottom" aria-label="Sezioni"></nav>
   <button class="fab" data-act="quick" aria-label="Registra"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
 </div>
 <div id="sheet" class="sheet" hidden><div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"><div class="grab" aria-hidden="true"></div><div class="sheet-h"><div><h2 id="sheetTitle"></h2><p id="sheetSub" hidden></p></div><button class="iconbtn ghost" data-act="close" aria-label="Chiudi"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><div class="sheet-b" id="sheetBody"></div></div></div>

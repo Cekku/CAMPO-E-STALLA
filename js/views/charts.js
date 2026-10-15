@@ -40,3 +40,21 @@ export function spark(values, w = 120, h = 32) {
   const last = pts[pts.length - 1];
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${last[0]}" cy="${last[1]}" r="2.6" fill="currentColor"/></svg>`;
 }
+
+// Anello percentuale
+export function donut(pct, label, color = 'var(--bar)') {
+  const r = 30, c = 2 * Math.PI * r, p = Math.max(0, Math.min(100, pct));
+  return `<div class="donut"><svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="${r}" fill="none" stroke="var(--sunk)" stroke-width="9"/><circle cx="40" cy="40" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(c * p / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 40 40)"/></svg><span><b>${Math.round(p)}%</b><small>${label}</small></span></div>`;
+}
+
+// Colonne verticali con etichette (es. ettari per coltura)
+export function columns(items, unit = 'ha') {
+  if (!items.length) return '';
+  const max = niceMax(Math.max(...items.map(i => i.v)));
+  const W = Math.max(320, items.length * 86), H = 220, L = 40, B = 40, T = 18, pw = W - L - 8, ph = H - T - B, bw = pw / items.length;
+  const y = v => T + ph - v / max * ph;
+  let g = '';
+  [0, max / 2, max].forEach(v => { g += `<line x1="${L}" x2="${W - 8}" y1="${y(v)}" y2="${y(v)}" class="grid"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" class="ax">${nf(v, 0)}</text>`; });
+  items.forEach((it, i) => { const x = L + i * bw + bw * .2, w = bw * .6; g += `<rect x="${x}" y="${y(it.v)}" width="${w}" height="${T + ph - y(it.v)}" rx="3" style="fill:${it.color}"><title>${it.label}: ${nf(it.v, 2)} ${unit}</title></rect><text x="${x + w / 2}" y="${y(it.v) - 5}" text-anchor="middle" class="ax val">${nf(it.v, 1)}</text><text x="${x + w / 2}" y="${H - 22}" text-anchor="middle" class="ax lab">${it.label.length > 12 ? it.label.slice(0, 11) + '…' : it.label}</text>`; });
+  return `<div class="chart-scroll"><svg class="chart cols" viewBox="0 0 ${W} ${H}" style="min-width:${Math.min(W, 640)}px" role="img" aria-label="Ettari per coltura">${g}</svg></div>`;
+}

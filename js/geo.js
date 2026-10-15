@@ -84,3 +84,13 @@ export function parseGeoFile(text, name = '') {
   }
   throw new Error('Formato non riconosciuto: usa un file .geojson, .json o .kml');
 }
+
+// Pianta di tutta l'azienda in SVG (per la dashboard, funziona anche offline)
+export function farmSvg(items, W = 640, H = 300) {
+  const gs = items.filter(i => i.geom); const b = bbox(gs.map(i => i.geom)); if (!b) return '';
+  const k = Math.cos(rad((b[1] + b[3]) / 2)); const w = (b[2] - b[0]) * k || 1e-9, h = (b[3] - b[1]) || 1e-9;
+  const s = Math.min((W - 40) / w, (H - 40) / h); const ox = (W - w * s) / 2, oy = (H - h * s) / 2;
+  const P = ([x, y]) => ((x - b[0]) * k * s + ox).toFixed(1) + ',' + ((b[3] - y) * s + oy).toFixed(1);
+  const paths = gs.map(i => `<path d="${outerRings(i.geom).map(r => 'M' + r.map(P).join('L') + 'Z').join('')}" fill="${i.color}" fill-opacity=".72" stroke="${i.color}" stroke-width="1.5" stroke-linejoin="round"><title>${i.title || ''}</title></path>`).join('');
+  return `<svg class="farmsvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><pattern id="agri" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(28)"><rect width="10" height="10" fill="#2B3A2C"/><rect width="5" height="10" fill="#314332"/></pattern></defs><rect width="${W}" height="${H}" fill="url(#agri)"/>${paths}</svg>`;
+}

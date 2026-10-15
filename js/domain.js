@@ -22,7 +22,22 @@ const CROP = [
   [/sorgo/i, '#B8693A'], [/girasole/i, '#F0BE1C'], [/colza/i, '#E3D23A'], [/vite|vigneto/i, '#8E4D7A'],
   [/barbabietola/i, '#B04A5A'], [/pomodoro/i, '#D9533C'], [/riposo/i, '#9AA59E'],
 ];
-export const cropColor = c => { const n = (c && c.coltura) || ''; for (const [re, col] of CROP) if (re.test(n)) return col; return '#4F9DA6'; };
+export const cropColorName = n => { n = n || ''; for (const [re, col] of CROP) if (re.test(n)) return col; return n ? '#4F9DA6' : '#8A958F'; };
+// Coltura di un campo in una data annata: storico per anno, altrimenti la coltura in atto
+export function colturaOf(c, anno = UI.anno) {
+  if (!c) return null; const st = Array.isArray(c.colture) ? c.colture : [];
+  const e = st.find(x => +x.anno === +anno); if (e) return e;
+  if (!st.length || +anno === new Date().getFullYear()) return c.coltura ? { anno, coltura: c.coltura, varieta: c.varieta || '' } : null;
+  return null;
+}
+export const cropOf = (c, anno) => { if (c && !c.id && c.coltura !== undefined && !c.colture) return c.coltura; const e = colturaOf(c, anno); return e ? e.coltura : ''; };
+export const cropColor = (c, anno) => cropColorName(cropOf(c, anno));
+export function storicoColture(c) {
+  const m = new Map(); (c.colture || []).forEach(e => m.set(+e.anno, e));
+  const y = new Date().getFullYear(); if (c.coltura && !m.has(y)) m.set(y, { anno: y, coltura: c.coltura, varieta: c.varieta || '' });
+  return [...m.values()].sort((a, b) => b.anno - a.anno);
+}
+export const isFatto = o => o.stato !== 'Pianificata';
 export const campoHa = c => N(c.superficie) || (c.geom ? Math.round(areaHa(c.geom) * 10000) / 10000 : 0);
 
 export function capoInfo(c, ev) {
@@ -95,17 +110,18 @@ export function opCosto(o) {
 }
 export function campoInfo(c, anno = UI.anno) {
   const T = today();
-  const ops = S.operazioni.filter(o => o.campoId === c.id && yearOf(o.data) === anno).sort(byDate);
+  const ops = S.operazioni.filter(o => o.campoId === c.id && yearOf(o.data) === anno && o.stato !== 'Pianificata').sort(byDate);
+  const plan = S.operazioni.filter(o => o.campoId === c.id && o.stato === 'Pianificata').sort(byDate);
   const t = { prod: 0, mez: 0, extra: 0, tot: 0, ricavo: 0 };
   ops.forEach(o => { const k = opCosto(o); for (const x in t) t[x] += k[x]; });
   let carenza = null;
   S.operazioni.forEach(o => {
-    if (o.campoId !== c.id || !o.prodottoId || !okD(o.data)) return;
+    if (o.campoId !== c.id || !o.prodottoId || !okD(o.data) || o.stato === 'Pianificata') return;
     const p = get('prodotti', o.prodottoId); if (!p || N(p.carenza) <= 0) return;
     const f = addDays(o.data, N(p.carenza)); if (f >= T && (!carenza || f > carenza.fine)) carenza = { fine: f, prodotto: p.nome };
   });
-  const last = [...S.operazioni].filter(o => o.campoId === c.id).sort(byDate).pop() || null;
-  return { ops, ...t, carenza, last };
+  const last = [...S.operazioni].filter(o => o.campoId === c.id && o.stato !== 'Pianificata').sort(byDate).pop() || null;
+  return { ops, plan, ...t, carenza, last };
 }
 export const gruppoCapi = g => S.capi.filter(c => c.gruppo === g && capoI(c).stato !== 'Uscita').length;
 export function razioneInfo(r) {
@@ -130,6 +146,7 @@ export function allAlerts() {
     [['scadenzaRevisione', 'Revisione'], ['scadenzaAssicurazione', 'Assicurazione']].forEach(([k, l]) => { if (okD(m[k])) { const d = diff(T, m[k]); if (d <= 30) out.push({ lv: d < 0 ? 'bad' : 'warn', area: 'mezzi', t: l + ' ' + m.nome, s: (d < 0 ? 'Scaduta il ' : 'Scade il ') + fd(m[k]), go: { type: 'mezzo', id: m.id } }); } });
   });
   S.campi.forEach(c => { const i = campoInfo(c); if (i.carenza) out.push({ lv: 'info', area: 'campi', t: 'Carenza in corso: ' + c.nome, s: 'Raccolta dal ' + fd(addDays(i.carenza.fine, 1)) + ' · ' + i.carenza.prodotto, go: { type: 'campo', id: c.id } }); });
+  S.operazioni.filter(o => o.stato === 'Pianificata' && okD(o.data)).forEach(o => { const c = get('campi', o.campoId); const d = diff(T, o.data); if (d < 0) out.push({ lv: 'warn', area: 'campi', t: 'In ritardo: ' + (o.tipo || 'attività') + (c ? ' · ' + c.nome : ''), s: 'Pianificata per il ' + fd(o.data), go: { edit: 'operazioni', id: o.id } }); else if (d <= 3) out.push({ lv: 'info', area: 'campi', t: (o.tipo || 'Attività') + (c ? ' · ' + c.nome : ''), s: d === 0 ? 'Pianificata per oggi' : 'Pianificata per il ' + fd(o.data), go: { edit: 'operazioni', id: o.id } }); });
   const inLatt = S.capi.filter(c => capoI(c).stato === 'In lattazione').length;
   if (inLatt && !S.latte.some(l => l.data === T)) out.push({ lv: 'info', area: 'latte', t: 'Registra il latte di oggi', s: inLatt + ' vacche in lattazione', go: { form: 'latte' } });
   const rank = { bad: 0, warn: 1, info: 2 };

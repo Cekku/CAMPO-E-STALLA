@@ -38,9 +38,11 @@ function cloudSection() {
 export function render() {
   const a = azienda(); const nEx = Object.keys(S).reduce((t, c) => t + S[c].filter(x => x.esempio).length, 0);
   const html = `<header class="pagehead"><h1>Impostazioni</h1></header>
-  <section class="card set"><div class="set-h">${ic('house')}<div><h2>Azienda</h2><p>Compare nella schermata iniziale e nei file esportati. La posizione serve al meteo.</p></div></div>
+  <section class="card set"><div class="set-h">${ic('house')}<div><h2>La mia azienda</h2><p>Compare nel menu, nella dashboard e nei file esportati. La posizione serve al meteo.</p></div></div>
     <form class="fgrid" data-form-act="azienda"><label class="fld"><span class="flabel">Nome dell'azienda</span><div class="inwrap"><input id="az_nome" value="${esc(a.nome || '')}" placeholder="Azienda agricola…"></div></label>
     <label class="fld half"><span class="flabel">Codice aziendale ASL</span><div class="inwrap"><input id="az_asl" value="${esc(a.asl || '')}" class="mono"></div></label><label class="fld half"><span class="flabel">Partita IVA o CUAA</span><div class="inwrap"><input id="az_iva" value="${esc(a.iva || '')}" class="mono"></div></label>
+    <label class="fld"><span class="flabel">Sede aziendale</span><div class="inwrap"><input id="az_ind" value="${esc(a.indirizzo || '')}" placeholder="Via, numero, comune"></div></label>
+    <label class="fld half"><span class="flabel">Superficie aziendale totale</span><div class="inwrap"><input id="az_ha" value="${esc(a.ettari ? String(a.ettari).replace('.', ',') : '')}" inputmode="decimal" placeholder="Es. 250"><span class="unit">ha</span></div><small>Serve a mostrare quanti ettari hai già mappato.</small></label><span></span>
     <label class="fld half"><span class="flabel">Latitudine</span><div class="inwrap"><input id="az_lat" value="${esc(a.lat || '')}" inputmode="decimal" placeholder="dai campi"></div></label><label class="fld half"><span class="flabel">Longitudine</span><div class="inwrap"><input id="az_lon" value="${esc(a.lon || '')}" inputmode="decimal" placeholder="dai campi"></div></label>
     <div class="fld row-btns"><button class="btn primary" type="submit">Salva</button><button class="btn ghost" type="button" data-act="gpsAzienda">${ic('locate-fixed')}Usa la mia posizione</button></div></form></section>
   ${cloudSection()}

@@ -1,44 +1,40 @@
-// Campi: elenco con forme reali, quaderno di campagna, costi e margini, scheda del campo
-import { S, UI, get } from '../state.js';
+// Campi: i tuoi campi raggruppati per conduzione, colture per annata, costi e margini, scheda del campo
+import { S, UI, get, azienda } from '../state.js';
 import { esc, nf, eur, fd, sum, byDate, byName, yearOf, N, addDays, plural } from '../util.js';
 import { ic } from '../icons.js';
-import { TIPI_OP, campoInfo, campoHa, cropColor } from '../domain.js';
+import { campoInfo, campoHa, cropColor, cropColorName, cropOf, colturaOf, storicoColture } from '../domain.js';
 import { thumb, perimeterM } from '../geo.js';
 import { tabs, empty, newBtn, fact, chip, exChip } from '../ui.js';
 import { stackBar } from './charts.js';
-import { opRow } from './oggi.js';
+import { opRow, noteCard } from './oggi.js';
 
 export function render() {
   if (UI.detail && UI.detail.type === 'campo') { const c = get('campi', UI.detail.id); if (c) return detail(c); UI.detail = null; }
-  const sub = UI.sub.campi;
-  const t = tabs('campi', [['elenco', 'Appezzamenti', S.campi.length], ['quaderno', 'Quaderno di campagna'], ['costi', 'Costi e margini']], sub);
-  let body = '';
-  if (sub === 'quaderno') body = quaderno();
-  else if (sub === 'costi') body = costi();
-  else body = elenco();
-  return { title: 'Campi', html: `<header class="pagehead"><h1>Campi</h1><div class="btns">${newBtn('operazioni', 'Registra lavoro')}</div></header>` + t + body };
+  const sub = UI.sub.campi === 'costi' ? 'costi' : 'elenco';
+  const t = tabs('campi', [['elenco', 'I tuoi campi', S.campi.length], ['costi', 'Costi e margini']], sub);
+  return { title: 'Campi', html: t + (sub === 'costi' ? costi() : elenco()) };
+}
+
+function card(c) {
+  const i = campoInfo(c); const col = cropColor(c); const h = campoHa(c); const crop = cropOf(c);
+  if (UI.view === 'lista') return `<div class="row fl" data-act="open" data-type="campo" data-id="${c.id}" role="button" tabindex="0"><span class="op-thumb" style="color:${col}">${thumb(c.geom, 40, col)}</span><span class="r-main"><b>${esc(c.nome)}${exChip(c)}</b><span class="op-crop"><i class="dot" style="background:${col}"></i>${esc(crop || 'Nessuna coltura')}${i.carenza ? ' · carenza al ' + fd(i.carenza.fine) : ''}</span></span><span class="r-side"><span class="chip ha num">${nf(h, 2)} ha</span><span class="small muted">${plural(i.ops.length, 'attività', 'attività')}</span></span></div>`;
+  return `<article class="fcard"><button class="fc-img" data-act="open" data-type="campo" data-id="${c.id}" style="--c:${col}" aria-label="Apri ${esc(c.nome)}">${thumb(c.geom, 120, col)}<span class="fc-crop-tag">${esc(crop || 'Nessuna coltura')}</span><span class="fc-ha num">${nf(h, 2)} ha</span>${i.carenza ? `<span class="fc-flag" title="Carenza fino al ${fd(i.carenza.fine)}">${ic('shield-check')}</span>` : ''}</button>
+  <div class="fc-txt"><b>${esc(c.nome)}</b>${exChip(c)}<small>${i.last ? 'Ultima: ' + esc(i.last.tipo || '') + ' ' + fd(i.last.data) : 'Nessuna attività'}${i.plan.length ? ' · ' + i.plan.length + ' da fare' : ''}</small></div>
+  <div class="fc-acts"><button class="btn xs action" data-act="new" data-form="operazioni" data-campo="${c.id}">${ic('notebook-pen')}Attività</button><button class="btn xs ok" data-act="coltura" data-id="${c.id}" data-anno="${UI.anno}">${ic('sprout')}${colturaOf(c) ? 'Coltura' : 'Aggiungi coltura'}</button></div></article>`;
 }
 
 function elenco() {
   const list = [...S.campi].sort(byName);
-  if (!list.length) return `<section class="card">${empty('map', 'Nessun appezzamento', 'Disegna i campi sulla mappa satellitare con il catasto, oppure importa un file KML del fascicolo aziendale.', `<div class="btns center"><button class="btn primary" data-act="tab" data-tab="mappa">${ic('map')}Disegna sulla mappa</button>${newBtn('campi', 'Inserisci senza mappa', '', '')}</div>`)}</section>`;
-  const ha = sum(list, campoHa);
-  const crops = new Map(); list.forEach(c => { const k = c.coltura || 'Non indicata'; crops.set(k, (crops.get(k) || 0) + campoHa(c)); });
-  const parts = [...crops.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ label: k, v, color: cropColor({ coltura: k }) }));
-  return `<section class="card summary"><div class="sum-top"><div><span class="eyebrow">Superficie aziendale</span><div class="big-num">${nf(ha, 2)}<small>ha</small></div></div><div class="btns"><button class="btn sm" data-act="tab" data-tab="mappa">${ic('map')}Mappa</button>${newBtn('campi', 'Nuovo', '', '')}</div></div>${stackBar(parts)}<div class="crop-legend">${parts.map(p => `<span><i style="background:${p.color}"></i>${esc(p.label)} <em>${nf(p.v, 2)} ha · ${nf(p.v / ha * 100, 0)}%</em></span>`).join('')}</div></section>
-  <div class="field-grid">${list.map(c => { const i = campoInfo(c); const col = cropColor(c); const h = campoHa(c);
-    return `<button class="field-card" data-act="open" data-type="campo" data-id="${c.id}"><span class="fc-thumb" style="color:${col}">${thumb(c.geom, 64, col)}</span><span class="fc-body"><b>${esc(c.nome)}${exChip(c)}</b><span class="fc-crop"><i style="background:${col}"></i>${esc(c.coltura || 'Coltura non indicata')}${c.varieta ? ' · ' + esc(c.varieta) : ''}</span><span class="fc-meta"><span class="num">${nf(h, 2)} ha</span><span>${plural(i.ops.length, 'lavoro', 'lavori')} ${UI.anno}</span><span class="num">${eur(h ? i.tot / h : 0)}/ha</span></span>${i.carenza ? `<span class="chip info">${ic('shield-check')}Carenza fino al ${fd(i.carenza.fine)}</span>` : ''}${!c.geom ? `<span class="chip ghost">${ic('pentagon')}Confine da disegnare</span>` : ''}</span>${ic('chevron-right', 'chev')}</button>`; }).join('')}</div>`;
-}
-
-function quaderno() {
-  const fc = UI.f.qcampo || '', ft = UI.f.qtipo || '';
-  const ops = S.operazioni.filter(o => yearOf(o.data) === UI.anno && (!fc || o.campoId === fc) && (!ft || o.tipo === ft)).sort(byDate).reverse();
-  const tratt = ops.filter(o => o.tipo === 'Trattamento fitosanitario' || o.tipo === 'Diserbo').length;
-  const groups = {}; ops.forEach(o => { const m = o.data.slice(0, 7); (groups[m] = groups[m] || []).push(o); });
-  const mesi = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
-  return `<div class="toolbar"><select class="inp" id="qcampo" data-filter="qcampo" aria-label="Appezzamento"><option value="">Tutti i campi</option>${[...S.campi].sort(byName).map(c => `<option value="${c.id}"${c.id === fc ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select><select class="inp" id="qtipo" data-filter="qtipo" aria-label="Operazione"><option value="">Tutte le operazioni</option>${TIPI_OP.map(t => `<option${t === ft ? ' selected' : ''}>${t}</option>`).join('')}</select><span class="sp"></span><button class="btn sm ghost" data-act="export" data-what="quaderno">${ic('download')}CSV</button>${newBtn('operazioni', 'Nuovo', fc ? `data-campo="${fc}"` : '')}</div>
-  <p class="muted small">${plural(ops.length, 'registrazione', 'registrazioni')} nel ${UI.anno}${tratt ? ', di cui ' + plural(tratt, 'trattamento', 'trattamenti') + ' fitosanitari o diserbi' : ''}. L'esportazione CSV riporta prodotto, n. di registrazione, dose, avversità e tempi di carenza.</p>
-  ${ops.length ? Object.entries(groups).map(([m, arr]) => `<section class="card"><div class="card-h"><h2>${mesi[+m.slice(5) - 1]} ${m.slice(0, 4)}</h2><span class="count">${arr.length}</span></div><div class="list">${arr.map(opRow).join('')}</div></section>`).join('') : `<section class="card">${empty('notebook-pen', 'Nessuna registrazione nel ' + UI.anno, 'Le operazioni compaiono qui raggruppate per mese.', newBtn('operazioni', 'Registra un lavoro'))}</section>`}`;
+  if (!list.length) return `<section class="card">${empty('map', 'Nessun campo', 'Disegna i campi sulla mappa satellitare con il catasto, oppure importa un file KML del fascicolo aziendale.', `<div class="btns center"><button class="btn action" data-act="nav" data-tab="mappa">${ic('map')}Disegna sulla mappa</button>${newBtn('campi', 'Inserisci senza mappa', '', '')}</div>`)}</section>`;
+  const ha = sum(list, campoHa); const tot = N(azienda().ettari);
+  const crops = new Map(); list.forEach(c => { const k = cropOf(c) || 'Senza coltura'; crops.set(k, (crops.get(k) || 0) + campoHa(c)); });
+  const parts = [...crops.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ label: k, v, color: cropColorName(k === 'Senza coltura' ? '' : k) }));
+  const groups = {}; list.forEach(c => { const g = c.conduzione || 'Conduzione non indicata'; (groups[g] = groups[g] || []).push(c); });
+  const order = ['Proprietà', 'Affitto', 'Comodato'];
+  const keys = Object.keys(groups).sort((a, b) => (order.indexOf(a) + 1 || 9) - (order.indexOf(b) + 1 || 9));
+  return `<section class="card fields-head"><div class="fh-top"><div><span class="eyebrow">${plural(list.length, 'campo', 'campi')} · annata ${UI.anno}</span><div class="big-num">${nf(ha, 2)}<small>ha registrati${tot ? ' su ' + nf(tot, 2) + ' ha (' + nf(ha / tot * 100, 0) + '%)' : ''}</small></div></div><div class="btns"><button class="btn sm" data-act="nav" data-tab="mappa">${ic('map')}Mappa</button>${newBtn('campi', 'Campo', '', '')}</div></div>${stackBar(parts)}<div class="crop-legend">${parts.map(p => `<span><i style="background:${p.color}"></i>${esc(p.label)} <em>${nf(p.v, 2)} ha</em></span>`).join('')}</div></section>
+  <div class="seg view-toggle"><label><input type="radio" name="vt" data-act="view" data-v="griglia"${UI.view !== 'lista' ? ' checked' : ''}><span>${ic('grid-2x2')}Griglia</span></label><label><input type="radio" name="vt" data-act="view" data-v="lista"${UI.view === 'lista' ? ' checked' : ''}><span>${ic('list')}Lista</span></label></div>
+  ${keys.map(k => { const closed = UI.f['c_' + k]; const arr = groups[k]; return `<section class="fgroup"><button class="fg-h" data-act="collapse" data-k="${esc(k)}" aria-expanded="${!closed}">${ic('map-pin')}<b>${esc(k.toUpperCase())}</b><span class="muted small">${plural(arr.length, 'campo', 'campi')} · ${nf(sum(arr, campoHa), 2)} ha</span><span class="sp"></span>${ic('chevron-left', closed ? 'rot-d' : 'rot-u')}</button>${closed ? '' : UI.view === 'lista' ? `<div class="card"><div class="list">${arr.map(card).join('')}</div></div>` : `<div class="fgrid-cards">${arr.map(card).join('')}</div>`}</section>`; }).join('')}`;
 }
 
 function costi() {
@@ -54,9 +50,12 @@ function costi() {
 function detail(c) {
   const i = campoInfo(c); const h = campoHa(c); const col = cropColor(c);
   const all = S.operazioni.filter(o => o.campoId === c.id).sort(byDate).reverse();
-  return { title: c.nome, html: `<section class="card detail-hero"><div class="dh-thumb" style="color:${col}">${thumb(c.geom, 120, col)}</div><div class="dh-body"><span class="eyebrow">Appezzamento</span><h1>${esc(c.nome)}${exChip(c)}</h1><span class="fc-crop"><i style="background:${col}"></i>${esc(c.coltura || 'Coltura non indicata')}${c.varieta ? ' · ' + esc(c.varieta) : ''}</span>
-    <div class="btns">${newBtn('operazioni', 'Registra lavoro', `data-campo="${c.id}"`)}<button class="btn sm" data-act="mapFocus" data-id="${c.id}">${ic('map')}${c.geom ? 'Sulla mappa' : 'Disegna confine'}</button><button class="btn sm ghost" data-act="edit" data-form="campi" data-id="${c.id}">${ic('pencil')}Modifica</button></div></div></section>
-  <dl class="facts">${fact('Superficie', `<span class="num">${nf(h, 4)} ha</span>`)}${fact('Perimetro', c.geom ? `<span class="num">${nf(perimeterM(c.geom), 0)} m</span>` : '—')}${fact('Irriguo', esc(c.irriguo || '—'))}${fact('Conduzione', esc(c.conduzione || '—'))}${fact('Comune', esc(c.comune || '—'))}${fact('Catasto', esc(c.catasto || '—'))}${fact('Costi ' + UI.anno, `<span class="num">${eur(i.tot)}</span> <small>${eur(h ? i.tot / h : 0)}/ha</small>`)}${fact('Ricavi ' + UI.anno, `<span class="num">${eur(i.ricavo)}</span>`)}${fact('Tempo di carenza', i.carenza ? chip('fino al ' + fd(i.carenza.fine), 'info') : 'Nessuno')}</dl>
+  const st = storicoColture(c); const note = S.note.filter(n => n.campoId === c.id).sort(byDate).reverse();
+  return { title: c.nome, html: `<section class="card detail-hero"><div class="dh-thumb" style="color:${col}">${thumb(c.geom, 120, col)}</div><div class="dh-body"><span class="eyebrow">${esc(c.conduzione || 'Campo')}${c.comune ? ' · ' + esc(c.comune) : ''}</span><h1>${esc(c.nome)}${exChip(c)}</h1><span class="fc-crop"><i style="background:${col}"></i>${esc(cropOf(c) || 'Nessuna coltura nel ' + UI.anno)}</span>
+    <div class="btns">${newBtn('operazioni', 'Registra attività', `data-campo="${c.id}"`, 'action')}<button class="btn sm" data-act="mapFocus" data-id="${c.id}">${ic('map')}${c.geom ? 'Sulla mappa' : 'Disegna confine'}</button><button class="btn sm ghost" data-act="edit" data-form="campi" data-id="${c.id}">${ic('pencil')}Modifica</button></div></div></section>
+  <dl class="facts">${fact('Superficie', `<span class="num">${nf(h, 4)} ha</span>`)}${fact('Perimetro', c.geom ? `<span class="num">${nf(perimeterM(c.geom), 0)} m</span>` : '—')}${fact('Irriguo', esc(c.irriguo || '—'))}${fact('Catasto', esc(c.catasto || '—'))}${fact('Costi ' + UI.anno, `<span class="num">${eur(i.tot)}</span> <small>${eur(h ? i.tot / h : 0)}/ha</small>`)}${fact('Ricavi ' + UI.anno, `<span class="num">${eur(i.ricavo)}</span>`)}${fact('Tempo di carenza', i.carenza ? chip('fino al ' + fd(i.carenza.fine), 'info') : 'Nessuno')}</dl>
+  <section class="card"><div class="card-h"><h2>${ic('sprout')}Colture per annata</h2><button class="btn sm ok" data-act="coltura" data-id="${c.id}" data-anno="${UI.anno}">${ic('plus')}Coltura</button></div><div class="list">${st.length ? st.map(e => `<button class="row" data-act="coltura" data-id="${c.id}" data-anno="${e.anno}"><span class="yr">${e.anno}</span><span class="r-main"><b><i class="dot" style="background:${cropColorName(e.coltura)}"></i> ${esc(e.coltura)}</b><span>${[e.varieta, e.semina ? 'semina ' + fd(e.semina) : '', N(e.resa) ? 'resa attesa ' + nf(e.resa, 1) + ' t/ha' : '', e.destinazione].filter(Boolean).map(esc).join(' · ') || '—'}</span></span><span class="chip ha num">${nf(h, 2)} ha</span></button>`).join('') : '<div class="empty slim">Nessuna coltura registrata.</div>'}</div></section>
   ${c.note ? `<section class="card note">${esc(c.note)}</section>` : ''}
-  <section class="card"><div class="card-h"><h2>Storia del campo</h2><span class="count">${all.length}</span></div><div class="list">${all.length ? all.map(opRow).join('') : empty('notebook-pen', 'Nessun lavoro registrato', 'Registra la prima lavorazione di questo campo.')}</div></section>` };
+  <section class="card"><div class="card-h"><h2>${ic('notebook-pen')}Attività</h2><span class="count">${all.length}</span></div><div class="list">${all.length ? all.map(opRow).join('') : empty('notebook-pen', 'Nessuna attività', 'Registra la prima lavorazione di questo campo.')}</div></section>
+  <section class="card"><div class="card-h"><h2>${ic('pencil')}Note del campo</h2><button class="btn sm ghost" data-act="new" data-form="note" data-campo="${c.id}">${ic('plus')}Nota</button></div>${note.length ? `<div class="note-strip">${note.map(noteCard).join('')}</div>` : '<div class="empty slim">Nessuna nota.</div>'}</section>` };
 }

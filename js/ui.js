@@ -8,7 +8,8 @@ export function openSheet(title, html, { wide = false, onClose = null, sub = '' 
   const sh = $('#sheet');
   $('#sheetTitle').textContent = title;
   $('#sheetSub').textContent = sub; $('#sheetSub').hidden = !sub;
-  $('#sheetBody').innerHTML = html;
+  const body = $('#sheetBody'); body.onclick = body.onchange = body.oninput = null;
+  body.innerHTML = html; body.scrollTop = 0;
   sh.classList.toggle('wide', wide);
   sh.hidden = false; requestAnimationFrame(() => sh.classList.add('open'));
   document.documentElement.classList.add('locked');

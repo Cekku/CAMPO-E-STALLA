@@ -28,11 +28,11 @@ export function farmPosition() {
 let inflight = null;
 export function getMeteo() {
   const pos = farmPosition(); if (!pos) return { pos: null, data: null };
-  const key = pos.lat.toFixed(2) + ',' + pos.lon.toFixed(2);
+  const key = 'v2:' + pos.lat.toFixed(2) + ',' + pos.lon.toFixed(2);
   const cache = lsGet('ces.meteo', null);
   const fresh = cache && cache.key === key && Date.now() - cache.at < 3 * 3600e3;
   if (!fresh && !inflight && navigator.onLine) {
-    const u = `https://api.open-meteo.com/v1/forecast?latitude=${pos.lat.toFixed(4)}&longitude=${pos.lon.toFixed(4)}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,precipitation,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,et0_fao_evapotranspiration&past_days=0&forecast_days=7&timezone=Europe%2FRome&wind_speed_unit=kmh`;
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${pos.lat.toFixed(4)}&longitude=${pos.lon.toFixed(4)}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,precipitation,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,et0_fao_evapotranspiration&hourly=temperature_2m,precipitation,wind_speed_10m,relative_humidity_2m,weather_code&past_days=0&forecast_days=7&timezone=Europe%2FRome&wind_speed_unit=kmh`;
     inflight = fetch(u).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(j => { lsSet('ces.meteo', { key, at: Date.now(), j }); bus.render(); }).catch(() => { }).finally(() => { inflight = null; });
   }
   return { pos, data: cache && cache.key === key ? cache.j : null, at: cache && cache.at };

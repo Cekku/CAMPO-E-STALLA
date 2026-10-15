@@ -1,14 +1,16 @@
 // Stato condiviso dell'app: dati, interfaccia, valori derivati
 import { lsGet } from './util.js';
 
-export const COLS = ['campi', 'operazioni', 'prodotti', 'movimenti', 'mezzi', 'manutenzioni', 'capi', 'eventi', 'latte', 'razioni', 'config'];
+export const COLS = ['campi', 'operazioni', 'prodotti', 'movimenti', 'mezzi', 'manutenzioni', 'capi', 'eventi', 'latte', 'razioni', 'note', 'config'];
 export const S = {};
 COLS.forEach(c => (S[c] = []));
 
 const saved = lsGet('ces.ui', {});
 export const UI = {
   tab: 'oggi',
-  sub: Object.assign({ campi: 'elenco', stalla: 'mandria', magazzino: 'prodotti', altro: 'menu' }, saved.sub || {}),
+  area: saved.area === 'stalla' ? 'stalla' : 'campagna',
+  sub: Object.assign({ campi: 'elenco', stalla: 'mandria', magazzino: 'prodotti', attivita: 'completate' }, saved.sub || {}),
+  view: saved.view || 'griglia',
   detail: null,
   hist: [],
   anno: new Date().getFullYear(),
