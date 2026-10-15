@@ -36,6 +36,37 @@ async function getGoogle() {
 const savePrefs = () => lsSet('ces.map', prefs);
 
 // Il WMS catastale accetta solo coordinate geografiche (EPSG:6706, WMS 1.1.1, ordine lon,lat)
+// Strato satellitare che non lascia mai buchi: se a quello zoom la foto manca (errore o riquadro grigio
+// "dati non disponibili"), ingrandisce la foto del livello superiore, fino a 5 livelli.
+const SatLayer = window.L ? L.TileLayer.extend({
+  createTile(coords, done) {
+    const c = document.createElement('canvas'); const sz = this.getTileSize(); c.width = sz.x; c.height = sz.y;
+    this._try(c, coords, 0, true, done); return c;
+  },
+  _urlFor(x, y, z) { return L.Util.template(this._url, L.extend({ s: this._getSubdomain({ x, y }), x, y, z }, this.options)); },
+  _try(c, coords, k, cors, done) {
+    if (k > 5) { if (cors) this._try(c, coords, 0, false, done); else done(null, c); return; }
+    const f = 2 ** k, x = Math.floor(coords.x / f), y = Math.floor(coords.y / f), z = coords.z - k;
+    const img = new Image(); if (cors) img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const ctx = c.getContext('2d'); const sub = img.naturalWidth / f; ctx.imageSmoothingQuality = 'high';
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, (coords.x % f) * sub, (coords.y % f) * sub, sub, sub, 0, 0, c.width, c.height);
+      if (cors && k < 5 && this._isBlank(ctx, c)) { this._try(c, coords, k + 1, true, done); return; }
+      done(null, c);
+    };
+    img.onerror = () => { if (cors && k >= 5) this._try(c, coords, 0, false, done); else this._try(c, coords, k + 1, cors, done); };
+    img.src = this._urlFor(x, y, z);
+  },
+  _isBlank(ctx, c) {
+    try {
+      const d = ctx.getImageData(0, 0, c.width, c.height).data; let n = 0, sum = 0, sum2 = 0;
+      for (let yy = 8; yy < c.height; yy += 24) for (let xx = 8; xx < c.width; xx += 24) { const i = (yy * c.width + xx) * 4; const v = (d[i] + d[i + 1] + d[i + 2]) / 3; sum += v; sum2 += v * v; n++; }
+      const m = sum / n, sd = Math.sqrt(Math.max(0, sum2 / n - m * m));
+      return (m > 185 && sd < 14) || (m < 4 && sd < 3);
+    } catch (e) { return false; }
+  },
+}) : null;
 const CatastoLayer = window.L ? L.TileLayer.extend({
   initialize(layer, opts) { L.TileLayer.prototype.initialize.call(this, '', opts); this._wmsLayer = layer; },
   getTileUrl(c) {
@@ -51,14 +82,14 @@ function buildMap() {
   map.attributionControl.setPrefix('');
   map.createPane('catasto').style.zIndex = 350;
   map.createPane('labels').style.zIndex = 360; map.getPane('labels').style.pointerEvents = 'none';
-  base.sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Immagini © Esri, Maxar, Earthstar Geographics' });
-  base.sat2 = L.tileLayer('https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Immagini © Esri World Imagery (Clarity)' });
+  base.sat = new SatLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Immagini © Esri, Maxar, Earthstar Geographics' });
+  base.sat2 = new SatLayer('https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Immagini © Esri World Imagery (Clarity)' });
   base.osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21, attribution: '© OpenStreetMap' });
   base.topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { subdomains: 'abc', maxNativeZoom: 17, maxZoom: 21, attribution: '© OpenStreetMap, SRTM · OpenTopoMap' });
   // Ortofoto della Regione FVG (true ortofoto 2017-2020, alta risoluzione), sopra al satellite Esri fuori regione
   const CRS900913 = Object.assign({}, L.CRS.EPSG3857, { code: 'EPSG:900913' });
   const fvg = L.tileLayer.wms('https://irdat-ortofoto.regione.fvg.it/geoserver/ortofoto/wms', { layers: 'trueorto_FVG_1720', format: 'image/jpeg', transparent: false, version: '1.1.1', crs: CRS900913, maxZoom: 21, maxNativeZoom: 20, bounds: FVG_BOUNDS, className: 'sat-tiles', attribution: 'Ortofoto © Regione Autonoma Friuli Venezia Giulia' });
-  base.fvg = L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Esri' }), fvg]);
+  base.fvg = L.layerGroup([new SatLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Esri' }), fvg]);
   overlays.nomi = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { pane: 'labels', maxNativeZoom: 19, maxZoom: 21 });
   overlays.particelle = new CatastoLayer('CP.CadastralParcel', { pane: 'catasto', minZoom: 15, maxZoom: 21, maxNativeZoom: 20, attribution: 'Catasto © Agenzia delle Entrate (CC BY 4.0)', className: 'catasto-tiles' });
   overlays.fogli = new CatastoLayer('CP.CadastralZoning', { pane: 'catasto', minZoom: 12, maxZoom: 21, maxNativeZoom: 20, className: 'catasto-tiles fogli' });
