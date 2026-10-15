@@ -13,7 +13,7 @@ import { openEdit } from './forms.js';
 
 const CAT_URL = 'https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php';
 let map = null, fieldsGroup = null, base = {}, overlays = {}, mode = 'view', selected = null, editLayer = null, editId = null, drawFor = null, gpsMarker = null, gpsCircle = null, clickMarker = null;
-const prefs = Object.assign({ base: 'sat', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura' }, lsGet('ces.map', {}));
+const prefs = Object.assign({ base: 'sat', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura', intensita: 70 }, lsGet('ces.map', {}));
 let notesGroup = null;
 const savePrefs = () => lsSet('ces.map', prefs);
 
@@ -67,12 +67,12 @@ function applyLayers() {
 }
 function updateCatHint() { const h = $('#catHint'); if (!h || !map) return; h.hidden = !(prefs.particelle && map.getZoom() < 15); }
 
-const COND = { 'Proprietà': '#3E8E5A', 'Affitto': '#D9853B', 'Comodato': '#5B7FC7' };
+const COND = { 'Proprietà': '#22C55E', 'Affitto': '#FB923C', 'Comodato': '#3B82F6' };
 function lastAge(c) { let last = null; S.operazioni.forEach(o => { if (o.campoId === c.id && o.stato !== 'Pianificata' && (!last || o.data > last)) last = o.data; }); return last ? diff(last, today()) : null; }
 function colorFor(c) {
-  if (prefs.colorBy === 'conduzione') return COND[c.conduzione] || '#8A958F';
-  if (prefs.colorBy === 'attivita') { const a = lastAge(c); return a === null ? '#8A958F' : a <= 7 ? '#2E9E5B' : a <= 30 ? '#E0B12E' : '#D2553C'; }
-  if (prefs.colorBy === 'nessuno') return '#F2F2F2';
+  if (prefs.colorBy === 'conduzione') return COND[c.conduzione] || '#A9B4AE';
+  if (prefs.colorBy === 'attivita') { const a = lastAge(c); return a === null ? '#A9B4AE' : a <= 7 ? '#22C55E' : a <= 30 ? '#FACC15' : '#EF4444'; }
+  if (prefs.colorBy === 'nessuno') return '#FFFFFF';
   return cropColor(c);
 }
 function legendItems() {
@@ -83,8 +83,9 @@ function legendItems() {
   return [...items.entries()].sort((a, b) => b[1].ha - a[1].ha);
 }
 function styleFor(c, sel) {
-  const col = colorFor(c);
-  return sel ? { color: '#F5D547', weight: 3.5, fillColor: col, fillOpacity: .42, dashArray: null } : { color: col, weight: 2.2, fillColor: col, fillOpacity: prefs.base === 'sat' ? .28 : .35 };
+  const col = colorFor(c); const op = Math.max(.1, Math.min(.95, (prefs.intensita || 70) / 100));
+  return sel ? { color: '#FFFFFF', weight: 4, opacity: 1, fillColor: col, fillOpacity: Math.min(.9, op + .15), dashArray: null }
+    : { color: col, weight: 2.6, opacity: 1, fillColor: col, fillOpacity: op };
 }
 function drawFields() {
   if (!map) return;
@@ -105,7 +106,7 @@ function drawNotes() {
   S.note.forEach(n => {
     let ll = null; if (n.lat && n.lon) ll = [+n.lat, +n.lon]; else { const c = get('campi', n.campoId); const ct = c && c.geom && centroid(c.geom); if (ct) ll = [ct[1], ct[0]]; }
     if (!ll) return;
-    const m = L.marker(ll, { icon: L.divIcon({ className: 'note-pin', html: ic('pencil'), iconSize: [30, 30], iconAnchor: [15, 30] }), pmIgnore: true, title: n.titolo || 'Nota' });
+    const m = L.marker(ll, { icon: L.divIcon({ className: 'note-pin', html: ic('pencil'), iconSize: [30, 30], iconAnchor: [-6, 46] }), pmIgnore: true, title: n.titolo || 'Nota' });
     m.on('click', e => { L.DomEvent.stopPropagation(e); openEdit('note', n.id); });
     m.addTo(notesGroup);
   });
@@ -181,7 +182,7 @@ export function startDraw(forId = null) {
 export function startEdit(id) {
   const c = get('campi', id); if (!c || !c.geom) { startDraw(id); return; }
   endMode(); mode = 'edit'; editId = id; drawFields();
-  editLayer = L.geoJSON(c.geom, { style: { color: '#F5D547', weight: 3, fillColor: cropColor(c), fillOpacity: .3 } }).getLayers()[0];
+  editLayer = L.geoJSON(c.geom, { style: { color: '#FFFFFF', weight: 3, fillColor: colorFor(c), fillOpacity: .45 } }).getLayers()[0];
   editLayer.addTo(map); editLayer.pm.enable({ allowSelfIntersection: false, snappable: true });
   const upd = () => { const g = editLayer.toGeoJSON().geometry; const el = $('#drawArea'); if (el) el.textContent = nf(areaHa(g), 2) + ' ha'; };
   editLayer.on('pm:edit pm:markerdrag pm:vertexadded pm:vertexremoved', upd);
@@ -260,6 +261,7 @@ export function layersPanel() {
   openSheet('Livelli mappa', `<form id="lpForm" class="lp">
     <h3>Sfondo</h3><div class="lm-bases">${bases.map(([k, l]) => `<label><input type="radio" name="base" value="${k}"${prefs.base === k ? ' checked' : ''}><span class="lm-prev ${k}"></span>${l}</label>`).join('')}</div>
     <h3>Colora campi per</h3>${radio('coltura', 'Colture')}${radio('conduzione', 'Conduzione')}${radio('attivita', 'Ultime attività')}${radio('nessuno', 'Nessun colore')}
+    <label class="lp-row slider"><span>Intensità dei colori<small>Più alta = campi più pieni, meno satellite visibile</small></span><input type="range" name="intensita" min="20" max="90" step="5" value="${prefs.intensita || 70}"></label>
     <h3>Visualizza</h3>${sw('etichette', 'Nomi dei campi')}${sw('note', 'Note')}${sw('nomi', 'Strade e luoghi', 'Solo sul satellite')}
     <h3>Mostra livelli su mappa</h3>${sw('particelle', 'Catasto: particelle', 'Agenzia delle Entrate, visibili da vicino')}${sw('fogli', 'Catasto: fogli di mappa')}
     <button type="button" class="btn ok wide" data-act="mapApply">Applica</button></form>`);
@@ -268,6 +270,7 @@ export function applyPanel() {
   const f = $('#lpForm'); if (!f) return;
   prefs.base = (f.querySelector('input[name=base]:checked') || {}).value || 'sat';
   prefs.colorBy = (f.querySelector('input[name=colorBy]:checked') || {}).value || 'coltura';
+  prefs.intensita = +(f.querySelector('input[name=intensita]') || {}).value || 60;
   ['etichette', 'note', 'nomi', 'particelle', 'fogli'].forEach(k => { prefs[k] = !!f.querySelector(`input[name=${k}]`).checked; });
   savePrefs(); closeSheet(); applyLayers(); drawFields();
 }

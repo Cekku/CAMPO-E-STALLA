@@ -17,12 +17,12 @@ export const GEST = 283;
 
 // Colori delle colture sulla mappa e nelle miniature
 const CROP = [
-  [/mais/i, '#E0A82E'], [/frumento|grano/i, '#C9963F'], [/orzo|triticale|avena|segale/i, '#D2B266'],
-  [/medica|trifoglio/i, '#4FA05A'], [/prato|loiessa|erba/i, '#79B860'], [/soia/i, '#9AA83A'],
-  [/sorgo/i, '#B8693A'], [/girasole/i, '#F0BE1C'], [/colza/i, '#E3D23A'], [/vite|vigneto/i, '#8E4D7A'],
-  [/barbabietola/i, '#B04A5A'], [/pomodoro/i, '#D9533C'], [/riposo/i, '#9AA59E'],
+  [/mais/i, '#F5B700'], [/frumento|grano/i, '#E89A2C'], [/orzo|triticale|avena|segale/i, '#F2D35B'],
+  [/medica|trifoglio/i, '#2DBE4E'], [/prato|loiessa|erba/i, '#8CD43F'], [/soia/i, '#B9CC1E'],
+  [/sorgo/i, '#E8662A'], [/girasole/i, '#FFD400'], [/colza/i, '#F7EC2E'], [/vite|vigneto/i, '#B03A9A'],
+  [/barbabietola/i, '#E2366B'], [/pomodoro/i, '#F2452E'], [/riposo/i, '#C3CCC7'],
 ];
-export const cropColorName = n => { n = n || ''; for (const [re, col] of CROP) if (re.test(n)) return col; return n ? '#4F9DA6' : '#8A958F'; };
+export const cropColorName = n => { n = n || ''; for (const [re, col] of CROP) if (re.test(n)) return col; return n ? '#1FB5D0' : '#A9B4AE'; };
 // Coltura di un campo in una data annata: storico per anno, altrimenti la coltura in atto
 export function colturaOf(c, anno = UI.anno) {
   if (!c) return null; const st = Array.isArray(c.colture) ? c.colture : [];
