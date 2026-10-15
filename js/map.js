@@ -272,7 +272,7 @@ export function applyPanel() {
   savePrefs(); closeSheet(); applyLayers(); drawFields();
 }
 export function plusMenu() {
-  openSheet('Aggiungi sulla mappa', `<div class="quick"><button data-act="mapDraw"><span class="q-ic">${ic('pentagon')}</span><b>Nuovo campo</b><span>Disegna il confine</span></button><button data-act="mapNoteHere"><span class="q-ic">${ic('pencil')}</span><b>Nota qui</b><span>Al centro della mappa</span></button><button data-act="new" data-form="operazioni"><span class="q-ic">${ic('notebook-pen')}</span><b>Attività</b><span>Su uno o più campi</span></button><label><span class="q-ic">${ic('file-up')}</span><b>Importa confini</b><span>File KML o GeoJSON</span><input type="file" accept=".kml,.geojson,.json" data-act="mapImport" hidden></label></div>`);
+  openSheet('Aggiungi sulla mappa', `<div class="quick"><button data-act="mapDraw"><span class="q-ic">${ic('pentagon')}</span><b>Nuovo campo</b><span>Disegna il confine</span></button><button data-act="mapNoteHere"><span class="q-ic">${ic('pencil')}</span><b>Nota qui</b><span>Al centro della mappa</span></button><button data-act="new" data-form="operazioni"><span class="q-ic">${ic('notebook-pen')}</span><b>Attività</b><span>Su uno o più campi</span></button><label><span class="q-ic">${ic('file-up')}</span><b>Importa confini</b><span>KML, GeoJSON o shapefile</span><input type="file" accept=".kml,.geojson,.json,.zip,.shp" data-act="mapImport" hidden></label></div>`);
 }
 export function noteHere() { closeSheet(); const c = map.getCenter(); setTimeout(() => openEdit('note', null, { lat: +c.lat.toFixed(6), lon: +c.lng.toFixed(6) }), 230); }
 export function noteForField(id) { openEdit('note', null, { campoId: id }); }
@@ -290,15 +290,31 @@ export function focusCampo(id) {
 }
 
 /* ---------- importazione file ---------- */
+function loadScript(src) { return new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('Lettore shapefile non disponibile offline')); document.head.appendChild(el); }); }
 export async function importFile(file) {
   try {
-    const items = parseGeoFile(await file.text(), file.name);
+    let items;
+    if (/\.(zip|shp)$/i.test(file.name)) {
+      if (!window.shp) await loadScript('vendor/shpjs/shp.min.js');
+      const buf = await file.arrayBuffer();
+      let gj = /\.shp$/i.test(file.name) ? { type: 'FeatureCollection', features: window.shp.parseShp(buf).map(g => ({ type: 'Feature', geometry: g, properties: {} })) } : await window.shp(buf);
+      if (Array.isArray(gj)) gj = { type: 'FeatureCollection', features: gj.flatMap(x => x.features || []) };
+      items = parseGeoFile(JSON.stringify(gj), file.name);
+    } else items = parseGeoFile(await file.text(), file.name);
     if (!items.length) { toast('Nel file non ci sono poligoni.', 'err'); return; }
-    let n = 0;
-    for (const it of items) { n++; await store.put('campi', null, { nome: it.nome || ('Campo importato ' + n), geom: it.geom, superficie: Math.round(areaHa(it.geom) * 10000) / 10000, irriguo: 'No', conduzione: 'Proprietà' }); }
-    toast(n === 1 ? 'Importato 1 campo' : 'Importati ' + n + ' campi');
-    setTimeout(() => fitAll(), 100);
-  } catch (e) { toast(e.message || 'File non leggibile', 'err'); }
+    const first = items[0].geom.type === 'Polygon' ? items[0].geom.coordinates[0][0] : items[0].geom.coordinates[0][0][0];
+    if (Math.abs(first[0]) > 180 || Math.abs(first[1]) > 90) { toast('Il file usa coordinate in metri senza indicare il sistema: nello zip dello shapefile includi anche il file .prj.', 'err'); return; }
+    const exist = new Set(S.campi.map(c => (c.nome || '').toLowerCase()));
+    let n = 0, dup = 0;
+    for (const it of items) {
+      n++; const nome = it.nome || ('Campo importato ' + n);
+      if (exist.has(nome.toLowerCase())) { const c = S.campi.find(x => (x.nome || '').toLowerCase() === nome.toLowerCase()); if (c && !c.geom) { await store.put('campi', c.id, Object.assign({}, c, { geom: it.geom, superficie: N(c.superficie) || Math.round(areaHa(it.geom) * 10000) / 10000 })); dup++; continue; } }
+      const p = it.props || {};
+      await store.put('campi', null, { nome, geom: it.geom, superficie: Math.round(areaHa(it.geom) * 10000) / 10000, coltura: p.coltura || p.COLTURA || p.crop || '', irriguo: 'No', conduzione: /affitt/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Affitto' : 'Proprietà', catasto: p.catasto || p.particella || p.PARTICELLA || '' });
+    }
+    toast(`Importati ${n - dup} campi${dup ? ', ' + dup + ' confini aggiunti a campi esistenti' : ''}`);
+    closeSheet(); setTimeout(() => fitAll(), 150);
+  } catch (e) { console.warn(e); toast(e.message || 'File non leggibile', 'err'); }
 }
 
 /* ---------- montaggio ---------- */

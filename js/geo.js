@@ -60,7 +60,7 @@ export function parseGeoFile(text, name = '') {
   const t = text.trim();
   if (t.startsWith('{') || t.startsWith('[')) {
     const j = JSON.parse(t); const out = [];
-    const add = (g, props = {}) => { if (!g) return; if (g.type === 'Polygon' || g.type === 'MultiPolygon') out.push({ nome: props.name || props.nome || props.NOME || props.Name || '', geom: g, props }); else if (g.type === 'GeometryCollection') g.geometries.forEach(x => add(x, props)); };
+    const add = (g, props = {}) => { if (!g) return; if (g.type === 'Polygon' || g.type === 'MultiPolygon') out.push({ nome: String(props.name || props.nome || props.NOME || props.Name || props.Nome || props.nome_campo || props.NOME_CAMPO || props.campo || props.CAMPO || props.label || props.descrizione || props.DESCRIZIO || '').trim(), geom: g, props }); else if (g.type === 'GeometryCollection') g.geometries.forEach(x => add(x, props)); };
     if (j.type === 'FeatureCollection') j.features.forEach(f => add(f.geometry, f.properties || {}));
     else if (j.type === 'Feature') add(j.geometry, j.properties || {});
     else add(j);
@@ -82,7 +82,7 @@ export function parseGeoFile(text, name = '') {
     });
     return out;
   }
-  throw new Error('Formato non riconosciuto: usa un file .geojson, .json o .kml');
+  throw new Error('Formato non riconosciuto: usa un file KML, GeoJSON o uno shapefile in .zip (KMZ: estrai prima il KML).');
 }
 
 // Pianta di tutta l'azienda in SVG (per la dashboard, funziona anche offline)
