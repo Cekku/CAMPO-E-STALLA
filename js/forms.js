@@ -2,9 +2,12 @@
 import { S, D, get } from './state.js';
 import { N, nf, fd, today, byName } from './util.js';
 import * as store from './store.js';
-import { openForm, setVal, setHint, setUnit, toast, FORM } from './ui.js';
+import { openForm, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
 import { COLTURE, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa } from './domain.js';
 import { areaHa } from './geo.js';
+import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
+import { fitoLookup, fitoSearch, fitoMeta } from './fitodb.js';
+import { esc } from './util.js';
 
 const oCampi = () => [...S.campi].sort(byName).map(c => [c.id, `${c.nome} · ${nf(campoHa(c), 2)} ha`]);
 const oProd = cats => () => [...S.prodotti].filter(p => !cats || cats.includes(p.categoria)).sort(byName).map(p => [p.id, `${p.nome} — ${nf(giac(p), 1)} ${p.unita || ''}`]);
@@ -12,6 +15,18 @@ const oMezzi = () => [...S.mezzi].sort(byName).map(m => [m.id, m.nome]);
 const oCapi = () => [...S.capi].filter(c => capoI(c).stato !== 'Uscita').sort((a, b) => (a.matricola || '').localeCompare(b.matricola || '')).map(c => [c.id, `${c.matricola}${c.nome ? ' · ' + c.nome : ''}`]);
 const isT = (...t) => v => t.includes(v.tipo);
 const isTr = isT('Trattamento sanitario', 'Vaccinazione');
+const oOperatori = () => S.operatori.map(o => o.nome).filter(Boolean).sort();
+export const BBCH = ['00 Seme secco', '09 Emergenza', '10-19 Sviluppo fogliare', '21-29 Accestimento', '30-39 Levata / allungamento', '41-49 Botticella', '51-59 Spigatura / pennacchio', '61-69 Fioritura', '71-79 Sviluppo frutti / granella', '81-89 Maturazione', '91-99 Senescenza', 'Pre-semina', 'Pre-emergenza', 'Post-raccolta'];
+// Riquadro dei controlli, condiviso tra modulo singolo e registrazione guidata
+export function runChecks(v, campi, opId) {
+  const box = document.getElementById('box_controlli'); if (!box) return [];
+  const list = isFitoOp(v.tipo) || (get('prodotti', v.prodottoId) && FITO.includes(get('prodotti', v.prodottoId).categoria)) ? controlliOp(v, campi, opId) : [];
+  const was = document.getElementById('chkForce'); const keep = was && was.checked;
+  box.innerHTML = checksHTML(list); box.hidden = !list.length;
+  const now = document.getElementById('chkForce'); if (now && keep) now.checked = true;
+  if (FORM) FORM.checks = list;
+  return list;
+}
 
 export const SPEC = {
   campi: {
@@ -41,24 +56,31 @@ export const SPEC = {
       { k: 'dose', l: 'Dose', t: 'number', half: 1, unit: '/ha', show: v => !!v.prodottoId },
       { k: 'quantita', l: 'Quantità totale', t: 'number', half: 1, show: v => !!v.prodottoId, hint: 'Dose × ettari, si scarica dal magazzino' },
       { k: 'avversita', l: 'Avversità o motivo', show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. piralide, infestanti dicotiledoni' },
+      { k: 'bbch', l: 'Stadio BBCH', half: 1, list: BBCH, show: isT('Trattamento fitosanitario', 'Diserbo', 'Concimazione'), ph: 'Es. 32' },
       { k: 'fase', l: 'Fase fenologica', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo', 'Concimazione'), ph: 'Es. 6 foglie' },
-      { k: 'meteo', l: 'Condizioni meteo', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. sereno, vento debole' },
+      { k: 'oraInizio', l: 'Ora di inizio', t: 'time', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'volumeAcqua', l: 'Volume d\'acqua', t: 'number', half: 1, unit: 'l/ha', show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'vento', l: 'Vento', t: 'seg', opts: ['Assente', 'Debole', 'Moderato', 'Forte'], show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'meteo', l: 'Condizioni meteo', show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. sereno, 18 °C' },
       { k: 'raccolto', l: 'Quantità raccolta', t: 'number', half: 1, unit: 't', show: isT('Raccolta', 'Sfalcio') },
       { k: 'prezzoVendita', l: 'Prezzo', t: 'number', half: 1, unit: '€/t', show: isT('Raccolta', 'Sfalcio') },
       { k: 's1', l: 'Mezzi e costi', t: 'section' },
       { k: 'mezzoId', l: 'Mezzo', t: 'select', opts: oMezzi, half: 1, blank: 'Nessuno' },
       { k: 'ore', l: 'Ore di lavoro', t: 'number', half: 1, unit: 'h' },
-      { k: 'operatore', l: 'Operatore', half: 1 },
+      { k: 'operatore', l: 'Operatore', half: 1, list: oOperatori() },
       { k: 'costoExtra', l: 'Costi extra', t: 'number', half: 1, unit: '€', hint: 'Contoterzi, acqua, manodopera' },
-      { k: 'note', l: 'Note', t: 'textarea' }],
+      { k: 'note', l: 'Note', t: 'textarea' },
+      { k: 'controlli', t: 'box' }],
     defaults: () => ({ data: today(), stato: 'Fatto' }),
+    validate: v => forceOk((FORM && FORM.checks) || []),
     onChange(ch, v) {
       const p = get('prodotti', v.prodottoId);
       if (ch === null || ch === 'prodottoId') { setUnit('dose', (p ? p.unita : '') + '/ha'); setUnit('quantita', p ? p.unita : ''); setHint('dose', p && N(p.carenza) ? 'Tempo di carenza: ' + p.carenza + ' giorni' : ''); }
-      if (FORM && FORM.dirty.has('quantita')) return;
-      if (['dose', 'campoId', 'prodottoId'].includes(ch)) { const c = get('campi', v.campoId); if (c && v.dose !== null) setVal('quantita', Math.round(N(v.dose) * campoHa(c) * 100) / 100); }
+      if (!(FORM && FORM.dirty.has('quantita')) && ['dose', 'campoId', 'prodottoId'].includes(ch)) { const c = get('campi', v.campoId); if (c && v.dose !== null) setVal('quantita', Math.round(N(v.dose) * campoHa(c) * 100) / 100); }
+      const c0 = get('campi', v.campoId); runChecks(Object.assign({}, v, readForm()), c0 ? [c0] : [], FORM && FORM.id);
     },
     async save(id, v) {
+      if (FORM && FORM.checks) { const bad = FORM.checks.filter(x => x.lv === 'bad'); v.controlli = bad.length ? bad.map(x => x.t) : null; v.controllato = isFitoOp(v.tipo) ? today() : null; }
       const nid = await store.put('operazioni', id, v);
       const mov = S.movimenti.find(m => m.opId === nid); const c = get('campi', v.campoId);
       if (v.prodottoId && N(v.quantita) > 0 && v.stato !== 'Pianificata') await store.put('movimenti', mov ? mov.id : null, { data: v.data, prodottoId: v.prodottoId, tipo: 'Scarico', quantita: N(v.quantita), note: (v.tipo || '') + ' · ' + (c ? c.nome : ''), opId: nid });
@@ -77,12 +99,20 @@ export const SPEC = {
       { k: 'scortaMin', l: 'Scorta minima', t: 'number', half: 1 },
       { k: 'scadenza', l: 'Scadenza', t: 'date', half: 1 },
       { k: 'nReg', l: 'N. registrazione', half: 1, show: v => ['Fitofarmaco', 'Diserbante', 'Farmaco veterinario'].includes(v.categoria) },
-      { k: 'carenza', l: 'Tempo di carenza', t: 'number', half: 1, unit: 'giorni', show: v => ['Fitofarmaco', 'Diserbante'].includes(v.categoria) },
+      { k: 'carenza', l: 'Tempo di carenza', t: 'number', half: 1, unit: 'giorni', show: v => ['Fitofarmaco', 'Diserbante'].includes(v.categoria), hint: 'Valore generale: se in etichetta cambia per coltura, indicalo negli impieghi' },
+      { k: 'dbbox', t: 'box', show: v => FITO.includes(v.categoria) },
+      { k: 'sostanze', l: 'Sostanze attive', show: v => FITO.includes(v.categoria), ph: 'Es. glifosate 360 g/l' },
+      { k: 'scadenzaAut', l: 'Autorizzazione valida fino al', t: 'date', half: 1, show: v => FITO.includes(v.categoria) },
+      { k: 'impresa', l: 'Titolare della registrazione', half: 1, show: v => FITO.includes(v.categoria) },
+      { k: 's2', l: 'Impieghi autorizzati (dall\'etichetta)', t: 'section', show: v => FITO.includes(v.categoria) },
+      { k: 'impieghi', l: 'Una riga per coltura: i trattamenti vengono controllati su questi limiti', t: 'rows', show: v => FITO.includes(v.categoria), addLabel: 'Aggiungi coltura',
+        cols: [{ k: 'coltura', l: 'Coltura', list: [...COLTURE.filter(c => c !== 'Riposo'), 'Cereali autunno-vernini', 'Mais', 'Frumento', 'Prati e pascoli'], ph: 'Coltura', w: 'minmax(110px,2fr)' }, { k: 'doseMin', l: 'Dose min', unit: '/ha', t: 'number', ph: '—' }, { k: 'doseMax', l: 'Dose max', unit: '/ha', t: 'number', ph: '—' }, { k: 'carenza', l: 'Carenza', unit: 'gg', t: 'number', ph: '—' }, { k: 'maxInterventi', l: 'Interventi', unit: 'max/anno', t: 'number', ph: '—' }, { k: 'intervallo', l: 'Intervallo', unit: 'gg', t: 'number', ph: '—' }] },
       { k: 'sospLatte', l: 'Sospensione latte', t: 'number', half: 1, unit: 'giorni', show: v => v.categoria === 'Farmaco veterinario' },
       { k: 'sospCarne', l: 'Sospensione carne', t: 'number', half: 1, unit: 'giorni', show: v => v.categoria === 'Farmaco veterinario' },
       { k: 'fornitore', l: 'Fornitore', half: 1 },
       { k: 'note', l: 'Note', t: 'textarea' }],
     defaults: () => ({ unita: 'kg' }),
+    onChange(ch, v) { if (ch === null || ch === 'categoria' || ch === 'nReg') dbBox(v); },
     canDel: p => S.movimenti.some(m => m.prodottoId === p.id) || S.operazioni.some(o => o.prodottoId === p.id) ? 'Il prodotto ha movimenti registrati e non si può eliminare.' : null,
   },
   movimenti: {
@@ -119,6 +149,8 @@ export const SPEC = {
       { k: 's2', l: 'Scadenze', t: 'section' },
       { k: 'scadenzaRevisione', l: 'Revisione', t: 'date', half: 1 },
       { k: 'scadenzaAssicurazione', l: 'Assicurazione', t: 'date', half: 1 },
+      { k: 'controlloFunzionale', l: 'Controllo funzionale valido fino al', t: 'date', half: 1, show: v => v.tipo === 'Irroratrice', hint: 'Obbligatorio per le irroratrici (PAN)' },
+      { k: 'taratura', l: 'Ultima regolazione strumentale', t: 'date', half: 1, show: v => v.tipo === 'Irroratrice' },
       { k: 'note', l: 'Note', t: 'textarea' }],
     canDel: m => S.manutenzioni.some(x => x.mezzoId === m.id) || S.operazioni.some(o => o.mezzoId === m.id) ? 'Il mezzo ha lavori o manutenzioni registrati e non si può eliminare.' : null,
   },
@@ -134,6 +166,19 @@ export const SPEC = {
       { k: 'officina', l: 'Officina' },
       { k: 'note', l: 'Note', t: 'textarea' }],
     defaults: () => ({ data: today(), tipo: 'Tagliando' }),
+  },
+  operatori: {
+    title: 'Operatore', icon: 'id-card',
+    fields: () => [
+      { k: 'nome', l: 'Nome e cognome', req: 1, ph: 'Come lo scrivi nelle attività' },
+      { k: 'ruolo', l: 'Ruolo', t: 'seg', opts: ['Titolare', 'Dipendente', 'Familiare', 'Contoterzista'] },
+      { k: 'patentino', l: 'N. certificato di abilitazione (patentino)', half: 1, ph: 'Es. FVG/UD/12345' },
+      { k: 'scadenzaPatentino', l: 'Valido fino al', t: 'date', half: 1 },
+      { k: 'cf', l: 'Codice fiscale', half: 1 },
+      { k: 'telefono', l: 'Telefono', half: 1 },
+      { k: 'note', l: 'Note', t: 'textarea' }],
+    defaults: () => ({ ruolo: 'Dipendente' }),
+    validate: v => { const dup = S.operatori.find(o => (o.nome || '').toLowerCase() === (v.nome || '').toLowerCase() && o.id !== (FORM && FORM.id)); return dup ? 'Esiste già un operatore con questo nome.' : null; },
   },
   capi: {
     title: 'Capo', icon: 'cow',
@@ -291,4 +336,18 @@ export function openColtura(campoId, anno) {
     },
     onDelete: cur && st.some(x => +x.anno === +y) ? async () => { await store.put('campi', c.id, Object.assign({}, c, { colture: st.filter(x => +x.anno !== +y) })); return true; } : null,
   });
+}
+
+// Ricerca nella banca dati ministeriale dentro la scheda prodotto
+function dbBox(v) {
+  const box = document.getElementById('box_dbbox'); if (!box) return;
+  const hit = fitoLookup(v.nReg);
+  const status = hit ? `<div class="db-hit ${hit.revocato ? 'bad' : 'ok'}"><b>${esc(hit.nome)}</b><span>reg. ${esc(hit.nReg)} · ${esc(hit.impresa || '')}${hit.scadenza ? ' · autorizzato fino al ' + fd(hit.scadenza) : ''}${hit.stato ? ' · ' + esc(hit.stato) : ''}</span></div>` : '';
+  if (!fitoMeta.n) { box.innerHTML = `<div class="db-box"><p class="muted small" style="margin:0">Carica la banca dati del Ministero in <b>La mia azienda → Banca dati fitofarmaci</b> per compilare questa scheda in automatico e sapere se il prodotto è ancora autorizzato.</p></div>`; return; }
+  box.innerHTML = `<div class="db-box"><div class="search">${'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'}<input class="inp" id="dbq" placeholder="Cerca nella banca dati (${fitoMeta.n} prodotti): nome, n. registrazione o sostanza" autocomplete="off"></div><div id="dbres" class="db-res"></div>${status}</div>`;
+  const q = box.querySelector('#dbq'), res = box.querySelector('#dbres');
+  q.oninput = () => { const r = fitoSearch(q.value, 12); res.innerHTML = r.map(x => `<button type="button" class="db-row${x.revocato ? ' rev' : ''}" data-reg="${esc(x.nReg)}"><b>${esc(x.nome)}</b><span>reg. ${esc(x.nReg)} · ${esc(x.sostanze || x.attivita || '')}${x.revocato ? ' · non autorizzato' : ''}</span></button>`).join('') || (q.value.trim().length > 1 ? '<div class="muted small">Nessun prodotto trovato.</div>' : ''); };
+  res.onclick = e => { const b = e.target.closest('[data-reg]'); if (!b) return; const x = fitoLookup(b.dataset.reg); if (!x) return;
+    setVal('nome', x.nome); setVal('nReg', x.nReg); if (x.sostanze) setVal('sostanze', x.sostanze); if (x.scadenza) setVal('scadenzaAut', x.scadenza); if (x.impresa) setVal('impresa', x.impresa);
+    ['nome', 'nReg', 'sostanze', 'scadenzaAut', 'impresa'].forEach(k => FORM && FORM.dirty.add(k)); q.value = ''; res.innerHTML = ''; dbBox(Object.assign({}, v, { nReg: x.nReg })); };
 }

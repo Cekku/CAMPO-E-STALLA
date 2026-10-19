@@ -1,6 +1,7 @@
 // Impostazioni: azienda, account e sincronizzazione, installazione, dati
 import { S, azienda } from '../state.js';
-import { esc, fd, nf } from '../util.js';
+import { esc, fd, nf, okD, today, diff, byName } from '../util.js';
+import { fitoMeta } from '../fitodb.js';
 import { ic } from '../icons.js';
 import { sync, cloudConfig } from '../store.js';
 import { canInstall, isStandalone } from '../install.js';
@@ -45,6 +46,8 @@ export function render() {
     <label class="fld half"><span class="flabel">Superficie aziendale totale</span><div class="inwrap"><input id="az_ha" value="${esc(a.ettari ? String(a.ettari).replace('.', ',') : '')}" inputmode="decimal" placeholder="Es. 250"><span class="unit">ha</span></div><small>Serve a mostrare quanti ettari hai già mappato.</small></label><span></span>
     <label class="fld half"><span class="flabel">Latitudine</span><div class="inwrap"><input id="az_lat" value="${esc(a.lat || '')}" inputmode="decimal" placeholder="dai campi"></div></label><label class="fld half"><span class="flabel">Longitudine</span><div class="inwrap"><input id="az_lon" value="${esc(a.lon || '')}" inputmode="decimal" placeholder="dai campi"></div></label>
     <div class="fld row-btns"><button class="btn primary" type="submit">Salva</button><button class="btn ghost" type="button" data-act="gpsAzienda">${ic('locate-fixed')}Usa la mia posizione</button></div></form></section>
+  ${operatoriSection()}
+  ${fitoSection()}
   <section class="card set"><div class="set-h">${ic('map')}<div><h2>Mappe</h2><p>In Friuli Venezia Giulia l'app usa le ortofoto ufficiali della Regione, che sono le più nitide. Facoltativo: con una chiave Google Maps hai anche le immagini satellitari di Google (gratis fino a 100.000 riquadri al mese, poi a pagamento).</p></div></div>
     <form class="fgrid" data-form-act="gkey"><label class="fld"><span class="flabel">Chiave API di Google Maps (Map Tiles API)</span><div class="inwrap"><input id="az_gkey" value="${esc(a.gkey || '')}" placeholder="AIza…" autocomplete="off" class="mono"></div><small>Crea la chiave su console.cloud.google.com, attiva "Map Tiles API" e limitala al dominio cekku.github.io. La guida è nel file LEGGIMI.</small></label><div class="fld row-btns"><button class="btn" type="submit">Salva chiave</button></div></form></section>
   ${cloudSection()}
@@ -61,4 +64,18 @@ export function render() {
 export function renderAltro() {
   const items = [['magazzino', 'package', 'Magazzino', S.prodotti.length + ' prodotti'], ['mezzi', 'tractor', 'Mezzi', S.mezzi.length + ' mezzi e attrezzi'], ['impostazioni', 'settings', 'Impostazioni', sync.farm ? sync.farm.name : 'Azienda, sincronizzazione, dati']];
   return { title: 'Altro', html: `<header class="pagehead"><h1>Altro</h1></header><section class="card"><div class="list">${items.map(([t, i, l, s]) => `<button class="row" data-act="tab" data-tab="${t}"><span class="r-icon">${ic(i)}</span><span class="r-main"><b>${l}</b><span>${esc(s)}</span></span>${ic('chevron-right', 'chev')}</button>`).join('')}</div></section>${canInstall() ? `<section class="card set"><div class="set-h">${ic('smartphone')}<div><h2>Installa l'app</h2><p>Aggiungila alla schermata Home per aprirla a schermo intero, anche senza rete.</p></div></div><button class="btn primary" data-act="install">Installa</button></section>` : ''}` };
+}
+
+function operatoriSection() {
+  const T = today(); const list = [...S.operatori].sort(byName);
+  const st = o => !okD(o.scadenzaPatentino) ? ['warn', o.patentino ? 'scadenza non indicata' : 'patentino da inserire'] : o.scadenzaPatentino < T ? ['bad', 'scaduto il ' + fd(o.scadenzaPatentino)] : diff(T, o.scadenzaPatentino) <= 90 ? ['warn', 'scade il ' + fd(o.scadenzaPatentino)] : ['ok', 'valido fino al ' + fd(o.scadenzaPatentino)];
+  return `<section class="card set" id="operatori"><div class="set-h">${ic('id-card')}<div><h2>Operatori</h2><p>Chi lavora in azienda, con il patentino per i prodotti fitosanitari. I trattamenti fatti da chi ha il patentino scaduto vengono segnalati.</p></div></div>
+  <div class="list">${list.length ? list.map(o => { const [lv, t] = st(o); return `<button class="row" data-act="edit" data-form="operatori" data-id="${o.id}"><span class="avatar">${esc((o.nome || '?')[0].toUpperCase())}</span><span class="r-main"><b>${esc(o.nome)}</b><span>${esc(o.ruolo || '')}${o.patentino ? ' · ' + esc(o.patentino) : ''}</span></span><span class="chip ${lv}">${esc(t)}</span></button>`; }).join('') : '<div class="empty slim">Nessun operatore: aggiungi te stesso e i collaboratori.</div>'}</div>
+  <div class="btns"><button class="btn sm" data-act="new" data-form="operatori">${ic('plus')}Aggiungi operatore</button></div></section>`;
+}
+function fitoSection() {
+  return `<section class="card set" id="fitodb"><div class="set-h">${ic('flask-conical')}<div><h2>Banca dati fitofarmaci</h2><p>Carica il file dei prodotti fitosanitari pubblicato dal Ministero della Salute: le schede prodotto si compilano da sole e l'app avvisa se un prodotto è revocato o non più autorizzato. Il file resta su questo dispositivo.</p></div></div>
+  ${fitoMeta.n ? `<div class="syncbox ok">${ic('circle-check')}<div><b>${nf(fitoMeta.n, 0)} ${fitoMeta.n === 1 ? 'prodotto' : 'prodotti'} in banca dati</b><span>caricata il ${fitoMeta.at ? new Date(fitoMeta.at).toLocaleDateString('it-IT') : '—'}</span></div></div>` : ''}
+  <ol class="steps small"><li>Apri <a href="https://www.dati.salute.gov.it/it/dataset/fitosanitari/" target="_blank" rel="noopener">dati.salute.gov.it → Fitosanitari</a> e scarica il file CSV dei prodotti.</li><li>Caricalo qui sotto. Ripeti ogni qualche mese per avere le revoche aggiornate.</li></ol>
+  <div class="btns"><label class="btn ${fitoMeta.n ? '' : 'primary'}">${ic('file-up')}${fitoMeta.n ? 'Aggiorna banca dati' : 'Carica file CSV'}<input type="file" accept=".csv,.txt,text/csv" data-act="fitoImport" hidden></label>${fitoMeta.n ? `<button class="btn ghost danger" data-act="fitoClear">Rimuovi</button>` : ''}<a class="btn ghost" href="https://www.fitosanitari.salute.gov.it/fitosanitariws_new/FitosanitariServlet" target="_blank" rel="noopener">${ic('search')}Etichette sul sito del Ministero</a></div></section>`;
 }

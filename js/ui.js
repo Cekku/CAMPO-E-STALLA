@@ -51,13 +51,15 @@ function fieldHTML(f, v) {
   const id = 'f_' + f.k, req = f.req ? '<em aria-hidden="true">*</em>' : '';
   const cls = 'fld' + (f.half ? ' half' : '') + (f.third ? ' third' : '');
   if (f.t === 'section') return `<div class="fsec" data-k="${f.k}">${esc(f.l)}</div>`;
+  if (f.t === 'box') return `<div class="fld fbox" data-k="${f.k}" id="box_${f.k}"></div>`;
+  if (f.t === 'rows') { const rows = Array.isArray(v) && v.length ? v : [{}]; return `<div class="${cls}" data-k="${f.k}"><span class="flabel">${esc(f.l)}${req}</span><div class="rowsgrid" style="--cols:${f.cols.map(c => c.w || '1fr').join(' ')} 40px"><div class="rg-h">${f.cols.map(c => `<span>${esc(c.l)}${c.unit ? ' <em>' + esc(c.unit) + '</em>' : ''}</span>`).join('')}<span></span></div><div class="lines" id="lines_${f.k}">${rows.map(r => rowLineHTML(f, r)).join('')}</div></div><button type="button" class="btn ghost sm" data-act="lineAdd" data-k="${f.k}">${ic('plus')}${esc(f.addLabel || 'Aggiungi riga')}</button>${f.hint ? `<small>${esc(f.hint)}</small>` : ''}</div>`; }
   if (f.t === 'lines') { const rows = Array.isArray(v) && v.length ? v : [{}]; return `<div class="${cls}" data-k="${f.k}"><span class="flabel">${esc(f.l)}${req}</span><div class="lines" id="lines_${f.k}">${rows.map(r => lineHTML(f, r)).join('')}</div><button type="button" class="btn ghost sm" data-act="lineAdd" data-k="${f.k}">${ic('plus')}Aggiungi alimento</button>${f.hint ? `<small>${esc(f.hint)}</small>` : ''}</div>`; }
   if (f.t === 'seg') { const opts = typeof f.opts === 'function' ? f.opts() : f.opts; return `<div class="${cls}" data-k="${f.k}"><span class="flabel">${esc(f.l)}${req}</span><div class="seg" role="radiogroup">${opts.map(o => { const [val, l] = Array.isArray(o) ? o : [o, o]; return `<label><input type="radio" name="${f.k}" value="${esc(val)}"${String(val) === String(v ?? '') ? ' checked' : ''}><span>${esc(l)}</span></label>`; }).join('')}</div>${f.hint ? `<small id="h_${f.k}">${esc(f.hint)}</small>` : ''}</div>`; }
   let inp;
   if (f.t === 'select') { const opts = typeof f.opts === 'function' ? f.opts() : f.opts; inp = `<select id="${id}" name="${f.k}">${f.blank === false ? '' : `<option value="">${esc(f.blank || '—')}</option>`}${optList(opts, v)}</select>`; }
   else if (f.t === 'textarea') inp = `<textarea id="${id}" name="${f.k}" rows="3" placeholder="${esc(f.ph || '')}">${esc(v ?? '')}</textarea>`;
   else {
-    const t = f.t === 'number' ? 'text' : f.t === 'date' ? 'date' : f.t === 'email' ? 'email' : f.t === 'password' ? 'password' : 'text';
+    const t = f.t === 'number' ? 'text' : f.t === 'date' ? 'date' : f.t === 'time' ? 'time' : f.t === 'email' ? 'email' : f.t === 'password' ? 'password' : 'text';
     const im = f.t === 'number' ? ' inputmode="decimal"' : '';
     const val = f.t === 'number' && v !== null && v !== undefined && v !== '' ? String(v).replace('.', ',') : (v ?? '');
     inp = `<div class="inwrap">${f.pre ? `<span class="pre">${esc(f.pre)}</span>` : ''}<input id="${id}" name="${f.k}" type="${t}"${im}${f.list ? ` list="dl_${f.k}"` : ''} value="${esc(val)}"${f.ph ? ` placeholder="${esc(f.ph)}"` : ''} autocomplete="${f.ac || 'off'}">${f.unit ? `<span class="unit" id="u_${f.k}">${esc(f.unit)}</span>` : ''}</div>${f.list ? `<datalist id="dl_${f.k}">${f.list.map(x => `<option value="${esc(x)}">`).join('')}</datalist>` : ''}`;
@@ -65,12 +67,21 @@ function fieldHTML(f, v) {
   return `<label class="${cls}" data-k="${f.k}"><span class="flabel">${esc(f.l)}${req}</span>${inp}${f.hint ? `<small id="h_${f.k}">${esc(f.hint)}</small>` : ''}</label>`;
 }
 function lineHTML(f, r) { const opts = f.opts(); return `<div class="line"><select data-line="prodottoId" aria-label="Alimento"><option value="">Scegli alimento</option>${optList(opts, r.prodottoId)}</select><div class="inwrap"><input data-line="kg" type="text" inputmode="decimal" placeholder="0" aria-label="kg per capo" value="${esc(r.kg ?? '')}"><span class="unit">kg</span></div><button type="button" class="iconbtn" data-act="lineDel" aria-label="Rimuovi">${ic('x')}</button></div>`; }
-export function addLine(k) { const f = FORM && FORM.fields.find(x => x.k === k); if (f) document.getElementById('lines_' + k).insertAdjacentHTML('beforeend', lineHTML(f, {})); }
+function rowLineHTML(f, r) {
+  return `<div class="line rg">${f.cols.map(c => {
+    const val = r[c.k];
+    if (c.t === 'select') { const opts = typeof c.opts === 'function' ? c.opts() : c.opts; return `<select data-line="${c.k}" aria-label="${esc(c.l)}"><option value="">${esc(c.ph || '—')}</option>${optList(opts, val)}</select>`; }
+    const num = c.t === 'number'; const sv = num && val !== null && val !== undefined && val !== '' ? String(val).replace('.', ',') : (val ?? '');
+    return `<input data-line="${c.k}" type="text"${num ? ' inputmode="decimal"' : ''}${c.list ? ` list="dlr_${f.k}_${c.k}"` : ''} placeholder="${esc(c.ph || '')}" aria-label="${esc(c.l)}" value="${esc(sv)}">`;
+  }).join('')}<button type="button" class="iconbtn" data-act="lineDel" aria-label="Rimuovi">${ic('x')}</button>${f.cols.filter(c => c.list).map(c => `<datalist id="dlr_${f.k}_${c.k}">${c.list.map(x => `<option value="${esc(x)}">`).join('')}</datalist>`).join('')}</div>`;
+}
+export function addLine(k) { const f = FORM && FORM.fields.find(x => x.k === k); if (f) document.getElementById('lines_' + k).insertAdjacentHTML('beforeend', f.t === 'rows' ? rowLineHTML(f, {}) : lineHTML(f, {})); }
 
 export function readForm() {
   const v = {}; if (!FORM) return v;
   FORM.fields.forEach(f => {
-    if (f.t === 'section') return;
+    if (f.t === 'section' || f.t === 'box') return;
+    if (f.t === 'rows') { v[f.k] = $$('#lines_' + f.k + ' .line').map(r => { const o = {}; f.cols.forEach(c => { const el = r.querySelector(`[data-line="${c.k}"]`); const s = el ? el.value.trim() : ''; o[c.k] = c.t === 'number' ? (s === '' ? null : N(s)) : s; }); return o; }).filter(o => f.cols.some(c => o[c.k] !== null && o[c.k] !== '')); return; }
     if (f.t === 'lines') { v[f.k] = $$('#lines_' + f.k + ' .line').map(r => ({ prodottoId: r.querySelector('[data-line=prodottoId]').value, kg: r.querySelector('[data-line=kg]').value === '' ? null : N(r.querySelector('[data-line=kg]').value) })).filter(r => r.prodottoId); return; }
     if (f.t === 'seg') { const c = $(`#frm input[name="${f.k}"]:checked`); v[f.k] = c ? c.value : ''; return; }
     const el = document.getElementById('f_' + f.k); if (!el) return; const s = el.value.trim();
@@ -101,9 +112,9 @@ export function openForm(o) {
     e.preventDefault(); if (!FORM) return;
     const vals = readForm(); const bad = [];
     FORM.fields.forEach(f => {
-      if (f.t === 'section') return;
+      if (f.t === 'section' || f.t === 'box') return;
       const w = $(`#frm [data-k="${f.k}"]`); const vis = !(w && w.hidden);
-      if (!vis) { vals[f.k] = f.t === 'lines' ? [] : null; return; }
+      if (!vis) { vals[f.k] = f.t === 'lines' || f.t === 'rows' ? [] : null; return; }
       const miss = f.req && (vals[f.k] === null || vals[f.k] === '' || (Array.isArray(vals[f.k]) && !vals[f.k].length));
       if (w) w.classList.toggle('err', !!miss); if (miss) bad.push(f.l);
     });

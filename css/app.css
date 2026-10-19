@@ -798,3 +798,45 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 .fx-h { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; } .fx-h b { flex: 1; font-size: 16px; }
 .fx-row { display: grid; grid-template-columns: 96px 1fr 52px; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
 .fx-row input { width: 100%; accent-color: var(--bar); height: 30px; } .fx-row em { font-style: normal; font-family: var(--f-mono); font-size: 13px; color: var(--muted); text-align: right; }
+
+/* ---------- controlli automatici sui trattamenti ---------- */
+.fbox:empty { display: none; }
+.checks { border-radius: 14px; border: 1.5px solid var(--line-2); background: var(--surface); overflow: hidden; }
+.checks.ok { border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.checks.warn { border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.checks.bad { border-color: color-mix(in srgb, var(--bad) 55%, transparent); }
+.ck-h { display: flex; align-items: center; gap: 9px; padding: 10px 13px; background: var(--sunk); }
+.checks.ok .ck-h { background: var(--ok-soft); color: var(--ok); } .checks.warn .ck-h { background: var(--warn-soft); color: var(--warn); } .checks.bad .ck-h { background: var(--bad-soft); color: var(--bad); }
+.ck-h b { font-family: var(--f-display); font-size: 15px; flex: 1; color: var(--ink); }
+.ck-h span { font-size: 12.5px; font-weight: 700; }
+.checks ul { list-style: none; margin: 0; padding: 4px 0; }
+.checks li { display: flex; gap: 10px; padding: 7px 13px; align-items: flex-start; }
+.checks li > span { display: flex; flex-direction: column; min-width: 0; }
+.checks li b { font-size: 14px; font-weight: 650; }
+.checks li small { font-size: 12.5px; color: var(--muted); }
+.checks li .ic { margin-top: 2px; width: 17px; height: 17px; }
+.checks li.bad .ic { color: var(--bad); } .checks li.warn .ic { color: var(--warn); } .checks li.info .ic { color: var(--info); } .checks li.ok .ic { color: var(--ok); }
+.ck-force { display: flex; gap: 10px; align-items: flex-start; padding: 10px 13px; border-top: 1px solid var(--line); background: var(--bad-soft); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.ck-force input { width: 20px; height: 20px; margin: 0; accent-color: var(--bad); flex: none; }
+
+/* righe a colonne nei moduli (impieghi in etichetta) */
+.rowsgrid { overflow-x: auto; }
+.rowsgrid .rg-h, .rowsgrid .line.rg { display: grid; grid-template-columns: var(--cols); gap: 6px; align-items: center; min-width: 560px; }
+.rowsgrid .rg-h { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; padding: 0 2px 4px; }
+.rowsgrid .rg-h em { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 600; opacity: .8; }
+.line.rg input, .line.rg select { height: 42px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg); padding: 0 9px; font-size: 15px; min-width: 0; width: 100%; }
+.line.rg input:focus, .line.rg select:focus { border-color: var(--accent); outline: none; }
+
+/* banca dati fitofarmaci nella scheda prodotto */
+.db-box { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--sunk); }
+.db-res { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
+.db-res:empty { display: none; }
+.db-row { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-align: left; }
+.db-row span { font-size: 12.5px; color: var(--muted); }
+.db-row.rev b { text-decoration: line-through; color: var(--muted); }
+.db-row:hover { border-color: var(--accent); }
+.db-hit { display: flex; flex-direction: column; padding: 8px 10px; border-radius: 10px; border-left: 4px solid var(--ok); background: var(--surface); }
+.db-hit.bad { border-left-color: var(--bad); }
+.db-hit span { font-size: 12.5px; color: var(--muted); }
+.steps { margin: 4px 0 12px; padding-left: 20px; color: var(--ink-2); }
+.steps li { margin: 3px 0; }

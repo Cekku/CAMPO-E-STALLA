@@ -5,7 +5,9 @@ import { ic } from './icons.js';
 import { TIPI_OP, campoHa, cropOf, cropColor } from './domain.js';
 import { thumb } from './geo.js';
 import { openSheet, openForm, toast } from './ui.js';
-import { SPEC } from './forms.js';
+import { SPEC, runChecks } from './forms.js';
+import { forceOk } from './checks.js';
+import { FORM, readForm } from './ui.js';
 
 const TIPI = [
   ['Lavorazione terreno', 'tractor', 'Aratura, erpicatura, rullatura'], ['Semina', 'sprout', 'Semina e trapianto'], ['Concimazione', 'leaf', 'Nutrizione e fertilizzanti'],
@@ -61,11 +63,13 @@ function step3() {
   openForm({
     title: W.tipo, sub: (W.stato === 'Pianificata' ? 'Da fare · ' : '') + (campi.length === 1 ? campi[0].nome + ' · ' + nf(totHa, 2) + ' ha' : campi.length + ' campi · ' + nf(totHa, 2) + ' ha'),
     fields, values: vals, saveLabel: W.stato === 'Pianificata' ? 'Pianifica' : 'Registra',
+    validate: () => forceOk((FORM && FORM.checks) || []),
     onChange(ch, v) {
       const p = get('prodotti', v.prodottoId);
       if (ch === null || ch === 'prodottoId') { const u = document.getElementById('u_dose'); if (u) u.textContent = (p ? p.unita : '') + '/ha'; const u2 = document.getElementById('u_quantita'); if (u2) u2.textContent = p ? p.unita : ''; }
       if (['dose', 'prodottoId'].includes(ch) && v.dose !== null) { const el = document.getElementById('f_quantita'); if (el && !(window.__wzDirty)) el.value = String(Math.round(N(v.dose) * totHa * 100) / 100).replace('.', ','); }
       if (ch === 'quantita') window.__wzDirty = true;
+      runChecks(Object.assign({}, readForm(), { tipo: W.tipo, stato: W.stato }), campi, null);
     },
     onSave: async v => {
       window.__wzDirty = false;

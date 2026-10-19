@@ -11,6 +11,8 @@ import { startWizard } from './wizard.js';
 import * as MAP from './map.js';
 import { promptInstall, canInstall } from './install.js';
 import { exampleRows } from './esempi.js';
+import { stampaRegistro, registroJSON, registroHTML, righeTrattamenti, scarica } from './registro.js';
+import { initFito, importFito, clearFito } from './fitodb.js';
 import { render as vOggi } from './views/oggi.js';
 import { render as vCampi } from './views/campi.js';
 import { render as vAtt } from './views/attivita.js';
@@ -167,11 +169,14 @@ const csv = (head, rows) => '﻿' + [head, ...rows].map(r => r.map(x => { const 
 const it = n => n === null || n === undefined || n === '' ? '' : String(n).replace('.', ',');
 function exportSheet() {
   drawer(false);
-  openSheet('Esporta documenti', `<p class="muted">File CSV che si aprono con Excel, per l'annata ${UI.anno}.</p><div class="list flat">${[['quaderno', 'notebook-pen', 'Quaderno di campagna', 'Trattamenti, concimazioni, semine con prodotto, dose, avversità e carenza'], ['trattamenti', 'syringe', 'Registro trattamenti di stalla', 'Farmaci, ricette e fine delle sospensioni'], ['latte', 'milk', 'Registro del latte', 'Litri, conferiti, analisi'], ['movimenti', 'warehouse', 'Movimenti di magazzino', 'Carichi e scarichi'], ['backup', 'history', 'Copia di sicurezza completa', 'Tutti i dati in un file JSON']].map(([k, i, l, s]) => `<button class="row" data-act="${k === 'backup' ? 'backup' : 'export'}" data-what="${k}"><span class="r-icon">${ic(i)}</span><span class="r-main"><b>${l}</b><span>${s}</span></span>${ic('download', 'chev')}</button>`).join('')}</div>`);
+  openSheet('Esporta documenti', `<p class="muted">Registri e file dell'annata ${UI.anno}: il PDF si ottiene dalla stampa, i CSV si aprono con Excel.</p><div class="list flat">${[['registro', 'printer', 'Quaderno di campagna (stampa o PDF)', 'Appezzamenti, registro trattamenti, concimazioni, acquisti, giacenze, operatori'], ['registroJson', 'file-text', 'Registro trattamenti in formato dati (JSON)', 'Un record per trattamento con tutti i campi richiesti dal registro elettronico'], ['quaderno', 'file-spreadsheet', 'Quaderno di campagna (CSV)', 'Tutte le operazioni con prodotto, dose, avversità e carenza'], ['trattamenti', 'syringe', 'Registro trattamenti di stalla', 'Farmaci, ricette e fine delle sospensioni'], ['latte', 'milk', 'Registro del latte', 'Litri, conferiti, analisi'], ['movimenti', 'warehouse', 'Movimenti di magazzino', 'Carichi e scarichi'], ['backup', 'history', 'Copia di sicurezza completa', 'Tutti i dati in un file JSON']].map(([k, i, l, s]) => `<button class="row" data-act="${k === 'backup' ? 'backup' : 'export'}" data-what="${k}"><span class="r-icon">${ic(i)}</span><span class="r-main"><b>${l}</b><span>${s}</span></span>${ic('download', 'chev')}</button>`).join('')}</div>`);
 }
 function doExport(what) {
   const y = UI.anno;
-  if (what === 'quaderno') { const ops = S.operazioni.filter(o => yearOf(o.data) === y && o.stato !== 'Pianificata').sort(byDate); download(`quaderno-campagna-${y}.csv`, csv(['Data', 'Appezzamento', 'Superficie ha', 'Coltura', 'Catasto', 'Operazione', 'Prodotto', 'N. registrazione', 'Dose/ha', 'Quantità', 'Unità', 'Avversità', 'Fase', 'Carenza gg', 'Mezzo', 'Ore', 'Operatore', 'Note'], ops.map(o => { const c = get('campi', o.campoId) || {}, p = get('prodotti', o.prodottoId) || {}, m = get('mezzi', o.mezzoId) || {}; return [o.data, c.nome, it(campoHa(c)), cropOf(c, y), c.catasto, o.tipo, p.nome, p.nReg, it(o.dose), it(o.quantita), p.unita, o.avversita, o.fase, it(p.carenza), m.nome, it(o.ore), o.operatore, o.note]; }))); }
+  if (what === 'registro') { stampaRegistro(y); closeSheet(); return; }
+  if (what === 'registroHtml') { scarica(`quaderno-campagna-${y}.html`, registroHTML(y), 'text/html'); return; }
+  if (what === 'registroJson') { download(`registro-trattamenti-${y}.json`, JSON.stringify(registroJSON(y), null, 2), 'application/json'); toast('File pronto'); return; }
+  if (what === 'quaderno') { const ops = S.operazioni.filter(o => yearOf(o.data) === y && o.stato !== 'Pianificata').sort(byDate); const car = new Map(righeTrattamenti(y).map(r => [r.o.id, r])); download(`quaderno-campagna-${y}.csv`, csv(['Data', 'Ora', 'Appezzamento', 'Superficie ha', 'Coltura', 'Catasto', 'Operazione', 'Prodotto', 'N. registrazione', 'Sostanze attive', 'Dose/ha', 'Quantità', 'Unità', 'Avversità', 'BBCH', 'Fase', 'Carenza gg', 'Raccolta dal', 'Mezzo', 'Ore', 'Operatore', 'Patentino', 'Note'], ops.map(o => { const c = get('campi', o.campoId) || {}, p = get('prodotti', o.prodottoId) || {}, m = get('mezzi', o.mezzoId) || {}; const r = car.get(o.id); return [o.data, o.oraInizio, c.nome, it(campoHa(c)), cropOf(c, y), c.catasto, o.tipo, p.nome, p.nReg, p.sostanze, it(o.dose), it(o.quantita), p.unita, o.avversita, o.bbch, o.fase, r ? it(r.car) : it(p.carenza), r ? r.raccoltaDal : '', m.nome, it(o.ore), o.operatore, r && r.op ? r.op.patentino : '', o.note]; }))); }
   if (what === 'trattamenti') { const ev = S.eventi.filter(e => (e.tipo === 'Trattamento sanitario' || e.tipo === 'Vaccinazione') && yearOf(e.data) === y).sort(byDate); download(`registro-trattamenti-${y}.csv`, csv(['Data', 'Matricola', 'Nome', 'Tipo', 'Farmaco', 'Diagnosi', 'Quantità', 'Sosp. latte gg', 'Fine sosp. latte', 'Sosp. carne gg', 'Fine sosp. carne', 'Ricetta', 'Veterinario', 'Note'], ev.map(e => { const c = get('capi', e.capoId) || {}, p = get('prodotti', e.prodottoId); return [e.data, c.matricola, c.nome, e.tipo, p ? p.nome : e.farmaco, e.motivo, it(e.quantita), it(e.sospLatte), N(e.sospLatte) ? addDays(e.data, N(e.sospLatte)) : '', it(e.sospCarne), N(e.sospCarne) ? addDays(e.data, N(e.sospCarne)) : '', e.ricetta, e.veterinario, e.note]; }))); }
   if (what === 'latte') { const L = D.latte.filter(l => yearOf(l.data) === y); download(`latte-${y}.csv`, csv(['Data', 'Vacche', 'Litri prodotti', 'Litri conferiti', 'Litri scartati', 'Prezzo €/l', 'Grasso %', 'Proteine %', 'Cellule', 'CBT', 'Note'], L.map(l => [l.data, it(l.vacche), it(l.litri), it(l.conferiti), it(l.scartati), it(l.prezzo), it(l.grasso), it(l.proteine), it(l.cellule), it(l.cbt), l.note]))); }
   if (what === 'movimenti') { const mv = S.movimenti.filter(m => yearOf(m.data) === y).sort(byDate); download(`movimenti-magazzino-${y}.csv`, csv(['Data', 'Prodotto', 'Categoria', 'Tipo', 'Quantità', 'Unità', 'Prezzo', 'Documento', 'Note'], mv.map(m => { const p = get('prodotti', m.prodottoId) || {}; return [m.data, p.nome, p.categoria, m.tipo, it(m.quantita), p.unita, it(m.prezzo), m.documento, m.note]; }))); }
@@ -192,7 +197,7 @@ async function restore(file) {
   } catch (e) { toast(e.message || 'File non valido', 'err'); }
 }
 async function delExamples() {
-  const order = ['movimenti', 'operazioni', 'eventi', 'latte', 'razioni', 'note', 'manutenzioni', 'capi', 'campi', 'prodotti', 'mezzi'];
+  const order = ['movimenti', 'operazioni', 'eventi', 'latte', 'misure', 'razioni', 'note', 'manutenzioni', 'silos', 'strutture', 'capi', 'campi', 'prodotti', 'mezzi', 'operatori'];
   for (const c of order) for (const x of S[c].filter(x => x.esempio)) await store.remove(c, x.id);
   toast('Dati di esempio eliminati');
 }
@@ -236,11 +241,12 @@ document.addEventListener('click', async e => {
       case 'view': UI.view = d.v; saveUI(); return render();
       case 'collapse': { const k = 'c_' + d.k; UI.f[k] = !UI.f[k]; return render(); }
       case 'export': return doExport(d.what);
+      case 'fitoClear': return arm(b, 'Conferma: rimuovi la banca dati', async () => { await clearFito(); toast('Banca dati rimossa'); });
       case 'exportSheet': return exportSheet();
       case 'razScarico': b.disabled = true; return razScarico(d.id);
       case 'formdel': return formDelete(b);
       case 'lineAdd': return addLine(d.k);
-      case 'lineDel': { const l = b.closest('.line'); if (l.parentElement.children.length > 1) l.remove(); else { l.querySelector('select').value = ''; l.querySelector('input').value = ''; } return; }
+      case 'lineDel': { const l = b.closest('.line'); const par = l.parentElement; if (par.children.length > 1) l.remove(); else l.querySelectorAll('input,select').forEach(x => (x.value = '')); par.dispatchEvent(new Event('input', { bubbles: true })); return; }
       case 'copy': try { await navigator.clipboard.writeText(d.txt); toast('Copiato'); } catch (err) { toast(d.txt); } return;
       case 'install': drawer(false); return promptInstall();
       case 'loadExamples': await store.bulkPut(exampleRows()); toast('Dati di esempio caricati'); return setTab('oggi');
@@ -288,6 +294,7 @@ document.addEventListener('change', e => {
   if (t.dataset.filter && t.tagName === 'SELECT') { UI.f[t.dataset.filter] = t.value; return render(); }
   if (t.dataset.act === 'mapImport' && t.files[0]) { MAP.importFile(t.files[0]); t.value = ''; return; }
   if (t.dataset.act === 'restore' && t.files[0]) { restore(t.files[0]); t.value = ''; return; }
+  if (t.dataset.act === 'fitoImport' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Lettura della banca dati…'); importFito(f).then(n => toast('Banca dati caricata: ' + n + ' prodotti')).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'authTab') { authUI.tab = t.value; return render(); }
   if (t.dataset.act === 'view') { UI.view = t.dataset.v; saveUI(); return render(); }
 });
@@ -350,6 +357,7 @@ function gpsAzienda() {
   const h = (location.hash || '').slice(1); if (VIEWS[h] || h === 'mappa') UI.tab = h;
   const q = new URLSearchParams(location.search).get('azione');
   render();
+  initFito();
   store.initStore().then(() => { if (q === 'operazione') startWizard(); else if (q === 'latte') openEdit('latte'); else if (q === 'evento') openEdit('eventi'); });
   window.addEventListener('online', () => { syncPill(); schedule(); });
   window.addEventListener('offline', () => { syncPill(); schedule(); });
