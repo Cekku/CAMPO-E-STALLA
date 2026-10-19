@@ -2,6 +2,7 @@
 import { S, azienda } from '../state.js';
 import { esc, fd, nf, okD, today, diff, byName } from '../util.js';
 import { fitoMeta } from '../fitodb.js';
+import { aiConfig } from '../nlp.js';
 import { ic } from '../icons.js';
 import { sync, cloudConfig } from '../store.js';
 import { canInstall, isStandalone } from '../install.js';
@@ -48,6 +49,7 @@ export function render() {
     <div class="fld row-btns"><button class="btn primary" type="submit">Salva</button><button class="btn ghost" type="button" data-act="gpsAzienda">${ic('locate-fixed')}Usa la mia posizione</button></div></form></section>
   ${operatoriSection()}
   ${fitoSection()}
+  ${aiSection()}
   <section class="card set"><div class="set-h">${ic('map')}<div><h2>Mappe</h2><p>In Friuli Venezia Giulia l'app usa le ortofoto ufficiali della Regione, che sono le più nitide. Facoltativo: con una chiave Google Maps hai anche le immagini satellitari di Google (gratis fino a 100.000 riquadri al mese, poi a pagamento).</p></div></div>
     <form class="fgrid" data-form-act="gkey"><label class="fld"><span class="flabel">Chiave API di Google Maps (Map Tiles API)</span><div class="inwrap"><input id="az_gkey" value="${esc(a.gkey || '')}" placeholder="AIza…" autocomplete="off" class="mono"></div><small>Crea la chiave su console.cloud.google.com, attiva "Map Tiles API" e limitala al dominio cekku.github.io. La guida è nel file LEGGIMI.</small></label><div class="fld row-btns"><button class="btn" type="submit">Salva chiave</button></div></form></section>
   ${cloudSection()}
@@ -78,4 +80,12 @@ function fitoSection() {
   ${fitoMeta.n ? `<div class="syncbox ok">${ic('circle-check')}<div><b>${nf(fitoMeta.n, 0)} ${fitoMeta.n === 1 ? 'prodotto' : 'prodotti'} in banca dati</b><span>caricata il ${fitoMeta.at ? new Date(fitoMeta.at).toLocaleDateString('it-IT') : '—'}</span></div></div>` : ''}
   <ol class="steps small"><li>Apri <a href="https://www.dati.salute.gov.it/it/dataset/fitosanitari/" target="_blank" rel="noopener">dati.salute.gov.it → Fitosanitari</a> e scarica il file CSV dei prodotti.</li><li>Caricalo qui sotto. Ripeti ogni qualche mese per avere le revoche aggiornate.</li></ol>
   <div class="btns"><label class="btn ${fitoMeta.n ? '' : 'primary'}">${ic('file-up')}${fitoMeta.n ? 'Aggiorna banca dati' : 'Carica file CSV'}<input type="file" accept=".csv,.txt,text/csv" data-act="fitoImport" hidden></label>${fitoMeta.n ? `<button class="btn ghost danger" data-act="fitoClear">Rimuovi</button>` : ''}<a class="btn ghost" href="https://www.fitosanitari.salute.gov.it/fitosanitariws_new/FitosanitariServlet" target="_blank" rel="noopener">${ic('search')}Etichette sul sito del Ministero</a></div></section>`;
+}
+
+function aiSection() {
+  const c = aiConfig() || {};
+  return `<section class="card set" id="ai"><div class="set-h">${ic('sparkles')}<div><h2>Registrazione a voce e con testo libero</h2><p>Dal pulsante Registra puoi scrivere o dettare frasi come "ieri diserbo su Pradone 1,5 l/ha". Funziona già senza configurare nulla. Facoltativo: con una chiave API di Anthropic le frasi vengono interpretate da Claude, che capisce anche i modi di dire più liberi (costo di pochi centesimi al mese).</p></div></div>
+  <form class="fgrid" data-form-act="aiKey"><label class="fld"><span class="flabel">Chiave API Anthropic</span><div class="inwrap"><input id="ai_key" type="password" value="${esc(c.key || '')}" placeholder="sk-ant-…" autocomplete="off" class="mono"></div><small>Si crea su console.anthropic.com → API keys. Resta solo su questo dispositivo e non viene sincronizzata.</small></label>
+  <label class="fld half"><span class="flabel">Modello</span><div class="inwrap"><input id="ai_model" value="${esc(c.model || 'claude-haiku-5-5')}" class="mono" autocomplete="off"></div></label><span></span>
+  <div class="fld row-btns"><button class="btn" type="submit">Salva</button>${c.key ? '<button class="btn ghost danger" type="button" data-act="aiForget">Rimuovi chiave</button>' : ''}</div></form></section>`;
 }

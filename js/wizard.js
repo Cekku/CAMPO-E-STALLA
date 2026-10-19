@@ -14,10 +14,10 @@ const TIPI = [
   ['Trattamento fitosanitario', 'shield-check', 'Difesa da malattie e insetti'], ['Diserbo', 'leaf', 'Controllo delle infestanti'], ['Irrigazione', 'droplets', 'Turni e volumi d\'acqua'],
   ['Sfalcio', 'wheat', 'Fienagione e foraggi'], ['Raccolta', 'wheat', 'Trebbiatura, trinciatura'], ['Altro', 'clipboard-list', 'Qualsiasi altra operazione'],
 ];
-const W = { tipo: null, campi: new Set(), q: '', stato: 'Fatto' };
+const W = { tipo: null, campi: new Set(), q: '', stato: 'Fatto', pre: {} };
 
 export function startWizard(pre = {}) {
-  W.tipo = pre.tipo || null; W.campi = new Set(pre.campoId ? [pre.campoId] : []); W.q = ''; W.stato = pre.stato || 'Fatto';
+  W.tipo = pre.tipo || null; W.campi = new Set(pre.campi || (pre.campoId ? [pre.campoId] : [])); W.q = ''; W.stato = pre.stato || 'Fatto'; W.pre = pre.values || {};
   if (!S.campi.length) { toast('Prima aggiungi almeno un campo.', 'err'); return; }
   if (W.tipo && W.campi.size) return step3(); if (W.tipo) return step2();
   step1();
@@ -59,7 +59,8 @@ function step3() {
   const totHa = campi.reduce((t, c) => t + campoHa(c), 0);
   const fields = SPEC.operazioni.fields().filter(f => !['tipo', 'campoId', 'stato'].includes(f.k)).map(f => f.show ? Object.assign({}, f, { show: (sh => v => sh(Object.assign({}, v, { tipo: W.tipo })))(f.show) }) : f);
   const q = fields.find(f => f.k === 'quantita'); if (q) q.hint = campi.length > 1 ? `Totale su ${nf(totHa, 2)} ha, ripartito per superficie` : 'Dose × ettari, si scarica dal magazzino';
-  const vals = Object.assign(SPEC.operazioni.defaults(), { tipo: W.tipo, stato: W.stato });
+  const vals = Object.assign(SPEC.operazioni.defaults(), W.pre, { tipo: W.tipo, stato: W.stato });
+  if (N(vals.dose) > 0 && !N(vals.quantita) && vals.prodottoId) vals.quantita = Math.round(N(vals.dose) * totHa * 100) / 100;
   openForm({
     title: W.tipo, sub: (W.stato === 'Pianificata' ? 'Da fare · ' : '') + (campi.length === 1 ? campi[0].nome + ' · ' + nf(totHa, 2) + ' ha' : campi.length + ' campi · ' + nf(totHa, 2) + ' ha'),
     fields, values: vals, saveLabel: W.stato === 'Pianificata' ? 'Pianifica' : 'Registra',
@@ -86,6 +87,6 @@ function step3() {
       }
     },
   });
-  window.__wzDirty = false;
+  window.__wzDirty = N(W.pre.quantita) > 0; W.pre = {};
   if (campi.length) setTimeout(() => { const f = document.getElementById('frm'); if (f) { const s = document.createElement('div'); s.className = 'wz-picked'; s.innerHTML = bar(3) + campi.map(c => `<span class="chip"><i class="dot" style="background:${cropColor(c)}"></i>${esc(c.nome)}</span>`).join('') + '<button type="button" class="linkbtn" data-wz2="campi">Cambia campi</button>'; f.prepend(s); s.querySelector('[data-wz2]').onclick = () => step2(); } }, 0);
 }

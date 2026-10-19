@@ -868,3 +868,20 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 .rot-table th, .rot-table td { text-align: left; }
 .rot-cell, .rot-table td { font-family: var(--f-body); letter-spacing: 0; }
 .rot-years { padding: 4px 18px 18px; }
+
+/* ---------- registrazione rapida a testo e voce ---------- */
+.nl-bar { display: flex; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 12px; border: 1.5px solid var(--line-2); border-radius: 18px; background: var(--bg); }
+.nl-bar:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.nl-ic { color: var(--action); align-self: center; display: flex; }
+.nl-bar textarea { flex: 1; border: 0; background: none; resize: none; font-size: 16px; line-height: 1.4; padding: 9px 2px; min-height: 40px; max-height: 140px; outline: none; }
+.nl-bar .iconbtn { width: 40px; height: 40px; border-radius: 12px; }
+.nl-go { background: var(--bar); color: #fff; border: 0; }
+.nl-mic.on { background: var(--bad); color: #fff; animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--bad) 25%, transparent); } }
+.nl-tip { margin: 8px 4px 14px; }
+.nl-res { margin-top: 12px; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+.nl-res.busy { flex-direction: row; align-items: center; gap: 10px; color: var(--muted); }
+.nl-h { display: flex; align-items: center; gap: 8px; } .nl-h b { flex: 1; font-family: var(--f-display); font-size: 15px; } .nl-h > .ic { color: var(--ok); }
+.nl-line { display: flex; gap: 10px; align-items: flex-start; } .nl-line .ic { color: var(--muted); margin-top: 2px; }
+.nl-line span { display: flex; flex-direction: column; } .nl-line small { color: var(--muted); font-size: 13px; }
+.nl-miss { display: flex; gap: 8px; align-items: center; margin: 0; font-size: 13px; color: var(--warn); }

@@ -1,6 +1,6 @@
 // Avvio, navigazione (menu laterale Campagna/Stalla) e azioni dell'app
 import { S, UI, D, bus, get, azienda, COLS } from './state.js';
-import { $, $$, esc, N, nf, today, addDays, yearOf, byDate, byName, lsSet, debounce, sum } from './util.js';
+import { $, $$, esc, N, nf, fd, today, addDays, yearOf, byDate, byName, lsSet, debounce, sum } from './util.js';
 import { ic } from './icons.js';
 import { derive, razioneInfo, allAlerts, campoHa, cropOf, capoI } from './domain.js';
 import * as store from './store.js';
@@ -13,6 +13,7 @@ import { promptInstall, canInstall } from './install.js';
 import { exampleRows } from './esempi.js';
 import { stampaRegistro, registroJSON, registroHTML, righeTrattamenti, scarica } from './registro.js';
 import { initFito, importFito, clearFito } from './fitodb.js';
+import { parseLocal, parseAI, aiConfig, canDictate, dictate } from './nlp.js';
 import { render as vOggi } from './views/oggi.js';
 import { render as vCampi } from './views/campi.js';
 import { render as vAtt } from './views/attivita.js';
@@ -123,7 +124,47 @@ function quickSheet() {
   const Q = UI.area === 'stalla'
     ? [['ev', 'cow', 'Evento di stalla', 'Parto, fecondazione, diagnosi'], ['tr', 'syringe', 'Trattamento', 'Farmaco e sospensioni'], ['latte', 'milk', 'Latte del giorno', 'Litri e qualità'], ['capo', 'baby', 'Nuovo capo', 'Acquisto o nascita'], ['carico', 'download', 'Carico magazzino', 'Mangimi, farmaci'], ['nota', 'pencil', 'Nota', 'Promemoria e osservazioni']]
     : [['att', 'notebook-pen', 'Nuova attività', 'Su uno o più campi'], ['plan', 'calendar', 'Pianifica attività', 'Da fare nei prossimi giorni'], ['campo', 'pentagon', 'Nuovo campo', 'Disegnalo sulla mappa'], ['carico', 'download', 'Carico magazzino', 'Merce arrivata'], ['nota', 'pencil', 'Nota', 'Promemoria e osservazioni'], ['man', 'wrench', 'Manutenzione', 'Tagliando, riparazione']];
-  openSheet('Registra', `<div class="quick">${Q.map(q => `<button data-act="quickgo" data-k="${q[0]}"><span class="q-ic">${ic(q[1])}</span><b>${q[2]}</b><span>${q[3]}</span></button>`).join('')}</div>`);
+  const ph = UI.area === 'stalla' ? 'Es. "Stella fecondata oggi con toro Alfa" oppure "munti 2.300 litri"' : 'Es. "ieri diserbo su Pradone con Erbicida 1,5 l/ha, Marco"';
+  openSheet('Registra', `<form class="nl-bar" id="nlForm"><span class="nl-ic">${ic('sparkles')}</span><textarea id="nlText" rows="1" placeholder="${esc(ph)}" enterkeyhint="send"></textarea>${canDictate() ? `<button type="button" class="iconbtn nl-mic" id="nlMic" aria-label="Detta">${ic('mic')}</button>` : ''}<button type="submit" class="iconbtn nl-go" aria-label="Interpreta">${ic('send')}</button></form>
+  <div id="nlOut"></div><p class="nl-tip muted small">${aiConfig() ? 'Interpretazione con Claude attiva.' : 'Scrivi o detta cosa hai fatto: lo trasformo in una registrazione da controllare.'}</p>
+  <div class="quick">${Q.map(q => `<button data-act="quickgo" data-k="${q[0]}"><span class="q-ic">${ic(q[1])}</span><b>${q[2]}</b><span>${q[3]}</span></button>`).join('')}</div>`);
+  const f = $('#nlForm'), ta = $('#nlText'), mic = $('#nlMic');
+  const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; };
+  ta.addEventListener('input', grow);
+  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); f.requestSubmit(); } });
+  f.addEventListener('submit', e => { e.preventDefault(); interpreta(ta.value); });
+  if (mic) mic.onclick = () => { const on = dictate((txt, fin) => { ta.value = txt; grow(); if (fin) interpreta(txt); }, () => mic.classList.remove('on')); mic.classList.toggle('on', on); };
+}
+let nlLast = null;
+async function interpreta(text) {
+  const out = $('#nlOut'); if (!out || !text.trim()) return;
+  out.innerHTML = `<div class="nl-res busy"><span class="spinner"></span>Interpreto…</div>`;
+  let r = null, aiErr = '';
+  if (aiConfig()) { try { r = await parseAI(text); } catch (e) { aiErr = e.message; } }
+  if (!r) r = parseLocal(text);
+  nlLast = r; if (!$('#nlOut')) return;
+  const v = r.values; const lines = [];
+  const g = (c, id) => (get(c, id) || {});
+  if (r.kind === 'latte') { lines.push(['milk', 'Latte del ' + fd(v.data), nf(v.litri, 0) + ' litri' + (v.conferiti ? ' · ' + nf(v.conferiti, 0) + ' conferiti' : '') + (v.vacche ? ' · ' + v.vacche + ' vacche' : '')]); }
+  else if (r.kind === 'evento') { const c = g('capi', v.capoId); lines.push(['cow', v.tipo + ' · ' + (c.nome || c.matricola || ''), fd(v.data) + (v.esito ? ' · ' + v.esito : '') + (v.toro ? ' · toro ' + v.toro : '') + (v.motivo ? ' · ' + v.motivo : '')]); }
+  else {
+    const campi = (r.campi || []).map(id => g('campi', id).nome).filter(Boolean); const p = g('prodotti', v.prodottoId);
+    lines.push(['notebook-pen', (v.tipo || 'Attività da scegliere') + (v.stato === 'Pianificata' ? ' (da fare)' : ''), fd(v.data) + (campi.length ? ' · ' + campi.join(', ') : '')]);
+    if (p.nome) lines.push(['package', p.nome, [v.dose ? nf(v.dose, 3) + ' ' + (p.unita || '') + '/ha' : '', v.quantita ? nf(v.quantita, 2) + ' ' + (p.unita || '') + ' in tutto' : ''].filter(Boolean).join(' · ') || 'dose da indicare']);
+    const ex = [v.avversita ? 'contro ' + v.avversita : '', v.operatore ? 'operatore ' + v.operatore : '', v.mezzoId ? g('mezzi', v.mezzoId).nome : '', v.ore ? nf(v.ore, 1) + ' ore' : '', v.raccolto ? nf(v.raccolto, 2) + ' t raccolte' : '', v.vento ? 'vento ' + v.vento.toLowerCase() : ''].filter(Boolean);
+    if (ex.length) lines.push(['clipboard-list', 'Dettagli', ex.join(' · ')]);
+  }
+  const miss = r.capire || [];
+  out.innerHTML = `<div class="nl-res"><div class="nl-h">${ic(r.ai ? 'sparkles' : 'circle-check')}<b>Ho capito così</b>${r.ai ? '<span class="chip info">Claude</span>' : ''}</div>${lines.map(([i, t, s]) => `<div class="nl-line">${ic(i)}<span><b>${esc(t)}</b><small>${esc(s)}</small></span></div>`).join('')}${miss.length ? `<p class="nl-miss">${ic('circle-alert')}Manca: ${esc(miss.join(', '))}. Lo scegli nel passo successivo.</p>` : ''}${aiErr ? `<p class="nl-miss">${ic('info')}${esc(aiErr)}: uso l'interprete locale.</p>` : ''}<div class="btns"><button class="btn action" data-act="nlApply">${ic('check')}Apri e controlla</button></div></div>`;
+}
+function nlApply() {
+  const r = nlLast; if (!r) return; closeSheet();
+  setTimeout(() => {
+    if (r.kind === 'latte') return openEdit('latte', null, r.values);
+    if (r.kind === 'evento') return openEdit('eventi', null, r.values);
+    const { tipo, stato, ...rest } = r.values;
+    startWizard({ tipo, stato, campi: r.campi, values: rest });
+  }, 230);
 }
 function quickGo(k) {
   closeSheet();
@@ -235,6 +276,8 @@ document.addEventListener('click', async e => {
       case 'done': b.disabled = true; return markDone(d.id);
       case 'quick': return quickSheet();
       case 'quickgo': return quickGo(d.k);
+      case 'nlApply': return nlApply();
+      case 'aiForget': try { localStorage.removeItem('ces.ai'); } catch (e) { } toast('Chiave rimossa'); return render();
       case 'search': return searchSheet();
       case 'close': return closeSheet();
       case 'chip': UI.f[d.f] = d.v; return render();
@@ -318,6 +361,7 @@ document.addEventListener('submit', async e => {
   try {
     if (k === 'azienda') { const a = azienda(); await store.put('config', 'azienda', Object.assign({}, a, { nome: $('#az_nome').value.trim(), asl: $('#az_asl').value.trim(), iva: $('#az_iva').value.trim(), indirizzo: ($('#az_ind') || {}).value?.trim?.() || a.indirizzo || '', lat: $('#az_lat').value.trim().replace(',', '.'), lon: $('#az_lon').value.trim().replace(',', '.'), ettari: ($('#az_ha') || {}).value ? N($('#az_ha').value) : a.ettari || null })); toast('Dati aziendali salvati'); }
     if (k === 'gkey') { const a = azienda(); await store.put('config', 'azienda', Object.assign({}, a, { gkey: $('#az_gkey').value.trim() })); try { localStorage.removeItem('ces.gses'); } catch (e) { } toast($('#az_gkey').value.trim() ? 'Chiave salvata: scegli "Google" in Livelli mappa' : 'Chiave rimossa'); }
+    if (k === 'aiKey') { const key = $('#ai_key').value.trim(); if (key) lsSet('ces.ai', { key, model: $('#ai_model').value.trim() || 'claude-haiku-5-5' }); else try { localStorage.removeItem('ces.ai'); } catch (e) { } toast(key ? 'Chiave salvata su questo dispositivo' : 'Chiave rimossa'); }
     if (k === 'cloudCfg') { const u = $('#cfg_url').value.trim(), key = $('#cfg_key').value.trim(); if (!/^https:\/\/.+/.test(u) || key.length < 20) throw new Error('Controlla URL e chiave: li trovi in Supabase → Project Settings → API.'); store.setCloudConfig(u, key); }
     if (k === 'login') { await store.signIn($('#au_email').value.trim(), $('#au_pw').value); toast('Accesso eseguito'); }
     if (k === 'signup') { const r = await store.signUp($('#au_email').value.trim(), $('#au_pw').value); toast(r && r.session ? 'Account creato' : 'Account creato: conferma dalla mail che ti ho inviato, poi accedi.'); authUI.tab = 'login'; }
