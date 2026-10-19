@@ -2,7 +2,7 @@
 import { S, UI, get, azienda } from '../state.js';
 import { esc, nf, eur, fd, sum, byDate, byName, yearOf, N, addDays, plural } from '../util.js';
 import { ic } from '../icons.js';
-import { campoInfo, campoHa, cropColor, cropColorName, cropOf, colturaOf, storicoColture } from '../domain.js';
+import { campoInfo, campoHa, cropColor, cropColorName, cropOf, colturaOf, storicoColture, rotazione } from '../domain.js';
 import { thumb, perimeterM } from '../geo.js';
 import { tabs, empty, newBtn, fact, chip, exChip } from '../ui.js';
 import { stackBar } from './charts.js';
@@ -10,9 +10,9 @@ import { opRow, noteCard } from './oggi.js';
 
 export function render() {
   if (UI.detail && UI.detail.type === 'campo') { const c = get('campi', UI.detail.id); if (c) return detail(c); UI.detail = null; }
-  const sub = UI.sub.campi === 'costi' ? 'costi' : 'elenco';
-  const t = tabs('campi', [['elenco', 'I tuoi campi', S.campi.length], ['costi', 'Costi e margini']], sub);
-  return { title: 'Campi', html: t + (sub === 'costi' ? costi() : elenco()) };
+  const sub = ['costi', 'rotazioni'].includes(UI.sub.campi) ? UI.sub.campi : 'elenco';
+  const t = tabs('campi', [['elenco', 'I tuoi campi', S.campi.length], ['rotazioni', 'Piano colturale'], ['costi', 'Costi e margini']], sub);
+  return { title: 'Campi', html: t + (sub === 'costi' ? costi() : sub === 'rotazioni' ? rotazioni() : elenco()) };
 }
 
 function card(c) {
@@ -32,7 +32,7 @@ function elenco() {
   const groups = {}; list.forEach(c => { const g = c.conduzione || 'Conduzione non indicata'; (groups[g] = groups[g] || []).push(c); });
   const order = ['Proprietà', 'Affitto', 'Comodato'];
   const keys = Object.keys(groups).sort((a, b) => (order.indexOf(a) + 1 || 9) - (order.indexOf(b) + 1 || 9));
-  return `<section class="card fields-head"><div class="fh-top"><div><span class="eyebrow">${plural(list.length, 'campo', 'campi')} · annata ${UI.anno}</span><div class="big-num">${nf(ha, 2)}<small>ha registrati${tot ? ' su ' + nf(tot, 2) + ' ha (' + nf(ha / tot * 100, 0) + '%)' : ''}</small></div></div><div class="btns"><button class="btn sm" data-act="nav" data-tab="mappa">${ic('map')}Mappa</button>${newBtn('campi', 'Campo', '', '')}</div></div>${stackBar(parts)}<div class="crop-legend">${parts.map(p => `<span><i style="background:${p.color}"></i>${esc(p.label)} <em>${nf(p.v, 2)} ha</em></span>`).join('')}</div></section>
+  return `<section class="card fields-head"><div class="fh-top"><div><span class="eyebrow">${plural(list.length, 'campo', 'campi')} · annata ${UI.anno}</span><div class="big-num">${nf(ha, 2)}<small>ha registrati${tot ? ' su ' + nf(tot, 2) + ' ha (' + nf(ha / tot * 100, 0) + '%)' : ''}</small></div></div><div class="btns"><button class="btn sm" data-act="nav" data-tab="mappa">${ic('map')}Mappa</button><label class="btn sm" title="Shapefile .zip del piano colturale grafico, KML o GeoJSON">${ic('file-up')}Importa piano colturale<input type="file" accept=".zip,.shp,.kml,.geojson,.json,application/zip" data-act="mapImport" hidden></label>${newBtn('campi', 'Campo', '', '')}</div></div>${stackBar(parts)}<div class="crop-legend">${parts.map(p => `<span><i style="background:${p.color}"></i>${esc(p.label)} <em>${nf(p.v, 2)} ha</em></span>`).join('')}</div></section>
   <div class="seg view-toggle"><label><input type="radio" name="vt" data-act="view" data-v="griglia"${UI.view !== 'lista' ? ' checked' : ''}><span>${ic('grid-2x2')}Griglia</span></label><label><input type="radio" name="vt" data-act="view" data-v="lista"${UI.view === 'lista' ? ' checked' : ''}><span>${ic('list')}Lista</span></label></div>
   ${keys.map(k => { const closed = UI.f['c_' + k]; const arr = groups[k]; return `<section class="fgroup"><button class="fg-h" data-act="collapse" data-k="${esc(k)}" aria-expanded="${!closed}">${ic('map-pin')}<b>${esc(k.toUpperCase())}</b><span class="muted small">${plural(arr.length, 'campo', 'campi')} · ${nf(sum(arr, campoHa), 2)} ha</span><span class="sp"></span>${ic('chevron-left', closed ? 'rot-d' : 'rot-u')}</button>${closed ? '' : UI.view === 'lista' ? `<div class="card"><div class="list">${arr.map(card).join('')}</div></div>` : `<div class="fgrid-cards">${arr.map(card).join('')}</div>`}</section>`; }).join('')}`;
 }
@@ -58,4 +58,18 @@ function detail(c) {
   ${c.note ? `<section class="card note">${esc(c.note)}</section>` : ''}
   <section class="card"><div class="card-h"><h2>${ic('notebook-pen')}Attività</h2><span class="count">${all.length}</span></div><div class="list">${all.length ? all.map(opRow).join('') : empty('notebook-pen', 'Nessuna attività', 'Registra la prima lavorazione di questo campo.')}</div></section>
   <section class="card"><div class="card-h"><h2>${ic('pencil')}Note del campo</h2><button class="btn sm ghost" data-act="new" data-form="note" data-campo="${c.id}">${ic('plus')}Nota</button></div>${note.length ? `<div class="note-strip">${note.map(noteCard).join('')}</div>` : '<div class="empty slim">Nessuna nota.</div>'}</section>` };
+}
+
+// Piano colturale su più annate: storico, annata in corso e pianificazione dell'anno prossimo, con controllo della rotazione
+function rotazioni() {
+  const list = [...S.campi].sort(byName);
+  if (!list.length) return `<section class="card">${empty('sprout', 'Nessun campo', 'Importa il piano colturale grafico (shapefile .zip dal tuo CAA) o disegna i campi sulla mappa.', `<label class="btn action">${ic('file-up')}Importa piano colturale<input type="file" accept=".zip,.shp,.kml,.geojson,.json" data-act="mapImport" hidden></label>`)}</section>`;
+  const Y = new Date().getFullYear(); const anni = [Y - 3, Y - 2, Y - 1, Y, Y + 1];
+  const issues = []; list.forEach(c => anni.forEach(y => { const r = rotazione(c, y); if (r) issues.push({ c, y, r }); }));
+  const cell = (c, y) => { const e = colturaOf(c, y); const r = rotazione(c, y); const col = e ? cropColorName(e.coltura) : ''; return `<td><button class="rot-cell${e ? '' : ' empty'}${r ? ' warn' : ''}${y > Y ? ' plan' : ''}" data-act="coltura" data-id="${c.id}" data-anno="${y}" style="${e ? `--c:${col}` : ''}" title="${esc(e ? e.coltura + (e.varieta ? ' · ' + e.varieta : '') : 'Aggiungi la coltura ' + y)}">${e ? `<i></i><span>${esc(e.coltura)}</span>${r ? ic('triangle-alert') : ''}${e.pcg ? '<em>PCG</em>' : ''}` : ic('plus')}</button></td>`; };
+  const haY = y => { const m = new Map(); list.forEach(c => { const k = cropOf(c, y); if (k) m.set(k, (m.get(k) || 0) + campoHa(c)); }); return [...m.entries()].sort((a, b) => b[1] - a[1]); };
+  return `<section class="card fields-head"><div class="fh-top"><div><span class="eyebrow">Pianificazione colturale</span><h2 style="margin-top:4px">Rotazioni ${Y - 3}–${Y + 1}</h2><p class="muted small">Tocca una cella per inserire o cambiare la coltura. L'ultima colonna è l'annata da pianificare.</p></div><div class="btns"><label class="btn sm">${ic('file-up')}Importa piano colturale<input type="file" accept=".zip,.shp,.kml,.geojson,.json" data-act="mapImport" hidden></label></div></div>
+  ${issues.length ? `<div class="rot-warn">${ic('repeat-2')}<span><b>${issues.length} ${issues.length === 1 ? 'ristoppio' : 'ristoppi'} da verificare</b> Stessa coltura sullo stesso campo per più anni di fila: le regole della PAC sull'avvicendamento (BCAA 7) chiedono di cambiarla, salvo deroghe. Verifica con il tuo CAA.</span></div>` : `<div class="rot-ok">${ic('circle-check')}<span>Nessun ristoppio sui seminativi nelle annate mostrate.</span></div>`}</section>
+  <section class="card flush"><div class="tablewrap"><table class="rot-table"><thead><tr><th>Campo</th>${anni.map(y => `<th class="${y === Y ? 'cur' : ''}">${y}${y > Y ? ' <small>piano</small>' : ''}</th>`).join('')}</tr></thead><tbody>${list.map(c => `<tr><td><button class="linkbtn rot-name" data-act="open" data-type="campo" data-id="${c.id}">${esc(c.nome)}</button><small>${nf(campoHa(c), 2)} ha</small></td>${anni.map(y => cell(c, y)).join('')}</tr>`).join('')}</tbody></table></div></section>
+  <section class="card"><div class="card-h"><h2>${ic('chart-column')}Superfici per annata</h2></div><div class="rot-years">${anni.map(y => { const h = haY(y); const tot = h.reduce((t, x) => t + x[1], 0); return `<div><b>${y}</b>${tot ? stackBar(h.map(([k, v]) => ({ label: k, v, color: cropColorName(k) }))) : '<span class="muted small">nessuna coltura</span>'}<small class="muted">${h.slice(0, 3).map(([k, v]) => esc(k) + ' ' + nf(v, 1) + ' ha').join(' · ')}</small></div>`; }).join('')}</div></section>`;
 }

@@ -94,3 +94,18 @@ export function farmSvg(items, W = 640, H = 300) {
   const paths = gs.map(i => `<path d="${outerRings(i.geom).map(r => 'M' + r.map(P).join('L') + 'Z').join('')}" fill="${i.color}" fill-opacity=".72" stroke="${i.color}" stroke-width="1.5" stroke-linejoin="round"><title>${i.title || ''}</title></path>`).join('');
   return `<svg class="farmsvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><pattern id="agri" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(28)"><rect width="10" height="10" fill="#2B3A2C"/><rect width="5" height="10" fill="#314332"/></pattern></defs><rect width="${W}" height="${H}" fill="url(#agri)"/>${paths}</svg>`;
 }
+
+// Punto dentro poligono (lon, lat), con fori
+function inRing(pt, r) { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) c = !c; } return c; }
+export function pointInGeom(pt, geom) {
+  if (!geom || !pt) return false;
+  const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+  return polys.some(p => inRing(pt, p[0]) && !p.slice(1).some(h => inRing(pt, h)));
+}
+// Punto sicuramente interno (il baricentro di una forma a L può cadere fuori)
+export function insidePoint(geom) {
+  const c = centroid(geom); if (c && pointInGeom(c, geom)) return c;
+  const b = bbox([geom]); if (!b) return c;
+  for (let k = 1; k < 12; k++) for (let i = 1; i < 2 * k; i += 2) for (let j = 1; j < 2 * k; j += 2) { const p = [b[0] + (b[2] - b[0]) * i / (2 * k), b[1] + (b[3] - b[1]) * j / (2 * k)]; if (pointInGeom(p, geom)) return p; }
+  return c;
+}

@@ -27,7 +27,7 @@ export const cropColorName = n => { n = n || ''; for (const [re, col] of CROP) i
 export function colturaOf(c, anno = UI.anno) {
   if (!c) return null; const st = Array.isArray(c.colture) ? c.colture : [];
   const e = st.find(x => +x.anno === +anno); if (e) return e;
-  if (!st.length || +anno === new Date().getFullYear()) return c.coltura ? { anno, coltura: c.coltura, varieta: c.varieta || '' } : null;
+  if (+anno === new Date().getFullYear()) return c.coltura ? { anno, coltura: c.coltura, varieta: c.varieta || '' } : null;
   return null;
 }
 export const cropOf = (c, anno) => { if (c && !c.id && c.coltura !== undefined && !c.colture) return c.coltura; const e = colturaOf(c, anno); return e ? e.coltura : ''; };
@@ -38,6 +38,15 @@ export function storicoColture(c) {
   return [...m.values()].sort((a, b) => b.anno - a.anno);
 }
 export const isFatto = o => o.stato !== 'Pianificata';
+// Avvicendamento: sui seminativi la stessa coltura per due anni di fila va segnalata (escluse pluriennali, foraggere e riposo)
+const NO_ROT = /medica|prato|loiessa|loietto|erbai|trifoglio|vite|vigneto|frutt|pioppo|riposo|maggese|pascol/i;
+const famiglia = s => { s = (s || '').toLowerCase(); return /mais/.test(s) ? 'mais' : /frumento tenero|grano tenero/.test(s) ? 'frumento tenero' : /frumento duro|grano duro/.test(s) ? 'frumento duro' : s.replace(/\s*\(.*\)$/, '').trim(); };
+export function rotazione(c, anno) {
+  const a = cropOf(c, anno), b = cropOf(c, anno - 1); if (!a || !b || NO_ROT.test(a)) return null;
+  if (famiglia(a) !== famiglia(b)) return null;
+  const c2 = cropOf(c, anno - 2);
+  return { coltura: a, anni: c2 && famiglia(c2) === famiglia(a) ? 3 : 2 };
+}
 export const campoHa = c => N(c.superficie) || (c.geom ? Math.round(areaHa(c.geom) * 10000) / 10000 : 0);
 
 export function capoInfo(c, ev) {
@@ -148,6 +157,8 @@ export function allAlerts() {
   S.operatori.forEach(o => { if (!okD(o.scadenzaPatentino)) return; const d = diff(T, o.scadenzaPatentino); if (d <= 60) out.push({ lv: d < 0 ? 'bad' : 'warn', area: 'campi', t: 'Patentino ' + o.nome, s: (d < 0 ? 'Scaduto il ' : 'Scade il ') + fd(o.scadenzaPatentino), go: { edit: 'operatori', id: o.id } }); });
   S.mezzi.forEach(m => { if (!okD(m.controlloFunzionale)) return; const d = diff(T, m.controlloFunzionale); if (d <= 60) out.push({ lv: d < 0 ? 'bad' : 'warn', area: 'mezzi', t: 'Controllo funzionale ' + m.nome, s: (d < 0 ? 'Scaduto il ' : 'Scade il ') + fd(m.controlloFunzionale), go: { type: 'mezzo', id: m.id } }); });
   S.prodotti.forEach(p => { if (!okD(p.scadenzaAut) || giac(p) <= 0) return; const d = diff(T, p.scadenzaAut); if (d <= 90) out.push({ lv: d < 0 ? 'bad' : 'warn', area: 'magazzino', t: 'Autorizzazione ' + p.nome, s: (d < 0 ? 'Non più autorizzato dal ' : 'Autorizzato fino al ') + fd(p.scadenzaAut) + ' · ' + nf(giac(p), 1) + ' ' + (p.unita || '') + ' in magazzino', go: { type: 'prodotto', id: p.id } }); });
+  const Y = new Date().getFullYear();
+  [Y, Y + 1].forEach(y => S.campi.forEach(c => { const r = rotazione(c, y); if (r) out.push({ lv: 'warn', area: 'campi', t: 'Rotazione: ' + c.nome, s: r.coltura + ' per ' + r.anni + ' anni di fila (' + y + '): verifica l\'avvicendamento richiesto dalla PAC', go: { type: 'campo', id: c.id } }); }));
   S.campi.forEach(c => { const i = campoInfo(c); if (i.carenza) out.push({ lv: 'info', area: 'campi', t: 'Carenza in corso: ' + c.nome, s: 'Raccolta dal ' + fd(addDays(i.carenza.fine, 1)) + ' · ' + i.carenza.prodotto, go: { type: 'campo', id: c.id } }); });
   S.operazioni.filter(o => o.stato === 'Pianificata' && okD(o.data)).forEach(o => { const c = get('campi', o.campoId); const d = diff(T, o.data); if (d < 0) out.push({ lv: 'warn', area: 'campi', t: 'In ritardo: ' + (o.tipo || 'attività') + (c ? ' · ' + c.nome : ''), s: 'Pianificata per il ' + fd(o.data), go: { edit: 'operazioni', id: o.id } }); else if (d <= 3) out.push({ lv: 'info', area: 'campi', t: (o.tipo || 'Attività') + (c ? ' · ' + c.nome : ''), s: d === 0 ? 'Pianificata per oggi' : 'Pianificata per il ' + fd(o.data), go: { edit: 'operazioni', id: o.id } }); });
   const inLatt = S.capi.filter(c => capoI(c).stato === 'In lattazione').length;

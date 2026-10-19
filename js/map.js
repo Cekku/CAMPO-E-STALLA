@@ -10,6 +10,7 @@ import { diff, today } from './util.js';
 import * as store from './store.js';
 import { toast } from './ui.js';
 import { openEdit } from './forms.js';
+import { isPCG, pcgImport } from './pcg.js';
 
 const CAT_URL = 'https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php';
 let map = null, fieldsGroup = null, base = {}, overlays = {}, mode = 'view', selected = null, editLayer = null, editId = null, drawFor = null, gpsMarker = null, gpsCircle = null, clickMarker = null;
@@ -338,6 +339,7 @@ export function plusMenu() {
 export function noteHere() { closeSheet(); const c = map.getCenter(); setTimeout(() => openEdit('note', null, { lat: +c.lat.toFixed(6), lon: +c.lng.toFixed(6) }), 230); }
 export function noteForField(id) { openEdit('note', null, { campoId: id }); }
 
+document.addEventListener('ces:fit', () => { if (map) setTimeout(() => fitAll(), 150); });
 export function locate() { map.locate({ setView: true, maxZoom: 17, enableHighAccuracy: true }); }
 export function fitAll(silent) {
   const gs = S.campi.filter(c => c.geom).map(c => c.geom); const b = bbox(gs);
@@ -365,6 +367,7 @@ export async function importFile(file) {
     if (!items.length) { toast('Nel file non ci sono poligoni.', 'err'); return; }
     const first = items[0].geom.type === 'Polygon' ? items[0].geom.coordinates[0][0] : items[0].geom.coordinates[0][0][0];
     if (Math.abs(first[0]) > 180 || Math.abs(first[1]) > 90) { toast('Il file usa coordinate in metri senza indicare il sistema: nello zip dello shapefile includi anche il file .prj.', 'err'); return; }
+    if (items.some(it => isPCG(it.props))) { pcgImport(items); return; }
     const exist = new Set(S.campi.map(c => (c.nome || '').toLowerCase()));
     let n = 0, dup = 0;
     for (const it of items) {
@@ -374,7 +377,7 @@ export async function importFile(file) {
       await store.put('campi', null, { nome, geom: it.geom, superficie: Math.round(areaHa(it.geom) * 10000) / 10000, coltura: p.coltura || p.COLTURA || p.crop || '', irriguo: 'No', conduzione: /affitt/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Affitto' : 'Proprietà', catasto: p.catasto || p.particella || p.PARTICELLA || '' });
     }
     toast(`Importati ${n - dup} campi${dup ? ', ' + dup + ' confini aggiunti a campi esistenti' : ''}`);
-    closeSheet(); setTimeout(() => fitAll(), 150);
+    closeSheet(); setTimeout(() => { if (map) fitAll(); }, 150);
   } catch (e) { console.warn(e); toast(e.message || 'File non leggibile', 'err'); }
 }
 
