@@ -109,3 +109,26 @@ export function insidePoint(geom) {
   for (let k = 1; k < 12; k++) for (let i = 1; i < 2 * k; i += 2) for (let j = 1; j < 2 * k; j += 2) { const p = [b[0] + (b[2] - b[0]) * i / (2 * k), b[1] + (b[3] - b[1]) * j / (2 * k)]; if (pointInGeom(p, geom)) return p; }
   return c;
 }
+
+// Miniatura con foto satellitare sotto (Esri World Imagery) e confini sopra, nella stessa proiezione di Mercatore.
+// L'SVG usa un viewBox in pixel del mondo, quindi si adatta a qualsiasi dimensione del riquadro.
+const SAT = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/';
+const mx = (lon, z) => (lon + 180) / 360 * 256 * 2 ** z;
+const my = (lat, z) => { const s = Math.sin(lat * Math.PI / 180); return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * 256 * 2 ** z; };
+let satN = 0;
+export function satSvg(items, W = 256, H = 256, { fill = .35, stroke = 2.2, fit = .78 } = {}) {
+  const gs = items.filter(i => i.geom); const b = bbox(gs.map(i => i.geom)); if (!b) return '';
+  // zoom: il più alto in cui i confini stanno nell'85% del riquadro, senza superare la risoluzione delle foto
+  let z = 19; while (z > 3 && ((mx(b[2], z) - mx(b[0], z)) > W * .85 || (my(b[1], z) - my(b[3], z)) > H * .85)) z--;
+  const cx = (mx(b[0], z) + mx(b[2], z)) / 2, cy = (my(b[1], z) + my(b[3], z)) / 2;
+  const bw = mx(b[2], z) - mx(b[0], z), bh = my(b[1], z) - my(b[3], z);
+  const cw = Math.max(bw / fit, bh / fit * W / H, W / 4), ch = cw * H / W; const ow = W, oh = H; W = cw; H = ch;
+  const x0 = cx - W / 2, y0 = cy - H / 2;
+  const tx0 = Math.floor(x0 / 256), ty0 = Math.floor(y0 / 256), tx1 = Math.floor((x0 + W) / 256), ty1 = Math.floor((y0 + H) / 256);
+  let tiles = ''; const n = 2 ** z;
+  for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) { if (ty < 0 || ty >= n) continue; const wx = ((tx % n) + n) % n; tiles += `<image href="${SAT}${z}/${ty}/${wx}" x="${tx * 256}" y="${ty * 256}" width="256.6" height="256.6" preserveAspectRatio="none"/>`; }
+  const P = ([x, y]) => mx(x, z).toFixed(1) + ',' + my(y, z).toFixed(1);
+  const paths = gs.map(i => `<path d="${outerRings(i.geom).map(r => 'M' + r.map(P).join('L') + 'Z').join('')}" fill="${i.color}" fill-opacity="${fill}" stroke="${i.color}" stroke-width="${stroke}" vector-effect="non-scaling-stroke" stroke-linejoin="round"><title>${i.title || ''}</title></path>`).join('');
+  const id = 'sv' + (++satN);
+  return `<svg class="satsvg" viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${W.toFixed(1)} ${H.toFixed(1)}" data-w="${ow}" data-h="${oh}" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><clipPath id="${id}"><rect x="${x0}" y="${y0}" width="${W}" height="${H}"/></clipPath></defs><rect x="${x0}" y="${y0}" width="${W}" height="${H}" fill="#2B3A2C"/><g clip-path="url(#${id})">${tiles}</g>${paths}</svg>`;
+}

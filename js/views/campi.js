@@ -3,9 +3,10 @@ import { S, UI, get, azienda } from '../state.js';
 import { esc, nf, eur, fd, sum, byDate, byName, yearOf, N, addDays, plural } from '../util.js';
 import { ic } from '../icons.js';
 import { campoInfo, campoHa, cropColor, cropColorName, cropOf, colturaOf, storicoColture, rotazione } from '../domain.js';
-import { thumb, perimeterM } from '../geo.js';
+import { thumb, perimeterM, satSvg } from '../geo.js';
 import { tabs, empty, newBtn, fact, chip, exChip } from '../ui.js';
-import { stackBar } from './charts.js';
+import { stackBar, spark } from './charts.js';
+import { campoNdviCached, ndviLabel, ndviColor } from '../ndvi.js';
 import { opRow, noteCard } from './oggi.js';
 
 export function render() {
@@ -18,7 +19,7 @@ export function render() {
 function card(c) {
   const i = campoInfo(c); const col = cropColor(c); const h = campoHa(c); const crop = cropOf(c);
   if (UI.view === 'lista') return `<div class="row fl" data-act="open" data-type="campo" data-id="${c.id}" role="button" tabindex="0"><span class="op-thumb" style="color:${col}">${thumb(c.geom, 40, col)}</span><span class="r-main"><b>${esc(c.nome)}${exChip(c)}</b><span class="op-crop"><i class="dot" style="background:${col}"></i>${esc(crop || 'Nessuna coltura')}${i.carenza ? ' · carenza al ' + fd(i.carenza.fine) : ''}</span></span><span class="r-side"><span class="chip ha num">${nf(h, 2)} ha</span><span class="small muted">${plural(i.ops.length, 'attività', 'attività')}</span></span></div>`;
-  return `<article class="fcard"><button class="fc-img" data-act="open" data-type="campo" data-id="${c.id}" style="--c:${col}" aria-label="Apri ${esc(c.nome)}">${thumb(c.geom, 120, col)}<span class="fc-crop-tag">${esc(crop || 'Nessuna coltura')}</span><span class="fc-ha num">${nf(h, 2)} ha</span>${i.carenza ? `<span class="fc-flag" title="Carenza fino al ${fd(i.carenza.fine)}">${ic('shield-check')}</span>` : ''}</button>
+  return `<article class="fcard"><button class="fc-img" data-act="open" data-type="campo" data-id="${c.id}" style="--c:${col}" aria-label="Apri ${esc(c.nome)}">${c.geom ? satSvg([{ geom: c.geom, color: col }], 256, 192, { fill: .22, stroke: 2.4 }) : thumb(c.geom, 120, col)}<span class="fc-crop-tag">${esc(crop || 'Nessuna coltura')}</span><span class="fc-ha num">${nf(h, 2)} ha</span>${i.carenza ? `<span class="fc-flag" title="Carenza fino al ${fd(i.carenza.fine)}">${ic('shield-check')}</span>` : ''}</button>
   <div class="fc-txt"><b>${esc(c.nome)}</b>${exChip(c)}<small>${i.last ? 'Ultima: ' + esc(i.last.tipo || '') + ' ' + fd(i.last.data) : 'Nessuna attività'}${i.plan.length ? ' · ' + i.plan.length + ' da fare' : ''}</small></div>
   <div class="fc-acts"><button class="btn xs action" data-act="new" data-form="operazioni" data-campo="${c.id}">${ic('notebook-pen')}Attività</button><button class="btn xs ok" data-act="coltura" data-id="${c.id}" data-anno="${UI.anno}">${ic('sprout')}${colturaOf(c) ? 'Coltura' : 'Aggiungi coltura'}</button></div></article>`;
 }
@@ -51,10 +52,11 @@ function detail(c) {
   const i = campoInfo(c); const h = campoHa(c); const col = cropColor(c);
   const all = S.operazioni.filter(o => o.campoId === c.id).sort(byDate).reverse();
   const st = storicoColture(c); const note = S.note.filter(n => n.campoId === c.id).sort(byDate).reverse();
-  return { title: c.nome, html: `<section class="card detail-hero"><div class="dh-thumb" style="color:${col}">${thumb(c.geom, 120, col)}</div><div class="dh-body"><span class="eyebrow">${esc(c.conduzione || 'Campo')}${c.comune ? ' · ' + esc(c.comune) : ''}</span><h1>${esc(c.nome)}${exChip(c)}</h1><span class="fc-crop"><i style="background:${col}"></i>${esc(cropOf(c) || 'Nessuna coltura nel ' + UI.anno)}</span>
+  return { title: c.nome, html: `<section class="card detail-hero"><div class="dh-thumb${c.geom ? ' sat' : ''}" style="color:${col}">${c.geom ? satSvg([{ geom: c.geom, color: col }], 240, 240, { fill: .22 }) : thumb(c.geom, 120, col)}</div><div class="dh-body"><span class="eyebrow">${esc(c.conduzione || 'Campo')}${c.comune ? ' · ' + esc(c.comune) : ''}</span><h1>${esc(c.nome)}${exChip(c)}</h1><span class="fc-crop"><i style="background:${col}"></i>${esc(cropOf(c) || 'Nessuna coltura nel ' + UI.anno)}</span>
     <div class="btns">${newBtn('operazioni', 'Registra attività', `data-campo="${c.id}"`, 'action')}<button class="btn sm" data-act="mapFocus" data-id="${c.id}">${ic('map')}${c.geom ? 'Sulla mappa' : 'Disegna confine'}</button><button class="btn sm ghost" data-act="edit" data-form="campi" data-id="${c.id}">${ic('pencil')}Modifica</button></div></div></section>
   <dl class="facts">${fact('Superficie', `<span class="num">${nf(h, 4)} ha</span>`)}${fact('Perimetro', c.geom ? `<span class="num">${nf(perimeterM(c.geom), 0)} m</span>` : '—')}${fact('Irriguo', esc(c.irriguo || '—'))}${fact('Catasto', esc(c.catasto || '—'))}${fact('Costi ' + UI.anno, `<span class="num">${eur(i.tot)}</span> <small>${eur(h ? i.tot / h : 0)}/ha</small>`)}${fact('Ricavi ' + UI.anno, `<span class="num">${eur(i.ricavo)}</span>`)}${fact('Tempo di carenza', i.carenza ? chip('fino al ' + fd(i.carenza.fine), 'info') : 'Nessuno')}</dl>
   <section class="card"><div class="card-h"><h2>${ic('sprout')}Colture per annata</h2><button class="btn sm ok" data-act="coltura" data-id="${c.id}" data-anno="${UI.anno}">${ic('plus')}Coltura</button></div><div class="list">${st.length ? st.map(e => `<button class="row" data-act="coltura" data-id="${c.id}" data-anno="${e.anno}"><span class="yr">${e.anno}</span><span class="r-main"><b><i class="dot" style="background:${cropColorName(e.coltura)}"></i> ${esc(e.coltura)}</b><span>${[e.varieta, e.semina ? 'semina ' + fd(e.semina) : '', N(e.resa) ? 'resa attesa ' + nf(e.resa, 1) + ' t/ha' : '', e.destinazione].filter(Boolean).map(esc).join(' · ') || '—'}</span></span><span class="chip ha num">${nf(h, 2)} ha</span></button>`).join('') : '<div class="empty slim">Nessuna coltura registrata.</div>'}</div></section>
+  ${ndviCard(c)}
   ${c.note ? `<section class="card note">${esc(c.note)}</section>` : ''}
   <section class="card"><div class="card-h"><h2>${ic('notebook-pen')}Attività</h2><span class="count">${all.length}</span></div><div class="list">${all.length ? all.map(opRow).join('') : empty('notebook-pen', 'Nessuna attività', 'Registra la prima lavorazione di questo campo.')}</div></section>
   <section class="card"><div class="card-h"><h2>${ic('pencil')}Note del campo</h2><button class="btn sm ghost" data-act="new" data-form="note" data-campo="${c.id}">${ic('plus')}Nota</button></div>${note.length ? `<div class="note-strip">${note.map(noteCard).join('')}</div>` : '<div class="empty slim">Nessuna nota.</div>'}</section>` };
@@ -72,4 +74,16 @@ function rotazioni() {
   ${issues.length ? `<div class="rot-warn">${ic('repeat-2')}<span><b>${issues.length} ${issues.length === 1 ? 'ristoppio' : 'ristoppi'} da verificare</b> Stessa coltura sullo stesso campo per più anni di fila: le regole della PAC sull'avvicendamento (BCAA 7) chiedono di cambiarla, salvo deroghe. Verifica con il tuo CAA.</span></div>` : `<div class="rot-ok">${ic('circle-check')}<span>Nessun ristoppio sui seminativi nelle annate mostrate.</span></div>`}</section>
   <section class="card flush"><div class="tablewrap"><table class="rot-table"><thead><tr><th>Campo</th>${anni.map(y => `<th class="${y === Y ? 'cur' : ''}">${y}${y > Y ? ' <small>piano</small>' : ''}</th>`).join('')}</tr></thead><tbody>${list.map(c => `<tr><td><button class="linkbtn rot-name" data-act="open" data-type="campo" data-id="${c.id}">${esc(c.nome)}</button><small>${nf(campoHa(c), 2)} ha</small></td>${anni.map(y => cell(c, y)).join('')}</tr>`).join('')}</tbody></table></div></section>
   <section class="card"><div class="card-h"><h2>${ic('chart-column')}Superfici per annata</h2></div><div class="rot-years">${anni.map(y => { const h = haY(y); const tot = h.reduce((t, x) => t + x[1], 0); return `<div><b>${y}</b>${tot ? stackBar(h.map(([k, v]) => ({ label: k, v, color: cropColorName(k) }))) : '<span class="muted small">nessuna coltura</span>'}<small class="muted">${h.slice(0, 3).map(([k, v]) => esc(k) + ' ' + nf(v, 1) + ' ha').join(' · ')}</small></div>`; }).join('')}</div></section>`;
+}
+
+function ndviCard(c) {
+  if (!c.geom) return '';
+  const v = campoNdviCached(c); const last = v[v.length - 1], prev = v[v.length - 2];
+  const delta = last && prev ? last.mean - prev.mean : null;
+  const eterog = last && isFinite(last.sd) ? last.sd : null;
+  return `<section class="card"><div class="card-h"><h2>${ic('satellite')}Vigore vegetativo (NDVI)</h2><div class="btns"><button class="btn sm ghost" data-act="ndviMap" data-id="${c.id}">${ic('map')}Mappa</button><button class="btn sm" data-act="ndviField" data-id="${c.id}">${ic('refresh-cw')}${v.length ? 'Aggiorna' : 'Calcola dal satellite'}</button></div></div>
+  ${last ? `<div class="ndvi-sum"><div class="ndvi-big" style="--c:${ndviColor(last.mean)}"><b>${last.mean.toFixed(2)}</b><span>${ndviLabel(last.mean)}</span><small>${fd(last.data)}</small></div>
+  <div class="ndvi-side">${v.length > 1 ? `<div class="ndvi-spark">${spark(v.map(x => x.mean), 260, 54)}<span class="muted small">${fd(v[0].data)} → ${fd(last.data)}</span></div>` : ''}
+  <div class="chips">${delta !== null ? `<span class="chip ${delta < -0.08 ? 'bad' : delta < -0.03 ? 'warn' : 'ok'}">${delta >= 0 ? '+' : ''}${delta.toFixed(2)} dall'immagine prima</span>` : ''}${eterog !== null ? `<span class="chip ${eterog > 0.12 ? 'warn' : ''}">${eterog > 0.12 ? 'Campo disomogeneo' : 'Campo omogeneo'} (σ ${eterog.toFixed(2)})</span>` : ''}<span class="chip ghost">min ${last.min.toFixed(2)} · max ${last.max.toFixed(2)}</span></div></div></div>
+  ${delta !== null && delta < -0.08 ? `<p class="ndvi-warn">${ic('triangle-alert')}Calo marcato del vigore: controlla il campo (stress idrico, malattie, danni) o se è avvenuta una raccolta.</p>` : ''}` : `<p class="muted small pad-x" style="padding-bottom:16px">Immagini Sentinel-2 a 10 m, una ogni pochi giorni quando il cielo è sereno. L'indice va da 0 (suolo nudo) a 1 (vegetazione molto vigorosa).</p>`}</section>`;
 }

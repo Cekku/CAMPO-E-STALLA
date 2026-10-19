@@ -11,13 +11,14 @@ import * as store from './store.js';
 import { toast } from './ui.js';
 import { openEdit } from './forms.js';
 import { isPCG, pcgImport } from './pcg.js';
+import { NdviLayer, scene as s2scene, ndviLabel, ndviColor, campoNdviCached } from './ndvi.js';
 
 const CAT_URL = 'https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php';
 let map = null, fieldsGroup = null, base = {}, overlays = {}, mode = 'view', selected = null, editLayer = null, editId = null, drawFor = null, gpsMarker = null, gpsCircle = null, clickMarker = null;
 const prefs = Object.assign({ base: 'sat2', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura', intensita: 70 }, lsGet('ces.map', {}));
 if (!prefs.v2) { prefs.v2 = 1; prefs.base = 'sat2'; prefs.lum = 100; prefs.con = 100; prefs.sat = 100; prefs.cal = 0; delete prefs.satFx; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
 function applyFx() { const m = document.getElementById('map'); if (!m) return; m.style.setProperty('--fx', `brightness(${(prefs.lum || 100) / 100}) contrast(${(prefs.con || 100) / 100}) saturate(${(prefs.sat || 100) / 100}) hue-rotate(${prefs.cal || 0}deg)`); }
-let notesGroup = null;
+let notesGroup = null, ndviLayer = null, ndviScenes = null;
 const FVG_BOUNDS = window.L ? L.latLngBounds([[45.57, 12.30], [46.66, 13.94]]) : null;
 const inFVG = (lat, lon) => lat > 45.57 && lat < 46.66 && lon > 12.30 && lon < 13.94;
 let googleLayer = null;
@@ -119,6 +120,8 @@ function applyLayers() {
   if (googleLayer) map.removeLayer(googleLayer);
   if (prefs.base === 'google') { getGoogle().then(l => { if (l && prefs.base === 'google') { l.addTo(map); l.bringToBack(); } else if (!l) { prefs.base = 'sat'; applyLayers(); } }).catch(e => { toast(e.message, 'err'); prefs.base = 'sat'; savePrefs(); applyLayers(); }); }
   else (base[prefs.base] || base.sat).addTo(map);
+  if (prefs.ndvi) { if (!ndviLayer) ndviLayer = new NdviLayer(); ndviLayer._scene = prefs.ndviScene || null; if (!map.hasLayer(ndviLayer)) ndviLayer.addTo(map); else ndviLayer.redraw(); ndviBar(); }
+  else { if (ndviLayer && map.hasLayer(ndviLayer)) map.removeLayer(ndviLayer); const nb = $('#ndviBar'); if (nb) nb.hidden = true; }
   ['nomi', 'particelle', 'fogli'].forEach(k => { const on = prefs[k] && (k !== 'nomi' || ['sat', 'sat2', 'fvg', 'google'].includes(prefs.base)); if (on) overlays[k].addTo(map); else map.removeLayer(overlays[k]); });
   $('#map') && $('#map').classList.toggle('show-labels', map.getZoom && map.getZoom() >= 14 && prefs.etichette);
   updateCatHint();
@@ -141,7 +144,7 @@ function legendItems() {
   return [...items.entries()].sort((a, b) => b[1].ha - a[1].ha);
 }
 function styleFor(c, sel) {
-  const col = colorFor(c); const op = Math.max(.1, Math.min(.95, (prefs.intensita || 70) / 100));
+  const col = colorFor(c); const op = prefs.ndvi ? 0.04 : Math.max(.1, Math.min(.95, (prefs.intensita || 70) / 100));
   return sel ? { color: '#FFFFFF', weight: 4, opacity: 1, fillColor: col, fillOpacity: Math.min(.9, op + .15), dashArray: null }
     : { color: col, weight: 2.6, opacity: 1, fillColor: col, fillOpacity: op };
 }
@@ -202,6 +205,7 @@ function renderCard() {
   card.hidden = false;
   card.innerHTML = `<div class="grab" aria-hidden="true"></div><div class="mc-head">${ic('map-pin')}<div class="mc-title"><b>${esc(c.nome)}</b><span>${nf(h, 2)} ha${c.conduzione ? ' · ' + esc(c.conduzione) : ''}${c.catasto ? ' · ' + esc(c.catasto) : ''}</span></div><button class="iconbtn ghost" data-act="mapDeselect" aria-label="Chiudi">${ic('x')}</button></div>
   <div class="mc-hist">${st.length ? st.map(e => `<button data-act="coltura" data-id="${c.id}" data-anno="${e.anno}">${ic('sprout')}<span><b>${e.anno}</b> ${esc(e.coltura)}</span><em class="chip ok num">${nf(h, 2)} ha</em></button>`).join('') : `<button data-act="coltura" data-id="${c.id}" data-anno="${UI.anno}">${ic('plus')}<span>Aggiungi la coltura ${UI.anno}</span></button>`}</div>
+  ${(v => v ? `<div class="mc-last">${ic('satellite')}<span>NDVI <b style="color:${ndviColor(v.mean)}">${v.mean.toFixed(2)}</b> · ${ndviLabel(v.mean)} · ${fd(v.data)}</span></div>` : '')(campoNdviCached(c).pop())}
   <div class="mc-last">${ic('notebook-pen')}<span>${i.last ? esc(i.last.tipo || 'Attività') + ' il ' + fd(i.last.data) : 'Nessuna attività registrata'}${i.plan.length ? ' · ' + i.plan.length + ' da fare' : ''}${i.carenza ? ' · carenza fino al ' + fd(i.carenza.fine) : ''}</span></div>
   <div class="mc-actions two"><button class="btn sm" data-act="open" data-type="campo" data-id="${c.id}">${ic('list')}Dettagli</button>${ct ? `<a class="btn sm" href="https://www.google.com/maps/dir/?api=1&destination=${ct[1].toFixed(6)},${ct[0].toFixed(6)}" target="_blank" rel="noopener">${ic('navigation')}Indicazioni</a>` : '<span></span>'}</div>
   <button class="btn action wide" data-act="new" data-form="operazioni" data-campo="${c.id}">${ic('plus')}Registra attività</button>
@@ -322,15 +326,26 @@ export function layersPanel() {
     ${azienda().gkey ? '' : '<p class="muted small">Per le immagini di Google inserisci una chiave in La mia azienda → Mappe.</p>'}<h3>Colori dello sfondo</h3><button type="button" class="btn wide" data-act="mapFx">${ic('sun')}Regola colori guardando la mappa</button>
     <label class="lp-row slider"><span>Intensità dei colori<small>Più alta = campi più pieni, meno satellite visibile</small></span><input type="range" name="intensita" min="20" max="90" step="5" value="${prefs.intensita || 70}"></label>
     <h3>Visualizza</h3>${sw('etichette', 'Nomi dei campi')}${sw('note', 'Note')}${sw('nomi', 'Strade e luoghi', 'Solo sul satellite')}
-    <h3>Mostra livelli su mappa</h3>${sw('particelle', 'Catasto: particelle', 'Agenzia delle Entrate, visibili da vicino')}${sw('fogli', 'Catasto: fogli di mappa')}
+    <h3>Mostra livelli su mappa</h3>${sw('ndvi', 'Vigore vegetativo (NDVI)', 'Satellite Sentinel-2, scegli la data in basso')}${sw('particelle', 'Catasto: particelle', 'Agenzia delle Entrate, visibili da vicino')}${sw('fogli', 'Catasto: fogli di mappa')}
     <button type="button" class="btn ok wide" data-act="mapApply">Applica</button></form>`);
 }
+// Barra delle date delle immagini satellitari, con legenda dei colori
+async function ndviBar() {
+  const el = $('#ndviBar'); if (!el) return; el.hidden = false;
+  const leg = `<span class="nd-leg"><i></i><em>basso</em><em>alto</em></span>`;
+  const gs = S.campi.filter(c => c.geom).map(c => c.geom);
+  if (!gs.length) { const c = map.getBounds(); gs.push({ type: 'Polygon', coordinates: [[[c.getWest(), c.getSouth()], [c.getEast(), c.getSouth()], [c.getEast(), c.getNorth()], [c.getWest(), c.getNorth()], [c.getWest(), c.getSouth()]]] }); }
+  if (!ndviScenes) { el.innerHTML = `<b>${ic('satellite')}NDVI</b><span class="muted small">Cerco le immagini…</span>${leg}`; try { ndviScenes = await s2scene(gs); } catch (e) { el.innerHTML = `<b>${ic('satellite')}NDVI</b><span class="small t-bad">${esc(e.message)}</span>`; ndviScenes = null; return; } }
+  el.innerHTML = `<b>${ic('satellite')}NDVI</b><div class="nd-dates"><button data-scene="" class="${!prefs.ndviScene ? 'on' : ''}">Più recente</button>${ndviScenes.map(x => `<button data-scene="${x.id}" class="${prefs.ndviScene === x.id ? 'on' : ''}">${fd(x.data)}${x.nuvole !== null && x.nuvole !== undefined ? `<small>${Math.round(x.nuvole * 100)}% nuvole</small>` : ''}</button>`).join('') || '<span class="muted small">Nessuna immagine serena negli ultimi mesi</span>'}</div>${leg}`;
+  el.onclick = e => { const b = e.target.closest('[data-scene]'); if (!b) return; prefs.ndviScene = b.dataset.scene ? +b.dataset.scene : null; savePrefs(); ndviLayer.setScene(prefs.ndviScene); el.querySelectorAll('[data-scene]').forEach(x => x.classList.toggle('on', x === b)); };
+}
+export function showNdvi(id) { prefs.ndvi = true; savePrefs(); if (map) { applyLayers(); drawFields(); } if (id) setTimeout(() => focusCampo(id), 200); }
 export function applyPanel() {
   const f = $('#lpForm'); if (!f) return;
   prefs.base = (f.querySelector('input[name=base]:checked') || {}).value || 'sat';
   prefs.colorBy = (f.querySelector('input[name=colorBy]:checked') || {}).value || 'coltura';
   prefs.intensita = +(f.querySelector('input[name=intensita]') || {}).value || 60;
-  ['etichette', 'note', 'nomi', 'particelle', 'fogli'].forEach(k => { prefs[k] = !!f.querySelector(`input[name=${k}]`).checked; });
+  ['etichette', 'note', 'nomi', 'particelle', 'fogli', 'ndvi'].forEach(k => { prefs[k] = !!f.querySelector(`input[name=${k}]`).checked; });
   savePrefs(); closeSheet(); applyLayers(); drawFields();
 }
 export function plusMenu() {

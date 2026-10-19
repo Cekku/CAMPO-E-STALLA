@@ -78,10 +78,19 @@ function drawerHTML() {
   <button class="dr-switch" data-act="area" data-area="${other[0]}">${ic('refresh-cw')}<span>${other[2]}</span>${ic(other[1])}</button>`;
 }
 
+// Barra in basso sul telefono, con il pulsante Registra al centro
+const BNAV = {
+  campagna: [['oggi', null, 'house', 'Home'], ['mappa', null, 'map', 'Mappa'], null, ['attivita', null, 'notebook-pen', 'Attività'], ['campi', 'elenco', 'sprout', 'Campi']],
+  stalla: [['oggi', null, 'house', 'Home'], ['stalla', 'mandria', 'cow', 'Mandria'], null, ['stalla', 'latte', 'milk', 'Latte'], ['stalla', 'stalle', 'layout-grid', 'Stalle']],
+};
+function bnavHTML() {
+  return BNAV[UI.area].map(x => x ? `<button data-act="nav" data-tab="${x[0]}"${x[1] ? ` data-sub="${x[1]}"` : ''} aria-current="${!UI.detail && isCur(x[0], x[1]) ? 'page' : 'false'}">${ic(x[2])}<span>${x[3]}</span></button>` : `<button class="bn-plus" data-act="quick" aria-label="Registra"><span>${ic('plus')}</span></button>`).join('');
+}
 function render() {
   derive();
   document.body.dataset.area = UI.area;
   $('#drawer').innerHTML = drawerHTML();
+  $('#bnav').innerHTML = bnavHTML();
   syncPill();
   const years = new Set([new Date().getFullYear(), UI.anno]); S.operazioni.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.eventi.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); });
   $('#yearSel').innerHTML = [...years].sort((a, b) => b - a).map(y => `<option value="${y}"${y === UI.anno ? ' selected' : ''}>${y}</option>`).join('');
@@ -225,6 +234,13 @@ function doExport(what) {
   toast('File pronto');
 }
 
+async function ndviField(id, btn) {
+  const c = get('campi', id); if (!c || !c.geom) return toast('Disegna prima il confine del campo.', 'err');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Leggo le immagini…';
+  try { const { serieCampo } = await import('./ndvi.js'); const s = await serieCampo(c, 8); toast(s.length ? 'NDVI aggiornato: ' + s.length + ' immagini' : 'Nessuna immagine serena negli ultimi mesi'); }
+  catch (e) { toast(e.message, 'err'); }
+  render();
+}
 async function razScarico(id) {
   const r = get('razioni', id); if (!r) return; const i = razioneInfo(r);
   for (const x of i.ing) if (x.p && x.kgTot > 0) await store.put('movimenti', null, { data: today(), prodottoId: x.p.id, tipo: 'Scarico', quantita: Math.round(x.kgTot * 100) / 100, note: 'Razione ' + r.nome, razioneId: r.id });
@@ -328,6 +344,8 @@ document.addEventListener('click', async e => {
       case 'catClose': return MAP.closeCat();
       case 'catAssign': return MAP.assignCatasto(d.txt, d.comune);
       case 'mapNote': return MAP.noteForField(d.id);
+      case 'ndviField': return ndviField(d.id, b);
+      case 'ndviMap': setTab('mappa'); return setTimeout(() => MAP.showNdvi(d.id), 250);
       case 'mapFocus': setTab('mappa'); return setTimeout(() => MAP.focusCampo(d.id), 250);
     }
   } catch (err) { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); }
@@ -398,6 +416,7 @@ function gpsAzienda() {
     <div id="mapLegend" class="map-legend" hidden></div>
     <button class="map-plus" data-act="mapPlus" aria-label="Aggiungi">${ic('plus')}</button>
     <div id="mapBar" class="map-bar" hidden></div>
+    <div id="ndviBar" class="ndvi-bar" hidden></div>
     <div id="fxPanel" class="fx-panel" hidden></div>
     <div id="catCard" class="cat-card" hidden></div>
     <div id="mapCard" class="map-card" hidden></div>`;

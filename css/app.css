@@ -926,3 +926,45 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 .mini-stalls span { font-size: 12.5px; }
 .occ.silo-l i { background: var(--hay); } .occ.silo-l i.over { background: var(--bad); }
 .avatar.warn { background: var(--warn-soft); color: var(--warn); } .avatar.info { background: var(--info-soft); color: var(--info); }
+
+/* ---------- NDVI ---------- */
+.ndvi-bar { position: absolute; left: 12px; right: 12px; bottom: calc(16px + var(--sab)); z-index: 500; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-2); }
+.ndvi-bar > b { display: flex; align-items: center; gap: 6px; font-size: 13px; flex: none; } .ndvi-bar > b .ic { color: var(--accent); }
+.nd-dates { display: flex; gap: 6px; overflow-x: auto; flex: 1; scrollbar-width: none; } .nd-dates::-webkit-scrollbar { display: none; }
+.nd-dates button { flex: none; display: flex; flex-direction: column; align-items: center; padding: 5px 10px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--surface); font-size: 12.5px; font-weight: 650; line-height: 1.2; }
+.nd-dates button small { font-size: 10.5px; font-weight: 500; color: var(--muted); }
+.nd-dates button.on { background: var(--bar); border-color: var(--bar); color: #fff; } .nd-dates button.on small { color: rgba(255, 255, 255, .8); }
+.nd-leg { display: flex; flex-direction: column; gap: 2px; flex: none; width: 90px; }
+.nd-leg i { display: block; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #A8754B, #D9B64A, #B5CF4A, #5DB045, #1E7B34); }
+.nd-leg em { font-style: normal; font-size: 10.5px; color: var(--muted); display: inline; } .nd-leg em + em { float: right; margin-top: -14px; }
+.mapview.has-card .ndvi-bar { bottom: auto; top: 70px; }
+.ndvi-sum { display: flex; gap: 16px; align-items: center; padding: 0 18px 16px; flex-wrap: wrap; }
+.ndvi-big { display: flex; flex-direction: column; padding: 12px 16px; border-radius: 14px; background: color-mix(in srgb, var(--c) 16%, var(--surface)); border: 1.5px solid color-mix(in srgb, var(--c) 50%, transparent); min-width: 150px; }
+.ndvi-big b { font-family: var(--f-display); font-size: 34px; line-height: 1; color: var(--c); } .ndvi-big span { font-weight: 650; font-size: 13.5px; } .ndvi-big small { color: var(--muted); font-size: 12px; }
+.ndvi-side { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 8px; }
+.ndvi-spark { display: flex; flex-direction: column; color: var(--accent); } .ndvi-spark .spark { width: 100%; max-width: 360px; height: 54px; }
+.ndvi-warn { display: flex; gap: 8px; align-items: flex-start; margin: 0 18px 16px; padding: 10px 12px; border-radius: 12px; background: var(--warn-soft); color: var(--warn); font-size: 13.5px; font-weight: 600; }
+/* miniature con foto satellitare */
+.satsvg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.fc-img .satsvg { border-radius: 0; }
+.dh-thumb.sat { position: relative; padding: 0; overflow: hidden; }
+.hero-map .satsvg { position: absolute; inset: 0; }
+.hero-map .hm-top { z-index: 2; }
+
+/* ---------- barra di navigazione in basso (telefono) ---------- */
+.bnav { display: none; }
+@media (max-width: 899px) {
+  :root { --nav-h: 62px; }
+  .bnav { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: calc(var(--nav-h) + var(--sab)); padding: 0 max(4px, var(--sar)) var(--sab) max(4px, var(--sal)); background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -4px 18px rgba(18, 40, 30, .06); }
+  .bnav button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 0; background: none; color: var(--muted); font-size: 11.5px; font-weight: 650; padding: 0; min-width: 0; }
+  .bnav button .ic { width: 22px; height: 22px; }
+  .bnav button[aria-current="page"] { color: var(--bar); }
+  .bnav button[aria-current="page"] .ic { stroke-width: 2.4; }
+  .bnav .bn-plus span { display: grid; place-items: center; width: 52px; height: 52px; margin-top: -22px; border-radius: 50%; background: var(--action); color: #fff; box-shadow: 0 6px 18px color-mix(in srgb, var(--action) 45%, transparent); border: 4px solid var(--surface); }
+  .bnav .bn-plus .ic { width: 26px; height: 26px; stroke-width: 2.6; }
+  .fab { display: none !important; }
+  .view { padding-bottom: calc(var(--nav-h) + 40px + var(--sab)); }
+  .mapview { bottom: calc(var(--nav-h) + var(--sab)); }
+  .toast { bottom: calc(var(--nav-h) + 18px + var(--sab)); }
+  body.drawer-open .bnav { visibility: hidden; }
+}

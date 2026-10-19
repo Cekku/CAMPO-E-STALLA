@@ -3,7 +3,7 @@ import { S, D, UI, azienda, get } from '../state.js';
 import { esc, nf, eur, fd, fdShort, fdLong, today, sum, byDate, N, plural, yearOf, diff } from '../util.js';
 import { ic } from '../icons.js';
 import { allAlerts, campoHa, capoI, giac, cropColor, cropColorName, cropOf, opCosto } from '../domain.js';
-import { farmSvg, thumb } from '../geo.js';
+import { farmSvg, thumb, satSvg } from '../geo.js';
 import { getMeteo, wmo } from '../meteo.js';
 import { latteChart, spark, donut, columns } from './charts.js';
 import { empty, newBtn, chip } from '../ui.js';
@@ -34,7 +34,7 @@ export function render() {
   const ha = sum(S.campi, campoHa); const totHa = N(a.ettari) || 0;
   const crops = new Map(); S.campi.forEach(c => { const k = cropOf(c, Y) || 'Senza coltura'; crops.set(k, (crops.get(k) || 0) + campoHa(c)); });
   const parts = [...crops.entries()].sort((x, y) => y[1] - x[1]);
-  const svg = farmSvg(S.campi.map(c => ({ geom: c.geom, color: cropColor(c, Y), title: c.nome })));
+  const svg = satSvg(S.campi.map(c => ({ geom: c.geom, color: cropColor(c, Y), title: c.nome })), 900, 360, { fill: .45, stroke: 2, fit: .5 });
   const done = S.operazioni.filter(o => o.stato !== 'Pianificata').sort(byDate).reverse().slice(0, 5);
   const plan = S.operazioni.filter(o => o.stato === 'Pianificata').sort(byDate).slice(0, 4);
   const note = [...S.note].sort(byDate).reverse().slice(0, 6);

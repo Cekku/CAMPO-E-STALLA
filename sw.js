@@ -19,7 +19,9 @@ self.addEventListener('fetch', e => {
   const req = e.request; if (req.method !== 'GET') return;
   const url = new URL(req.url);
   // dati e autenticazione: sempre dalla rete
-  if (url.hostname.endsWith('supabase.co') || url.hostname.includes('nominatim') || url.search.includes('GetFeatureInfo')) return;
+  if (url.hostname.endsWith('supabase.co') || url.hostname.includes('nominatim') || url.search.includes('GetFeatureInfo') || url.hostname.includes('anthropic.com')) return;
+  // indice di vegetazione: le interrogazioni sempre dalla rete, le immagini in copia locale
+  if (url.hostname.startsWith('sentinel.') && !url.pathname.endsWith('/exportImage')) return;
   // pezzi di mappa (satellite, stradale, catasto): prima la copia locale, aggiornata in background
   if (/arcgisonline|arcgis\.com|tile\.openstreetmap|opentopomap|cartografia\.agenziaentrate|regione\.fvg/.test(url.hostname)) {
     e.respondWith(caches.open(TILE_CACHE).then(async c => {
