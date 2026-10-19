@@ -178,6 +178,7 @@ function renderWeather() {
   const c = data.current, d = data.daily; el.hidden = false;
   el.innerHTML = `<button data-act="nav" data-tab="meteo">${ic(wmo(c.weather_code)[0])}<b>${Math.round(c.temperature_2m)}°</b></button><span>${ic('thermometer')}${Math.round(d.temperature_2m_min[0])}°</span><span>${ic('thermometer')}${Math.round(d.temperature_2m_max[0])}°</span>`;
 }
+const d2 = v => Number(v).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export function mapUpdate() { if (map) { drawFields(); if (selected) renderCard(); } }
 
 let legendOpen = false;
@@ -205,7 +206,7 @@ function renderCard() {
   card.hidden = false;
   card.innerHTML = `<div class="grab" aria-hidden="true"></div><div class="mc-head">${ic('map-pin')}<div class="mc-title"><b>${esc(c.nome)}</b><span>${nf(h, 2)} ha${c.conduzione ? ' · ' + esc(c.conduzione) : ''}${c.catasto ? ' · ' + esc(c.catasto) : ''}</span></div><button class="iconbtn ghost" data-act="mapDeselect" aria-label="Chiudi">${ic('x')}</button></div>
   <div class="mc-hist">${st.length ? st.map(e => `<button data-act="coltura" data-id="${c.id}" data-anno="${e.anno}">${ic('sprout')}<span><b>${e.anno}</b> ${esc(e.coltura)}</span><em class="chip ok num">${nf(h, 2)} ha</em></button>`).join('') : `<button data-act="coltura" data-id="${c.id}" data-anno="${UI.anno}">${ic('plus')}<span>Aggiungi la coltura ${UI.anno}</span></button>`}</div>
-  ${(v => v ? `<div class="mc-last">${ic('satellite')}<span>NDVI <b style="color:${ndviColor(v.mean)}">${v.mean.toFixed(2)}</b> · ${ndviLabel(v.mean)} · ${fd(v.data)}</span></div>` : '')(campoNdviCached(c).pop())}
+  ${(v => v ? `<div class="mc-last">${ic('satellite')}<span>NDVI <b style="color:${ndviColor(v.mean)}">${d2(v.mean)}</b> · ${ndviLabel(v.mean)} · ${fd(v.data)}</span></div>` : '')(campoNdviCached(c).pop())}
   <div class="mc-last">${ic('notebook-pen')}<span>${i.last ? esc(i.last.tipo || 'Attività') + ' il ' + fd(i.last.data) : 'Nessuna attività registrata'}${i.plan.length ? ' · ' + i.plan.length + ' da fare' : ''}${i.carenza ? ' · carenza fino al ' + fd(i.carenza.fine) : ''}</span></div>
   <div class="mc-actions two"><button class="btn sm" data-act="open" data-type="campo" data-id="${c.id}">${ic('list')}Dettagli</button>${ct ? `<a class="btn sm" href="https://www.google.com/maps/dir/?api=1&destination=${ct[1].toFixed(6)},${ct[0].toFixed(6)}" target="_blank" rel="noopener">${ic('navigation')}Indicazioni</a>` : '<span></span>'}</div>
   <button class="btn action wide" data-act="new" data-form="operazioni" data-campo="${c.id}">${ic('plus')}Registra attività</button>

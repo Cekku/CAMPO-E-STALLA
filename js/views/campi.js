@@ -9,6 +9,7 @@ import { stackBar, spark } from './charts.js';
 import { campoNdviCached, ndviLabel, ndviColor } from '../ndvi.js';
 import { opRow, noteCard } from './oggi.js';
 
+const d2 = v => Number(v).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export function render() {
   if (UI.detail && UI.detail.type === 'campo') { const c = get('campi', UI.detail.id); if (c) return detail(c); UI.detail = null; }
   const sub = ['costi', 'rotazioni'].includes(UI.sub.campi) ? UI.sub.campi : 'elenco';
@@ -82,8 +83,8 @@ function ndviCard(c) {
   const delta = last && prev ? last.mean - prev.mean : null;
   const eterog = last && isFinite(last.sd) ? last.sd : null;
   return `<section class="card"><div class="card-h"><h2>${ic('satellite')}Vigore vegetativo (NDVI)</h2><div class="btns"><button class="btn sm ghost" data-act="ndviMap" data-id="${c.id}">${ic('map')}Mappa</button><button class="btn sm" data-act="ndviField" data-id="${c.id}">${ic('refresh-cw')}${v.length ? 'Aggiorna' : 'Calcola dal satellite'}</button></div></div>
-  ${last ? `<div class="ndvi-sum"><div class="ndvi-big" style="--c:${ndviColor(last.mean)}"><b>${last.mean.toFixed(2)}</b><span>${ndviLabel(last.mean)}</span><small>${fd(last.data)}</small></div>
+  ${last ? `<div class="ndvi-sum"><div class="ndvi-big" style="--c:${ndviColor(last.mean)}"><b>${d2(last.mean)}</b><span>${ndviLabel(last.mean)}</span><small>${fd(last.data)}</small></div>
   <div class="ndvi-side">${v.length > 1 ? `<div class="ndvi-spark">${spark(v.map(x => x.mean), 260, 54)}<span class="muted small">${fd(v[0].data)} → ${fd(last.data)}</span></div>` : ''}
-  <div class="chips">${delta !== null ? `<span class="chip ${delta < -0.08 ? 'bad' : delta < -0.03 ? 'warn' : 'ok'}">${delta >= 0 ? '+' : ''}${delta.toFixed(2)} dall'immagine prima</span>` : ''}${eterog !== null ? `<span class="chip ${eterog > 0.12 ? 'warn' : ''}">${eterog > 0.12 ? 'Campo disomogeneo' : 'Campo omogeneo'} (σ ${eterog.toFixed(2)})</span>` : ''}<span class="chip ghost">min ${last.min.toFixed(2)} · max ${last.max.toFixed(2)}</span></div></div></div>
+  <div class="chips">${delta !== null ? `<span class="chip ${delta < -0.08 ? 'bad' : delta < -0.03 ? 'warn' : 'ok'}">${delta >= 0 ? '+' : ''}${d2(delta)} dall'immagine prima</span>` : ''}${eterog !== null ? `<span class="chip ${eterog > 0.12 ? 'warn' : ''}">${eterog > 0.12 ? 'Campo disomogeneo' : 'Campo omogeneo'} (σ ${d2(eterog)})</span>` : ''}<span class="chip ghost">min ${d2(last.min)} · max ${d2(last.max)}</span></div></div></div>
   ${delta !== null && delta < -0.08 ? `<p class="ndvi-warn">${ic('triangle-alert')}Calo marcato del vigore: controlla il campo (stress idrico, malattie, danni) o se è avvenuta una raccolta.</p>` : ''}` : `<p class="muted small pad-x" style="padding-bottom:16px">Immagini Sentinel-2 a 10 m, una ogni pochi giorni quando il cielo è sereno. L'indice va da 0 (suolo nudo) a 1 (vegetazione molto vigorosa).</p>`}</section>`;
 }

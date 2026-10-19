@@ -7,6 +7,13 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Stalla**: mandria, eventi (parti, fecondazioni, diagnosi, asciutte, trattamenti, controlli), calendario dei parti, latte giornaliero, razioni, registro trattamenti con sospensioni.
 - **Magazzino e mezzi**: giacenze, scorte minime, scadenze, ore motore, tagliandi, revisioni.
 - **Meteo** a 7 giorni sui campi, con i giorni adatti ai trattamenti.
+- **Controlli automatici sui trattamenti**: coltura autorizzata in etichetta, dose massima, numero di interventi, intervallo, carenza rispetto alla raccolta, giacenza, patentino dell'operatore, controllo funzionale dell'irroratrice, vento e pioggia previsti.
+- **Quaderno di campagna (QDCA)** stampabile o in PDF, CSV per Excel e registro dei trattamenti in formato dati (JSON).
+- **Banca dati fitofarmaci** del Ministero della Salute: si carica il CSV open data e le schede prodotto si compilano da sole; i prodotti revocati vengono segnalati.
+- **Piano Colturale Grafico**: importa lo shapefile (.zip) del CAA; gli appezzamenti si associano ai campi già disegnati, gli altri diventano campi nuovi. Vista **Piano colturale** su cinque annate con avviso dei ristoppi.
+- **Registrazione a voce o con testo libero** dal pulsante Registra ("ieri diserbo su Pradone 1,5 l/ha"): interprete locale, oppure Claude con una chiave API Anthropic salvata sul dispositivo.
+- **Stalle, box e silos**: capi assegnati ai box, occupazione, autonomia dei silos con le razioni; **indici della mandria** (DIM, giorni aperti, interparto, IOFC) e **allarmi di benessere** dai dati importati da Alpro, MooMonitor e altri sistemi (CSV).
+- **NDVI Sentinel-2**: vigore vegetativo sulla mappa per data e andamento per ogni campo.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
 ## Attivare la sincronizzazione (una volta sola, circa 5 minuti)
@@ -28,9 +35,13 @@ La chiave *anon* è pensata per stare nelle app: i dati sono protetti dalle rego
 - **Android (Chrome)**: apri l'indirizzo, tocca *Installa l'app* nella schermata Oggi o dal menu ⋮ → *Installa app*.
 - **iPhone (Safari)**: tocca Condividi → *Aggiungi alla schermata Home*.
 
+## Dati da Alpro, MooMonitor e altri sistemi di stalla
+
+Esporta dal programma della sala di mungitura o dei collari un file CSV con una riga per vacca e per giorno (numero o matricola, data, latte, ruminazione, attività). In **Stalla → Indici e benessere → Importa CSV** l'app riconosce le colonne e abbina gli animali per matricola, **numero aziendale** (da inserire nella scheda del capo) o nome.
+
 ## Fonti dei dati
 
-Immagini satellitari Esri World Imagery · OpenStreetMap · OpenTopoMap · Cartografia catastale © Agenzia delle Entrate (CC BY 4.0, servizio WMS) · Meteo Open-Meteo.com · Ricerca luoghi Nominatim.
+Immagini satellitari Esri World Imagery · NDVI Sentinel-2 © Copernicus tramite il servizio Esri Sentinel-2 Views · Banca dati prodotti fitosanitari © Ministero della Salute · OpenStreetMap · OpenTopoMap · Cartografia catastale © Agenzia delle Entrate (CC BY 4.0, servizio WMS) · Meteo Open-Meteo.com · Ricerca luoghi Nominatim.
 Librerie: Leaflet, Leaflet-Geoman, supabase-js, icone Lucide.
 
 ## Aggiornare l'app
