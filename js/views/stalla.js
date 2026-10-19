@@ -5,6 +5,8 @@ import { ic } from '../icons.js';
 import { GEST, capoI, razioneInfo, giac } from '../domain.js';
 import { tabs, empty, newBtn, fact, chip, exChip } from '../ui.js';
 import { latteChart, spark } from './charts.js';
+import { stalle, strutturaDetail, indiciView, capoMisure } from './stalle.js';
+import { boxOf, benessere } from '../herd.js';
 
 const STATO = { 'In lattazione': 'ok', 'Asciutta': 'hay', 'Manza': 'info', 'Vitella': 'info', 'Vitello': 'info', 'Maschio': '', 'Uscita': 'ghost' };
 const statoChip = s => chip(s, STATO[s] || '');
@@ -12,11 +14,13 @@ function gravChip(i) { if (i.gravida === true) return chip('Gravida', 'ok'); if 
 
 export function render() {
   if (UI.detail && UI.detail.type === 'capo') { const c = get('capi', UI.detail.id); if (c) return detail(c); UI.detail = null; }
+  if (UI.detail && UI.detail.type === 'struttura') { const s = get('strutture', UI.detail.id); if (s) return strutturaDetail(s); UI.detail = null; }
   const sub = UI.sub.stalla;
   const sosp = S.capi.filter(c => capoI(c).inSospLatte).length;
   const repro = S.capi.filter(c => capoI(c).alerts.some(a => ['fec', 'diag', 'asc', 'parto'].includes(a.k))).length;
-  const t = tabs('stalla', [['mandria', 'Mandria'], ['riproduzione', 'Riproduzione', repro || undefined], ['latte', 'Latte'], ['razioni', 'Razioni'], ['sanitario', 'Sanitario', sosp || undefined]], sub);
-  const body = { mandria, riproduzione, latte, razioni, sanitario }[sub] || mandria;
+  const ben = S.capi.filter(c => benessere(c).some(a => a.lv !== 'info')).length;
+  const t = tabs('stalla', [['mandria', 'Mandria'], ['stalle', 'Stalle e silos'], ['indici', 'Indici e benessere', ben || undefined], ['riproduzione', 'Riproduzione', repro || undefined], ['latte', 'Latte'], ['razioni', 'Razioni'], ['sanitario', 'Sanitario', sosp || undefined]], sub);
+  const body = { mandria, riproduzione, latte, razioni, sanitario, stalle, indici: indiciView }[sub] || mandria;
   return { title: 'Stalla', html: `<header class="pagehead"><h1>Stalla</h1><div class="btns">${newBtn('eventi', 'Evento')}</div></header>` + t + body() };
 }
 
@@ -36,8 +40,9 @@ function mandria() {
 }
 export function capoRow(c) {
   const i = capoI(c);
-  const bits = [esc(c.razza || ''), i.nLatt ? i.nLatt + 'ª lattazione' : '', i.dim !== null ? i.dim + ' gg in latte' : '', i.gravida && i.prevParto ? 'parto ' + fd(i.prevParto) : '', c.sesso !== 'M' && !i.pData && okD(c.nascita) ? eta(c.nascita) : ''].filter(Boolean);
-  return `<button class="row" data-act="open" data-type="capo" data-id="${c.id}"><span class="avatar ${i.inSospLatte ? 'bad' : STATO[i.stato] || ''}">${esc((c.nome || c.matricola || '?').slice(0, 1).toUpperCase())}</span><span class="r-main"><b>${esc(c.nome || 'Senza nome')} <span class="mono muted">${esc((c.matricola || '').slice(-6))}</span>${exChip(c)}</b><span>${bits.join(' · ')}</span></span><span class="r-side chips">${statoChip(i.stato)}${gravChip(i)}${i.inSospLatte ? chip('Sospensione', 'bad') : ''}</span></button>`;
+  const bx = boxOf(c); const al = benessere(c).filter(a => a.lv !== 'info');
+  const bits = [bx ? esc(bx.nome) : '', esc(c.razza || ''), i.nLatt ? i.nLatt + 'ª lattazione' : '', i.dim !== null ? i.dim + ' gg in latte' : '', i.gravida && i.prevParto ? 'parto ' + fd(i.prevParto) : '', c.sesso !== 'M' && !i.pData && okD(c.nascita) ? eta(c.nascita) : ''].filter(Boolean);
+  return `<button class="row" data-act="open" data-type="capo" data-id="${c.id}"><span class="avatar ${i.inSospLatte ? 'bad' : STATO[i.stato] || ''}">${esc((c.nome || c.matricola || '?').slice(0, 1).toUpperCase())}</span><span class="r-main"><b>${esc(c.nome || 'Senza nome')} <span class="mono muted">${esc((c.matricola || '').slice(-6))}</span>${exChip(c)}</b><span>${bits.join(' · ')}</span></span><span class="r-side chips">${statoChip(i.stato)}${gravChip(i)}${i.inSospLatte ? chip('Sospensione', 'bad') : ''}${al.length ? chip(al[0].t, al[0].lv) : ''}</span></button>`;
 }
 
 function riproduzione() {
@@ -127,7 +132,8 @@ function detail(c) {
   return { title: c.nome || c.matricola, html: `<section class="card detail-hero capo"><div class="big-avatar ${STATO[i.stato] || ''}">${esc((c.nome || c.matricola || '?').slice(0, 1).toUpperCase())}</div><div class="dh-body"><span class="eyebrow">${esc(c.razza || 'Bovino')} · ${c.sesso === 'M' ? 'maschio' : 'femmina'} · ${esc(c.gruppo || 'nessun gruppo')}</span><h1>${esc(c.nome || 'Senza nome')}${exChip(c)}</h1><span class="mono">${esc(c.matricola || '')}</span><div class="chips">${statoChip(i.stato)}${gravChip(i)}${i.inSospLatte ? chip('Latte in sospensione', 'bad') : ''}${i.alerts.filter(a => a.k !== 'sosp').map(a => chip(a.t, a.lv)).join('')}</div></div><button class="btn sm ghost" data-act="edit" data-form="capi" data-id="${c.id}">${ic('pencil')}Scheda</button></section>
   <div class="quick-ev">${quick.map(([t, l, icn]) => `<button data-act="new" data-form="eventi" data-capo="${c.id}" data-tipo="${t}">${ic(icn)}<span>${l}</span></button>`).join('')}</div>
   ${cycle}
-  <dl class="facts">${fact('Nascita', okD(c.nascita) ? fd(c.nascita) + ' <small>' + eta(c.nascita) + '</small>' : '—')}${fact('Lattazioni', String(i.nLatt || 0))}${fact('Ultimo parto', i.pData ? fd(i.pData) : '—')}${fact('Ultima fecondazione', i.fec ? fd(i.fec.data) + (i.nFec > 1 ? ' <small>' + i.nFec + 'ª</small>' : '') : '—')}${fact('Parto previsto', i.prevParto ? fd(i.prevParto) + (i.gravida ? '' : ' <small>presunto</small>') : '—')}${fact('Sospensione latte', i.inSospLatte ? chip('fino al ' + fd(i.sospLatte), 'bad') : 'Nessuna')}${fact('Ultimo controllo', i.ctrl ? `<span class="num">${nf(i.ctrl.kg, 1)} kg</span> <small>${fd(i.ctrl.data)}</small>` : '—')}${fact('Madre · padre', esc([c.madre, c.padre].filter(Boolean).join(' · ') || '—'))}</dl>
+  <dl class="facts">${fact('Nascita', okD(c.nascita) ? fd(c.nascita) + ' <small>' + eta(c.nascita) + '</small>' : '—')}${fact('Lattazioni', String(i.nLatt || 0))}${fact('Ultimo parto', i.pData ? fd(i.pData) : '—')}${fact('Ultima fecondazione', i.fec ? fd(i.fec.data) + (i.nFec > 1 ? ' <small>' + i.nFec + 'ª</small>' : '') : '—')}${fact('Parto previsto', i.prevParto ? fd(i.prevParto) + (i.gravida ? '' : ' <small>presunto</small>') : '—')}${fact('Sospensione latte', i.inSospLatte ? chip('fino al ' + fd(i.sospLatte), 'bad') : 'Nessuna')}${fact('Ultimo controllo', i.ctrl ? `<span class="num">${nf(i.ctrl.kg, 1)} kg</span> <small>${fd(i.ctrl.data)}</small>` : '—')}${fact('Madre · padre', esc([c.madre, c.padre].filter(Boolean).join(' · ') || '—'))}${fact('Stalla e box', (b => b ? `<button class="linkbtn" data-act="open" data-type="struttura" data-id="${b.s.id}">${esc(b.s.nome)} · ${esc(b.nome)}</button>` : '—')(boxOf(c)))}${c.numero ? fact('N. aziendale', esc(c.numero)) : ''}</dl>
+  ${capoMisure(c)}
   ${ctrls.length >= 2 ? `<section class="card"><div class="card-h"><h2>Controlli funzionali</h2></div><div class="ctrl-spark">${spark(ctrls.map(e => N(e.kg)), 300, 56)}<span class="muted small">${nf(ctrls[0].kg, 1)} → <b>${nf(ctrls[ctrls.length - 1].kg, 1)} kg/giorno</b></span></div></section>` : ''}
   ${c.note ? `<section class="card note">${esc(c.note)}</section>` : ''}
   <section class="card"><div class="card-h"><h2>Storia</h2><span class="count">${i.ev.length}</span></div><div class="timeline">${i.ev.length ? [...i.ev].reverse().map(e => evRow(e, false)).join('') : '<div class="empty slim">Nessun evento registrato.</div>'}</div></section>

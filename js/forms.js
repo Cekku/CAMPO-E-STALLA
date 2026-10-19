@@ -8,6 +8,7 @@ import { areaHa } from './geo.js';
 import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
 import { fitoLookup, fitoSearch, fitoMeta } from './fitodb.js';
 import { esc } from './util.js';
+import { FASI_BOX, allBoxes } from './herd.js';
 
 const oCampi = () => [...S.campi].sort(byName).map(c => [c.id, `${c.nome} · ${nf(campoHa(c), 2)} ha`]);
 const oProd = cats => () => [...S.prodotti].filter(p => !cats || cats.includes(p.categoria)).sort(byName).map(p => [p.id, `${p.nome} — ${nf(giac(p), 1)} ${p.unita || ''}`]);
@@ -180,6 +181,29 @@ export const SPEC = {
     defaults: () => ({ ruolo: 'Dipendente' }),
     validate: v => { const dup = S.operatori.find(o => (o.nome || '').toLowerCase() === (v.nome || '').toLowerCase() && o.id !== (FORM && FORM.id)); return dup ? 'Esiste già un operatore con questo nome.' : null; },
   },
+  strutture: {
+    title: 'Stalla', icon: 'layout-grid',
+    fields: () => [
+      { k: 'nome', l: 'Nome', req: 1, ph: 'Es. Stalla vacche in lattazione' },
+      { k: 'tipo', l: 'Tipo', t: 'seg', opts: ['Stalla libera', 'Stalla fissa', 'Vitellaia', 'Paddock o pascolo'] },
+      { k: 'box', l: 'Box e recinti', t: 'rows', addLabel: 'Aggiungi box', hint: 'Ogni box ha una fase e un numero di posti: i capi si assegnano ai box.',
+        cols: [{ k: 'nome', l: 'Nome box', ph: 'Es. Box 1', w: 'minmax(110px,1.4fr)' }, { k: 'fase', l: 'Fase', t: 'select', opts: FASI_BOX, ph: 'Fase', w: 'minmax(110px,1.2fr)' }, { k: 'posti', l: 'Posti', t: 'number', ph: '0', w: '90px' }] },
+      { k: 'note', l: 'Note', t: 'textarea' }],
+    defaults: () => ({ tipo: 'Stalla libera', box: [{ nome: 'Box 1', fase: 'Lattazione' }] }),
+    validate: v => { const n = (v.box || []).map(b => (b.nome || '').trim()); if (n.some(x => !x)) return 'Dai un nome a ogni box.'; if (new Set(n).size !== n.length) return 'Due box hanno lo stesso nome.'; return null; },
+    canDel: x => S.capi.some(c => String(c.box || '').startsWith(x.id + '|') && capoI(c).stato !== 'Uscita') ? 'Nella stalla ci sono ancora capi: spostali prima in un altro box.' : null,
+  },
+  silos: {
+    title: 'Silo o deposito', icon: 'cylinder',
+    fields: () => [
+      { k: 'nome', l: 'Nome', req: 1, ph: 'Es. Trincea 1' },
+      { k: 'tipo', l: 'Tipo', t: 'seg', opts: ['Trincea', 'Silo verticale', 'Fienile', 'Serbatoio'] },
+      { k: 'prodottoId', l: 'Contenuto (dal magazzino)', t: 'select', opts: oProd(['Foraggio', 'Mangime', 'Altro']), blank: 'Non collegato', hint: 'Collegato al magazzino, il livello segue carichi, scarichi e razioni' },
+      { k: 'capacita', l: 'Capacità', t: 'number', half: 1, unit: 't', req: 1 },
+      { k: 'carico', l: 'Contenuto attuale', t: 'number', half: 1, unit: 't', show: v => !v.prodottoId },
+      { k: 'note', l: 'Note', t: 'textarea' }],
+    defaults: () => ({ tipo: 'Trincea' }),
+  },
   capi: {
     title: 'Capo', icon: 'cow',
     fields: () => [
@@ -189,6 +213,8 @@ export const SPEC = {
       { k: 'razza', l: 'Razza', t: 'select', opts: RAZZE, half: 1 },
       { k: 'nascita', l: 'Data di nascita', t: 'date', half: 1 },
       { k: 'gruppo', l: 'Gruppo', t: 'select', opts: GRUPPI, half: 1 },
+      { k: 'numero', l: 'N. aziendale o collare', half: 1, hint: 'Il numero usato da sala di mungitura e collari (Alpro, MooMonitor…)' },
+      { k: 'box', l: 'Stalla e box', t: 'select', opts: allBoxes, half: 1, blank: 'Nessuno' },
       { k: 's1', l: 'Origine', t: 'section' },
       { k: 'ingresso', l: 'Ingresso in azienda', t: 'date', half: 1 },
       { k: 'lattazioniPrecedenti', l: 'Lattazioni precedenti', t: 'number', half: 1, hint: 'Prima dell\'ingresso o dell\'uso dell\'app' },

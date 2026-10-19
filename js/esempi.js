@@ -66,6 +66,13 @@ export function exampleRows() {
   add('note', 'n1', { titolo: 'Prova irrigazione', data: d(20), campoId: id('c1'), colore: 'blu', testo: 'Tre pluviometri lungo la campata: 7 mm, 9 mm, 17 mm in 20 minuti. Pressione 4,8 bar. Da ripetere con i regolatori nuovi.' });
   add('note', 'n2', { titolo: 'Infestanti a chiazze', data: d(9), campoId: id('c2'), colore: 'giallo', testo: 'Lato nord, vicino al fosso: controllare prima del prossimo sfalcio.' });
   add('note', 'n3', { titolo: 'Ordinare seme mais', data: d(2), colore: 'rossa', testo: 'Chiedere preventivo per classe 600 e 500 entro fine mese.' });
+  add('strutture', 's1', { nome: 'Stalla vacche', tipo: 'Stalla libera', box: [{ nome: 'Box alta', fase: 'Lattazione', posti: 40 }, { nome: 'Box media', fase: 'Lattazione', posti: 30 }, { nome: 'Asciutte', fase: 'Asciutta', posti: 12 }, { nome: 'Box parto', fase: 'Box parto', posti: 4 }] });
+  add('strutture', 's2', { nome: 'Rimonta', tipo: 'Vitellaia', box: [{ nome: 'Manze', fase: 'Manze', posti: 20 }, { nome: 'Gabbiette', fase: 'Vitelle', posti: 10 }] });
+  add('silos', 'si1', { nome: 'Trincea 1', tipo: 'Trincea', prodottoId: id('p6'), capacita: 400 });
+  add('silos', 'si2', { nome: 'Silo farina', tipo: 'Silo verticale', prodottoId: id('p4'), capacita: 12 });
+  rows.forEach(r => { if (r.col !== 'capi') return; const k = r.id.split('-')[1]; r.data.box = id('s' + (k === 'k5' || k === 'k6' ? '2' : '1')) + '|' + ({ k1: 'Box alta', k2: 'Box alta', k3: 'Asciutte', k4: 'Box media', k5: 'Manze', k6: 'Gabbiette' }[k]); r.data.numero = String(100 + +k.slice(1)); });
+  // misure giornaliere da sala di mungitura e collari: Luna cala per la mastite
+  [['k1', 44, 520], ['k2', 38, 505], ['k4', 31, 490]].forEach(([k, kg, rum]) => { for (let i = 14; i >= 1; i--) { const dd = d(i); const sick = k === 'k2' && i <= 2; rows.push({ col: 'misure', id: id(k) + '_' + dd + '_esempio', data: { capoId: id(k), data: dd, fonte: 'Esempio', latte: +(kg + Math.sin(i) * 1.5 - (sick ? 12 : 0)).toFixed(1), ruminazione: Math.round(rum + Math.cos(i) * 15 - (sick ? 190 : 0)), attivita: Math.round(300 + Math.sin(i * 2) * 25), esempio: true } }); } });
   add('razioni', 'r1', { nome: 'Unifeed alta produzione', gruppo: 'Alta produzione', ingredienti: [{ prodottoId: id('p6'), kg: 28 }, { prodottoId: id('p4'), kg: 7 }, { prodottoId: id('p5'), kg: 4 }], note: 'Più fieno di medica a volontà' });
   return rows;
 }

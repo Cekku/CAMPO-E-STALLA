@@ -140,8 +140,10 @@ export function razioneInfo(r) {
   return { capi, ing, costoCapo, costoGiorno: costoCapo * capi, kgCapo: sum(ing, i => i.kg), autonomia: auto.length ? Math.min(...auto) : null };
 }
 
+export const extraAlerts = [];
 export function allAlerts() {
   const T = today(); const out = [];
+  extraAlerts.forEach(f => { try { out.push(...f()); } catch (e) { } });
   S.capi.forEach(c => { capoI(c).alerts.forEach(a => out.push({ lv: a.lv, area: 'stalla', t: a.t, s: (c.nome ? c.nome + ' · ' : '') + (c.matricola || '') + ' — ' + a.s, go: { type: 'capo', id: c.id } })); });
   S.prodotti.forEach(p => {
     const g = giac(p), u = p.unita || '';
