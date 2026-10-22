@@ -7,6 +7,7 @@ import { fatture, righe, regole, anniFatture, DA_CLASSIFICARE, CAT_LATTE, CAT_PR
 import { categorie } from '../conti/regole.js';
 import { tabella, bottoniExport, fmtVal } from '../conti/tabelle.js';
 import { colonne, linee, barre, torta, PALETTE, COL, coloreAnno } from '../conti/grafici.js';
+import { statoPagamento } from '../conti/banca.js';
 
 export const MESI = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
 const MESI_L = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
@@ -27,6 +28,8 @@ function filtra() {
   if (st === 'verifica') fs = fs.filter(f => !ok(f));
   if (st === 'daclass') fs = fs.filter(f => (f.righe || []).some(r => r.categoria === DA_CLASSIFICARE));
   if (cat) fs = fs.filter(f => (f.righe || []).some(r => r.categoria === cat));
+  if (st === 'nonpagate') fs = fs.filter(f => ['da pagare', 'scaduta', 'in parte'].includes(statoPagamento(f).stato));
+  if (st === 'pagate') fs = fs.filter(f => ['pagata', 'in parte'].includes(statoPagamento(f).stato));
   return fs;
 }
 export function vFatture() {
@@ -41,7 +44,7 @@ export function vFatture() {
     <select class="inp" data-filter="cf_cp" aria-label="Controparte"><option value="">Tutte le controparti</option>${cps.map(c => `<option${c === UI.f.cf_cp ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>
     <select class="inp" data-filter="cf_cat" aria-label="Categoria"><option value="">Tutte le categorie</option>${cats.map(c => `<option${c === UI.f.cf_cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>
     <select class="inp" data-filter="cf_mese" aria-label="Mese"><option value="">Tutti i mesi</option>${MESI_L.map((m, i) => `<option value="${i + 1}"${+UI.f.cf_mese === i + 1 ? ' selected' : ''}>${m}</option>`).join('')}</select></div>
-  <div class="chipbar"><button data-act="chip" data-f="cf_anni" data-v="${UI.f.cf_anni === 'tutti' ? '' : 'tutti'}" aria-pressed="${UI.f.cf_anni === 'tutti'}">Tutti gli anni</button><button data-act="chip" data-f="cf_stato" data-v="" aria-pressed="${!UI.f.cf_stato}">Tutte</button><button data-act="chip" data-f="cf_stato" data-v="verifica" aria-pressed="${UI.f.cf_stato === 'verifica'}">Da verificare<span class="n">${daVer}</span></button><button data-act="chip" data-f="cf_stato" data-v="daclass" aria-pressed="${UI.f.cf_stato === 'daclass'}">Righe da classificare<span class="n">${daCl}</span></button>${UI.f.cf_cp || UI.f.cf_cat || UI.f.cf_q || UI.f.cf_mese ? `<button data-act="c-cfreset">${ic('x')}Togli i filtri</button>` : ''}</div>`;
+  <div class="chipbar"><button data-act="chip" data-f="cf_anni" data-v="${UI.f.cf_anni === 'tutti' ? '' : 'tutti'}" aria-pressed="${UI.f.cf_anni === 'tutti'}">Tutti gli anni</button><button data-act="chip" data-f="cf_stato" data-v="" aria-pressed="${!UI.f.cf_stato}">Tutte</button><button data-act="chip" data-f="cf_stato" data-v="verifica" aria-pressed="${UI.f.cf_stato === 'verifica'}">Da verificare<span class="n">${daVer}</span></button><button data-act="chip" data-f="cf_stato" data-v="daclass" aria-pressed="${UI.f.cf_stato === 'daclass'}">Righe da classificare<span class="n">${daCl}</span></button>${S.fatture.some(f => (f.pagamentiBanca || []).length) ? `<button data-act="chip" data-f="cf_stato" data-v="pagate" aria-pressed="${UI.f.cf_stato === 'pagate'}">${tipoF() === 'Vendita' ? 'Incassate' : 'Pagate'} in banca</button><button data-act="chip" data-f="cf_stato" data-v="nonpagate" aria-pressed="${UI.f.cf_stato === 'nonpagate'}">Senza ${tipoF() === 'Vendita' ? 'incasso' : 'pagamento'} in banca</button>` : ''}${UI.f.cf_cp || UI.f.cf_cat || UI.f.cf_q || UI.f.cf_mese ? `<button data-act="c-cfreset">${ic('x')}Togli i filtri</button>` : ''}</div>`;
   const kp = `<div class="kpis"><div class="kpi static"><span class="k-l">Fatture</span><span class="k-v sm">${nf(fs.length)}</span><span class="k-s">${UI.f.cf_anni === 'tutti' ? 'tutti gli anni' : UI.anno}</span></div><div class="kpi static"><span class="k-l">Imponibile</span><span class="k-v sm">${fmtVal(tot('imponibile'), 'eur')}</span><span class="k-s">IVA esclusa</span></div><div class="kpi static"><span class="k-l">IVA</span><span class="k-v sm">${fmtVal(tot('iva'), 'eur')}</span><span class="k-s">&nbsp;</span></div><div class="kpi static"><span class="k-l">Totale documenti</span><span class="k-v sm">${fmtVal(tot('totale'), 'eur')}</span><span class="k-s">IVA compresa</span></div></div>`;
   let corpo;
   if (vista === 'righe') corpo = registroRighe(fs);
@@ -50,8 +53,8 @@ export function vFatture() {
     corpo = tabella('fatt', {
       title: 'Registro delle fatture ' + (UI.f.cf_anni === 'tutti' ? '' : UI.anno), sheet: 'Fatture', sub: tipoNome(tipoF()),
       cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'tipo', h: 'Tipo', cls: 'nw' }, { k: 'controparte', h: 'Controparte', cls: 'w', html: f => `${esc(f.controparte)}<span class="sub">${esc(f.piva || '')}</span>` }, { k: 'numero', h: 'Numero', cls: 'nw' }, { k: 'tipoDoc', h: 'Doc.' },
-        { k: 'imponibile', h: 'Imponibile', fmt: 'eur2' }, { k: 'iva', h: 'IVA', fmt: 'eur2' }, { k: 'totale', h: 'Totale', fmt: 'eur2' }, { k: 'nr', h: 'Righe', fmt: 'int' }, { k: 'controllo', h: 'Controllo', html: f => ok(f) ? `<span class="esito ok">${ic('circle-check')}OK</span>` : `<span class="esito ko">${ic('triangle-alert')}${esc(f.controllo)}</span>` }, { k: 'pagamento', h: 'Pagamento', cls: 'clip' }, { k: 'scadenza', h: 'Scadenza', fmt: 'date' }, { k: 'file', h: 'File', cls: 'clip', html: f => `<span class="sub">${esc(f.file || '')}</span>` }],
-      rows: fs.slice(0, UI.f.cf_tutte ? 1e9 : LIM).map(f => Object.assign({ nr: (f.righe || []).length, _cls: 'click' }, f)),
+        { k: 'imponibile', h: 'Imponibile', fmt: 'eur2' }, { k: 'iva', h: 'IVA', fmt: 'eur2' }, { k: 'totale', h: 'Totale', fmt: 'eur2' }, { k: 'statoPag', h: 'In banca', html: f => statoHtml(f), x: f => f.statoPag }, { k: 'nr', h: 'Righe', fmt: 'int' }, { k: 'controllo', h: 'Controllo', html: f => ok(f) ? `<span class="esito ok">${ic('circle-check')}OK</span>` : `<span class="esito ko">${ic('triangle-alert')}${esc(f.controllo)}</span>` }, { k: 'pagamento', h: 'Pagamento', cls: 'clip' }, { k: 'scadenza', h: 'Scadenza', fmt: 'date' }, { k: 'file', h: 'File', cls: 'clip', html: f => `<span class="sub">${esc(f.file || '')}</span>` }],
+      rows: fs.slice(0, UI.f.cf_tutte ? 1e9 : LIM).map(f => { const st = statoPagamento(f); return Object.assign({ nr: (f.righe || []).length, _cls: 'click', statoPag: st.stato === 'pagata' ? 'pagata il ' + fd((f.pagamentiBanca || []).map(p => p.data).sort().pop()) : st.stato === 'in parte' ? `in parte (${fmtVal(st.pagato, 'eur2')})` : '' }, f); }),
       tot: { data: 'Totale', imponibile: tot('imponibile'), iva: tot('iva'), totale: tot('totale'), nr: fs.reduce((t, f) => t + (f.righe || []).length, 0) },
       rowAttr: f => `data-act="c-fatt" data-id="${f.id}"`, freeze: 1,
     }) + (fs.length > LIM && !UI.f.cf_tutte ? `<button class="more-btn" data-act="chip" data-f="cf_tutte" data-v="1">Mostra tutte le ${fs.length} fatture</button>` : '');
@@ -93,9 +96,16 @@ export function schedaFattura(id) {
   openSheet(`${f.tipo === 'Vendita' ? 'Fattura di vendita' : 'Fattura di acquisto'} n. ${f.numero}`, `
   <dl class="inv-head">${fact(f.tipo === 'Vendita' ? 'Cliente' : 'Fornitore', esc(f.controparte))}${fact('P.IVA', esc(f.piva || '—'))}${fact('Data', fd(f.data))}${fact('Tipo documento', esc(f.tipoDoc || '—'))}${fact('Imponibile', fmtVal(f.imponibile, 'eur2'))}${fact('IVA', fmtVal(f.iva, 'eur2'))}${fact('Totale', fmtVal(f.totale, 'eur2'))}${fact('Pagamento', esc(f.pagamento || '—'))}${fact('Scadenza', fd(f.scadenza))}${fact('Controllo', ok(f) ? `<span class="esito ok">${ic('circle-check')}OK</span>` : `<span class="esito ko">${esc(f.controllo)}</span>`)}${fact('File', esc(f.file || '—'))}${fact('Letta da', esc(f.fonte === 'xml' ? 'XML fattura elettronica' : f.fonte === 'pdf' ? 'PDF' : f.fonte === 'excel' ? 'file Excel' : '—'))}</dl>
   <div class="tablewrap etab blk"><table><thead><tr><th class="t">DDT</th><th class="t">Codice</th><th class="t">Descrizione</th><th class="t">Categoria</th><th class="n">Quantità</th><th class="t">UM</th><th class="n">Prezzo</th><th class="t">Sconto</th><th class="n">% IVA</th><th class="n">Importo</th></tr></thead><tbody>${rs.map(r => `<tr><td class="t">${esc(r.ddt || '')}</td><td class="t">${esc(r.codice || '')}</td><td class="t${r.rett ? ' rett' : ''}">${esc(r.descrizione)}</td><td class="t">${r.rett ? esc(r.categoria) : `<input class="cell-in cell-cat" list="dlcat-${f.tipo}" value="${esc(r.categoria)}" data-act="c-cat" data-fid="${f.id}" data-i="${r.i}" data-sheet="1" aria-label="Categoria">`}</td><td class="n">${fmtVal(r.quantita, 'qta')}</td><td class="t">${esc(r.um || '')}</td><td class="n">${fmtVal(r.prezzo, 'eur4')}</td><td class="t">${esc(r.sconto || '')}</td><td class="n">${esc(String(r.aliquota ?? ''))}</td><td class="n">${fmtVal(r.importo, 'eur2')}</td></tr>`).join('')}</tbody></table></div>
+  ${(f.pagamentiBanca || []).length ? `<h3 class="sheet-h">${f.tipo === 'Vendita' ? 'Incassi' : 'Pagamenti'} dall'estratto conto</h3><div class="list flat">${f.pagamentiBanca.map(p => `<div class="row"><span class="r-icon">${ic('landmark')}</span><span class="r-main"><b>${fd(p.data)} · ${fmtVal(p.importo, 'eur2')}</b><span>${esc(p.descrizione || '')}</span></span><button class="btn sm ghost" data-act="c-fpTogli" data-id="${f.id}" data-mov="${esc(p.mov)}">${ic('x')}Togli</button></div>`).join('')}</div><p class="muted small">${(s => s.stato === 'pagata' ? (f.tipo === 'Vendita' ? 'Incassata' : 'Pagata') + ' per intero.' : 'Restano ' + fmtVal(s.residuo, 'eur2') + '.')(statoPagamento(f))}</p>` : ''}
   <div id="catHint"></div>${datalistCat()}
   <p class="muted small">La categoria che scegli qui resta anche se rileggi la fattura. Per correggere tutte le righe simili usa le <button class="linkbtn" data-act="sub" data-tab="conti" data-sec="conti" data-sub="regole">regole delle categorie</button>.</p>
   <div class="factions"><button class="btn ghost danger" data-act="c-delfatt" data-id="${f.id}">${ic('trash-2')}Elimina fattura</button><span class="sp"></span><button class="btn" data-act="close">Chiudi</button></div>`, { wide: true });
+}
+
+function statoHtml(f) {
+  const st = statoPagamento(f); if (!(f.pagamentiBanca || []).length) return '';
+  const ult = (f.pagamentiBanca || []).map(p => p.data).sort().pop();
+  return st.stato === 'pagata' ? `<span class="esito ok">${ic('circle-check')}${fd(ult)}</span>` : `<span class="esito wa">${ic('circle-alert')}${fmtVal(st.pagato, 'eur2')}</span>`;
 }
 
 /* ---------------- controparti ---------------- */

@@ -8,6 +8,7 @@ import { leggiBilancino, interpreta, calcolaCe } from './bilancino-parse.js';
 import { leggiPdf, testoPagina } from './pdftext.js';
 import { tipoPaghe, leggiCedolini, leggiBilancinoPaghe, MESI_NOMI } from './paghe-parse.js';
 import { pareBonifico, leggiBonifici } from './bonifici-parse.js';
+import { pareEstratto } from './banca.js';
 import { unzip } from './zip.js';
 import { leggiXlsx, serialeAData, colLett } from './xlsx.js';
 import { classifica, REGOLE_PREDEFINITE, RETTIFICA } from './regole.js';
@@ -37,7 +38,9 @@ export async function leggiDocumento(nome, bytes, out = []) {
       if (vuoto) {
         // bilancino "disegnato": le lettere sono forme, si riconoscono confrontandole con l'alfabeto
         try { const b = await leggiBilancino(bytes, cfg().contiUtente || {}); if (b.dati.conti.length) { out.push({ tipo: 'bilancino', nome, anno: b.anno, ditta: b.ditta, perRiga: b.perRiga, conti: b.conti, controlli: b.controlli, dati: snellisci(b.dati), ocr: true }); return out; } } catch (e) { console.warn(e); }
-        out.push({ tipo: 'errore', nome, errore: 'PDF senza testo (probabilmente una scansione): carica il file Excel già compilato oppure inserisci i valori a mano nel conto economico.' }); return out;
+        // estratto conto scansionato o oscurato: lettura ottica
+        try { const r = await esitoEstratto(nome, bytes); if (r.righe.length) { out.push(r); return out; } } catch (e) { console.warn(e); }
+        out.push({ tipo: 'errore', nome, errore: 'PDF senza testo (probabilmente una scansione) e non riconosciuto. Se è un bilancio carica il file Excel già compilato o inserisci i valori a mano; se è un estratto conto prova "Leggi come estratto conto".', bytes, forza: true }); return out;
       }
       // paghe: cedolini dei dipendenti o bilancino contabile del mese
       const tp = tipoPaghe(pagine);
@@ -45,6 +48,7 @@ export async function leggiDocumento(nome, bytes, out = []) {
       if (tp === 'bilancino') { out.push(esitoBilPaghe(nome, await leggiBilancinoPaghe(null, pagine))); return out; }
       // contabile di bonifico (pagamento di uno stipendio o di altro)
       if (pareBonifico(t)) { out.push(await esitoBonifici(nome, await leggiBonifici(null, pagine))); return out; }
+      if (pareEstratto(t) && !/Cedente\/prestatore|SITUAZIONE\s+CONTABILE|TOTALE\s+COSTI/i.test(t)) { const r = await esitoEstratto(nome, bytes); if (r.righe.length) { out.push(r); return out; } }
       if (/SITUAZIONE\s+CONTABILE|SITUAZIONE\s+AL|TOTALE\s+COSTI|TOTALE\s+RICAVI/i.test(t) && /\d{2}\/\d{2}\/\d{3}/.test(t)) {
         const b = await leggiBilancino(bytes, cfg().contiUtente || {});
         out.push({ tipo: 'bilancino', nome, anno: b.anno, ditta: b.ditta, perRiga: b.perRiga, conti: b.conti, controlli: b.controlli, dati: snellisci(b.dati) }); return out;
@@ -82,12 +86,14 @@ export async function leggiComeTipo(nome, bytes, tipo) {
   if (tipo === 'bilancino') { const b = await leggiBilancino(bytes, cfg().contiUtente || {}); if (!b.dati.conti.length) throw new Error('Nessun conto trovato nel file.'); return { tipo: 'bilancino', nome, anno: b.anno, ditta: b.ditta, perRiga: b.perRiga, conti: b.conti, controlli: b.controlli, dati: snellisci(b.dati) }; }
   if (tipo === 'cedolini') return esitoCedolini(nome, await leggiCedolini(bytes));
   if (tipo === 'bonifici') return esitoBonifici(nome, await leggiBonifici(bytes));
+  if (tipo === 'estratto') { const r = await esitoEstratto(nome, bytes); if (!r.righe.length) throw new Error('Nessun movimento trovato: servono le colonne con data, importo e descrizione.'); return r; }
   if (tipo === 'bilpaghe') return esitoBilPaghe(nome, await leggiBilancinoPaghe(bytes));
   throw new Error('Tipo non gestito');
 }
 const mesePer = (m, y) => (m > 12 ? (m === 13 ? 'Tredicesima' : 'Quattordicesima') : MESI_NOMI[m - 1]) + ' ' + y;
 const esitoCedolini = (nome, r) => Object.assign({ tipo: 'cedolini', nome, mesePer: r.mese && r.anno ? mesePer(r.mese, r.anno) : 'mese non letto' }, r);
 const esitoBonifici = async (nome, bon) => { const { righeBonifici } = await import('./paghe.js'); return { tipo: 'bonifici', nome, righe: righeBonifici(bon, nome) }; };
+const esitoEstratto = async (nome, bytes) => { const B = await import('./banca.js'); const { leggiPdf } = await import('./pdftext.js'); const ocr = !(await leggiPdf(bytes)).some(p => p.chars.length > 50); const movs = await B.leggiEstrattoPdf(bytes); return { tipo: 'bonifici', etichetta: 'Estratto conto', nome, ocr, righe: await B.righeEstratto(movs, nome) }; };
 const esitoBilPaghe = (nome, b) => ({ tipo: 'bilpaghe', nome, anno: b.anno, mesePer: mesePer(b.mese, b.anno), bil: b });
 const snellisci = d => ({ anno: d.anno, ditta: d.ditta, blocchi: d.blocchi.map(b => ({ numero: b.numero, attivita: b.attivita, totali: b.totali, utile: b.utile })), conti: d.conti.map(c => ({ blocco: c.blocco, sezione: c.sezione, conto: c.conto, descrizione: c.descrizione, valori: c.valori, dubbi: c.dubbi, dettagli: c.dettagli })) });
 

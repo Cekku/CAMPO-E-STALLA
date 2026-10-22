@@ -3,6 +3,7 @@ import { S } from '../state.js';
 import * as store from '../store.js';
 import { N, okD, today, addDays, diff } from '../util.js';
 import { MESI_NOMI } from './paghe-parse.js';
+import { candidateFatture } from './banca.js';
 
 const r2 = v => Math.round(v * 100) / 100;
 export const periodo = (anno, mese) => `${anno}-${String(mese).padStart(2, '0')}`;
@@ -359,18 +360,20 @@ export { mesePrec, meseSucc, inizioPeriodo, finePeriodo };
 
 /** Pagamenti da registrare a partire dalle contabili di bonifico lette. */
 export function righeBonifici(bon, file) {
-  const presenti = new Set(S.pagamenti.map(p => p.id)); const dips = dipendenti();
+  const presenti = new Set([...S.pagamenti.map(p => p.id), ...S.fatture.flatMap(f => (f.pagamentiBanca || []).map(p => p.mov))]); const dips = dipendenti(); const gia = new Map();
   return bon.map(b => {
     const m = { data: b.data, importo: r2(b.importo), descrizione: [b.beneficiario, b.causale].filter(Boolean).join(' · '), beneficiario: b.beneficiario, iban: b.iban };
     let r = riconosci(m, dips);
     if ((!r || (r.tipo === 'stipendio' && !r.dip)) && b.stipendio) r = { tipo: 'stipendio', dip: 'N-' + slug(b.beneficiario) };
-    if (!r) r = { tipo: 'altro' };
     const id = b.id ? 'b' + idPagamento({ data: b.id, importo: 0, descrizione: '' }).slice(1) : idPagamento(m);
-    return Object.assign(m, r, { id, comp: b.comp || '', modalita: 'bonifico', idBanca: b.id || '', fonte: file, gia: presenti.has(id), sel: !presenti.has(id) && r.tipo !== 'altro', causale: b.causale, nuovo: r.dip && r.dip.startsWith('N-') && !dips.some(d => d.key === r.dip) });
+    let fatt = [], proposte = [], motivo = '';
+    if (!r) { const c = candidateFatture({ id, data: b.data || today(), importo: -b.importo, descrizione: [b.beneficiario, b.causale].join(' ') }, gia); proposte = c.proposte; if (c.scelte.length) { r = { tipo: 'fattura' }; fatt = c.scelte; motivo = c.motivo; c.scelte.forEach(f => gia.set(f, (gia.get(f) || 0) + b.importo)); } }
+    if (!r) r = { tipo: 'ignora' };
+    return Object.assign(m, r, { id, comp: b.comp || '', modalita: 'bonifico', idBanca: b.id || '', fonte: file, gia: presenti.has(id), sel: !presenti.has(id) && r.tipo !== 'ignora', causale: b.causale, fatt, proposte, motivo, nuovo: r.dip && r.dip.startsWith('N-') && !dips.some(d => d.key === r.dip) });
   });
 }
 /** Campi del pagamento da salvare. */
-export const datiPagamento = r => ({ data: r.data, importo: r.importo, tipo: r.tipo, dip: r.tipo === 'stipendio' ? r.dip : '', comp: r.comp || '', modalita: r.modalita || 'bonifico', descrizione: r.descrizione, fonte: r.fonte, ...(r.beneficiario ? { beneficiario: r.beneficiario } : {}), ...(r.iban ? { iban: r.iban } : {}), ...(r.idBanca ? { idBanca: r.idBanca } : {}) });
+export const datiPagamento = r => ({ data: r.data, importo: r.importo, tipo: r.tipo, dip: CON_DIP.has(r.tipo) ? r.dip : '', comp: r.comp || '', modalita: r.modalita || 'bonifico', descrizione: r.descrizione, fonte: r.fonte, ...(r.beneficiario ? { beneficiario: r.beneficiario } : {}), ...(r.iban ? { iban: r.iban } : {}), ...(r.idBanca ? { idBanca: r.idBanca } : {}) });
 
 /** "È la stessa persona": unisce il dipendente (o il nome dei bonifici) `da` a quello `a`. Il nome unito diventa un nome alternativo. */
 export async function unisci(da, a, nomeDa) {

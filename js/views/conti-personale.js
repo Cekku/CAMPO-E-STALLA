@@ -8,6 +8,7 @@ import { tabella, bottoniExport, fmtVal } from '../conti/tabelle.js';
 import { colonne, COL } from '../conti/grafici.js';
 import { miniTabs } from './conti-fatture.js';
 import * as P from '../conti/paghe.js';
+import * as B from '../conti/banca.js';
 
 const r2 = v => Math.round(v * 100) / 100;
 const eu = v => fmtVal(v, 'eur2') || '0,00 €';
@@ -164,54 +165,75 @@ export function schedaBilancino(id) {
 }
 
 /* ---------------- pagamenti ---------------- */
-const PIMP = { righe: null, file: '', altri: 0 };
+const PIMP = { righe: null, file: '', altri: 0, busy: '' };
+let rerenderP = () => { };
 export function vPagamenti() {
   const y = UI.anno; const tp = UI.f.pp_tipo || '';
   const ps = P.pagamenti().filter(p => (p.data || '').startsWith(y + '-') && (!tp || p.tipo === tp));
   const tot = r2(ps.filter(p => p.tipo !== 'rimborso').reduce((t, p) => t + N(p.importo), 0));
-  const imp = PIMP.righe ? anteprimaMov() : '';
+  const imp = PIMP.righe || PIMP.busy ? anteprimaMov() : '';
   const t = tabella('ppag', { title: 'Pagamenti ' + y, sheet: 'Pagamenti ' + y, cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'tipoN', h: 'Tipo' }, { k: 'chi', h: 'Dipendente o descrizione', cls: 'w' }, { k: 'compN', h: 'Competenza' }, { k: 'modN', h: 'Modalità', html: r => r.modalita === 'contanti' && r.tipo === 'stipendio' ? `<span class="esito ko">${ic('octagon-x')}contanti</span>` : esc(r.modN) }, { k: 'importo', h: 'Importo', fmt: 'eur2', html: r => r.tipo === 'rimborso' ? `<span class="t-ok">+${eu(r.importo)}</span>` : eu(r.importo) }, { k: 'fonte', h: 'Inserito da', cls: 'clip' }],
     rows: ps.map(p => Object.assign({ tipoN: P.TIPI_PAG[p.tipo] || p.tipo, chi: p.dip ? nomeDip(p.dip) || p.descrizione : p.descrizione || '', compN: p.tipo === 'prestito' ? '—' : p.comp ? (/T\d$/.test(p.comp) ? p.comp.replace('-T', ' · trimestre ') : P.nomeMese(p.comp)) : 'automatica', modN: p.tipo === 'rimborso' ? (P.COME_RIMB[p.come] || '') : P.MODALITA[p.modalita] || '', _cls: 'click' }, p)), rowAttr: r => `data-act="c-pPag" data-id="${esc(r.id)}"`, tot: { data: 'Totale', importo: tot } });
-  return `<div class="toolbar">${miniTabs('pp_tipo', [['', 'Tutti'], ...Object.entries(P.TIPI_PAG).map(([k, l]) => [k, l.split(' (')[0]])], tp)}<span class="sp"></span><button class="btn sm" data-act="c-pPag">${ic('plus')}Registra pagamento</button><label class="btn sm">${ic('file-up')}Estratto conto o contabili di bonifico<input type="file" accept=".csv,.txt,.xlsx,.pdf" multiple data-act="c-pMovFile" hidden></label></div>
+  return `<div class="toolbar">${miniTabs('pp_tipo', [['', 'Tutti'], ...Object.entries(P.TIPI_PAG).map(([k, l]) => [k, l.split(' (')[0]])], tp)}<span class="sp"></span><button class="btn sm" data-act="c-pPag">${ic('plus')}Registra pagamento</button><label class="btn sm">${ic('file-up')}Estratto conto o bonifici (PDF, Excel, CSV)<input type="file" accept=".csv,.txt,.xlsx,.pdf" multiple data-act="c-pMovFile" hidden></label></div>
   ${imp}<section class="card"><div class="card-h"><h2>${ic('banknote')}Pagamenti ${y}</h2><span class="count">${ps.length}</span>${bottoniExport(['ppag'], 'Pagamenti personale ' + y)}</div>${ps.length ? t : empty('banknote', 'Nessun pagamento registrato', 'Registra gli stipendi pagati, gli F24 e i contributi, oppure carica l\'estratto conto della banca: i bonifici ai dipendenti si riconoscono dal nome.')}</section>
   <p class="muted small pad-x">Gli anticipi che togli tu dal bonifico e le rate di prestito tolte dallo stipendio contano come stipendio pagato di quel mese. Le restituzioni (in verde) non sono uscite e non entrano nel totale. Lo stipendio pagato va al mese indicato; se scegli "automatica" va al mese più vecchio ancora da saldare. Gli F24 coprono le ritenute IRPEF del mese prima, i contributi INPS agricoli si pagano per trimestre.</p>`;
 }
 /** Tabella di revisione dei movimenti o dei bonifici letti (k = indice del documento in "Carica documenti"). */
-export function tabellaMovimenti(R, k = '') {
+export function tabellaMovimenti(R, k = '', tutti = false) {
   const dips = P.dipendenti(); const dk = k !== '' ? ` data-k="${k}"` : '';
+  const nAltri = R.filter(r => r.altro && !r.sel).length;
+  const vis = R.map((r, i) => [r, i]).filter(([r]) => tutti || !r.altro || r.sel);
   const compOpt = r => `<option value="">automatica</option>${[...new Set([...P.periodi(), ...(r.comp ? [r.comp] : [])])].sort().map(p => `<option value="${p}"${r.comp === p ? ' selected' : ''}>${P.nomeMese(p)}</option>`).join('')}`;
   const dipOpt = r => `<option value="">—</option>${dips.map(d => `<option value="${esc(d.key)}"${r.dip === d.key ? ' selected' : ''}>${esc(d.nome)}</option>`).join('')}${r.dip && !dips.some(d => d.key === r.dip) ? `<option value="${esc(r.dip)}" selected>${esc(r.beneficiario || P.nomeDi(r.dip))} (senza cedolini)</option>` : ''}`;
-  return `<div class="tablewrap etab"><table><thead><tr><th class="t"></th><th class="t">Data</th><th class="t">Descrizione</th><th class="n">Importo</th><th class="t">Tipo</th><th class="t">Dipendente</th><th class="t">Competenza</th></tr></thead><tbody>${R.map((r, i) => `<tr${r.gia ? ' class="muted"' : ''}><td class="t"><input type="checkbox" data-act="c-pMovSel" data-i="${i}"${dk}${r.sel ? ' checked' : ''}></td><td class="t nw">${fd(r.data)}</td><td class="t clip" title="${esc(r.descrizione)}">${esc(r.descrizione)}${r.gia ? ' <span class="sub">già registrato</span>' : r.nuovo ? ' <span class="sub">non è ancora nei cedolini caricati</span>' : ''}</td><td class="n">${eu(r.importo)}</td><td class="t"><select class="cell-in" data-act="c-pMovSet" data-i="${i}"${dk} data-f="tipo">${Object.entries(P.TIPI_PAG).map(([t, l]) => `<option value="${t}"${r.tipo === t ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></td><td class="t"><select class="cell-in" data-act="c-pMovSet" data-i="${i}"${dk} data-f="dip"${r.tipo === 'stipendio' ? '' : ' disabled'}>${dipOpt(r)}</select></td><td class="t"><select class="cell-in" data-act="c-pMovSet" data-i="${i}"${dk} data-f="comp">${compOpt(r)}</select></td></tr>`).join('')}</tbody></table></div>`;
+  const fattOpt = r => { const auto = r.fatt && r.fatt.length > 1 ? `<option value="${esc(r.fatt.join(','))}" selected>${r.fatt.length} fatture insieme: ${esc(r.fatt.map(id => (S.fatture.find(f => f.id === id) || {}).numero).join(', '))}</option>` : ''; return `<option value="">— scegli la fattura —</option>${auto}${(r.proposte || []).map(o => `<option value="${esc(o.id)}"${r.fatt && r.fatt.length === 1 && r.fatt[0] === o.id ? ' selected' : ''}>${esc(o.testo)}</option>`).join('')}`; };
+  const tipi = r => Object.entries(B.TIPI_MOV).filter(([t]) => !r.entrata || t === 'fattura' || t === 'ignora');
+  const cella = (r, i) => r.tipo === 'fattura' ? `<select class="cell-in wide" data-act="c-pMovSet" data-i="${i}"${dk} data-f="fatt">${fattOpt(r)}</select>${r.motivo ? `<span class="sub">trovata per ${esc(r.motivo)}</span>` : ''}` : P.CON_DIP.has(r.tipo) ? `<select class="cell-in" data-act="c-pMovSet" data-i="${i}"${dk} data-f="dip">${dipOpt(r)}</select>` : '<span class="muted">—</span>';
+  return `<div class="tablewrap etab"><table><thead><tr><th class="t"></th><th class="t">Data</th><th class="t">Descrizione</th><th class="n">Importo</th><th class="t">Tipo</th><th class="t">Dipendente o fattura</th><th class="t">Competenza</th></tr></thead><tbody>${vis.map(([r, i]) => `<tr${r.gia ? ' class="muted"' : ''}><td class="t"><input type="checkbox" data-act="c-pMovSel" data-i="${i}"${dk}${r.sel ? ' checked' : ''}></td><td class="t nw">${fd(r.data)}</td><td class="t clip" title="${esc(r.descrizione)}">${esc(r.beneficiario || r.descrizione)}<span class="sub">${r.gia ? 'già registrato' : esc(r.causale || (r.beneficiario ? '' : '') || (r.nuovo ? 'non è ancora nei cedolini caricati' : r.descrizione.slice(0, 90)))}</span></td><td class="n">${r.entrata ? `<span class="t-ok">+${eu(r.importo)}</span>` : eu(r.importo)}</td><td class="t"><select class="cell-in" data-act="c-pMovSet" data-i="${i}"${dk} data-f="tipo">${tipi(r).map(([t, l]) => `<option value="${t}"${r.tipo === t ? ' selected' : ''}>${esc(t === 'fattura' ? (r.entrata ? 'Incasso fattura' : 'Pagamento fattura') : l)}</option>`).join('')}</select></td><td class="t">${cella(r, i)}</td><td class="t">${P.CON_DIP.has(r.tipo) || ['f24', 'contributi', 'fondo'].includes(r.tipo) ? `<select class="cell-in" data-act="c-pMovSet" data-i="${i}"${dk} data-f="comp">${compOpt(r)}</select>` : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div>${nAltri ? `<button class="more-btn" data-act="c-pMovTutti"${dk}>${tutti ? 'Nascondi' : 'Mostra'} gli altri ${nAltri} movimenti non riconosciuti</button>` : ''}`;
 }
 /** Applica una modifica fatta nella tabella di revisione. */
 export function modificaRiga(R, t) {
   const r = R[+t.dataset.i]; if (!r) return;
   if (t.dataset.act === 'c-pMovSel') { r.sel = t.checked; return; }
-  r[t.dataset.f] = t.value; if (t.dataset.f === 'tipo' && t.value !== 'stipendio') r.dip = '';
-  if (t.dataset.f === 'dip' || t.dataset.f === 'tipo') r.sel = r.tipo !== 'stipendio' || !!r.dip;
+  const f = t.dataset.f;
+  if (f === 'fatt') r.fatt = t.value ? t.value.split(',') : [];
+  else r[f] = t.value;
+  if (f === 'tipo' && !P.CON_DIP.has(t.value)) r.dip = '';
+  if (f === 'tipo' && t.value === 'fattura' && !(r.fatt || []).length && (r.proposte || []).length === 1) r.fatt = [r.proposte[0].id];
+  r.sel = r.tipo === 'ignora' ? false : r.tipo === 'fattura' ? !!(r.fatt || []).length : P.CON_DIP.has(r.tipo) ? !!r.dip : true;
 }
 function anteprimaMov() {
-  const R = PIMP.righe; const sel = R.filter(r => r.sel).length;
-  return `<section class="card"><div class="card-h"><h2>${ic(PIMP.pdf ? 'file-text' : 'file-spreadsheet')}${PIMP.pdf ? 'Bonifici' : 'Movimenti'} da ${esc(PIMP.file)}</h2><span class="sp"></span><button class="btn sm ghost" data-act="c-pMovCancel">${ic('x')}Annulla</button><button class="btn sm primary" data-act="c-pMovSave"${sel ? '' : ' disabled'}>${ic('check')}Salva ${sel} pagamenti</button></div>
-  <p class="muted small pad-x">${PIMP.pdf ? `Ho letto ${R.length} ${R.length === 1 ? 'bonifico' : 'bonifici'}: il dipendente si riconosce dal nome del beneficiario (o dall'IBAN già usato), il mese dalla causale.` : `Ho riconosciuto ${R.length} uscite che sembrano stipendi, F24, contributi o fondo pensione${PIMP.altri ? ` (altre ${PIMP.altri} uscite ignorate)` : ''}.`} Controlla tipo e dipendente prima di salvare. Quelli già registrati sono segnati e non selezionati.</p>
-  ${tabellaMovimenti(R)}</section>`;
+  if (PIMP.busy) return `<section class="card"><div class="empty slim">${ic('scan-search')}<b>${esc(PIMP.busy)}</b></div></section>`;
+  const R = PIMP.righe; const sel = R.filter(r => r.sel).length; const ric = R.filter(r => !r.altro).length;
+  return `<section class="card"><div class="card-h"><h2>${ic(PIMP.pdf ? 'file-text' : 'file-spreadsheet')}${PIMP.estratto ? 'Estratto conto' : PIMP.pdf ? 'Bonifici' : 'Movimenti'} · ${esc(PIMP.file)}</h2><span class="sp"></span><button class="btn sm ghost" data-act="c-pMovCancel">${ic('x')}Annulla</button><button class="btn sm primary" data-act="c-pMovSave"${sel ? '' : ' disabled'}>${ic('check')}Salva ${sel}</button></div>
+  <p class="muted small pad-x">${R.length} movimenti letti${PIMP.ocr ? ' con la lettura ottica (controlla gli importi)' : ''}: ${ric} riconosciuti come stipendi, F24, contributi o fatture${PIMP.altri ? `, altre ${PIMP.altri} uscite ignorate` : ''}. Il dipendente si riconosce dal nome o dall'IBAN, la fattura dalla controparte, dall'importo o dal numero nella causale. Controlla prima di salvare; quelli già registrati non sono selezionati.</p>
+  ${tabellaMovimenti(R, '', PIMP.tutti)}</section>`;
 }
 async function caricaMovimenti(files) {
   const pdf = files.filter(f => /\.pdf$/i.test(f.name)), altriF = files.filter(f => !/\.pdf$/i.test(f.name));
   if (pdf.length) {
-    const { leggiBonifici } = await import('../conti/bonifici-parse.js'); const righe = []; const err = [];
-    for (const f of pdf) { try { righe.push(...P.righeBonifici(await leggiBonifici(new Uint8Array(await f.arrayBuffer())), f.name)); } catch (e) { err.push(f.name + ': ' + e.message); } }
+    const { leggiBonifici, pareBonifico } = await import('../conti/bonifici-parse.js'); const B2 = await import('../conti/banca.js'); const { leggiPdf, testoPagina } = await import('../conti/pdftext.js');
+    const righe = []; const err = []; let est = false, ocr = false;
+    for (const f of pdf) {
+      try {
+        const bytes = new Uint8Array(await f.arrayBuffer()); const pg = await leggiPdf(bytes); const t = pg.slice(0, 2).map(testoPagina).join('\n');
+        if (pareBonifico(t)) { righe.push(...P.righeBonifici(await leggiBonifici(null, pg), f.name)); continue; }
+        est = true; if (!pg.some(p => p.chars.length > 50)) { ocr = true; PIMP.busy = `Lettura ottica di ${f.name}… (la prima volta scarica circa 6 MB)`; rerenderP(); }
+        const movs = await B2.leggiEstrattoPdf(bytes, p => { PIMP.busy = `Lettura ottica di ${f.name}: ${Math.round(p * 100)}%`; rerenderP(); });
+        if (!movs.length) throw new Error('nessun movimento trovato (servono le colonne data, importo e descrizione)');
+        righe.push(...await B2.righeEstratto(movs, f.name));
+      } catch (e) { err.push(f.name + ': ' + e.message); }
+    }
+    PIMP.busy = '';
     if (err.length) toast(err.join(' · '), 'err');
-    if (righe.length) Object.assign(PIMP, { righe, file: pdf.length === 1 ? pdf[0].name : pdf.length + ' contabili', altri: 0, pdf: true });
+    if (righe.length) Object.assign(PIMP, { righe, file: pdf.length === 1 ? pdf[0].name : pdf.length + ' file', altri: 0, pdf: true, estratto: est, ocr, tutti: false });
     return;
   }
   const file = altriF[0];
   const mv = await P.leggiMovimenti(file.name, new Uint8Array(await file.arrayBuffer()));
-  const presenti = new Set(S.pagamenti.map(p => p.id));
-  const righe = []; let altri = 0;
-  for (const m of mv) { const r = P.riconosci(m); if (!r) { altri++; continue; } const id = P.idPagamento(m); righe.push(Object.assign({}, m, r, { id, gia: presenti.has(id), sel: !presenti.has(id) && (r.tipo !== 'stipendio' || !!r.dip), modalita: 'bonifico', comp: '' })); }
-  if (!righe.length) throw new Error(`Nel file ci sono ${mv.length} uscite, ma nessuna sembra uno stipendio, un F24 o un contributo. Puoi registrare i pagamenti a mano.`);
-  Object.assign(PIMP, { righe, file: file.name, altri, pdf: false });
+  const B2 = await import('../conti/banca.js');
+  const righe = await B2.righeEstratto(mv.map(m => B2.arricchisci(Object.assign({}, m, { importo: -m.importo }))), file.name);
+  if (!righe.length) throw new Error('Nel file non ci sono movimenti in uscita.');
+  Object.assign(PIMP, { righe, file: file.name, altri: 0, pdf: false, estratto: true, ocr: false, tutti: false });
 }
 export function schedaPagamento(id, pre = {}) {
   const p = id ? S.pagamenti.find(x => x.id === id) : null; const v = Object.assign({ data: today(), tipo: 'stipendio', modalita: 'bonifico', recupero: 'stipendio', come: 'stipendio' }, p || {}, pre);
@@ -338,14 +360,15 @@ export async function personaleAct(a, b, d, rerender) {
     case 'c-pCfg': { const gs = Math.min(31, Math.max(1, parseInt($("#pg_gs").value) || 20)), gf = Math.min(31, Math.max(1, parseInt($('#pg_gf').value) || 16)); await salvaCfg({ paghe: Object.assign({}, cfg().paghe || {}, { giornoStipendi: gs, giornoF24: gf }) }); return toast('Scadenze salvate'); }
     case 'c-pMovCancel': PIMP.righe = null; return rerender();
     case 'c-pMovSave': {
-      const sel = PIMP.righe.filter(r => r.sel); if (sel.some(r => r.tipo === 'stipendio' && !r.dip)) throw new Error('Per ogni stipendio scegli il dipendente (o togli la spunta).');
-      await store.bulkPut(sel.map(r => ({ col: 'pagamenti', id: r.id, data: P.datiPagamento(Object.assign({ fonte: PIMP.file }, r)) })));
-      PIMP.righe = null; toast(`${sel.length} pagamenti salvati`); return rerender();
+      const sel = PIMP.righe.filter(r => r.sel); if (sel.some(r => P.CON_DIP.has(r.tipo) && !r.dip)) throw new Error('Per ogni stipendio, anticipo o prestito scegli il dipendente (o togli la spunta).');
+      if (sel.some(r => r.tipo === 'fattura' && !(r.fatt || []).length)) throw new Error('Scegli la fattura per ogni pagamento di fattura (o togli la spunta).');
+      const o = await B.salvaRighe(sel, PIMP.file); PIMP.righe = null; toast(`Salvati: ${o.nP} pagamenti del personale, ${o.nF} pagamenti di fatture`); return rerender();
     }
+    case 'c-pMovTutti': if (d.k == null) { PIMP.tutti = !PIMP.tutti; return rerender(); } return;
   }
 }
 export async function personaleChange(t, rerender) {
   const a = t.dataset.act;
-  if (a === 'c-pMovFile' && t.files.length) { const f = [...t.files]; t.value = ''; try { await caricaMovimenti(f); } catch (e) { toast(e.message, 'err'); } return rerender(); }
+  if (a === 'c-pMovFile' && t.files.length) { const f = [...t.files]; t.value = ''; rerenderP = rerender; try { await caricaMovimenti(f); } catch (e) { toast(e.message, 'err'); } return rerender(); }
   if ((a === 'c-pMovSel' || a === 'c-pMovSet') && PIMP.righe) { modificaRiga(PIMP.righe, t); return rerender(); }
 }
