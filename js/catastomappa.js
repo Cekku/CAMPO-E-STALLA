@@ -12,9 +12,13 @@ const CACHE = 'ces-catasto-1', DURATA = 30 * 864e5;
 /* ---------------- dati ---------------- */
 const mem = new Map(); // cella -> Promise<elementi>
 const coda = []; let attive = 0;
-// 3 richieste alla volta; per prime le celle chieste per ultime (quelle che si stanno guardando adesso)
+// 4 richieste alla volta; per prime le celle chieste per ultime (quelle che si stanno guardando adesso).
+// Le più vecchie oltre le 24 in attesa sono zone già lasciate: si scartano (si richiedono se si torna lì).
 function inCoda(fn) { return new Promise((ok, ko) => { coda.push([fn, ok, ko]); avanti(); }); }
-function avanti() { while (attive < 3 && coda.length) { const [fn, ok, ko] = coda.pop(); attive++; fn().then(ok, ko).finally(() => { attive--; avanti(); }); } }
+function avanti() {
+  while (coda.length > 24) coda.shift()[2](Object.assign(new Error('Zona lasciata'), { code: 'ANNULLATA' }));
+  while (attive < 4 && coda.length) { const [fn, ok, ko] = coda.pop(); attive++; fn().then(ok, ko).finally(() => { attive--; avanti(); }); }
+}
 
 const areaAnello = r => { let a = 0; for (let i = 0, j = r.length - 1; i < r.length; j = i++) a += (r[j][0] + r[i][0]) * (r[j][1] - r[i][1]); return a / 2; };
 /** Punto per il numero: sulla riga orizzontale a metà del poligono più grande, a metà del tratto interno più lungo. [x, y, larghezza] */
@@ -76,7 +80,8 @@ function disegna(cv, dpr, z, o, box, dati) {
 }
 
 export const CatastoVettoriale = window.L ? L.GridLayer.extend({
-  options: { pane: 'catasto', updateWhenZooming: false, keepBuffer: 3, maxZoom: 22, particelle: true, fogli: true, onErrore: null, attribution: 'Catasto © Agenzia delle Entrate (CC BY 4.0)' },
+  // updateWhenIdle: le tessere (e i download) solo a mappa ferma, non per tutte le zone attraversate durante lo spostamento
+  options: { pane: 'catasto', updateWhenIdle: true, updateWhenZooming: false, keepBuffer: 3, maxZoom: 22, particelle: true, fogli: true, onErrore: null, attribution: 'Catasto © Agenzia delle Entrate (CC BY 4.0)' },
   createTile(coords, done) {
     const dpr = Math.min(2, window.devicePixelRatio || 1), sz = this.getTileSize(), z = coords.z, cv = document.createElement('canvas');
     cv.width = sz.x * dpr; cv.height = sz.y * dpr;
@@ -85,13 +90,14 @@ export const CatastoVettoriale = window.L ? L.GridLayer.extend({
     // riquadro della tessera con un margine: i numeri a cavallo di due tessere si disegnano in tutte e due
     const o = coords.scaleBy(sz), M = 70, nw = this._map.unproject(o.subtract([M, M]), z), se = this._map.unproject(o.add(sz).add([M, M]), z);
     const box = [nw.lng, se.lat, se.lng, nw.lat];
-    const att = []; for (const k of kinds) for (const [i, j] of celle(k, box)) att.push(cella(k, i, j).then(es => [k, es]));
+    // si ridisegna a ogni cella che arriva: le zone compaiono man mano, senza aspettare la cella più lenta
+    const dati = { p: [], f: [] }; let pronta = false, err = null;
+    const ridisegna = () => { try { const ctx = cv.getContext('2d'); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); disegna(cv, dpr, z, o, box, dati); } catch (e) { err = err || e; } };
+    const att = []; for (const k of kinds) for (const [i, j] of celle(k, box)) att.push(cella(k, i, j).then(es => { dati[k].push(...es); ridisegna(); if (!pronta) { pronta = true; done(null, cv); } }));
     Promise.allSettled(att).then(rs => {
-      const dati = { p: [], f: [] }; let err = null;
-      for (const r of rs) if (r.status === 'fulfilled') dati[r.value[0]].push(...r.value[1]); else err = r.reason;
-      try { disegna(cv, dpr, z, o, box, dati); } catch (e) { err = err || e; }
+      for (const r of rs) if (r.status === 'rejected' && (!r.reason || r.reason.code !== 'ANNULLATA')) err = err || r.reason;
       if (err && this.options.onErrore) this.options.onErrore(err);
-      done(null, cv);
+      if (!pronta) { pronta = true; done(null, cv); }
     });
     return cv;
   },
