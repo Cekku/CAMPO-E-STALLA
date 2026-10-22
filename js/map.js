@@ -12,12 +12,21 @@ import { toast } from './ui.js';
 import { openEdit } from './forms.js';
 import { isPCG, pcgImport } from './pcg.js';
 import { NdviLayer, scene as s2scene, ndviLabel, ndviColor, campoNdviCached } from './ndvi.js';
+import { collegamento } from './catasto.js';
+import { CatastoVettoriale, ZOOM_PARTICELLE } from './catastomappa.js';
 
 const CAT_URL = 'https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php';
 let map = null, fieldsGroup = null, base = {}, overlays = {}, mode = 'view', selected = null, editLayer = null, editId = null, drawFor = null, gpsMarker = null, gpsCircle = null, clickMarker = null;
-const prefs = Object.assign({ base: 'sat2', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura', intensita: 70 }, lsGet('ces.map', {}));
+const prefs = Object.assign({ base: 'sat2', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura', intensita: 40 }, lsGet('ces.map', {}));
 if (!prefs.v2) { prefs.v2 = 1; prefs.base = 'sat2'; prefs.lum = 100; prefs.con = 100; prefs.sat = 100; prefs.cal = 0; delete prefs.satFx; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
-function applyFx() { const m = document.getElementById('map'); if (!m) return; m.style.setProperty('--fx', `brightness(${(prefs.lum || 100) / 100}) contrast(${(prefs.con || 100) / 100}) saturate(${(prefs.sat || 100) / 100}) hue-rotate(${prefs.cal || 0}deg)`); }
+// campi meno coprenti (si vede la foto sotto): il vecchio valore predefinito 70 passa a 40
+if (!prefs.v3) { prefs.v3 = 1; if (!prefs.intensita || prefs.intensita === 70) prefs.intensita = 40; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
+// con i colori dello sfondo non toccati niente filtro: un filtro su ogni tessera rallenta zoom e spostamenti
+function applyFx() {
+  const m = document.getElementById('map'); if (!m) return; const lum = prefs.lum || 100, con = prefs.con || 100, sat = prefs.sat || 100, cal = prefs.cal || 0;
+  if (lum === 100 && con === 100 && sat === 100 && !cal) m.style.removeProperty('--fx');
+  else m.style.setProperty('--fx', `brightness(${lum / 100}) contrast(${con / 100}) saturate(${sat / 100}) hue-rotate(${cal}deg)`);
+}
 let notesGroup = null, ndviLayer = null, ndviScenes = null;
 const FVG_BOUNDS = window.L ? L.latLngBounds([[45.57, 12.30], [46.66, 13.94]]) : null;
 const inFVG = (lat, lon) => lat > 45.57 && lat < 46.66 && lon > 12.30 && lon < 13.94;
@@ -41,6 +50,7 @@ const savePrefs = () => lsSet('ces.map', prefs);
 // Strato satellitare che non lascia mai buchi: se a quello zoom la foto manca (errore o riquadro grigio
 // "dati non disponibili"), ingrandisce la foto del livello superiore, fino a 5 livelli.
 const SatLayer = window.L ? L.TileLayer.extend({
+  options: { updateWhenZooming: false, keepBuffer: 4 }, // durante lo zoom non scarica i livelli intermedi
   createTile(coords, done) {
     const c = document.createElement('canvas'); const sz = this.getTileSize(); c.width = sz.x; c.height = sz.y;
     this._try(c, coords, 0, true, done); return c;
@@ -88,15 +98,17 @@ function buildMap() {
   map.createPane('catSel').style.zIndex = 390; map.getPane('catSel').style.pointerEvents = 'none';
   base.sat = new SatLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Immagini © Esri, Maxar, Earthstar Geographics' });
   base.sat2 = new SatLayer('https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Immagini © Esri World Imagery (Clarity)' });
-  base.osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21, attribution: '© OpenStreetMap' });
-  base.topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { subdomains: 'abc', maxNativeZoom: 17, maxZoom: 21, attribution: '© OpenStreetMap, SRTM · OpenTopoMap' });
+  base.osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21, updateWhenZooming: false, keepBuffer: 4, attribution: '© OpenStreetMap' });
+  base.topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { subdomains: 'abc', maxNativeZoom: 17, maxZoom: 21, updateWhenZooming: false, keepBuffer: 4, attribution: '© OpenStreetMap, SRTM · OpenTopoMap' });
   // Ortofoto della Regione FVG (true ortofoto 2017-2020, alta risoluzione), sopra al satellite Esri fuori regione
   const CRS900913 = Object.assign({}, L.CRS.EPSG3857, { code: 'EPSG:900913' });
-  const fvg = L.tileLayer.wms('https://irdat-ortofoto.regione.fvg.it/geoserver/ortofoto/wms', { layers: 'trueorto_FVG_1720', format: 'image/jpeg', transparent: false, version: '1.1.1', crs: CRS900913, maxZoom: 21, maxNativeZoom: 20, bounds: FVG_BOUNDS, className: 'sat-tiles', attribution: 'Ortofoto © Regione Autonoma Friuli Venezia Giulia' });
+  const fvg = L.tileLayer.wms('https://irdat-ortofoto.regione.fvg.it/geoserver/ortofoto/wms', { layers: 'trueorto_FVG_1720', format: 'image/jpeg', transparent: false, version: '1.1.1', crs: CRS900913, maxZoom: 21, maxNativeZoom: 20, bounds: FVG_BOUNDS, updateWhenZooming: false, keepBuffer: 4, className: 'sat-tiles', attribution: 'Ortofoto © Regione Autonoma Friuli Venezia Giulia' });
   base.fvg = L.layerGroup([new SatLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Esri' }), fvg]);
   overlays.nomi = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { pane: 'labels', maxNativeZoom: 19, maxZoom: 21 });
   overlays.particelle = new CatastoLayer('CP.CadastralParcel', { pane: 'catasto', minZoom: 15, maxZoom: 21, maxNativeZoom: 20, attribution: 'Catasto © Agenzia delle Entrate (CC BY 4.0)', className: 'catasto-tiles' });
   overlays.fogli = new CatastoLayer('CP.CadastralZoning', { pane: 'catasto', minZoom: 12, maxZoom: 21, maxNativeZoom: 20, className: 'catasto-tiles fogli' });
+  // con il collegamento al catasto la mappa catastale la disegna l'app (leggibile e fluida); le immagini WMS restano solo senza collegamento
+  overlays.catasto = new CatastoVettoriale({ onErrore: avvisoCatasto });
   fieldsGroup = L.featureGroup().addTo(map);
   notesGroup = L.layerGroup().addTo(map);
   applyLayers();
@@ -124,11 +136,21 @@ function applyLayers() {
   else (base[prefs.base] || base.sat).addTo(map);
   if (prefs.ndvi) { if (!ndviLayer) ndviLayer = new NdviLayer(); ndviLayer._scene = prefs.ndviScene || null; if (!map.hasLayer(ndviLayer)) ndviLayer.addTo(map); else ndviLayer.redraw(); ndviBar(); }
   else { if (ndviLayer && map.hasLayer(ndviLayer)) map.removeLayer(ndviLayer); const nb = $('#ndviBar'); if (nb) nb.hidden = true; }
-  ['nomi', 'particelle', 'fogli'].forEach(k => { const on = prefs[k] && (k !== 'nomi' || ['sat', 'sat2', 'fvg', 'google'].includes(prefs.base)); if (on) overlays[k].addTo(map); else map.removeLayer(overlays[k]); });
+  const vett = !!collegamento();
+  ['nomi', 'particelle', 'fogli'].forEach(k => { const on = prefs[k] && (k !== 'nomi' || ['sat', 'sat2', 'fvg', 'google'].includes(prefs.base)) && (k === 'nomi' || !vett); if (on) overlays[k].addTo(map); else map.removeLayer(overlays[k]); });
+  const cv = overlays.catasto;
+  if (vett && (prefs.particelle || prefs.fogli)) {
+    const cambia = cv.options.particelle !== !!prefs.particelle || cv.options.fogli !== !!prefs.fogli;
+    cv.options.particelle = !!prefs.particelle; cv.options.fogli = !!prefs.fogli;
+    if (!map.hasLayer(cv)) cv.addTo(map); else if (cambia) cv.redraw();
+  } else map.removeLayer(cv);
+  map.getPane('catasto').classList.toggle('wms', !vett && !!(prefs.particelle || prefs.fogli));
   $('#map') && $('#map').classList.toggle('show-labels', map.getZoom && map.getZoom() >= 14 && prefs.etichette);
   updateCatHint();
 }
-function updateCatHint() { const h = $('#catHint'); if (!h || !map) return; h.hidden = !(prefs.particelle && map.getZoom() < 15); }
+function updateCatHint() { const h = $('#catHint'); if (!h || !map) return; h.hidden = !(prefs.particelle && map.getZoom() < (map.hasLayer(overlays.catasto) ? ZOOM_PARTICELLE : 15)); }
+let ultimoAvviso = 0;
+function avvisoCatasto(e) { if (Date.now() - ultimoAvviso < 60000) return; ultimoAvviso = Date.now(); toast('Catasto: ' + (e && e.message ? e.message : 'il servizio non risponde') + ' Riprovo quando sposti la mappa.', 'err'); }
 
 const COND = { 'Proprietà': '#22C55E', 'Affitto': '#FB923C', 'Comodato': '#3B82F6' };
 function lastAge(c) { let last = null; S.operazioni.forEach(o => { if (o.campoId === c.id && o.stato !== 'Pianificata' && (!last || o.data > last)) last = o.data; }); return last ? diff(last, today()) : null; }
@@ -146,7 +168,7 @@ function legendItems() {
   return [...items.entries()].sort((a, b) => b[1].ha - a[1].ha);
 }
 function styleFor(c, sel) {
-  const col = colorFor(c); const op = prefs.ndvi ? 0.04 : Math.max(.1, Math.min(.95, (prefs.intensita || 70) / 100));
+  const col = colorFor(c); const op = prefs.ndvi ? 0.04 : Math.max(.1, Math.min(.95, (prefs.intensita || 40) / 100));
   return sel ? { color: '#FFFFFF', weight: 4, opacity: 1, fillColor: col, fillOpacity: Math.min(.9, op + .15), dashArray: null }
     : { color: col, weight: 2.6, opacity: 1, fillColor: col, fillOpacity: op };
 }
@@ -387,7 +409,7 @@ export function layersPanel() {
     <h3>Sfondo</h3><div class="lm-bases">${bases.map(([k, l]) => `<label><input type="radio" name="base" value="${k}"${prefs.base === k ? ' checked' : ''}><span class="lm-prev ${k}"></span>${l}</label>`).join('')}</div>
     <h3>Colora campi per</h3>${radio('coltura', 'Colture')}${radio('conduzione', 'Conduzione')}${radio('attivita', 'Ultime attività')}${radio('nessuno', 'Nessun colore')}
     ${azienda().gkey ? '' : '<p class="muted small">Per le immagini di Google inserisci una chiave in La mia azienda → Mappe.</p>'}<h3>Colori dello sfondo</h3><button type="button" class="btn wide" data-act="mapFx">${ic('sun')}Regola colori guardando la mappa</button>
-    <label class="lp-row slider"><span>Intensità dei colori<small>Più alta = campi più pieni, meno satellite visibile</small></span><input type="range" name="intensita" min="20" max="90" step="5" value="${prefs.intensita || 70}"></label>
+    <label class="lp-row slider"><span>Intensità dei colori<small>Più alta = campi più pieni, meno satellite visibile</small></span><input type="range" name="intensita" min="20" max="90" step="5" value="${prefs.intensita || 40}"></label>
     <h3>Visualizza</h3>${sw('etichette', 'Nomi dei campi')}${sw('note', 'Note')}${sw('nomi', 'Strade e luoghi', 'Solo sul satellite')}
     <h3>Mostra livelli su mappa</h3>${sw('ndvi', 'Vigore vegetativo (NDVI)', 'Satellite Sentinel-2, scegli la data in basso')}${sw('particelle', 'Catasto: particelle', 'Agenzia delle Entrate, visibili da vicino')}${sw('fogli', 'Catasto: fogli di mappa')}
     <button type="button" class="btn ok wide" data-act="mapApply">Applica</button></form>`);
@@ -407,7 +429,7 @@ export function applyPanel() {
   const f = $('#lpForm'); if (!f) return;
   prefs.base = (f.querySelector('input[name=base]:checked') || {}).value || 'sat';
   prefs.colorBy = (f.querySelector('input[name=colorBy]:checked') || {}).value || 'coltura';
-  prefs.intensita = +(f.querySelector('input[name=intensita]') || {}).value || 60;
+  prefs.intensita = +(f.querySelector('input[name=intensita]') || {}).value || 40;
   ['etichette', 'note', 'nomi', 'particelle', 'fogli', 'ndvi'].forEach(k => { prefs[k] = !!f.querySelector(`input[name=${k}]`).checked; });
   savePrefs(); closeSheet(); applyLayers(); drawFields();
 }
