@@ -24,10 +24,11 @@ import { render as vMag } from './views/magazzino.js';
 import { render as vMezzi } from './views/mezzi.js';
 import { moveSheet, misureImport } from './views/stalle.js';
 import { render as vImp, authUI } from './views/impostazioni.js';
+import { render as vConti, onAct as contiAct, onChange as contiChange, onDrop as contiDrop, setRerender, contiVisibili, esportaTutto } from './views/conti.js';
 
-const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, impostazioni: vImp };
-const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', impostazioni: 'La mia azienda' };
-const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'stalla', 'magazzino', 'mezzi']);
+const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, impostazioni: vImp, conti: vConti };
+const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', impostazioni: 'La mia azienda', conti: 'Conti' };
+const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'stalla', 'magazzino', 'mezzi', 'conti']);
 // Voci del menu: [tab, sub, icona, etichetta]
 const MENU = {
   campagna: [
@@ -39,6 +40,12 @@ const MENU = {
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['stalla', 'mandria', 'cow', 'Mandria'], ['stalla', 'stalle', 'layout-grid', 'Stalle e silos'], ['stalla', 'indici', 'gauge', 'Indici e benessere'], ['stalla', 'riproduzione', 'heart-pulse', 'Riproduzione'], ['stalla', 'latte', 'milk', 'Latte']]],
     ['Alimentazione e salute', [['stalla', 'razioni', 'wheat', 'Razioni'], ['stalla', 'sanitario', 'syringe', 'Sanitario'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino']]],
     ['Gestione', [['note', null, 'pencil', 'Note'], ['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
+  ],
+  conti: [
+    ['Principale', [['conti', 'panoramica', 'layout-dashboard', 'Panoramica'], ['conti', 'fatture', 'receipt', 'Fatture'], ['conti', 'importa', 'file-up', 'Carica documenti']]],
+    ['Acquisti e vendite', [['conti', 'fornitori', 'truck', 'Fornitori'], ['conti', 'clienti', 'handshake', 'Clienti'], ['conti', 'prodotti', 'package', 'Prodotti e prezzi'], ['conti', 'categorie', 'tags', 'Categorie'], ['conti', 'mensile', 'calendar-range', 'Andamento mensile'], ['conti', 'latte', 'milk', 'Latte venduto']]],
+    ['Bilancio', [['conti', 'ce', 'scale', 'Conto economico'], ['conti', 'sp', 'landmark', 'Stato patrimoniale'], ['conti', 'indici', 'gauge', 'Indici di bilancio'], ['conti', 'analisi', 'cow', 'Analisi della stalla'], ['conti', 'iva', 'percent', 'Dichiarazioni IVA'], ['conti', 'cespiti', 'tractor', 'Cespiti'], ['conti', 'controlli', 'shield-check', 'Controlli']]],
+    ['Gestione', [['conti', 'regole', 'list-checks', 'Regole delle categorie'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
   ],
 };
 const TAB_OF = { campo: 'campi', capo: 'stalla', prodotto: 'magazzino', mezzo: 'mezzi', struttura: 'stalla' };
@@ -69,30 +76,34 @@ function isCur(tab, sub) { if (UI.tab !== tab) return false; if (!sub) return tr
 function drawerHTML() {
   const a = azienda(); const ha = sum(S.campi, campoHa); const si = syncInfo();
   const nAl = allAlerts().filter(x => UI.area === 'stalla' ? ['stalla', 'latte', 'magazzino'].includes(x.area) : x.area !== 'stalla' && x.area !== 'latte').length;
-  const other = UI.area === 'stalla' ? ['campagna', 'sprout', 'Vai alla Campagna'] : ['stalla', 'cow', 'Vai alla Stalla'];
-  return `<div class="dr-head"><img src="icons/icon-192.png" alt="" width="44" height="44"><div><b>${esc(a.nome || (sync.farm && sync.farm.name) || 'La tua azienda')}</b><span>${UI.area === 'stalla' ? S.capi.filter(c => capoI(c).stato !== 'Uscita').length + ' capi' : nf(ha, 2) + ' ha'} · ${UI.area === 'stalla' ? 'Stalla' : 'Campagna'}</span></div></div>
+  const aree = [['campagna', 'sprout', 'Campagna'], ['stalla', 'cow', 'Stalla'], ...(contiVisibili() ? [['conti', 'wallet', 'Conti']] : [])];
+  const sottotitolo = UI.area === 'stalla' ? S.capi.filter(c => capoI(c).stato !== 'Uscita').length + ' capi · Stalla' : UI.area === 'conti' ? S.fatture.length + ' fatture · Conti' : nf(ha, 2) + ' ha · Campagna';
+  return `<div class="dr-head"><img src="icons/icon-192.png" alt="" width="44" height="44"><div><b>${esc(a.nome || (sync.farm && sync.farm.name) || 'La tua azienda')}</b><span>${sottotitolo}</span></div></div>
   <button class="dr-user" data-act="nav" data-tab="impostazioni"><span class="dr-av">${ic(sync.user ? 'user' : si.icn)}</span><span><b>${esc(sync.user ? sync.user.email : 'Nessun account')}</b><small class="${si.cls}">${esc(si.t)}</small></span>${ic('chevron-right', 'chev')}</button>
   <div class="dr-tiles"><button data-act="syncTile">${ic('refresh-cw')}<span>Sincronizza</span></button><button data-act="nav" data-tab="oggi">${ic('triangle-alert')}<span>Avvisi</span>${nAl ? `<i class="badge">${nAl}</i>` : ''}</button><button data-act="exportSheet">${ic('download')}<span>Esporta</span></button></div>
   <nav class="dr-nav">${MENU[UI.area].map(([sec, items]) => `<div class="dr-sec">${esc(sec)}</div>` + items.map(([t, s, i, l]) => `<button class="dr-i" data-act="nav" data-tab="${t}"${s ? ` data-sub="${s}"` : ''} aria-current="${isCur(t, s) && !(t === 'magazzino' && !s) ? 'page' : 'false'}">${ic(i)}<span>${esc(l)}</span></button>`).join('')).join('')}
   ${canInstall() ? `<button class="dr-i" data-act="install">${ic('smartphone')}<span>Installa l'app</span></button>` : ''}</nav>
-  <button class="dr-switch" data-act="area" data-area="${other[0]}">${ic('refresh-cw')}<span>${other[2]}</span>${ic(other[1])}</button>`;
+  <nav class="dr-areas" aria-label="Area">${aree.map(([k, i, l]) => `<button data-act="area" data-area="${k}" aria-current="${UI.area === k}">${ic(i)}<span>${l}</span></button>`).join('')}</nav>`;
 }
 
 // Barra in basso sul telefono, con il pulsante Registra al centro
 const BNAV = {
   campagna: [['oggi', null, 'house', 'Home'], ['mappa', null, 'map', 'Mappa'], null, ['attivita', null, 'notebook-pen', 'Attività'], ['campi', 'elenco', 'sprout', 'Campi']],
   stalla: [['oggi', null, 'house', 'Home'], ['stalla', 'mandria', 'cow', 'Mandria'], null, ['stalla', 'latte', 'milk', 'Latte'], ['stalla', 'stalle', 'layout-grid', 'Stalle']],
+  conti: [['conti', 'panoramica', 'layout-dashboard', 'Home'], ['conti', 'fatture', 'receipt', 'Fatture'], null, ['conti', 'ce', 'scale', 'Bilancio'], ['conti', 'analisi', 'gauge', 'Analisi']],
 };
 function bnavHTML() {
   return BNAV[UI.area].map(x => x ? `<button data-act="nav" data-tab="${x[0]}"${x[1] ? ` data-sub="${x[1]}"` : ''} aria-current="${!UI.detail && isCur(x[0], x[1]) ? 'page' : 'false'}">${ic(x[2])}<span>${x[3]}</span></button>` : `<button class="bn-plus" data-act="quick" aria-label="Registra"><span>${ic('plus')}</span></button>`).join('');
 }
 function render() {
   derive();
+  if (UI.area === 'conti' && (!contiVisibili() || !['conti', 'impostazioni'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'conti'; }
+  if (UI.area !== 'conti' && UI.tab === 'conti') UI.area = 'conti';
   document.body.dataset.area = UI.area;
   $('#drawer').innerHTML = drawerHTML();
   $('#bnav').innerHTML = bnavHTML();
   syncPill();
-  const years = new Set([new Date().getFullYear(), UI.anno]); S.operazioni.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.eventi.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); });
+  const years = new Set([new Date().getFullYear(), UI.anno]); S.operazioni.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.eventi.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); if (UI.tab === 'conti') { S.fatture.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.bilanci.forEach(b => { if (+b.id) years.add(+b.id); }); const cy = new Date().getFullYear(); for (let y = Math.min(cy - 4, ...years); y <= cy; y++) years.add(y); }
   $('#yearSel').innerHTML = [...years].sort((a, b) => b - a).map(y => `<option value="${y}"${y === UI.anno ? ' selected' : ''}>${y}</option>`).join('');
   const isMap = UI.tab === 'mappa';
   document.body.classList.toggle('on-map', isMap);
@@ -104,7 +115,7 @@ function render() {
   let r;
   if (!UI.loaded) r = { title: '', html: '<div class="loading"><span class="spinner"></span>Carico i dati…</div>' };
   else r = (VIEWS[UI.tab] || vOggi)();
-  const t = UI.detail ? r.title : (UI.tab === 'oggi' && UI.area === 'stalla' ? 'Stalla' : TITLES[UI.tab] || r.title);
+  const t = UI.detail || UI.tab === 'conti' ? r.title : (UI.tab === 'oggi' && UI.area === 'stalla' ? 'Stalla' : TITLES[UI.tab] || r.title);
   $('#abTitle').textContent = t;
   document.title = (t ? t + ' · ' : '') + 'Campo e Stalla';
   $('#view').innerHTML = r.html;
@@ -131,6 +142,7 @@ document.addEventListener('ces:deleted', e => { if (UI.detail && UI.detail.id ==
 
 /* ---------- registrazione rapida ---------- */
 function quickSheet() {
+  if (UI.area === 'conti') { setTab('conti', 'importa'); return; }
   const Q = UI.area === 'stalla'
     ? [['ev', 'cow', 'Evento di stalla', 'Parto, fecondazione, diagnosi'], ['tr', 'syringe', 'Trattamento', 'Farmaco e sospensioni'], ['latte', 'milk', 'Latte del giorno', 'Litri e qualità'], ['capo', 'baby', 'Nuovo capo', 'Acquisto o nascita'], ['carico', 'download', 'Carico magazzino', 'Mangimi, farmaci'], ['nota', 'pencil', 'Nota', 'Promemoria e osservazioni']]
     : [['att', 'notebook-pen', 'Nuova attività', 'Su uno o più campi'], ['plan', 'calendar', 'Pianifica attività', 'Da fare nei prossimi giorni'], ['campo', 'pentagon', 'Nuovo campo', 'Disegnalo sulla mappa'], ['carico', 'download', 'Carico magazzino', 'Merce arrivata'], ['nota', 'pencil', 'Nota', 'Promemoria e osservazioni'], ['man', 'wrench', 'Manutenzione', 'Tagliando, riparazione']];
@@ -208,8 +220,9 @@ function searchRun(q) {
     ...S.prodotti.filter(p => hit(p.nome) || hit(p.nReg)).map(p => ['prodotto', p.id, 'package', p.nome, p.categoria]),
     ...S.mezzi.filter(m => hit(m.nome) || hit(m.targa)).map(m => ['mezzo', m.id, 'tractor', m.nome, m.tipo]),
     ...S.note.filter(n => hit(n.titolo) || hit(n.testo)).map(n => ['nota', n.id, 'pencil', n.titolo, (n.testo || '').slice(0, 60)]),
+    ...(contiVisibili() ? S.fatture.filter(f => hit(f.controparte) || hit(f.numero)).slice(0, 15).map(f => ['fattura', f.id, 'receipt', f.controparte + ' n. ' + f.numero, fd(f.data) + ' · ' + (f.tipo === 'Vendita' ? 'vendita' : 'acquisto')]) : []),
   ].slice(0, 40);
-  out.innerHTML = rows.length ? rows.map(([t, id, i, l, s]) => `<button class="row" data-act="${t === 'nota' ? 'edit' : 'open'}" ${t === 'nota' ? `data-form="note" data-id="${id}"` : `data-type="${t}" data-id="${id}"`}><span class="r-icon">${ic(i)}</span><span class="r-main"><b>${esc(l)}</b><span>${esc(s || '')}</span></span>${ic('chevron-right', 'chev')}</button>`).join('') : '<div class="empty slim">Nessun risultato.</div>';
+  out.innerHTML = rows.length ? rows.map(([t, id, i, l, s]) => `<button class="row" data-act="${t === 'nota' ? 'edit' : t === 'fattura' ? 'c-fatt' : 'open'}" ${t === 'nota' ? `data-form="note" data-id="${id}"` : `data-type="${t}" data-id="${id}"`}><span class="r-icon">${ic(i)}</span><span class="r-main"><b>${esc(l)}</b><span>${esc(s || '')}</span></span>${ic('chevron-right', 'chev')}</button>`).join('') : '<div class="empty slim">Nessun risultato.</div>';
 }
 
 /* ---------- esportazioni ---------- */
@@ -220,7 +233,7 @@ const csv = (head, rows) => '﻿' + [head, ...rows].map(r => r.map(x => { const 
 const it = n => n === null || n === undefined || n === '' ? '' : String(n).replace('.', ',');
 function exportSheet() {
   drawer(false);
-  openSheet('Esporta documenti', `<p class="muted">Registri e file dell'annata ${UI.anno}: il PDF si ottiene dalla stampa, i CSV si aprono con Excel.</p><div class="list flat">${[['registro', 'printer', 'Quaderno di campagna (stampa o PDF)', 'Appezzamenti, registro trattamenti, concimazioni, acquisti, giacenze, operatori'], ['registroJson', 'file-text', 'Registro trattamenti in formato dati (JSON)', 'Un record per trattamento con tutti i campi richiesti dal registro elettronico'], ['quaderno', 'file-spreadsheet', 'Quaderno di campagna (CSV)', 'Tutte le operazioni con prodotto, dose, avversità e carenza'], ['trattamenti', 'syringe', 'Registro trattamenti di stalla', 'Farmaci, ricette e fine delle sospensioni'], ['latte', 'milk', 'Registro del latte', 'Litri, conferiti, analisi'], ['movimenti', 'warehouse', 'Movimenti di magazzino', 'Carichi e scarichi'], ['backup', 'history', 'Copia di sicurezza completa', 'Tutti i dati in un file JSON']].map(([k, i, l, s]) => `<button class="row" data-act="${k === 'backup' ? 'backup' : 'export'}" data-what="${k}"><span class="r-icon">${ic(i)}</span><span class="r-main"><b>${l}</b><span>${s}</span></span>${ic('download', 'chev')}</button>`).join('')}</div>`);
+  openSheet('Esporta documenti', `<p class="muted">Registri e file dell'annata ${UI.anno}: il PDF si ottiene dalla stampa, i CSV si aprono con Excel.</p><div class="list flat">${[['registro', 'printer', 'Quaderno di campagna (stampa o PDF)', 'Appezzamenti, registro trattamenti, concimazioni, acquisti, giacenze, operatori'], ['registroJson', 'file-text', 'Registro trattamenti in formato dati (JSON)', 'Un record per trattamento con tutti i campi richiesti dal registro elettronico'], ['quaderno', 'file-spreadsheet', 'Quaderno di campagna (CSV)', 'Tutte le operazioni con prodotto, dose, avversità e carenza'], ['trattamenti', 'syringe', 'Registro trattamenti di stalla', 'Farmaci, ricette e fine delle sospensioni'], ['latte', 'milk', 'Registro del latte', 'Litri, conferiti, analisi'], ['movimenti', 'warehouse', 'Movimenti di magazzino', 'Carichi e scarichi'], ...(contiVisibili() ? [['contiAll', 'file-spreadsheet', `Conti ${UI.anno} in Excel`, 'Conto economico, stato patrimoniale, indici, analisi della stalla, IVA, cespiti, fatture e righe']] : []), ['backup', 'history', 'Copia di sicurezza completa', 'Tutti i dati in un file JSON']].map(([k, i, l, s]) => `<button class="row" data-act="${k === 'backup' ? 'backup' : k === 'contiAll' ? 'c-expAll' : 'export'}" data-what="${k}"><span class="r-icon">${ic(i)}</span><span class="r-main"><b>${l}</b><span>${s}</span></span>${ic('download', 'chev')}</button>`).join('')}</div>`);
 }
 function doExport(what) {
   const y = UI.anno;
@@ -282,7 +295,7 @@ document.addEventListener('click', async e => {
       case 'menu': return drawer(true);
       case 'drawerClose': return drawer(false);
       case 'nav': case 'tab': return setTab(d.tab, d.sub);
-      case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'stalla' ? 'oggi' : 'oggi');
+      case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'conti' ? 'conti' : 'oggi');
       case 'sub': if (d.tab && UI.tab !== d.tab) { UI.tab = d.tab; UI.detail = null; UI.hist = []; } UI.sub[d.sec] = d.sub; saveUI(); render(); return window.scrollTo(0, 0);
       case 'open': if (sheetOpen()) closeSheet(); return openDetail(d.type, d.id);
       case 'go': { const g = JSON.parse(d.go); if (g.form) return openEdit(g.form); if (g.edit) return openEdit(g.edit, g.id); return openDetail(g.type, g.id); }
@@ -347,6 +360,8 @@ document.addEventListener('click', async e => {
       case 'ndviField': return ndviField(d.id, b);
       case 'ndviMap': setTab('mappa'); return setTimeout(() => MAP.showNdvi(d.id), 250);
       case 'mapFocus': setTab('mappa'); return setTimeout(() => MAP.focusCampo(d.id), 250);
+      case 'c-expAll': drawer(false); closeSheet(); b.disabled = true; try { await esportaTutto(UI.anno); } finally { b.disabled = false; } return;
+      default: if (a === 'tsort' || a === 'texp' || a.startsWith('c-')) return contiAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
     }
   } catch (err) { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); }
 });
@@ -361,7 +376,9 @@ document.addEventListener('change', e => {
   if (t.dataset.act === 'fitoImport' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Lettura della banca dati…'); importFito(f).then(n => toast('Banca dati caricata: ' + n + ' prodotti')).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'authTab') { authUI.tab = t.value; return render(); }
   if (t.dataset.act === 'view') { UI.view = t.dataset.v; saveUI(); return render(); }
+  if (t.dataset.act && t.dataset.act.startsWith('c-')) { contiChange(t).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); return; }
 });
+['dragover', 'dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => { if (ev === 'dragleave') { const z = e.target.closest && e.target.closest('#dropzone'); if (z) z.classList.remove('over'); return; } contiDrop(e); }));
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset.filter && t.tagName === 'INPUT') { UI.f[t.dataset.filter] = t.value; render(); }
@@ -405,6 +422,8 @@ function gpsAzienda() {
   navigator.geolocation.getCurrentPosition(p => { $('#az_lat').value = p.coords.latitude.toFixed(5); $('#az_lon').value = p.coords.longitude.toFixed(5); toast('Posizione rilevata: ricordati di salvare'); }, () => toast('Consenti l\'accesso alla posizione', 'err'), { enableHighAccuracy: true, timeout: 15000 });
 }
 
+setRerender(() => render());
+
 /* ---------- avvio ---------- */
 (function boot() {
   $('#mapControls').innerHTML = `
@@ -421,6 +440,7 @@ function gpsAzienda() {
     <div id="catCard" class="cat-card" hidden></div>
     <div id="mapCard" class="map-card" hidden></div>`;
   const h = (location.hash || '').slice(1); if (VIEWS[h] || h === 'mappa') UI.tab = h;
+  if (UI.area === 'conti' && UI.tab === 'oggi') UI.tab = 'conti';
   const q = new URLSearchParams(location.search).get('azione');
   render();
   initFito();

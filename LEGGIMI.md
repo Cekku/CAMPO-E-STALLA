@@ -14,6 +14,7 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Registrazione a voce o con testo libero** dal pulsante Registra ("ieri diserbo su Pradone 1,5 l/ha"): interprete locale, oppure Claude con una chiave API Anthropic salvata sul dispositivo.
 - **Stalle, box e silos**: capi assegnati ai box, occupazione, autonomia dei silos con le razioni; **indici della mandria** (DIM, giorni aperti, interparto, IOFC) e **allarmi di benessere** dai dati importati da Alpro, MooMonitor e altri sistemi (CSV).
 - **NDVI Sentinel-2**: vigore vegetativo sulla mappa per data e andamento per ogni campo.
+- **Conti** (area riservata al titolare): carica fatture elettroniche (XML, P7M, ZIP del cassetto fiscale, PDF dell'Agenzia, stampe TeamSystem, prospetti del latte del caseificio), dichiarazioni IVA (telematico o PDF), bilancini del commercialista in PDF (anche quelli "disegnati" senza testo) e il vecchio file Excel del conto economico. Registro delle fatture a blocchi con categorie modificabili e regole, fornitori, clienti, prodotti con storico dei prezzi, categorie, andamento mensile, latte venduto; conto economico, stato patrimoniale, cespiti, indici di bilancio, analisi della stalla da latte (costo di produzione per litro, IOFC, prezzo di pareggio) con i dati presi da stalla, campi e fatture, controlli di coerenza. Ogni tabella si scarica in Excel, CSV o PDF.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
 ## Attivare la sincronizzazione (una volta sola, circa 5 minuti)
@@ -30,6 +31,10 @@ Senza questo passaggio l'app funziona lo stesso, ma i dati restano sul singolo d
 
 La chiave *anon* è pensata per stare nelle app: i dati sono protetti dalle regole di accesso del database, per cui ogni utente vede solo le aziende di cui fa parte.
 
+### Aggiornamento per i Conti (database creati prima della versione 1.4)
+
+Fatture e bilancio devono essere visibili solo al titolare. Se il database esisteva già, apri **SQL Editor → New query**, incolla il contenuto di [`supabase/aggiornamento-conti.sql`](supabase/aggiornamento-conti.sql) e premi **Run** (una volta sola). Finché non lo fai, l'app mostra un avviso nell'area Conti.
+
 ## Installare sul telefono
 
 - **Android (Chrome)**: apri l'indirizzo, tocca *Installa l'app* nella schermata Oggi o dal menu ⋮ → *Installa app*.
@@ -42,7 +47,7 @@ Esporta dal programma della sala di mungitura o dei collari un file CSV con una 
 ## Fonti dei dati
 
 Immagini satellitari Esri World Imagery · NDVI Sentinel-2 © Copernicus tramite il servizio Esri Sentinel-2 Views · Banca dati prodotti fitosanitari © Ministero della Salute · OpenStreetMap · OpenTopoMap · Cartografia catastale © Agenzia delle Entrate (CC BY 4.0, servizio WMS) · Meteo Open-Meteo.com · Ricerca luoghi Nominatim.
-Librerie: Leaflet, Leaflet-Geoman, supabase-js, icone Lucide.
+Librerie: Leaflet, Leaflet-Geoman, supabase-js, pdf.js (Mozilla, Apache 2.0), icone Lucide.
 
 ## Aggiornare l'app
 

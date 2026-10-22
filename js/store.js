@@ -199,6 +199,7 @@ async function applyRemote(rows) {
   rebuild([...touched]); schedule();
 }
 
+export async function schemaVersion() { if (!sb || !sync.farm) return null; try { const { data, error } = await sb.rpc('ces_schema_version'); return error ? 1 : data; } catch (e) { return null; } }
 export async function exportAll() { const o = {}; COLS.forEach(c => (o[c] = S[c])); return o; }
 export async function wipeLocal() {
   await tx(['records', 'outbox', 'meta'], 'readwrite', t => { t.objectStore('records').clear(); t.objectStore('outbox').clear(); t.objectStore('meta').clear(); });

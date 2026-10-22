@@ -99,7 +99,12 @@ end $$;
 revoke all on function public.create_farm(text), public.join_farm(text), public.new_join_code(uuid) from public, anon;
 grant execute on function public.create_farm(text), public.join_farm(text), public.new_join_code(uuid) to authenticated;
 
+-- Versione dello schema (l'app la controlla per sapere se i conti sono protetti)
+create or replace function public.ces_schema_version() returns int language sql immutable as $$ select 2 $$;
+grant execute on function public.ces_schema_version() to authenticated;
+
 -- Regole di accesso -------------------------------------------------------
+-- I dati economici (fatture, bilanci, configurazione dei conti) sono visibili solo al titolare.
 alter table public.farms        enable row level security;
 alter table public.farm_members enable row level security;
 alter table public.records      enable row level security;
@@ -116,11 +121,11 @@ create policy members_delete on public.farm_members for delete to authenticated
   using ((is_owner(farm_id) and role <> 'titolare') or user_id = auth.uid());
 
 drop policy if exists records_select on public.records;
-create policy records_select on public.records for select to authenticated using (is_member(farm_id));
+create policy records_select on public.records for select to authenticated using (is_member(farm_id) and (col not in ('fatture', 'bilanci', 'econfig') or is_owner(farm_id)));
 drop policy if exists records_insert on public.records;
-create policy records_insert on public.records for insert to authenticated with check (is_member(farm_id));
+create policy records_insert on public.records for insert to authenticated with check (is_member(farm_id) and (col not in ('fatture', 'bilanci', 'econfig') or is_owner(farm_id)));
 drop policy if exists records_update on public.records;
-create policy records_update on public.records for update to authenticated using (is_member(farm_id)) with check (is_member(farm_id));
+create policy records_update on public.records for update to authenticated using (is_member(farm_id) and (col not in ('fatture', 'bilanci', 'econfig') or is_owner(farm_id))) with check (is_member(farm_id) and (col not in ('fatture', 'bilanci', 'econfig') or is_owner(farm_id)));
 
 -- Aggiornamenti in tempo reale tra telefono e computer
 do $$ begin
