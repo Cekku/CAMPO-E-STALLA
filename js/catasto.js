@@ -33,9 +33,9 @@ async function scarica(target, { timeout = 60000 } = {}) {
     try {
       const r = await Promise.race([t(), new Promise((_, rej) => ctl.signal.addEventListener('abort', () => rej(new ErroreCatasto('Il servizio catastale non risponde (tempo scaduto). Riprova tra poco.', 'TIMEOUT'))))]);
       clearTimeout(tm);
-      if (!r.ok) { ultimo = new ErroreCatasto(`Il servizio catastale ha risposto con errore ${r.status}.`, 'HTTP'); continue; }
+      if (!r.ok) { ultimo = ultimo || new ErroreCatasto(col ? `Il collegamento al catasto ha risposto con errore ${r.status}: controlla l'indirizzo in La mia azienda → Catasto.` : `Il servizio catastale ha risposto con errore ${r.status}.`, 'HTTP'); continue; }
       const txt = await r.text(); STATO.ok = true; return txt;
-    } catch (e) { clearTimeout(tm); ultimo = e; }
+    } catch (e) { clearTimeout(tm); ultimo = ultimo || e; } // vale il primo errore (del collegamento): la richiesta diretta, senza CORS, fallisce sempre e lo nasconderebbe
   }
   STATO.ok = false;
   if (!col) throw new ErroreCatasto('Per cercare le particelle serve il collegamento al catasto: impostalo in La mia azienda → Catasto (5 minuti, una volta sola).', 'NO_PROXY');
