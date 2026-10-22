@@ -254,7 +254,7 @@ function controlli(ced, bil, tot, pag, ver, dip, per, pre) {
     if (Math.abs(sN - N(b.netto)) > 0.05) add('warn', `${nomeMese(b.periodo)}: i netti dei cedolini non tornano con il bilancino`, `Cedolini ${eu(sN)}, netto pagato nel bilancino ${eu(N(b.netto))}.`, { periodo: b.periodo });
     for (const k of (b.controlli || []).filter(k => k.esito !== 'OK')) add('warn', `Bilancino paghe di ${nomeMese(b.periodo)}: ${k.d.toLowerCase()}`, k.esito, { periodo: b.periodo });
   }
-  for (const p of [...new Set(ced.map(c => c.periodo))]) if (!bil.some(b => b.periodo === p)) add('info', `Manca il bilancino paghe di ${nomeMese(p)}`, 'Senza bilancino non si conoscono i contributi a carico dell\'azienda e il costo totale del mese.', { periodo: p });
+  for (const p of [...new Set(ced.map(c => c.periodo))]) if (+p.slice(5) <= 12 && !bil.some(b => b.periodo === p)) add('info', `Manca il bilancino paghe di ${nomeMese(p)}`, 'Senza bilancino non si conoscono i contributi a carico dell\'azienda e il costo totale del mese.', { periodo: p });
   for (const tt of tot) { const cs = ced.filter(c => c.periodo === tt.periodo); const sN = r2(cs.reduce((t, c) => t + N(c.netto), 0)); if (tt.netto != null && Math.abs(sN - tt.netto) > 0.05) add('warn', `${nomeMese(tt.periodo)}: mancano cedolini rispetto ai totali generali`, `Somma dei netti ${eu(sN)}, totale generale ${eu(tt.netto)}${tt.dipendenti ? ` (${tt.dipendenti} dipendenti)` : ''}.`, { periodo: tt.periodo }); }
   // versamenti: F24 delle ritenute entro il 16 del mese dopo, contributi agricoli per trimestre
   for (const v of versamenti(bil, pag)) {
