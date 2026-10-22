@@ -35,6 +35,14 @@ export const periodi = () => dati().per;
 export const pagamenti = () => dati().pag;
 export const anniPaghe = () => [...new Set(dati().per.map(p => +p.slice(0, 4)))].sort();
 
+// nome confrontabile: parole maiuscole in ordine alfabetico ("Singh Gurinder" = "GURINDER SINGH")
+export const nomeChiave = n => String(n || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(Boolean).sort().join(' ');
+/** Nome di un dipendente dalla chiave, anche se non ha ancora cedolini (dal beneficiario dei bonifici). */
+export function nomeDi(k) {
+  const d = dipendenti().find(x => x.key === k); if (d) return d.nome;
+  const p = S.pagamenti.find(x => x.dip === k && x.beneficiario); if (p) return p.beneficiario;
+  return String(k || '').replace(/^N-/, '').replace(/-/g, ' ');
+}
 function calcola() {
   const ced = S.paghe.filter(x => x.tipo === 'cedolino').map(c => Object.assign({}, c, { periodo: periodo(c.anno, c.mese), dip: c.dip || chiaveDip(c) })).sort((a, b) => a.periodo.localeCompare(b.periodo) || (a.nome || '').localeCompare(b.nome || ''));
   const bil = S.paghe.filter(x => x.tipo === 'bilancino').map(b => Object.assign({}, b, { periodo: periodo(b.anno, b.mese) })).sort((a, b) => a.periodo.localeCompare(b.periodo));
@@ -49,7 +57,15 @@ function calcola() {
     d.ced.push(c); dip.set(c.dip, d);
   }
   for (const d of dip.values()) { const e = extra.get(d.key) || {}; d.alias = e.alias || ''; d.nota = e.nota || ''; d.td = /T\.?DET|\bTD\b|OTD|STAGION/i.test(d.qualifica || '') || !!d.scadTD; }
-  const pag = [...S.pagamenti].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+  // pagamenti a dipendenti non ancora nei cedolini (chiave dal nome) o riconoscibili dall'IBAN: si collegano alla scheda giusta
+  const perNome = new Map([...dip.values()].map(d => [nomeChiave(d.nome), d.key]));
+  for (const d of dip.values()) for (const a of String(d.alias || '').split(',')) if (a.trim()) perNome.set(nomeChiave(a), d.key);
+  const perIban = new Map(); for (const p of S.pagamenti) if (p.iban && p.dip && dip.has(p.dip)) perIban.set(p.iban, p.dip);
+  const pag = [...S.pagamenti].map(p => {
+    if (p.tipo !== 'stipendio' || !p.dip || dip.has(p.dip)) return p;
+    const k = perNome.get(nomeChiave(p.beneficiario || p.dip.replace(/^N-/, ''))) || (p.iban && perIban.get(p.iban));
+    return k ? Object.assign({}, p, { dip: k }) : p;
+  }).sort((a, b) => (a.data || '').localeCompare(b.data || ''));
   const ver = abbina(ced, pag);
   const ano = controlli(ced, bil, tot, pag, ver, dip, per);
   for (const d of dip.values()) {
@@ -72,7 +88,7 @@ function abbina(ced, pag) {
   for (const p of pag.filter(p => p.tipo === 'stipendio' && p.dip)) {
     let resto = r2(N(p.importo));
     const metti = (r, v) => { r.pagato = r2(r.pagato + v); r.pag.push({ id: p.id, data: p.data, importo: v, modalita: p.modalita, tot: N(p.importo) }); resto = r2(resto - v); };
-    if (p.comp) { const r = per(p.dip, p.comp); if (r) metti(r, resto); else extra.push({ dip: p.dip, nome: '', periodo: p.comp, dovuto: 0, pagato: resto, pag: [{ id: p.id, data: p.data, importo: resto, modalita: p.modalita, tot: N(p.importo) }], senzaCedolino: true }); continue; }
+    if (p.comp) { const r = per(p.dip, p.comp); if (r) metti(r, resto); else extra.push({ dip: p.dip, nome: p.beneficiario || '', periodo: p.comp, dovuto: 0, pagato: resto, pag: [{ id: p.id, data: p.data, importo: resto, modalita: p.modalita, tot: N(p.importo) }], senzaCedolino: true }); continue; }
     const aperte = righe.filter(r => r.dip === p.dip && inizioPeriodo(r.periodo) <= (p.data || '9999') && r.pagato < r.dovuto - 0.005);
     // prima il mese con lo stesso importo, poi il più vecchio
     const esatta = aperte.find(r => Math.abs(r.dovuto - r.pagato - resto) < 0.01);
@@ -80,7 +96,7 @@ function abbina(ced, pag) {
     if (resto > 0.005) {
       const ult = righe.filter(r => r.dip === p.dip && inizioPeriodo(r.periodo) <= (p.data || '9999')).pop();
       if (ult) metti(ult, resto);
-      else extra.push({ dip: p.dip, nome: '', periodo: (p.data || '').slice(0, 7), dovuto: 0, pagato: resto, pag: [{ id: p.id, data: p.data, importo: resto, modalita: p.modalita, tot: N(p.importo) }], senzaCedolino: true });
+      else extra.push({ dip: p.dip, nome: p.beneficiario || '', periodo: (p.data || '').slice(0, 7), dovuto: 0, pagato: resto, pag: [{ id: p.id, data: p.data, importo: resto, modalita: p.modalita, tot: N(p.importo) }], senzaCedolino: true });
     }
   }
   const g = cfgPaghe().giornoStipendi;
@@ -276,7 +292,9 @@ export async function leggiMovimenti(nome, bytes) {
 }
 /** Riconosce dalla descrizione a chi o a cosa va un movimento. */
 export function riconosci(m, dips = dipendenti()) {
-  const d = ' ' + String(m.descrizione || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ') + ' ';
+  if (m.iban) { const p = S.pagamenti.find(x => x.iban === m.iban && x.dip && x.tipo === 'stipendio'); if (p) { const d = dips.find(d => d.key === p.dip || nomeChiave(d.nome) === nomeChiave(p.beneficiario)); return { tipo: 'stipendio', dip: d ? d.key : p.dip }; } }
+  if (m.beneficiario) { const k = nomeChiave(m.beneficiario); const d = dips.find(d => nomeChiave(d.nome) === k || String(d.alias || '').split(',').some(a => a.trim() && nomeChiave(a) === k)); if (d) return { tipo: 'stipendio', dip: d.key }; }
+  const d = ' ' + String([m.beneficiario, m.descrizione].filter(Boolean).join(' ')).toUpperCase().replace(/[^A-Z0-9]+/g, ' ') + ' ';
   const parole = n => String(n || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(w => w.length > 1);
   let best = null, bs = 0;
   for (const p of dips) {
@@ -296,3 +314,18 @@ export function riconosci(m, dips = dipendenti()) {
 }
 export const idPagamento = p => { const k = [p.data, r2(N(p.importo)), String(p.descrizione || '').slice(0, 80)].join('|'); let h = 0x811c9dc5; for (let i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return 'p' + h.toString(36); };
 export { mesePrec, meseSucc, inizioPeriodo, finePeriodo };
+
+/** Pagamenti da registrare a partire dalle contabili di bonifico lette. */
+export function righeBonifici(bon, file) {
+  const presenti = new Set(S.pagamenti.map(p => p.id)); const dips = dipendenti();
+  return bon.map(b => {
+    const m = { data: b.data, importo: r2(b.importo), descrizione: [b.beneficiario, b.causale].filter(Boolean).join(' · '), beneficiario: b.beneficiario, iban: b.iban };
+    let r = riconosci(m, dips);
+    if ((!r || (r.tipo === 'stipendio' && !r.dip)) && b.stipendio) r = { tipo: 'stipendio', dip: 'N-' + slug(b.beneficiario) };
+    if (!r) r = { tipo: 'altro' };
+    const id = b.id ? 'b' + idPagamento({ data: b.id, importo: 0, descrizione: '' }).slice(1) : idPagamento(m);
+    return Object.assign(m, r, { id, comp: b.comp || '', modalita: 'bonifico', idBanca: b.id || '', fonte: file, gia: presenti.has(id), sel: !presenti.has(id) && r.tipo !== 'altro', causale: b.causale, nuovo: r.dip && r.dip.startsWith('N-') && !dips.some(d => d.key === r.dip) });
+  });
+}
+/** Campi del pagamento da salvare. */
+export const datiPagamento = r => ({ data: r.data, importo: r.importo, tipo: r.tipo, dip: r.tipo === 'stipendio' ? r.dip : '', comp: r.comp || '', modalita: r.modalita || 'bonifico', descrizione: r.descrizione, fonte: r.fonte, ...(r.beneficiario ? { beneficiario: r.beneficiario } : {}), ...(r.iban ? { iban: r.iban } : {}), ...(r.idBanca ? { idBanca: r.idBanca } : {}) });

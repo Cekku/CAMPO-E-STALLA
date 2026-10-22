@@ -7,6 +7,7 @@ import { leggiDichiarazioneIva, riepilogoIva, IVA_VOCI } from './iva-parse.js';
 import { leggiBilancino, interpreta, calcolaCe } from './bilancino-parse.js';
 import { leggiPdf, testoPagina } from './pdftext.js';
 import { tipoPaghe, leggiCedolini, leggiBilancinoPaghe, MESI_NOMI } from './paghe-parse.js';
+import { pareBonifico, leggiBonifici } from './bonifici-parse.js';
 import { unzip } from './zip.js';
 import { leggiXlsx, serialeAData, colLett } from './xlsx.js';
 import { classifica, REGOLE_PREDEFINITE, RETTIFICA } from './regole.js';
@@ -42,6 +43,8 @@ export async function leggiDocumento(nome, bytes, out = []) {
       const tp = tipoPaghe(pagine);
       if (tp === 'cedolino') { out.push(esitoCedolini(nome, await leggiCedolini(null, pagine))); return out; }
       if (tp === 'bilancino') { out.push(esitoBilPaghe(nome, await leggiBilancinoPaghe(null, pagine))); return out; }
+      // contabile di bonifico (pagamento di uno stipendio o di altro)
+      if (pareBonifico(t)) { out.push(await esitoBonifici(nome, await leggiBonifici(null, pagine))); return out; }
       if (/SITUAZIONE\s+CONTABILE|SITUAZIONE\s+AL|TOTALE\s+COSTI|TOTALE\s+RICAVI/i.test(t) && /\d{2}\/\d{2}\/\d{3}/.test(t)) {
         const b = await leggiBilancino(bytes, cfg().contiUtente || {});
         out.push({ tipo: 'bilancino', nome, anno: b.anno, ditta: b.ditta, perRiga: b.perRiga, conti: b.conti, controlli: b.controlli, dati: snellisci(b.dati) }); return out;
@@ -78,11 +81,13 @@ export async function leggiComeTipo(nome, bytes, tipo) {
   if (tipo === 'iva') { const r = await leggiDichiarazioneIva(nome, bytes); if (!Object.keys(r.valori).length) throw new Error('Nessun importo dei quadri VE, VF, VL trovato nel file.'); return Object.assign({}, r, riepilogoIva(r.valori), { tipo: 'iva', fonte: r.tipo, nome, anno: r.anno || annoDaNome(nome) }); }
   if (tipo === 'bilancino') { const b = await leggiBilancino(bytes, cfg().contiUtente || {}); if (!b.dati.conti.length) throw new Error('Nessun conto trovato nel file.'); return { tipo: 'bilancino', nome, anno: b.anno, ditta: b.ditta, perRiga: b.perRiga, conti: b.conti, controlli: b.controlli, dati: snellisci(b.dati) }; }
   if (tipo === 'cedolini') return esitoCedolini(nome, await leggiCedolini(bytes));
+  if (tipo === 'bonifici') return esitoBonifici(nome, await leggiBonifici(bytes));
   if (tipo === 'bilpaghe') return esitoBilPaghe(nome, await leggiBilancinoPaghe(bytes));
   throw new Error('Tipo non gestito');
 }
 const mesePer = (m, y) => (m > 12 ? (m === 13 ? 'Tredicesima' : 'Quattordicesima') : MESI_NOMI[m - 1]) + ' ' + y;
 const esitoCedolini = (nome, r) => Object.assign({ tipo: 'cedolini', nome, mesePer: r.mese && r.anno ? mesePer(r.mese, r.anno) : 'mese non letto' }, r);
+const esitoBonifici = async (nome, bon) => { const { righeBonifici } = await import('./paghe.js'); return { tipo: 'bonifici', nome, righe: righeBonifici(bon, nome) }; };
 const esitoBilPaghe = (nome, b) => ({ tipo: 'bilpaghe', nome, anno: b.anno, mesePer: mesePer(b.mese, b.anno), bil: b });
 const snellisci = d => ({ anno: d.anno, ditta: d.ditta, blocchi: d.blocchi.map(b => ({ numero: b.numero, attivita: b.attivita, totali: b.totali, utile: b.utile })), conti: d.conti.map(c => ({ blocco: c.blocco, sezione: c.sezione, conto: c.conto, descrizione: c.descrizione, valori: c.valori, dubbi: c.dubbi, dettagli: c.dettagli })) });
 
