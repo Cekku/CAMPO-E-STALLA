@@ -4,5 +4,5 @@ project_id = "campo-e-stalla"
 
 [functions.catasto]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 entrypoint = "./functions/catasto/index.ts"
