@@ -109,6 +109,8 @@ async function wfsUno(tipo, bbox, count, timeout) {
     catch (e) { if (e.code !== 'WFS' || prova >= 3) throw e; await new Promise(r => setTimeout(r, 800 * (prova + 1))); }
   }
 }
+/** Elementi di un riquadro già piccolo (una cella del catasto disegnato sulla mappa, js/catastomappa.js). */
+export const elementiRiquadro = (tipo, bbox, timeout = 90000) => wfsUno(tipo, bbox, 0, timeout);
 /** Elementi del WFS nel riquadro, chiesti a pezzi (3 richieste alla volta) e senza doppioni. avanz(fatti, totale) */
 async function wfs(tipo, bbox, count, timeout, avanz) {
   const rs = riquadri(bbox, PASSO[tipo]), coda = rs.slice(), visti = new Map(); let fatti = 0;
