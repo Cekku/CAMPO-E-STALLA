@@ -15,6 +15,7 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Stalle, box e silos**: capi assegnati ai box, occupazione, autonomia dei silos con le razioni; **indici della mandria** (DIM, giorni aperti, interparto, IOFC) e **allarmi di benessere** dai dati importati da Alpro, MooMonitor e altri sistemi (CSV).
 - **NDVI Sentinel-2**: vigore vegetativo sulla mappa per data e andamento per ogni campo.
 - **Conti** (area riservata al titolare): carica fatture elettroniche (XML, P7M, ZIP del cassetto fiscale, PDF dell'Agenzia, stampe TeamSystem, prospetti del latte del caseificio), dichiarazioni IVA (telematico o PDF), bilancini del commercialista in PDF (anche quelli "disegnati" senza testo) e il vecchio file Excel del conto economico. Registro delle fatture a blocchi con categorie modificabili e regole, fornitori, clienti, prodotti con storico dei prezzi, categorie, andamento mensile, latte venduto; conto economico, stato patrimoniale, cespiti, indici di bilancio, analisi della stalla da latte (costo di produzione per litro, IOFC, prezzo di pareggio) con i dati presi da stalla, campi e fatture, controlli di coerenza. Ogni tabella si scarica in Excel, CSV o PDF.
+- **Personale** (nei Conti, riservato al titolare): legge ogni mese il PDF dei cedolini e il bilancino contabile delle paghe del consulente; calcola il netto da pagare a ogni dipendente, registra i pagamenti (a mano o dall'estratto conto della banca in Excel/CSV, con i bonifici riconosciuti dal nome) e segnala stipendi non pagati o pagati in parte, pagamenti in contanti, doppioni, cedolini mancanti, totali che non tornano con il bilancino, F24 e contributi agricoli non registrati, contratti a termine e permessi di soggiorno scaduti. Salari, oneri sociali e TFR vanno nel conto economico (B.9) finché non c'è il bilancino di fine anno.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
 ## Attivare la sincronizzazione (una volta sola, circa 5 minuti)
@@ -31,9 +32,9 @@ Senza questo passaggio l'app funziona lo stesso, ma i dati restano sul singolo d
 
 La chiave *anon* è pensata per stare nelle app: i dati sono protetti dalle regole di accesso del database, per cui ogni utente vede solo le aziende di cui fa parte.
 
-### Aggiornamento per i Conti (database creati prima della versione 1.4)
+### Aggiornamento per i Conti (database creati prima della versione 1.5)
 
-Fatture e bilancio devono essere visibili solo al titolare. Se il database esisteva già, apri **SQL Editor → New query**, incolla il contenuto di [`supabase/aggiornamento-conti.sql`](supabase/aggiornamento-conti.sql) e premi **Run** (una volta sola). Finché non lo fai, l'app mostra un avviso nell'area Conti.
+Fatture, bilancio, cedolini e pagamenti dei dipendenti devono essere visibili solo al titolare. Se il database esisteva già (anche se avevi eseguito l'aggiornamento della versione 1.4), apri **SQL Editor → New query**, incolla il contenuto di [`supabase/aggiornamento-conti.sql`](supabase/aggiornamento-conti.sql) e premi **Run** (una volta sola). Finché non lo fai, l'app mostra un avviso nell'area Conti.
 
 ## Riservatezza
 

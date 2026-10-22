@@ -11,8 +11,12 @@ import { tabella, ordina, esporta, fmtVal } from '../conti/tabelle.js';
 import { colonne, linee, barre, torta, PALETTE, COL } from '../conti/grafici.js';
 import { vFatture, vControparti, vProdotti, vCategorie, vMensile, vLatte, schedaFattura, schedaProdotto, mensili, MESI, ok, miniTabs, datalistCat } from './conti-fatture.js';
 import { vCE, vSP, vCespiti, vIndici, vAnalisi, vIva, vControlli } from './conti-bilancio.js';
+import { vPersonale, vDipendenti, vCedolini, vPagamenti, vVerifica, personaleAct, personaleChange } from './conti-personale.js';
+import { anomalie as anomaliePaghe } from '../conti/paghe.js';
 
-export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Cespiti', controlli: 'Controlli', regole: 'Regole delle categorie' };
+export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Cespiti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie' };
+const GRUPPI = [['fatture', 'fornitori', 'clienti', 'prodotti', 'categorie', 'mensile', 'latte'], ['ce', 'sp', 'indici', 'analisi', 'iva', 'cespiti', 'controlli'], ['personale', 'dipendenti', 'cedolini', 'pagamenti', 'verifica']];
+const TAB_NOMI = { personale: 'Riepilogo', cedolini: 'Cedolini', verifica: 'Verifica' };
 
 /** Chi può vedere i conti: in locale sempre; con il cloud solo il titolare dell'azienda. */
 export function contiVisibili() {
@@ -25,12 +29,12 @@ export function contiVisibili() {
 export function render() {
   const sub = SUBS[UI.sub.conti] ? UI.sub.conti : 'panoramica';
   if (!contiVisibili()) return { title: 'Conti', html: `<section class="card lock">${ic('shield-check', 'huge')}<h2>Area riservata al titolare</h2><p class="muted">Fatture, bilancio e margini sono visibili solo a chi ha creato l'azienda. Chiedi al titolare se ti servono questi dati.</p></section>` };
-  const V = { panoramica, fatture: vFatture, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, controlli: vControlli, regole: vRegole };
-  const gruppo = ['fatture', 'fornitori', 'clienti', 'prodotti', 'categorie', 'mensile', 'latte'].includes(sub) ? ['fatture', 'fornitori', 'clienti', 'prodotti', 'categorie', 'mensile', 'latte'] : ['ce', 'sp', 'indici', 'analisi', 'iva', 'cespiti', 'controlli'].includes(sub) ? ['ce', 'sp', 'indici', 'analisi', 'iva', 'cespiti', 'controlli'] : null;
-  const t = gruppo ? tabs('conti', gruppo.map(k => [k, SUBS[k]]), sub) : '';
+  const V = { panoramica, fatture: vFatture, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, controlli: vControlli, personale: vPersonale, dipendenti: vDipendenti, cedolini: vCedolini, pagamenti: vPagamenti, verifica: vVerifica, regole: vRegole };
+  const gruppo = GRUPPI.find(g => g.includes(sub)) || null;
+  const t = gruppo ? tabs('conti', gruppo.map(k => [k, TAB_NOMI[k] || SUBS[k]]), sub) : '';
   const azioni = sub === 'importa' ? '' : `<div class="btns"><button class="btn sm" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">${ic('file-up')}Carica documenti</button></div>`;
-  if (sync.mode === 'cloud' && sync.farm && SCHEMA.v === undefined) { SCHEMA.v = null; store.schemaVersion().then(v => { SCHEMA.v = v; if (v === 1) rerender(); }); }
-  const avviso = SCHEMA.v === 1 ? `<div class="note-box warn">${ic('shield-alert')}<span><b>I conti non sono ancora riservati.</b> Per fare in modo che solo tu veda fatture e bilancio, apri Supabase → SQL Editor ed esegui una volta il file <i>supabase/aggiornamento-conti.sql</i> del progetto. Fino ad allora i collaboratori collegati all'azienda possono ricevere questi dati.</span></div>` : '';
+  if (sync.mode === 'cloud' && sync.farm && SCHEMA.v === undefined) { SCHEMA.v = null; store.schemaVersion().then(v => { SCHEMA.v = v; if (v && v < 3) rerender(); }); }
+  const avviso = SCHEMA.v && SCHEMA.v < 3 ? `<div class="note-box warn">${ic('shield-alert')}<span><b>I conti non sono ancora del tutto riservati.</b> Per fare in modo che solo tu veda fatture, bilancio, cedolini e pagamenti dei dipendenti, apri Supabase → SQL Editor ed esegui una volta il file <i>supabase/aggiornamento-conti.sql</i> del progetto. Fino ad allora i collaboratori collegati all'azienda possono ricevere questi dati.</span></div>` : '';
   return { title: SUBS[sub], html: avviso + `<header class="pagehead"><h1>${esc(SUBS[sub])}</h1>${azioni}</header>${t}${V[sub]()}` };
 }
 
@@ -39,7 +43,7 @@ function delta(a, b) { if (!a || b == null) return ''; const d = (b - a) / Math.
 function kpi(l, v, s, icn = '', cls = '') { return `<div class="kpi static"><span class="k-l">${icn ? ic(icn) : ''}${esc(l)}</span><span class="k-v sm ${cls}">${v}</span><span class="k-s">${s}</span></div>`; }
 function panoramica() {
   const y = UI.anno; const fs = fatture();
-  if (!fs.length && !S.bilanci.length) return `<section class="card welcome"><div class="wl-art">${ic('wallet', 'huge')}</div><div class="wl-body"><span class="eyebrow">Conti dell'azienda</span><h2>Fatture, bilancio e margini in un posto solo</h2><p>Carica le fatture elettroniche (XML, P7M o lo ZIP scaricato dal cassetto fiscale), i PDF delle fatture, le dichiarazioni IVA e i bilancini del commercialista, oppure il vecchio file Excel del conto economico. L'app legge tutto da sola e collega i conti ai dati di stalla e campi.</p><div class="btns"><button class="btn action" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">${ic('file-up')}Carica i primi documenti</button></div></div></section>`;
+  if (!fs.length && !S.bilanci.length && !S.paghe.length) return `<section class="card welcome"><div class="wl-art">${ic('wallet', 'huge')}</div><div class="wl-body"><span class="eyebrow">Conti dell'azienda</span><h2>Fatture, bilancio e margini in un posto solo</h2><p>Carica le fatture elettroniche (XML, P7M o lo ZIP scaricato dal cassetto fiscale), i PDF delle fatture, le dichiarazioni IVA e i bilancini del commercialista, oppure il vecchio file Excel del conto economico. L'app legge tutto da sola e collega i conti ai dati di stalla e campi.</p><div class="btns"><button class="btn action" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">${ic('file-up')}Carica i primi documenti</button></div></div></section>`;
   const tot = (yy, t) => fs.filter(f => f.anno === yy && f.tipo === t).reduce((s, f) => s + N(f.imponibile), 0);
   const ven = tot(y, 'Vendita'), acq = tot(y, 'Acquisto'), venP = tot(y - 1, 'Vendita'), acqP = tot(y - 1, 'Acquisto');
   const dl = (a, b) => { if (!b) return ''; const d = (a - b) / Math.abs(b); return `<span class="k-delta ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '▲' : '▼'} ${nf(Math.abs(d) * 100, 1)}%</span> sul ${y - 1}`; };
@@ -59,6 +63,7 @@ function panoramica() {
   const ivaScaduta = new Date().toISOString().slice(0, 10) > `${y + 1}-04-30`;
   const ivaAnni = S.bilanci.filter(b => b.iva).map(b => +b.id).sort((a, b) => a - b);
   if (!(bilancio(y) || {}).iva && ivaScaduta) todo.push(['percent', `Dichiarazione IVA dell'anno ${y} non caricata`, `È il Modello IVA ${y + 1}, che riguarda le operazioni del ${y}.${ivaAnni.length ? ' Caricate: anni ' + ivaAnni.join(', ') + '.' : ''}`, 'importa']);
+  { const ap = anomaliePaghe().filter(a => a.liv === 'err' && !(cfg().pagheIgnora || []).includes(a.testo)); if (ap.length) todo.push(['users', ap.length === 1 ? '1 irregolarità sul personale' : `${ap.length} irregolarità sul personale`, ap[0].testo, 'verifica']); }
   if (c.has.ce && !P.l_vacca) todo.push(['cow', 'Analisi della stalla incompleta', 'Mancano vacche o litri di latte', 'analisi']);
   const trend = anni.length > 1 ? (anni.some(a => calc(a).has.ce)
     ? colonne(anni.map(String), [{ name: 'Valore della produzione', values: anni.map(a => calc(a).ce[26]), color: COL.ven }, { name: 'Costi della produzione', values: anni.map(a => calc(a).ce[78]), color: COL.acq }, { name: 'Utile', values: anni.map(a => calc(a).ce[105]), color: COL.diff }])
@@ -76,10 +81,10 @@ function panoramica() {
 const SCHEMA = {};
 const IMP = { busy: false, fatti: 0, tot: 0, ris: [], file: '' };
 function vImporta() {
-  const r = IMP.ris; const fat = r.filter(x => x.tipo === 'fattura'), bil = r.filter(x => x.tipo === 'bilancino'), iva = r.filter(x => x.tipo === 'iva'), xls = r.filter(x => x.tipo === 'excel'), err = r.filter(x => x.tipo === 'errore');
+  const r = IMP.ris; const fat = r.filter(x => x.tipo === 'fattura'), bil = r.filter(x => x.tipo === 'bilancino'), iva = r.filter(x => x.tipo === 'iva'), xls = r.filter(x => x.tipo === 'excel'), ced = r.filter(x => x.tipo === 'cedolini'), bp = r.filter(x => x.tipo === 'bilpaghe'), err = r.filter(x => x.tipo === 'errore');
   const presenti = new Set(S.fatture.map(f => f.id));
-  const drop = `<label class="dropzone" id="dropzone">${ic('file-up')}<b>${IMP.busy ? 'Lettura in corso…' : 'Trascina qui i documenti o tocca per sceglierli'}</b><p>${IMP.busy ? `${IMP.fatti} di ${IMP.tot} · ${esc(IMP.file)}` : 'Fatture elettroniche XML o P7M (anche lo ZIP del cassetto fiscale), fatture in PDF, dichiarazioni IVA (file telematico o PDF), bilancini del commercialista in PDF, vecchio file Excel del conto economico.'}</p><input type="file" multiple accept=".xml,.p7m,.pdf,.zip,.txt,.iva,.dat,.xlsx,application/pdf,application/zip,text/xml" data-act="c-files" hidden${IMP.busy ? ' disabled' : ''}></label>`;
-  if (!r.length) return `${drop}<section class="card"><div class="card-h"><h2>${ic('info')}Dove trovare i documenti</h2></div><div class="pad-x" style="padding-bottom:16px"><p><b>Fatture elettroniche</b>: sul sito dell'Agenzia delle Entrate, <i>Fatture e Corrispettivi → Consultazione</i>, scarica le fatture ricevute ed emesse (anche tutte insieme con lo ZIP). L'XML è il formato più affidabile; il PDF va bene se non hai altro.</p><p><b>Dichiarazione IVA</b>: il file telematico inviato dal commercialista o il PDF del modello.</p><p><b>Bilancino</b>: la "situazione contabile al 31/12" in PDF che ti dà il commercialista.</p><p><b>Vecchio file Excel</b>: <i>Conto_Economico_Stato_Patrimoniale.xlsx</i> con conto economico, stato patrimoniale, IVA, cespiti e fatture già caricate.</p><p class="muted">I file restano sul tuo dispositivo: l'app ne legge i dati e salva solo quelli.</p></div></section>`;
+  const drop = `<label class="dropzone" id="dropzone">${ic('file-up')}<b>${IMP.busy ? 'Lettura in corso…' : 'Trascina qui i documenti o tocca per sceglierli'}</b><p>${IMP.busy ? `${IMP.fatti} di ${IMP.tot} · ${esc(IMP.file)}` : 'Fatture elettroniche XML o P7M (anche lo ZIP del cassetto fiscale), fatture in PDF, dichiarazioni IVA (file telematico o PDF), bilancini del commercialista in PDF, cedolini e bilancini delle paghe in PDF, vecchio file Excel del conto economico.'}</p><input type="file" multiple accept=".xml,.p7m,.pdf,.zip,.txt,.iva,.dat,.xlsx,application/pdf,application/zip,text/xml" data-act="c-files" hidden${IMP.busy ? ' disabled' : ''}></label>`;
+  if (!r.length) return `${drop}<section class="card"><div class="card-h"><h2>${ic('info')}Dove trovare i documenti</h2></div><div class="pad-x" style="padding-bottom:16px"><p><b>Fatture elettroniche</b>: sul sito dell'Agenzia delle Entrate, <i>Fatture e Corrispettivi → Consultazione</i>, scarica le fatture ricevute ed emesse (anche tutte insieme con lo ZIP). L'XML è il formato più affidabile; il PDF va bene se non hai altro.</p><p><b>Dichiarazione IVA</b>: il file telematico inviato dal commercialista o il PDF del modello.</p><p><b>Bilancino</b>: la "situazione contabile al 31/12" in PDF che ti dà il commercialista.</p><p><b>Paghe</b>: ogni mese il PDF con i cedolini di tutti i dipendenti e il "bilancino contabile" delle paghe che ti manda il consulente del lavoro.</p><p><b>Vecchio file Excel</b>: <i>Conto_Economico_Stato_Patrimoniale.xlsx</i> con conto economico, stato patrimoniale, IVA, cespiti e fatture già caricate.</p><p class="muted">I file restano sul tuo dispositivo: l'app ne legge i dati e salva solo quelli.</p></div></section>`;
   const nuove = fat.filter(x => !presenti.has(idF(x.f)));
   const rowsF = fat.slice(0, 60).map(x => `<div class="imp-row"><span class="r-icon">${ic(presenti.has(idF(x.f)) ? 'copy' : String(x.f.controllo).startsWith('OK') ? 'receipt' : 'triangle-alert')}</span><span><b>${esc(x.f.fornitore)} → ${esc(x.f.cliente)}</b><span>n. ${esc(x.f.numero)} del ${fd(x.f.data)} · imponibile ${fmtVal(x.f.imponibile, 'eur2')} · ${x.f.righe.length} righe · ${presenti.has(idF(x.f)) ? 'già presente' : esc(x.f.controllo)}</span></span><span class="muted small">${esc(x.f.fonte === 'xml' ? 'XML' : 'PDF')}</span></div>`).join('');
   return `${drop}
@@ -88,7 +93,9 @@ function vImporta() {
   ${bil.map((x, i) => `<div class="card-h"><h3>${ic('scale')}Bilancino ${esc(x.nome)}</h3></div><div class="imp-row"><span class="r-icon">${ic('scale')}</span><span><b>${esc(x.ditta || '')}</b><span>${x.conti.length} conti · ricavi ${fmtVal(sumSez(x, 'RICAVI'), 'eur')} · costi ${fmtVal(sumSez(x, 'COSTI'), 'eur')} · controlli: ${x.controlli.every(c => c.esito === 'OK') ? 'tutti OK' : x.controlli.filter(c => c.esito !== 'OK').map(c => c.esito).join(', ')}</span></span><span>Anno <input class="inp yr-in" inputmode="numeric" data-act="c-impAnno" data-k="${r.indexOf(x)}" value="${esc(x.anno || '')}" placeholder="anno"></span></div>`).join('')}
   ${iva.map(x => `<div class="card-h"><h3>${ic('percent')}Dichiarazione IVA ${esc(x.nome)}</h3></div><div class="imp-row"><span class="r-icon">${ic('percent')}</span><span><b>Volume d'affari ${fmtVal(x.voci.ve50, 'eur')} · IVA esigibile ${fmtVal(x.voci.vl1, 'eur')} · detratta ${fmtVal(x.voci.vl2, 'eur')}</b><span>${x.fonte} · ${Object.keys(x.valori).length} righi · controlli: ${x.controlli.every(c => c.esito === 'OK') ? 'tutti OK' : x.controlli.filter(c => c.esito !== 'OK').map(c => c.d + ' ' + c.esito).join('; ')}</span></span><span>Anno d'imposta <input class="inp yr-in" inputmode="numeric" data-act="c-impAnno" data-k="${r.indexOf(x)}" value="${esc(x.anno || '')}" placeholder="anno"><small class="muted" style="display:block">Modello IVA ${x.anno ? x.anno + 1 : '—'}</small></span></div>`).join('')}
   ${xls.map(x => `<div class="card-h"><h3>${ic('file-spreadsheet')}File Excel ${esc(x.nome)}</h3></div><div class="imp-row"><span class="r-icon">${ic('file-spreadsheet')}</span><span><b>${esc(x.azienda.nome || 'Modello di conto economico')}</b><span>Anni ${Object.keys(x.anni).join(', ') || '—'} · ${x.fatture.length} fatture · ${x.regole ? x.regole.length + ' regole delle categorie' : 'regole predefinite'}</span></span><span class="muted small">Sostituisce i valori di quegli anni</span></div>`).join('')}
-  ${err.length ? `<div class="card-h"><h3>${ic('triangle-alert')}Non letti: ${err.length}</h3></div>${err.map(x => `<div class="imp-row"><span class="r-icon">${ic('circle-x')}</span><span><b>${esc(x.nome)}</b><span>${esc(x.errore)}</span></span><span>${x.bytes ? `<button class="btn sm ghost" data-act="c-forza" data-k="${r.indexOf(x)}" data-tipo="iva">Leggi come dichiarazione IVA</button><button class="btn sm ghost" data-act="c-forza" data-k="${r.indexOf(x)}" data-tipo="bilancino">Leggi come bilancino</button>` : ''}</span></div>`).join('')}` : ''}
+  ${ced.map(x => `<div class="card-h"><h3>${ic('users')}Cedolini ${esc(x.nome)}</h3></div><div class="imp-row"><span class="r-icon">${ic('file-text')}</span><span><b>${esc(x.mesePer)} · ${x.cedolini.length} cedolini · netto ${fmtVal(x.cedolini.reduce((t, c) => t + N(c.netto), 0), 'eur2')}</b><span>${esc(x.cedolini.map(c => c.nome).join(', '))} · controlli: ${[...x.controlli, ...x.cedolini.flatMap(c => c.controlli)].every(c => c.esito === 'OK') ? 'tutti OK' : 'alcuni da verificare'}</span></span><span class="muted small">${x.cedolini.filter(c => S.paghe.some(p => p.tipo === 'cedolino' && p.anno === c.anno && p.mese === c.mese && p.nome === c.nome)).length ? 'sostituisce quelli già caricati' : 'nuovi'}</span></div>`).join('')}
+  ${bp.map(x => `<div class="card-h"><h3>${ic('file-spreadsheet')}Bilancino paghe ${esc(x.nome)}</h3></div><div class="imp-row"><span class="r-icon">${ic('users')}</span><span><b>${esc(x.mesePer)} · lordo ${fmtVal(x.bil.lordo, 'eur2')} · costo aziendale ${fmtVal(x.bil.costo, 'eur2')}</b><span>Netto ${fmtVal(x.bil.netto, 'eur2')} · contributi ditta ${fmtVal(x.bil.contribDitta, 'eur2')} · IRPEF ${fmtVal(x.bil.irpef, 'eur2')} · controlli: ${x.bil.controlli.every(c => c.esito === 'OK') ? 'tutti OK' : 'da verificare'}</span></span><span class="muted small">${S.paghe.some(p => p.id === 'b-' + x.bil.anno + '-' + String(x.bil.mese).padStart(2, '0')) ? 'sostituisce' : 'nuovo'}</span></div>`).join('')}
+  ${err.length ? `<div class="card-h"><h3>${ic('triangle-alert')}Non letti: ${err.length}</h3></div>${err.map(x => `<div class="imp-row"><span class="r-icon">${ic('circle-x')}</span><span><b>${esc(x.nome)}</b><span>${esc(x.errore)}</span></span><span>${x.bytes ? `<button class="btn sm ghost" data-act="c-forza" data-k="${r.indexOf(x)}" data-tipo="iva">Leggi come dichiarazione IVA</button><button class="btn sm ghost" data-act="c-forza" data-k="${r.indexOf(x)}" data-tipo="bilancino">Leggi come bilancino</button><button class="btn sm ghost" data-act="c-forza" data-k="${r.indexOf(x)}" data-tipo="cedolini">Leggi come cedolini</button><button class="btn sm ghost" data-act="c-forza" data-k="${r.indexOf(x)}" data-tipo="bilpaghe">Leggi come bilancino paghe</button>` : ''}</span></div>`).join('')}` : ''}
   </section>`;
 }
 import { idFattura } from '../conti/importa.js';
@@ -115,11 +122,18 @@ async function salvaImport() {
   if (fat.length) { const o = await M.salvaFatture(fat); msg.push(`${o.nuove} fatture nuove${o.corrette ? ', ' + o.corrette + ' corrette' : ''}${o.doppie ? ', ' + o.doppie + ' già presenti' : ''}`); }
   for (const x of r.filter(x => x.tipo === 'bilancino')) { await M.salvaBilancino(x, +x.anno || null); msg.push('bilancino ' + x.anno); }
   for (const x of r.filter(x => x.tipo === 'iva')) { await M.salvaIva(x, +x.anno || null); msg.push(`dichiarazione IVA anno d'imposta ${x.anno}`); }
+  if (r.some(x => x.tipo === 'cedolini' || x.tipo === 'bilpaghe')) {
+    const PG = await import('../conti/paghe.js'); let n = 0, so = 0;
+    for (const x of r.filter(x => x.tipo === 'cedolini')) { const o = await PG.salvaCedolini(x); n += o.nuovi; so += o.sostituiti; }
+    if (n || so) msg.push(`${n} cedolini nuovi${so ? ', ' + so + ' sostituiti' : ''}`);
+    for (const x of r.filter(x => x.tipo === 'bilpaghe')) { await PG.salvaBilancinoPaghe(x); msg.push('bilancino paghe ' + x.mesePer); }
+  }
   const nonLetti = r.filter(x => x.tipo === 'errore').length;
   IMP.ris = []; toast('Salvato: ' + msg.join(' · ') + (nonLetti ? ` · ${nonLetti} file non letti (non salvati)` : ''));
-  UI.sub.conti = fat.length ? 'fatture' : r.some(x => x.tipo === 'bilancino' || x.tipo === 'excel') ? 'ce' : r.some(x => x.tipo === 'iva') ? 'iva' : 'panoramica';
+  const paghe = r.filter(x => x.tipo === 'cedolini' || x.tipo === 'bilpaghe');
+  UI.sub.conti = paghe.length && !fat.length ? 'personale' : fat.length ? 'fatture' : r.some(x => x.tipo === 'bilancino' || x.tipo === 'excel') ? 'ce' : r.some(x => x.tipo === 'iva') ? 'iva' : 'panoramica';
   const yrs = fat.map(f => +String(f.data || '').slice(0, 4)).filter(Boolean); if (yrs.length) UI.anno = Math.max(...yrs);
-  else { const altri = r.filter(x => (x.tipo === 'iva' || x.tipo === 'bilancino') && +x.anno).map(x => +x.anno); if (altri.length) UI.anno = Math.max(...altri); }
+  else { const altri = r.filter(x => (x.tipo === 'iva' || x.tipo === 'bilancino') && +x.anno).map(x => +x.anno).concat(paghe.map(x => +(x.anno || (x.bil || {}).anno)).filter(Boolean)); if (altri.length) UI.anno = Math.max(...altri); }
   rerender();
 }
 
@@ -141,14 +155,14 @@ async function salvaCfg(patch) { await store.put('econfig', 'cfg', Object.assign
 /* ---------------- esportazione completa ---------------- */
 export async function esportaTutto(y) {
   const salva = UI.anno; UI.anno = y;
-  const f0 = Object.assign({}, UI.f); ['ce_edit', 'sp_edit', 'cs_edit', 'an_edit'].forEach(k => (UI.f[k] = '')); UI.f.ce_zeri = 'tutte'; UI.f.sp_zeri = 'tutte';
+  const f0 = Object.assign({}, UI.f); ['ce_edit', 'sp_edit', 'cs_edit', 'an_edit', 'pc_mese', 'pc_dip', 'pp_tipo'].forEach(k => (UI.f[k] = '')); UI.f.ce_zeri = 'tutte'; UI.f.sp_zeri = 'tutte';
   registro.clear();
   try {
-    vCE(); vSP(); vIndici(); vAnalisi(); vIva(); vCespiti(); vControlli();
+    vCE(); vSP(); vIndici(); vAnalisi(); vIva(); vCespiti(); vControlli(); if (S.paghe.length) { vPersonale(); vVerifica(); UI.f.pc_vista = ''; vCedolini(); vPagamenti(); }
     const fs = fatture().filter(f => f.anno === y);
     tabella('xfatt', { title: 'Fatture ' + y, sheet: 'Fatture ' + y, cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'tipo', h: 'Tipo' }, { k: 'controparte', h: 'Controparte' }, { k: 'piva', h: 'P.IVA' }, { k: 'numero', h: 'Numero' }, { k: 'tipoDoc', h: 'Tipo doc.' }, { k: 'imponibile', h: 'Imponibile', fmt: 'eur2' }, { k: 'iva', h: 'IVA', fmt: 'eur2' }, { k: 'totale', h: 'Totale', fmt: 'eur2' }, { k: 'pagamento', h: 'Pagamento' }, { k: 'scadenza', h: 'Scadenza', fmt: 'date' }, { k: 'controllo', h: 'Controllo' }, { k: 'file', h: 'File' }], rows: fs, sort: false });
     tabella('xrighe', { title: 'Righe delle fatture ' + y, sheet: 'Righe ' + y, cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'tipo', h: 'Tipo' }, { k: 'controparte', h: 'Controparte' }, { k: 'numero', h: 'N. fattura' }, { k: 'ddt', h: 'DDT' }, { k: 'codice', h: 'Codice' }, { k: 'descrizione', h: 'Descrizione' }, { k: 'categoria', h: 'Categoria' }, { k: 'quantita', h: 'Quantità', fmt: 'qta' }, { k: 'um', h: 'UM' }, { k: 'prezzo', h: 'Prezzo', fmt: 'eur4' }, { k: 'sconto', h: 'Sconto' }, { k: 'aliquota', h: '% IVA' }, { k: 'importo', h: 'Importo', fmt: 'eur2' }], rows: righe().filter(r => r.anno === y), sort: false });
-    await esporta(['ce', 'sp', 'ind', 'anD', 'anP', 'iva', 'cesp', 'ctrl', 'xfatt', 'xrighe'].filter(id => registroHas(id)), `Conti ${y} – ${azienda().nome || 'azienda'}`, 'xlsx');
+    await esporta(['ce', 'sp', 'ind', 'anD', 'anP', 'iva', 'cesp', 'ctrl', 'xfatt', 'xrighe', 'pmesi', 'pdip', 'pced', 'pver', 'pvers', 'ppag'].filter(id => registroHas(id)), `Conti ${y} – ${azienda().nome || 'azienda'}`, 'xlsx');
   } finally { UI.anno = salva; Object.keys(UI.f).forEach(k => delete UI.f[k]); Object.assign(UI.f, f0); }
 }
 import { registro } from '../conti/tabelle.js';
@@ -174,6 +188,7 @@ async function catTutte(desc, cat) {
 }
 
 export async function onAct(a, b, d) {
+  if (/^c-p[A-Z]/.test(a)) return personaleAct(a, b, d, rerender);
   switch (a) {
     case 'tsort': ordina(d.id, d.k); return rerender();
     case 'texp': try { await esporta(d.ids.split(','), d.nome, d.fmt); } catch (e) { toast(e.message, 'err'); } return;
@@ -203,6 +218,7 @@ function leggiRegoleConVuote() { return $$('#regForm tbody tr').map(tr => [tr.qu
 export async function onChange(t) {
   const a = t.dataset.act;
   if (a === 'c-files' && t.files.length) { const fs = [...t.files]; t.value = ''; return leggiFiles(fs); }
+  if (/^c-p[A-Z]/.test(a || '')) return personaleChange(t, rerender);
   if (a === 'c-cat') return salvaCategoria(t.dataset.fid, +t.dataset.i, t.value.trim(), t);
   if (a === 'c-impAnno') { const x = IMP.ris[+t.dataset.k]; if (x) x.anno = +t.value || null; return; }
   if (a === 'c-conto') { const cu = Object.assign({}, cfg().contiUtente || {}); cu[t.dataset.conto] = +t.value; await salvaCfg({ contiUtente: cu }); const { riabbinaBilancino } = await import('../conti/importa.js'); for (const y of anniBilancio()) await riabbinaBilancino(y); return toast('Abbinamento salvato e applicato ai bilancini'); }

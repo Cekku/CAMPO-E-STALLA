@@ -1,0 +1,298 @@
+// Personale: cedolini, bilancini paghe e pagamenti; quanto è dovuto a ogni dipendente, verifica dei pagamenti e controlli
+import { S } from '../state.js';
+import * as store from '../store.js';
+import { N, okD, today, addDays, diff } from '../util.js';
+import { MESI_NOMI } from './paghe-parse.js';
+
+const r2 = v => Math.round(v * 100) / 100;
+export const periodo = (anno, mese) => `${anno}-${String(mese).padStart(2, '0')}`;
+export const nomeMese = p => { const [y, m] = p.split('-').map(Number); return (m === 13 ? 'Tredicesima' : m === 14 ? 'Quattordicesima' : MESI_NOMI[m - 1]) + ' ' + y; };
+export const meseCorto = p => { const [y, m] = p.split('-').map(Number); return (m > 12 ? (m === 13 ? '13ª' : '14ª') : MESI_NOMI[m - 1].slice(0, 3)) + ' ' + String(y).slice(2); };
+const slug = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+export const chiaveDip = c => c.cf && /^[A-Z0-9]{16}$/.test(c.cf) ? c.cf : 'N-' + slug(c.nome);
+// fine del periodo: la tredicesima si paga a dicembre, la quattordicesima a giugno/luglio
+const finePeriodo = p => { const [y, m] = p.split('-').map(Number); const mm = m === 13 ? 12 : m === 14 ? 6 : m; return addDays(`${mm === 12 ? y + 1 : y}-${String(mm === 12 ? 1 : mm + 1).padStart(2, '0')}-01`, -1); };
+const inizioPeriodo = p => { const [y, m] = p.split('-').map(Number); const mm = m === 13 ? 12 : m === 14 ? 6 : m; return `${y}-${String(mm).padStart(2, '0')}-01`; };
+const meseSucc = p => { const [y, m] = p.split('-').map(Number); return m >= 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`; };
+const mesePrec = p => { const [y, m] = p.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`; };
+
+export const TIPI_PAG = { stipendio: 'Stipendio', f24: 'F24 (ritenute IRPEF)', contributi: 'Contributi INPS agricoli', fondo: 'Fondo pensione (TFR)', altro: 'Altro' };
+export const MODALITA = { bonifico: 'Bonifico', assegno: 'Assegno', contanti: 'Contanti', carta: 'Carta / altro mezzo tracciabile' };
+export const cfgPaghe = () => Object.assign({ giornoStipendi: 20, giornoF24: 16 }, ((S.econfig.find(x => x.id === 'cfg') || {}).paghe) || {});
+
+/* ---------------- memoria dei calcoli ---------------- */
+let C = null, CK = [];
+function dati() {
+  if (C && CK[0] === S.paghe && CK[1] === S.pagamenti && CK[2] === S.econfig) return C;
+  CK = [S.paghe, S.pagamenti, S.econfig]; C = calcola(); return C;
+}
+export const cedolini = () => dati().ced;
+export const bilanciniPaghe = () => dati().bil;
+export const dipendenti = () => dati().dip;
+export const verifica = () => dati().ver;
+export const anomalie = () => dati().ano;
+export const periodi = () => dati().per;
+export const pagamenti = () => dati().pag;
+export const anniPaghe = () => [...new Set(dati().per.map(p => +p.slice(0, 4)))].sort();
+
+function calcola() {
+  const ced = S.paghe.filter(x => x.tipo === 'cedolino').map(c => Object.assign({}, c, { periodo: periodo(c.anno, c.mese), dip: c.dip || chiaveDip(c) })).sort((a, b) => a.periodo.localeCompare(b.periodo) || (a.nome || '').localeCompare(b.nome || ''));
+  const bil = S.paghe.filter(x => x.tipo === 'bilancino').map(b => Object.assign({}, b, { periodo: periodo(b.anno, b.mese) })).sort((a, b) => a.periodo.localeCompare(b.periodo));
+  const tot = S.paghe.filter(x => x.tipo === 'totali').map(b => Object.assign({}, b, { periodo: periodo(b.anno, b.mese) }));
+  const extra = new Map(S.paghe.filter(x => x.tipo === 'dipendente').map(x => [x.dip, x]));
+  const per = [...new Set([...ced.map(c => c.periodo), ...bil.map(b => b.periodo)])].sort();
+  // anagrafica dall'ultimo cedolino
+  const dip = new Map();
+  for (const c of ced) {
+    const d = dip.get(c.dip) || { key: c.dip, ced: [], primo: c.periodo };
+    Object.assign(d, { nome: c.nome, cf: c.cf, matricola: c.matricola, qualifica: c.qualifica, mansione: c.mansione, livello: c.livello, assunzione: c.assunzione, scadTD: c.scadTD, scadPermesso: c.scadPermesso, cessazione: c.cessazione, nascita: c.nascita, ultimo: c.periodo, ferie: c.ferie, permessi: c.permessi });
+    d.ced.push(c); dip.set(c.dip, d);
+  }
+  for (const d of dip.values()) { const e = extra.get(d.key) || {}; d.alias = e.alias || ''; d.nota = e.nota || ''; d.td = /T\.?DET|\bTD\b|OTD|STAGION/i.test(d.qualifica || '') || !!d.scadTD; }
+  const pag = [...S.pagamenti].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+  const ver = abbina(ced, pag);
+  const ano = controlli(ced, bil, tot, pag, ver, dip, per);
+  for (const d of dip.values()) {
+    const v = ver.filter(x => x.dip === d.key);
+    Object.assign(d, { mesi: d.ced.length, ore: r2(d.ced.reduce((t, c) => t + N(c.ore), 0)), lordo: r2(d.ced.reduce((t, c) => t + N(c.lordo), 0)), netto: r2(d.ced.reduce((t, c) => t + N(c.netto), 0)), irpef: r2(d.ced.reduce((t, c) => t + N(c.irpef), 0)), ritPrev: r2(d.ced.reduce((t, c) => t + N(c.ritPrev), 0)), pagato: r2(v.reduce((t, x) => t + x.pagato, 0)), dovuto: r2(v.reduce((t, x) => t + x.dovuto, 0)) });
+    d.saldo = r2(d.dovuto - d.pagato);
+    d.anomalie = ano.filter(a => a.dip === d.key);
+    d.stato = d.cessazione && d.cessazione < today() ? 'Cessato' : d.scadTD && d.scadTD < today() ? 'Termine scaduto' : 'In forza';
+  }
+  return { ced, bil, tot, per, dip: [...dip.values()].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')), pag, ver, ano };
+}
+
+/* ---------------- abbinamento dei pagamenti agli stipendi ---------------- */
+// Ogni pagamento di stipendio va al mese indicato; se il mese non è indicato, al mese più vecchio non ancora saldato
+// (non successivo alla data del pagamento). Quello che avanza resta come pagamento in più.
+function abbina(ced, pag) {
+  const righe = ced.map(c => ({ dip: c.dip, nome: c.nome, periodo: c.periodo, dovuto: r2(N(c.netto)), pagato: 0, pag: [], cid: c.id }));
+  const per = (d, p) => righe.find(r => r.dip === d && r.periodo === p);
+  const extra = [];
+  for (const p of pag.filter(p => p.tipo === 'stipendio' && p.dip)) {
+    let resto = r2(N(p.importo));
+    const metti = (r, v) => { r.pagato = r2(r.pagato + v); r.pag.push({ id: p.id, data: p.data, importo: v, modalita: p.modalita, tot: N(p.importo) }); resto = r2(resto - v); };
+    if (p.comp) { const r = per(p.dip, p.comp); if (r) metti(r, resto); else extra.push({ dip: p.dip, nome: '', periodo: p.comp, dovuto: 0, pagato: resto, pag: [{ id: p.id, data: p.data, importo: resto, modalita: p.modalita, tot: N(p.importo) }], senzaCedolino: true }); continue; }
+    const aperte = righe.filter(r => r.dip === p.dip && inizioPeriodo(r.periodo) <= (p.data || '9999') && r.pagato < r.dovuto - 0.005);
+    // prima il mese con lo stesso importo, poi il più vecchio
+    const esatta = aperte.find(r => Math.abs(r.dovuto - r.pagato - resto) < 0.01);
+    for (const r of esatta ? [esatta] : aperte) { if (resto <= 0.005) break; metti(r, Math.min(resto, r2(r.dovuto - r.pagato))); }
+    if (resto > 0.005) {
+      const ult = righe.filter(r => r.dip === p.dip && inizioPeriodo(r.periodo) <= (p.data || '9999')).pop();
+      if (ult) metti(ult, resto);
+      else extra.push({ dip: p.dip, nome: '', periodo: (p.data || '').slice(0, 7), dovuto: 0, pagato: resto, pag: [{ id: p.id, data: p.data, importo: resto, modalita: p.modalita, tot: N(p.importo) }], senzaCedolino: true });
+    }
+  }
+  const g = cfgPaghe().giornoStipendi;
+  const out = [...righe, ...extra].map(r => {
+    const diffV = r2(r.dovuto - r.pagato);
+    const scad = `${meseSucc(r.periodo.slice(5) > '12' ? r.periodo.slice(0, 4) + '-12' : r.periodo)}-${String(Math.min(28, g)).padStart(2, '0')}`;
+    const ultimo = r.pag.map(x => x.data).sort().pop() || null;
+    let stato;
+    if (r.senzaCedolino || (r.dovuto === 0 && r.pagato > 0)) stato = 'senza cedolino';
+    else if (Math.abs(diffV) < 0.01) stato = 'pagato';
+    else if (diffV < 0) stato = 'pagato in più';
+    else if (r.pagato > 0) stato = 'pagato in parte';
+    else stato = today() > scad ? 'non pagato' : 'da pagare';
+    return Object.assign(r, { differenza: diffV, scadenza: scad, ultimo, stato, ritardo: ultimo && ultimo > scad ? diff(scad, ultimo) : stato === 'non pagato' ? diff(scad, today()) : 0 });
+  });
+  return out.sort((a, b) => a.periodo.localeCompare(b.periodo) || (a.nome || '').localeCompare(b.nome || ''));
+}
+
+/* ---------------- controlli e irregolarità ---------------- */
+function controlli(ced, bil, tot, pag, ver, dip, per) {
+  const A = []; const add = (liv, testo, det, o = {}) => A.push(Object.assign({ liv, testo, det }, o));
+  const t = today(); const eu = v => Number(v).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  // cedolini: controlli interni
+  for (const c of ced) {
+    for (const k of (c.controlli || []).filter(k => k.esito !== 'OK')) add('warn', `Cedolino di ${c.nome}, ${nomeMese(c.periodo)}: ${k.d.toLowerCase()}`, k.esito, { dip: c.dip, periodo: c.periodo });
+    if (N(c.netto) <= 0) add('err', `Netto a zero o negativo per ${c.nome} a ${nomeMese(c.periodo)}`, 'Controlla il cedolino con il consulente del lavoro.', { dip: c.dip, periodo: c.periodo });
+    const fine = finePeriodo(c.periodo), ini = inizioPeriodo(c.periodo);
+    if (c.scadTD && c.scadTD < ini && !c.cessazione) add('err', `Contratto a termine scaduto: ${c.nome}`, `Il termine era il ${c.scadTD.split('-').reverse().join('/')}, ma c'è il cedolino di ${nomeMese(c.periodo)}. Serve una proroga o una trasformazione a tempo indeterminato.`, { dip: c.dip, periodo: c.periodo });
+    if (c.scadPermesso && c.scadPermesso < fine) add('warn', `Permesso di soggiorno scaduto: ${c.nome}`, `Scadenza indicata sul cedolino di ${nomeMese(c.periodo)}: ${c.scadPermesso.split('-').reverse().join('/')}. Verifica di avere la ricevuta della domanda di rinnovo e fai aggiornare la data al consulente.`, { dip: c.dip, periodo: c.periodo });
+  }
+  // stesso dipendente, permesso o termine in scadenza nei prossimi 60 giorni (dall'ultimo cedolino)
+  for (const d of dip.values()) {
+    if (d.cessazione && d.cessazione < t) continue;
+    if (d.scadTD && d.scadTD >= t && diff(t, d.scadTD) <= 45) add('info', `Contratto a termine in scadenza: ${d.nome}`, `Termine il ${d.scadTD.split('-').reverse().join('/')}: decidi se prorogare.`, { dip: d.key });
+    if (d.scadPermesso && d.scadPermesso >= t && diff(t, d.scadPermesso) <= 60) add('info', `Permesso di soggiorno in scadenza: ${d.nome}`, `Scade il ${d.scadPermesso.split('-').reverse().join('/')}.`, { dip: d.key });
+    // mesi mancanti: dipendente presente prima e dopo, ma non in un mese caricato
+    const suoi = new Set(d.ced.map(c => c.periodo));
+    const mesiNorm = per.filter(p => +p.slice(5) <= 12 && p >= d.primo && p <= d.ultimo);
+    for (const p of mesiNorm) if (!suoi.has(p) && ced.some(c => c.periodo === p)) add('warn', `Manca il cedolino di ${d.nome} per ${nomeMese(p)}`, 'Il dipendente ha cedolini prima e dopo questo mese. Se era in aspettativa o non ha lavorato, ignora l\'avviso.', { dip: d.key, periodo: p });
+  }
+  // pagamenti degli stipendi
+  for (const v of ver) {
+    const nome = (dip.get(v.dip) || {}).nome || v.nome || 'dipendente';
+    if (v.stato === 'non pagato') add('err', `Stipendio non pagato: ${nome}, ${nomeMese(v.periodo)}`, `Netto ${eu(v.dovuto)}, scadenza ${v.scadenza.split('-').reverse().join('/')}.`, { dip: v.dip, periodo: v.periodo, ver: true });
+    if (v.stato === 'pagato in parte') add('warn', `Stipendio pagato in parte: ${nome}, ${nomeMese(v.periodo)}`, `Netto ${eu(v.dovuto)}, pagato ${eu(v.pagato)}: mancano ${eu(v.differenza)}.`, { dip: v.dip, periodo: v.periodo, ver: true });
+    if (v.stato === 'pagato in più') add('warn', `Pagato più del netto: ${nome}, ${nomeMese(v.periodo)}`, `Netto ${eu(v.dovuto)}, pagato ${eu(v.pagato)} (${eu(-v.differenza)} in più). Se era un anticipo del mese dopo, indica il mese sul pagamento.`, { dip: v.dip, periodo: v.periodo, ver: true });
+    if (v.stato === 'senza cedolino') add('warn', `Pagamento senza cedolino: ${nome}, ${nomeMese(v.periodo)}`, `${eu(v.pagato)} pagati, ma non c'è un cedolino per quel mese.`, { dip: v.dip, periodo: v.periodo, ver: true });
+    if (v.ultimo && v.ritardo > 0 && v.stato !== 'non pagato') add('info', `Stipendio pagato in ritardo: ${nome}, ${nomeMese(v.periodo)}`, `Pagato il ${v.ultimo.split('-').reverse().join('/')}, ${v.ritardo} giorni dopo il giorno ${cfgPaghe().giornoStipendi} del mese successivo.`, { dip: v.dip, periodo: v.periodo });
+  }
+  for (const p of pag) {
+    if (p.tipo === 'stipendio' && p.modalita === 'contanti') add('err', `Stipendio pagato in contanti: ${(dip.get(p.dip) || {}).nome || ''} il ${(p.data || '').split('-').reverse().join('/')}`, 'Dal 1° luglio 2018 retribuzioni e anticipi si pagano solo con mezzi tracciabili (bonifico, assegno, pagamento elettronico): legge 205/2017, sanzione da 1.000 a 5.000 €.', { dip: p.dip, pid: p.id });
+    if (p.tipo === 'stipendio' && !p.dip) add('warn', 'Pagamento di stipendio senza dipendente', `${eu(N(p.importo))} del ${(p.data || '').split('-').reverse().join('/')}: indica a chi è andato.`, { pid: p.id });
+  }
+  // doppioni: stesso giorno, stesso importo, stesso dipendente
+  const visti = new Map(); for (const p of pag) { const k = [p.tipo, p.dip, p.data, r2(N(p.importo))].join('|'); if (visti.has(k)) add('warn', 'Pagamento registrato due volte?', `${eu(N(p.importo))} il ${(p.data || '').split('-').reverse().join('/')}${p.dip ? ' a ' + ((dip.get(p.dip) || {}).nome || '') : ''}: ci sono due movimenti uguali.`, { pid: p.id, dip: p.dip }); else visti.set(k, p); }
+  // bilancino contro cedolini
+  for (const b of bil) {
+    const cs = ced.filter(c => c.periodo === b.periodo);
+    if (!cs.length) { add('warn', `Bilancino paghe di ${nomeMese(b.periodo)} senza cedolini`, 'Carica il PDF dei cedolini del mese per avere il dettaglio per dipendente e controllare i pagamenti.', { periodo: b.periodo }); continue; }
+    const sL = r2(cs.reduce((t, c) => t + N(c.lordo), 0)), sN = r2(cs.reduce((t, c) => t + N(c.netto), 0));
+    if (Math.abs(sL - N(b.lordo)) > 0.05) add('warn', `${nomeMese(b.periodo)}: i lordi dei cedolini non tornano con il bilancino`, `Cedolini ${eu(sL)}, bilancino ${eu(N(b.lordo))}. Forse manca un cedolino.`, { periodo: b.periodo });
+    if (Math.abs(sN - N(b.netto)) > 0.05) add('warn', `${nomeMese(b.periodo)}: i netti dei cedolini non tornano con il bilancino`, `Cedolini ${eu(sN)}, netto pagato nel bilancino ${eu(N(b.netto))}.`, { periodo: b.periodo });
+    for (const k of (b.controlli || []).filter(k => k.esito !== 'OK')) add('warn', `Bilancino paghe di ${nomeMese(b.periodo)}: ${k.d.toLowerCase()}`, k.esito, { periodo: b.periodo });
+  }
+  for (const p of [...new Set(ced.map(c => c.periodo))]) if (!bil.some(b => b.periodo === p)) add('info', `Manca il bilancino paghe di ${nomeMese(p)}`, 'Senza bilancino non si conoscono i contributi a carico dell\'azienda e il costo totale del mese.', { periodo: p });
+  for (const tt of tot) { const cs = ced.filter(c => c.periodo === tt.periodo); const sN = r2(cs.reduce((t, c) => t + N(c.netto), 0)); if (tt.netto != null && Math.abs(sN - tt.netto) > 0.05) add('warn', `${nomeMese(tt.periodo)}: mancano cedolini rispetto ai totali generali`, `Somma dei netti ${eu(sN)}, totale generale ${eu(tt.netto)}${tt.dipendenti ? ` (${tt.dipendenti} dipendenti)` : ''}.`, { periodo: tt.periodo }); }
+  // versamenti: F24 delle ritenute entro il 16 del mese dopo, contributi agricoli per trimestre
+  for (const v of versamenti(bil, pag)) {
+    if (v.stato === 'non pagato') add('err', `${v.tipoNome} di ${v.nome} non registrato`, `Dovuti ${eu(v.dovuto)} entro il ${v.scadenza.split('-').reverse().join('/')}. Se l'hai pagato, registra il pagamento.`, { periodo: v.periodo, vers: true });
+    else if (v.stato === 'pagato in parte') add('warn', `${v.tipoNome} di ${v.nome} pagato in parte`, `Dovuti ${eu(v.dovuto)}, registrati ${eu(v.pagato)}.`, { periodo: v.periodo, vers: true });
+    else if (v.ritardo > 0) add('info', `${v.tipoNome} di ${v.nome} pagato in ritardo`, `Pagato il ${v.ultimo.split('-').reverse().join('/')}, scadenza ${v.scadenza.split('-').reverse().join('/')}: verifica il ravvedimento.`, { periodo: v.periodo });
+  }
+  const ord = { err: 0, warn: 1, info: 2 };
+  return A.sort((a, b) => ord[a.liv] - ord[b.liv] || String(b.periodo || '').localeCompare(String(a.periodo || '')));
+}
+
+/** Versamenti dovuti (F24 mensile delle ritenute, contributi agricoli per trimestre, TFR al fondo) e pagamenti registrati. */
+export function versamenti(bil = bilanciniPaghe(), pag = pagamenti()) {
+  const out = []; const g = cfgPaghe().giornoF24; const t = today();
+  // F24: ritenute IRPEF e addizionali del mese, entro il 16 del mese successivo
+  for (const b of bil) if (N(b.irpef) > 0) out.push({ tipo: 'f24', tipoNome: 'F24 ritenute', periodo: b.periodo, nome: nomeMese(b.periodo), dovuto: r2(N(b.irpef)), scadenza: `${meseSucc(b.periodo)}-${String(g).padStart(2, '0')}` });
+  // contributi agricoli (operai): l'INPS li chiede per trimestre; scadenze 16/9, 16/12, 16/3, 16/6
+  const trim = new Map();
+  for (const b of bil) { const [y, m] = b.periodo.split('-').map(Number); if (m > 12) continue; const q = Math.ceil(m / 3); const k = `${y}-T${q}`; const o = trim.get(k) || { tipo: 'contributi', tipoNome: 'Contributi INPS agricoli', periodo: k, nome: `${q}° trimestre ${y}`, dovuto: 0, mesi: [] }; o.dovuto = r2(o.dovuto + N(b.contribDebito)); o.mesi.push(b.periodo); trim.set(k, o); }
+  const SC = { 1: [0, '09-16'], 2: [0, '12-16'], 3: [1, '03-16'], 4: [1, '06-16'] };
+  for (const o of trim.values()) { if (!o.dovuto) continue; const [y, q] = [+o.periodo.slice(0, 4), +o.periodo.slice(-1)]; o.scadenza = `${y + SC[q][0]}-${SC[q][1]}`; out.push(o); }
+  // TFR al fondo pensione: per trimestre
+  const fondo = new Map();
+  for (const b of bil) { if (!N(b.tfrFpc)) continue; const [y, m] = b.periodo.split('-').map(Number); const q = Math.ceil(Math.min(m, 12) / 3); const k = `${y}-T${q}`; const o = fondo.get(k) || { tipo: 'fondo', tipoNome: 'TFR al fondo pensione', periodo: k, nome: `${q}° trimestre ${y}`, dovuto: 0 }; o.dovuto = r2(o.dovuto + N(b.tfrFpc)); fondo.set(k, o); }
+  for (const o of fondo.values()) { const [y, q] = [+o.periodo.slice(0, 4), +o.periodo.slice(-1)]; o.scadenza = q === 4 ? `${y + 1}-01-20` : `${y}-${String(q * 3 + 1).padStart(2, '0')}-20`; out.push(o); }
+  // abbinamento: pagamento con periodo indicato, altrimenti il più vecchio aperto dello stesso tipo
+  for (const o of out) Object.assign(o, { pagato: 0, pag: [] });
+  for (const p of pag.filter(p => ['f24', 'contributi', 'fondo'].includes(p.tipo)).sort((a, b) => (a.data || '').localeCompare(b.data || ''))) {
+    let resto = r2(N(p.importo)); const metti = (o, v) => { o.pagato = r2(o.pagato + v); o.pag.push({ id: p.id, data: p.data, importo: v }); resto = r2(resto - v); };
+    const stessi = out.filter(o => o.tipo === p.tipo);
+    if (p.comp) { const o = stessi.find(o => o.periodo === p.comp); if (o) { metti(o, resto); continue; } }
+    const aperte = stessi.filter(o => o.pagato < o.dovuto - 0.005).sort((a, b) => a.scadenza.localeCompare(b.scadenza));
+    const esatta = aperte.find(o => Math.abs(o.dovuto - o.pagato - resto) < 0.01);
+    for (const o of esatta ? [esatta] : aperte) { if (resto <= 0.005) break; metti(o, Math.min(resto, r2(o.dovuto - o.pagato))); }
+    if (resto > 0.005 && stessi.length) metti(stessi[stessi.length - 1], resto);
+  }
+  for (const o of out) {
+    o.differenza = r2(o.dovuto - o.pagato); o.ultimo = o.pag.map(x => x.data).sort().pop() || null;
+    // il dovuto F24 è solo la parte stipendi: se si paga di più (altri tributi nello stesso F24) va bene
+    o.stato = o.pagato >= o.dovuto - 0.01 ? (o.tipo !== 'f24' && o.pagato > o.dovuto + 0.01 ? 'pagato in più' : 'pagato') : o.pagato > 0 ? 'pagato in parte' : t > o.scadenza ? 'non pagato' : 'da pagare';
+    o.ritardo = o.ultimo && o.ultimo > o.scadenza ? diff(o.scadenza, o.ultimo) : 0;
+  }
+  return out.sort((a, b) => a.scadenza.localeCompare(b.scadenza));
+}
+
+/* ---------------- costi per il conto economico ---------------- */
+/** Costi del personale di un anno dalle paghe: { salari, oneri, tfr, mesi, fonte } o null. */
+export function costiAnno(y) {
+  const bs = bilanciniPaghe().filter(b => b.anno === y);
+  if (bs.length) return { salari: r2(bs.reduce((t, b) => t + N(b.lordo), 0)), oneri: r2(bs.reduce((t, b) => t + N(b.contribDitta), 0)), tfr: r2(bs.reduce((t, b) => t + N(b.tfrFpc), 0)), costo: r2(bs.reduce((t, b) => t + N(b.costo), 0)), mesi: new Set(bs.map(b => Math.min(12, b.mese))).size, fonte: 'bilancini paghe' };
+  const cs = cedolini().filter(c => c.anno === y);
+  if (cs.length) return { salari: r2(cs.reduce((t, c) => t + N(c.lordo), 0)), oneri: null, tfr: r2(cs.reduce((t, c) => t + N(c.tfrFondo), 0)), costo: null, mesi: new Set(cs.map(c => Math.min(12, c.mese))).size, fonte: 'cedolini' };
+  return null;
+}
+
+/* ---------------- salvataggio ---------------- */
+export async function salvaCedolini(x) {
+  const rows = []; const nuovi = [], sostituiti = [];
+  const presenti = new Set(S.paghe.map(p => p.id));
+  for (const c of x.cedolini) {
+    const dip = chiaveDip(c); const id = `c-${periodo(c.anno, c.mese)}-${dip}`;
+    (presenti.has(id) ? sostituiti : nuovi).push(c.nome);
+    rows.push({ col: 'paghe', id, data: Object.assign({ tipo: 'cedolino', dip, file: x.nome, caricato: today() }, c) });
+  }
+  if (x.totali) rows.push({ col: 'paghe', id: `t-${periodo(x.totali.anno, x.totali.mese)}`, data: Object.assign({ tipo: 'totali', file: x.nome }, x.totali) });
+  if (rows.length) await store.bulkPut(rows);
+  return { nuovi: nuovi.length, sostituiti: sostituiti.length };
+}
+export async function salvaBilancinoPaghe(x) {
+  const { voci, ...b } = x.bil;
+  await store.put('paghe', `b-${periodo(b.anno, b.mese)}`, Object.assign({ tipo: 'bilancino', file: x.nome, caricato: today(), voci }, b));
+}
+
+/* ---------------- movimenti bancari (CSV o Excel della banca) ---------------- */
+const parseImp = s => { if (typeof s === 'number') return s; s = String(s ?? '').trim().replace(/\s|€|EUR/gi, ''); if (!s) return null; let neg = false; if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); } if (/-$/.test(s)) { neg = true; s = s.slice(0, -1); } if (/^[+-]/.test(s)) { neg = s[0] === '-'; s = s.slice(1); } if (s.includes(',') && s.includes('.')) s = s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, ''); else if (s.includes(',')) s = s.replace(',', '.'); else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); const v = parseFloat(s); return isFinite(v) ? (neg ? -v : v) : null; };
+const parseData = v => {
+  if (typeof v === 'number' && v > 20000 && v < 80000) return new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 864e5).toISOString().slice(0, 10);
+  const s = String(v ?? '').trim(); let m;
+  if ((m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/.exec(s))) { const y = m[3].length === 2 ? '20' + m[3] : m[3]; return `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`; }
+  if ((m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s))) return `${m[1]}-${m[2]}-${m[3]}`;
+  return null;
+};
+function splitCsv(txt) {
+  const prima = txt.split(/\r?\n/).slice(0, 20).join('\n');
+  const sep = [';', '\t', ',', '|'].map(c => [c, (prima.match(new RegExp(c === '|' ? '\\|' : c, 'g')) || []).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = []; let r = [], f = '', q = false;
+  for (let i = 0; i < txt.length; i++) {
+    const ch = txt[i];
+    if (q) { if (ch === '"') { if (txt[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += ch; continue; }
+    if (ch === '"') q = true; else if (ch === sep) { r.push(f); f = ''; } else if (ch === '\n' || ch === '\r') { if (ch === '\r' && txt[i + 1] === '\n') i++; r.push(f); rows.push(r); r = []; f = ''; } else f += ch;
+  }
+  if (f || r.length) { r.push(f); rows.push(r); }
+  return rows.filter(r => r.some(x => String(x).trim()));
+}
+/** Estrae i movimenti in uscita da una tabella di righe (intestazione riconosciuta da sola). */
+export function movimentiDaRighe(rows) {
+  const low = r => r.map(x => String(x ?? '').toLowerCase().trim());
+  const hi = rows.slice(0, 40).findIndex(r => { const l = low(r); return l.some(x => /^data|data (contabile|operazione|valuta)/.test(x)) && l.some(x => /importo|uscit|dare|addebit|avere|entrat|accredit|ammontare/.test(x)); });
+  if (hi < 0) throw new Error('Non trovo le colonne: servono almeno "Data" e "Importo" (oppure "Uscite"/"Dare").');
+  const h = low(rows[hi]);
+  const iData = h.findIndex(x => /data (contabile|operazione)/.test(x)) >= 0 ? h.findIndex(x => /data (contabile|operazione)/.test(x)) : h.findIndex(x => /^data/.test(x));
+  const iUsc = h.findIndex(x => /uscit|^dare|addebit/.test(x)), iEnt = h.findIndex(x => /entrat|^avere|accredit/.test(x)), iImp = h.findIndex(x => /importo|ammontare/.test(x));
+  const iDesc = h.map((x, i) => (/descri|causal|benefic|dettagl|operazion|note|ordinante|controparte|motivo/.test(x) && i !== iData && !/^data/.test(x) ? i : -1)).filter(i => i >= 0);
+  const out = [];
+  for (const r of rows.slice(hi + 1)) {
+    const data = parseData(r[iData]); if (!data) continue;
+    let v = null;
+    if (iUsc >= 0) { const u = parseImp(r[iUsc]); if (u) v = Math.abs(u); else continue; }
+    else if (iImp >= 0) { const x = parseImp(r[iImp]); if (x == null || x >= 0) continue; v = -x; }
+    if (!v) continue;
+    out.push({ data, importo: r2(v), descrizione: iDesc.map(i => String(r[i] ?? '').trim()).filter(Boolean).join(' · ').replace(/\s+/g, ' ') });
+  }
+  return out;
+}
+export async function leggiMovimenti(nome, bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (b[0] === 0x50 && b[1] === 0x4b) {
+    const { leggiXlsx } = await import('./xlsx.js');
+    const W = await leggiXlsx(b); let err;
+    for (const sh of Object.values(W)) {
+      const rows = []; for (const [ref, v] of Object.entries(sh)) { const m = /^([A-Z]+)(\d+)$/.exec(ref); if (!m) continue; const ci = [...m[1]].reduce((t, c) => t * 26 + c.charCodeAt(0) - 64, 0) - 1; const ri = +m[2] - 1; (rows[ri] = rows[ri] || [])[ci] = v; }
+      try { const mv = movimentiDaRighe(rows.filter(Boolean).map(r => Array.from(r, x => x ?? ''))); if (mv.length) return mv; } catch (e) { err = e; }
+    }
+    throw err || new Error('Nessun movimento in uscita trovato nel file Excel.');
+  }
+  let txt = new TextDecoder('utf-8').decode(b); if (txt.includes('�')) txt = new TextDecoder('windows-1252').decode(b);
+  return movimentiDaRighe(splitCsv(txt.replace(/^﻿/, '')));
+}
+/** Riconosce dalla descrizione a chi o a cosa va un movimento. */
+export function riconosci(m, dips = dipendenti()) {
+  const d = ' ' + String(m.descrizione || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ') + ' ';
+  const parole = n => String(n || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(w => w.length > 1);
+  let best = null, bs = 0;
+  for (const p of dips) {
+    const nomi = [parole(p.nome), ...String(p.alias || '').split(',').map(parole).filter(x => x.length)];
+    for (const ws of nomi) {
+      const hit = ws.filter(w => d.includes(' ' + w + ' ')).length;
+      const sc = hit === ws.length ? 10 + hit : hit >= 2 ? hit : 0;
+      if (sc > bs) { bs = sc; best = p; }
+    }
+  }
+  if (best) return { tipo: 'stipendio', dip: best.key };
+  if (/\bF24\b|DELEGA|AGENZIA ENTRATE|TRIBUT/.test(d)) return { tipo: 'f24' };
+  if (/\bINPS\b|CONTRIBUT|PAGOPA.*INPS/.test(d)) return { tipo: 'contributi' };
+  if (/FONDO PENS|PREVID|ALLEATA|\bTFR\b/.test(d)) return { tipo: 'fondo' };
+  if (/STIPEND|SALARI|EMOLUM|RETRIBUZ|BUSTA PAGA/.test(d)) return { tipo: 'stipendio' };
+  return null;
+}
+export const idPagamento = p => { const k = [p.data, r2(N(p.importo)), String(p.descrizione || '').slice(0, 80)].join('|'); let h = 0x811c9dc5; for (let i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return 'p' + h.toString(36); };
+export { mesePrec, meseSucc, inizioPeriodo, finePeriodo };

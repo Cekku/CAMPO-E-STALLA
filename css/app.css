@@ -1050,7 +1050,19 @@ select.cell-in { text-align: left; font-family: var(--f-body); width: 100%; min-
 .note-box.warn { background: var(--warn-soft); } .note-box.bad { background: var(--bad-soft); }
 .note-box .ic { flex: none; margin-top: 2px; }
 .esito { display: inline-flex; align-items: center; gap: 5px; font-family: var(--f-body); font-weight: 650; font-size: 13px; }
-.esito.ok { color: var(--ok); } .esito.ko { color: var(--bad); } .esito.wa { color: var(--warn); }
+.esito.ok { color: var(--ok); } .esito.ko { color: var(--bad); } .esito.wa { color: var(--warn); } .esito.muted { color: var(--muted); }
+/* personale: matrice dei pagamenti */
+.pmat table { border-collapse: separate; border-spacing: 3px; width: auto; }
+.pmat td.t { min-width: 200px; }
+.pmat th { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding: 4px 6px; white-space: nowrap; }
+.pmat th.t, .pmat td.t { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; padding-left: 14px; white-space: nowrap; }
+.pmat td.pm-c { padding: 0; min-width: 76px; }
+.pm { display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: 100%; border: 0; border-radius: 8px; padding: 7px 6px; font: 650 12.5px/1 var(--f-body); font-variant-numeric: tabular-nums; background: var(--sunk); color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+.pm .ic { width: 14px; height: 14px; flex: none; }
+.pm.ok { background: var(--ok-soft); color: var(--ok); } .pm.wa { background: var(--warn-soft); color: var(--warn); } .pm.ko { background: var(--bad-soft); color: var(--bad); } .pm.nd { background: var(--sunk); color: var(--muted); }
+.pm-leg { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 16px 16px; } .pm-leg .pm { width: auto; cursor: default; padding: 5px 9px; }
+.btns.nowrap { flex-wrap: nowrap; align-items: center; gap: 4px; }
+.sheet-h { font-size: 15px; margin: 16px 0 6px; }
 .mini-tabs { display: inline-flex; background: var(--sunk); border-radius: 10px; padding: 3px; gap: 2px; }
 .mini-tabs button { border: 0; background: none; padding: 6px 12px; border-radius: 8px; font-weight: 650; font-size: 13.5px; color: var(--muted); }
 .mini-tabs button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
@@ -1081,3 +1093,4 @@ html.app-locked .shell, html.app-locked #sheet, html.app-locked #toast { visibil
 .lock-forgot { font-size: 13.5px; color: var(--muted); width: 100%; }
 .lock-forgot summary { cursor: pointer; padding: 6px; }
 .lock-forgot p { margin: 6px 0 10px; text-align: left; }
+@media (max-width: 640px) { .alert:has(> .btns.nowrap) { grid-template-columns: 38px minmax(0, 1fr); align-items: start; } .alert > .btns.nowrap { grid-column: 2; justify-content: flex-start; margin-top: -4px; } }

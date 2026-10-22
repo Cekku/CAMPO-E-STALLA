@@ -5,8 +5,9 @@ import { campoHa, cropOf } from '../domain.js';
 import { REGOLE_PREDEFINITE, RETTIFICA, CAT_RETTIFICA, CAT_LATTE, CAT_PREMI, DA_CLASSIFICARE } from './regole.js';
 import { calcolaAnno, indici } from './schema.js';
 import { DATI, calcolaParametri } from './analisi.js';
+import { costiAnno } from './paghe.js';
 
-export const RISERVATE = ['fatture', 'bilanci', 'econfig'];
+export const RISERVATE = ['fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti'];
 export const cfg = () => S.econfig.find(x => x.id === 'cfg') || {};
 export const regole = () => (cfg().regole && cfg().regole.length ? cfg().regole : REGOLE_PREDEFINITE);
 export const pivaPropria = () => { const c = cfg(); const a = String(azienda().iva || '').replace(/\D/g, ''); return c.piva || (a.length >= 11 ? a.slice(-11) : ''); };
@@ -36,7 +37,16 @@ export const righe = () => memo('righe', [S.fatture], () => {
 export const anniFatture = () => memo('anniF', [S.fatture], () => [...new Set(fatture().map(f => f.anno).filter(Boolean))].sort());
 export const bilancio = y => S.bilanci.find(b => b.id === String(y)) || null;
 export const anniBilancio = () => memo('anniB', [S.bilanci], () => S.bilanci.map(b => +b.id).filter(Boolean).sort());
-export const calc = y => memo('calc' + y, [S.bilanci], () => calcolaAnno(bilancio(y) || {}));
+/** Conto economico dell'anno; se B.9 è vuoto e ci sono le paghe, salari, oneri e TFR arrivano dai bilancini paghe. */
+export const calc = y => memo('calc' + y, [S.bilanci, S.paghe], () => {
+  const b = bilancio(y) || {}; const ce = b.ce || {};
+  const p = [57, 58, 59].some(r => N(ce[r])) ? null : costiAnno(y);
+  if (!p) return calcolaAnno(b);
+  const rec = Object.assign({}, b, { ce: Object.assign({}, ce, { 57: p.salari, 58: p.oneri || 0, 59: p.tfr || 0 }) });
+  const out = calcolaAnno(rec); out.has.ce = Object.values(ce).some(v => N(v) !== 0); out.paghe = p;
+  return out;
+});
+export const personaleDaPaghe = y => costiAnno(y);
 
 /* ---------- dati tecnici automatici (stalla, campi, fatture) ---------- */
 const fineAnno = y => { const f = `${y}-12-31`; const t = today(); return t < f ? t : f; };
@@ -102,8 +112,8 @@ export function datiTecnici(y) {
   });
 }
 export const dim = y => { const d = datiTecnici(y).val; return { sau: d.sau, ula: d.ula, capi: d.capi }; };
-export const ind = y => memo('ind' + y, [S.bilanci, S.capi, S.eventi, S.campi, S.latte, S.fatture], () => indici(calc(y), dim(y)));
-export const parametri = y => memo('par' + y, [S.bilanci, S.capi, S.eventi, S.campi, S.latte, S.fatture], () => { const t = datiTecnici(y); return calcolaParametri(calc(y), ind(y), t.val, t.F); });
+export const ind = y => memo('ind' + y, [S.bilanci, S.paghe, S.capi, S.eventi, S.campi, S.latte, S.fatture], () => indici(calc(y), dim(y)));
+export const parametri = y => memo('par' + y, [S.bilanci, S.paghe, S.capi, S.eventi, S.campi, S.latte, S.fatture], () => { const t = datiTecnici(y); return calcolaParametri(calc(y), ind(y), t.val, t.F); });
 
 /** Anni da mostrare nei prospetti: quelli con dati, fino all'anno scelto (al massimo 5). */
 export function anniProspetto(fino, conFatture = false) {

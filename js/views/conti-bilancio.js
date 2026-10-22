@@ -7,6 +7,7 @@ import { CE, SP, CESPITI, INDICI } from '../conti/schema.js';
 import { IVA_VOCI } from '../conti/iva-parse.js';
 import { DATI, PARAMETRI } from '../conti/analisi.js';
 import { calcolaCe } from '../conti/bilancino-parse.js';
+import { costiAnno } from '../conti/paghe.js';
 import { bilancio, calc, ind, parametri, datiTecnici, anniProspetto, fatture, cfg } from '../conti/dati.js';
 import { tabella, bottoniExport, fmtVal } from '../conti/tabelle.js';
 import { colonne, linee, COL, coloreAnno } from '../conti/grafici.js';
@@ -47,6 +48,7 @@ export function vCE() {
   const trend = anni.length > 1 ? `<section class="card"><div class="card-h"><h2>${ic('chart-column')}Valore della produzione, costi e utile</h2></div>${colonne(anni.map(String), [{ name: 'Valore della produzione', values: anni.map(y => C[y].ce[26]), color: COL.ven }, { name: 'Costi della produzione', values: anni.map(y => C[y].ce[78]), color: COL.acq }, { name: 'Utile', values: anni.map(y => C[y].ce[105]), color: COL.diff }])}</section>` : '';
   return `${barraAnni('ce_edit', anni, `<div class="chipbar"><button data-act="chip" data-f="ce_zeri" data-v="${UI.f.ce_zeri === 'tutte' ? '' : 'tutte'}" aria-pressed="${UI.f.ce_zeri === 'tutte'}">Mostra tutte le voci</button></div>`)}
   ${ed ? `<div class="note-box">${ic('info')}<span>Modifica del ${ed}: scrivi gli importi nelle celle gialle (costi e ricavi in positivo). Subtotali e totali si calcolano da soli. Il pallino indica da dove arriva il dato: <i class="src bil"></i> bilancino, <i class="src xls"></i> file Excel, <i class="src man"></i> inserito a mano.</span></div>` : ''}
+  ${anni.filter(y => C[y].paghe).map(y => `<div class="note-box">${ic('users')}<span>${y}: salari, oneri sociali e TFR (B.9) presi dalle paghe (${esc(C[y].paghe.fonte)}, ${C[y].paghe.mesi} ${C[y].paghe.mesi === 1 ? 'mese' : 'mesi'}). Quando carichi il bilancino di fine anno valgono i suoi importi. <button class="linkbtn" data-act="c-go" data-sub="personale">Personale</button></span></div>`).join('')}
   <section class="card"><div class="card-h"><h2>${ic('scale')}Conto economico</h2>${bottoniExport(['ce'], 'Conto economico')}</div>${t}</section>${trend}${contiBilancino(UI.anno)}`;
 }
 function contiBilancino(y) {
@@ -178,6 +180,8 @@ export function vControlli() {
   const fx = (y, t) => { const fs = fatture().filter(f => f.anno === y && f.tipo === t); return fs.length ? fs.reduce((s, f) => s + N(f.imponibile), 0) : null; };
   riga('Vendite da fatture rispetto ai ricavi (CE A.1)', y => (fx(y, 'Vendita') != null && C[y].has.ce ? pct(fx(y, 'Vendita'), C[y].ce[7]) : null), 'Se molto più basso, mancano fatture di vendita', scost);
   riga('Acquisti da fatture rispetto a B.6 + B.7 + B.8', y => (fx(y, 'Acquisto') != null && C[y].has.ce ? pct(fx(y, 'Acquisto'), C[y].ce[29] + C[y].ce[38] + C[y].ce[51]) : null), 'Le fatture comprendono anche gli investimenti; il CE alcuni costi senza fattura', scost);
+  add('5. PAGHE RISPETTO AL CONTO ECONOMICO');
+  riga('Costo del personale dalle paghe rispetto a B.9 del CE', y => { const p = costiAnno(y); return p && p.costo && !C[y].paghe && C[y].has.ce ? pct(p.costo, C[y].ce[56]) : null; }, 'Serve il bilancino paghe di tutti i mesi; quando B.9 è vuoto il CE usa direttamente le paghe', scost);
   const rowsC = rows.map(r => r._sez !== undefined ? r : Object.assign({}, r, Object.fromEntries(anni.map(y => ['v' + y, r[y]]))));
   const cell = y => r => { const e = r['e' + y]; const v = r[y]; if (v == null) return '<span class="muted">—</span>'; const isPct = /rispetto/.test(r.d); return `<span class="esito ${e === 'OK' ? 'ok' : e === 'ERRORE' ? 'ko' : 'wa'}">${ic(e === 'OK' ? 'circle-check' : 'triangle-alert')}${esc(isPct ? fmtVal(v, 'pct') : fmtVal(v, Number.isInteger(v) && Math.abs(v) < 50 ? 'int' : 'eur'))}</span>`; };
   const daVer = fatture().filter(f => !String(f.controllo || '').startsWith('OK'));

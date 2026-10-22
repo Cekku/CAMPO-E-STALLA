@@ -1,7 +1,7 @@
 // Stato condiviso dell'app: dati, interfaccia, valori derivati
 import { lsGet } from './util.js';
 
-export const COLS = ['campi', 'operazioni', 'prodotti', 'movimenti', 'mezzi', 'manutenzioni', 'capi', 'eventi', 'latte', 'razioni', 'note', 'operatori', 'strutture', 'silos', 'misure', 'config', 'fatture', 'bilanci', 'econfig'];
+export const COLS = ['campi', 'operazioni', 'prodotti', 'movimenti', 'mezzi', 'manutenzioni', 'capi', 'eventi', 'latte', 'razioni', 'note', 'operatori', 'strutture', 'silos', 'misure', 'config', 'fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti'];
 export const S = {};
 COLS.forEach(c => (S[c] = []));
 
