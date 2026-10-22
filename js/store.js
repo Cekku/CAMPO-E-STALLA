@@ -68,8 +68,10 @@ export async function bulkPut(rows) {
 
 /* ---------------- Cloud ---------------- */
 let sb = null, channel = null, syncing = false, again = false;
-export function cloudConfig() { const o = lsGet('ces.cloud', null); if (o && o.url && o.key) return o; if (CONFIG.supabaseUrl && CONFIG.supabaseKey) return { url: CONFIG.supabaseUrl, key: CONFIG.supabaseKey, fromConfig: true }; return null; }
-export function setCloudConfig(url, key) { if (!url) { try { localStorage.removeItem('ces.cloud'); } catch (e) { } } else lsSet('ces.cloud', { url: url.trim().replace(/\/$/, ''), key: key.trim() }); location.reload(); }
+// Indirizzo del progetto: solo https://xxxx.supabase.co (chi incolla "…/rest/v1/" dalla pagina API di Supabase non deve rompere sincronizzazione e catasto)
+const baseSupabase = u => { const s = String(u || '').trim(); try { return new URL(s).origin; } catch (e) { return s.replace(/\/+$/, ''); } };
+export function cloudConfig() { const o = lsGet('ces.cloud', null); if (o && o.url && o.key) return Object.assign({}, o, { url: baseSupabase(o.url) }); if (CONFIG.supabaseUrl && CONFIG.supabaseKey) return { url: baseSupabase(CONFIG.supabaseUrl), key: CONFIG.supabaseKey, fromConfig: true }; return null; }
+export function setCloudConfig(url, key) { if (!url) { try { localStorage.removeItem('ces.cloud'); } catch (e) { } } else lsSet('ces.cloud', { url: baseSupabase(url), key: key.trim() }); location.reload(); }
 export const cloudReady = () => !!sb;
 
 async function initCloud() {
