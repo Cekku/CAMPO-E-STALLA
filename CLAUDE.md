@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.7.1** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.7.1`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.7.3** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.7.3`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -57,7 +57,8 @@ Con il cloud la riservatezza è garantita dalle regole RLS in `supabase/schema.s
 - Ricerca per comune + foglio + mappale (anche più mappali e sezione): riquadro del comune da Nominatim → fogli `CP:CadastralZoning` → particelle `CP:CadastralParcel` del foglio, filtro per riferimento (`G949_002400.428`). Tocco sulla mappa → particella con confine. Azioni: crea campo, aggiungi a un campo (geometria unita in MultiPolygon, superficie e "Fg. x mapp. y").
 - Il WFS dell'Agenzia (`wfs.cartografia.agenziaentrate.gov.it/inspire/wfs/owfs01.php`) **non ha CORS** e accetta solo BBOX: serve un inoltro. Funzione Supabase `supabase/functions/catasto/index.ts` (pubblicata dall'integrazione GitHub di Supabase grazie a `supabase/config.toml`, `verify_jwt = false`, solo host AdE ammessi) oppure Cloudflare Worker `supabase/functions/catasto/cloudflare-worker.js`. Indirizzo in La mia azienda → Catasto (vuoto = `<progetto Supabase>/functions/v1/catasto`).
 - Elenco comuni: `data/comuni.json` (ISTAT via matteocontrini/comuni-json, MIT).
-- **Da verificare con il servizio vero**: la ricerca è stata provata solo con risposte simulate (formato GML come documentato da chi usa il servizio). Se il WFS limita il numero di particelle per richiesta, aggiungere la paginazione (`STARTINDEX`).
+- **Limiti del WFS vero** (misurati il 22/10/2026): con un riquadro troppo alto in latitudine risponde `numberReturned="0"` senza errore (fogli: ok fino a ~0,07°, zero da 0,075°; particelle: ok fino a 0,016°, zero da 0,018°); larghezza e numero di risultati non contano (1.891 particelle in una richiesta nel centro di Udine). Per questo `wfs()` divide il riquadro (`PASSO`: fogli 0,06° lat × 0,12° lon, particelle 0,015° × 0,02°), 3 richieste alla volta, senza doppioni. Ogni tanto risponde a caso `ServiceException InvalidFormat "Richiesta non valida"`: `wfsUno()` riprova fino a 3 volte con `&_=` per non riusare la risposta in cache. Il WFS non dà la superficie delle particelle (`areaCatasto` resta `null`). Provato dal vivo con la funzione Supabase: Povoletto → 2 richieste per i fogli, foglio 15 = 416 particelle, tocco in mappa → `G949_001500.125`.
+- Collegamento: l'indirizzo Supabase salvato è ridotto all'origine (`baseSupabase` in `store.js`), perché "…/rest/v1/" copiato dalla pagina API rompeva catasto e sincronizzazione; `scarica()` mostra l'errore del collegamento, non quello della richiesta diretta (che senza CORS fallisce sempre).
 
 ## Supabase
 
@@ -82,6 +83,5 @@ Con il cloud la riservatezza è garantita dalle regole RLS in `supabase/schema.s
 
 ## Idee e punti aperti
 
-- Provare la ricerca catastale con il servizio vero e la funzione Supabase pubblicata (La mia azienda → Catasto → Prova).
 - Estratti conto di altre banche e distinte con più bonifici: adattare i lettori su esempi reali.
 - Integrazioni stalla (Alpro, MooMonitor, Si@lleva, SCR, carro miscelatore) per una dashboard unica.
