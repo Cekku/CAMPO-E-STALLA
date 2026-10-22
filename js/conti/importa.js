@@ -41,11 +41,18 @@ export async function leggiDocumento(nome, bytes, out = []) {
         const b = await leggiBilancino(bytes, cfg().contiUtente || {});
         out.push({ tipo: 'bilancino', nome, anno: b.anno, ditta: b.ditta, perRiga: b.perRiga, conti: b.conti, controlli: b.controlli, dati: snellisci(b.dati) }); return out;
       }
-      if (/\bV[ELFJX]\s?\d{1,2}\b/.test(t) && /(IVA|imposta)/i.test(t) && !/Cedente\/prestatore/.test(t)) {
+      // dichiarazione IVA: i quadri VE/VF/VL possono stare anche dopo molte pagine di frontespizio
+      const tutto = pagine.map(testoPagina).join('\n');
+      const nRighi = (tutto.match(/\bV[EFLJX]\s?\d{1,2}\b/g) || []).length;
+      const pareIva = !/Cedente\/prestatore/.test(t) && (nRighi >= 5 || (/(dichiarazione\s+(annuale\s+)?i\.?v\.?a|modello\s+iva|IVA\s*20\d\d)/i.test(tutto) && nRighi >= 2));
+      if (pareIva) {
         const r = await leggiDichiarazioneIva(nome, bytes);
-        if (Object.keys(r.valori).length) { out.push(Object.assign({}, r, riepilogoIva(r.valori), { tipo: 'iva', fonte: r.tipo, nome })); return out; }
+        if (Object.keys(r.valori).length) { out.push(Object.assign({}, r, riepilogoIva(r.valori), { tipo: 'iva', fonte: r.tipo, nome, anno: r.anno || annoDaNome(nome) })); return out; }
+        out.push({ tipo: 'errore', nome, errore: 'Sembra una dichiarazione IVA, ma non ho trovato gli importi dei quadri VE, VF e VL. Prova con il file telematico (.iva o .txt) che ti ha dato il commercialista.', bytes });
+        return out;
       }
-      for (const f of await leggiFileFattura(nome, bytes)) out.push({ tipo: 'fattura', nome, f });
+      try { for (const f of await leggiFileFattura(nome, bytes)) out.push({ tipo: 'fattura', nome, f }); }
+      catch (e) { out.push({ tipo: 'errore', nome, errore: 'Non riconosciuto: non sembra né una fattura, né una dichiarazione IVA, né un bilancino. Se sai cos\'è, scegli qui sotto come leggerlo.', bytes, forza: true }); }
       return out;
     }
     if (/<\?xml|FatturaElettronica/.test(testa) || /\.(xml|p7m)$/.test(low) || testa.startsWith('0')) {
@@ -54,10 +61,18 @@ export async function leggiDocumento(nome, bytes, out = []) {
     }
     // file telematico della dichiarazione IVA
     const txt = new TextDecoder('windows-1252').decode(bytes);
-    if (/V[A-Z]\d{6}/.test(txt)) { const r = await leggiDichiarazioneIva(nome, bytes); out.push(Object.assign({}, r, riepilogoIva(r.valori), { tipo: 'iva', fonte: r.tipo, nome })); return out; }
+    if (/V[A-Z]\d{6}/.test(txt)) { const r = await leggiDichiarazioneIva(nome, bytes); out.push(Object.assign({}, r, riepilogoIva(r.valori), { tipo: 'iva', fonte: r.tipo, nome, anno: r.anno || annoDaNome(nome) })); return out; }
     out.push({ tipo: 'errore', nome, errore: 'formato non riconosciuto' });
-  } catch (e) { out.push({ tipo: 'errore', nome, errore: e.message || String(e) }); }
+  } catch (e) { out.push({ tipo: 'errore', nome, errore: e.message || String(e), bytes, forza: true }); }
   return out;
+}
+// "IVA2025", "IVA_2025", "Modello IVA 2025" nel nome del file = anno d'imposta 2024
+const annoDaNome = n => { const m = /IVA[\s_-]*(20\d\d)/i.exec(n); return m ? +m[1] - 1 : null; };
+/** Rilegge un file scegliendo il tipo (quando non è stato riconosciuto da solo). */
+export async function leggiComeTipo(nome, bytes, tipo) {
+  if (tipo === 'iva') { const r = await leggiDichiarazioneIva(nome, bytes); if (!Object.keys(r.valori).length) throw new Error('Nessun importo dei quadri VE, VF, VL trovato nel file.'); return Object.assign({}, r, riepilogoIva(r.valori), { tipo: 'iva', fonte: r.tipo, nome, anno: r.anno || annoDaNome(nome) }); }
+  if (tipo === 'bilancino') { const b = await leggiBilancino(bytes, cfg().contiUtente || {}); if (!b.dati.conti.length) throw new Error('Nessun conto trovato nel file.'); return { tipo: 'bilancino', nome, anno: b.anno, ditta: b.ditta, perRiga: b.perRiga, conti: b.conti, controlli: b.controlli, dati: snellisci(b.dati) }; }
+  throw new Error('Tipo non gestito');
 }
 const snellisci = d => ({ anno: d.anno, ditta: d.ditta, blocchi: d.blocchi.map(b => ({ numero: b.numero, attivita: b.attivita, totali: b.totali, utile: b.utile })), conti: d.conti.map(c => ({ blocco: c.blocco, sezione: c.sezione, conto: c.conto, descrizione: c.descrizione, valori: c.valori, dubbi: c.dubbi, dettagli: c.dettagli })) });
 
