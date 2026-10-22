@@ -25,17 +25,18 @@ export class ErroreCatasto extends Error { constructor(msg, code) { super(msg); 
 async function scarica(target, { timeout = 60000 } = {}) {
   const tentativi = [];
   const col = collegamento();
-  if (col) tentativi.push(() => fetch(`${col.url}?u=${encodeURIComponent(target)}`, { headers: col.headers }));
-  tentativi.push(() => fetch(target)); // se un giorno il servizio permetterà le richieste dirette
+  if (col) tentativi.push(s => fetch(`${col.url}?u=${encodeURIComponent(target)}`, { headers: col.headers, signal: s }));
+  tentativi.push(s => fetch(target, { signal: s })); // se un giorno il servizio permetterà le richieste dirette
   let ultimo = null;
   for (const t of tentativi) {
+    // il tempo massimo vale anche per la lettura dei dati: un download che si inceppa a metà non resta appeso per sempre
     const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), timeout);
     try {
-      const r = await Promise.race([t(), new Promise((_, rej) => ctl.signal.addEventListener('abort', () => rej(new ErroreCatasto('Il servizio catastale non risponde (tempo scaduto). Riprova tra poco.', 'TIMEOUT'))))]);
-      clearTimeout(tm);
+      const r = await t(ctl.signal);
       if (!r.ok) { ultimo = ultimo || new ErroreCatasto(col ? `Il collegamento al catasto ha risposto con errore ${r.status}: controlla l'indirizzo in La mia azienda → Catasto.` : `Il servizio catastale ha risposto con errore ${r.status}.`, 'HTTP'); continue; }
       const txt = await r.text(); STATO.ok = true; return txt;
-    } catch (e) { clearTimeout(tm); ultimo = ultimo || e; } // vale il primo errore (del collegamento): la richiesta diretta, senza CORS, fallisce sempre e lo nasconderebbe
+    } catch (e) { ultimo = ultimo || (ctl.signal.aborted ? new ErroreCatasto('Il servizio catastale non risponde (tempo scaduto). Riprova tra poco.', 'TIMEOUT') : e); } // vale il primo errore (del collegamento): la richiesta diretta, senza CORS, fallisce sempre e lo nasconderebbe
+    finally { clearTimeout(tm); }
   }
   STATO.ok = false;
   if (!col) throw new ErroreCatasto('Per cercare le particelle serve il collegamento al catasto: impostalo in La mia azienda → Catasto (5 minuti, una volta sola).', 'NO_PROXY');
@@ -110,7 +111,7 @@ async function wfsUno(tipo, bbox, count, timeout) {
   }
 }
 /** Elementi di un riquadro già piccolo (una cella del catasto disegnato sulla mappa, js/catastomappa.js). */
-export const elementiRiquadro = (tipo, bbox, timeout = 90000) => wfsUno(tipo, bbox, 0, timeout);
+export const elementiRiquadro = (tipo, bbox, timeout = 45000) => wfsUno(tipo, bbox, 0, timeout);
 /** Elementi del WFS nel riquadro, chiesti a pezzi (3 richieste alla volta) e senza doppioni. avanz(fatti, totale) */
 async function wfs(tipo, bbox, count, timeout, avanz) {
   const rs = riquadri(bbox, PASSO[tipo]), coda = rs.slice(), visti = new Map(); let fatti = 0;
