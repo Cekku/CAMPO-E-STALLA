@@ -359,6 +359,7 @@ document.addEventListener('click', async e => {
       case 'catClose': return MAP.closeCat();
       case 'catAssign': return MAP.assignCatasto(d.txt, d.comune);
       case 'catSearch': return MAP.cercaPanel();
+      case 'catCopia': { try { const t = await (await fetch('./supabase/functions/catasto/' + d.f, { cache: 'no-cache' })).text(); await navigator.clipboard.writeText(t); toast('Codice copiato: incollalo nell\'editor e premi Deploy'); } catch (e) { toast('Non riesco a copiare: apri il file ' + d.f + ' dal progetto', 'err'); } return; }
       case 'catSalva': { const { salvaCfgCatasto } = await import('./catasto.js'); const u = ($('#cat_url').value || '').trim(); if (u && !/^https:\/\//.test(u)) return toast('L\'indirizzo deve iniziare con https://', 'err'); salvaCfgCatasto({ url: u }); toast('Collegamento salvato'); return render(); }
       case 'catProva': { b.disabled = true; const C = await import('./catasto.js'); const u = ($('#cat_url').value || '').trim(); if (u !== (C.cfgCatasto().url || '')) C.salvaCfgCatasto({ url: u }); try { await C.provaCollegamento(); toast('Il collegamento al catasto funziona'); } catch (e) { toast(e.message, 'err'); } b.disabled = false; return render(); }
       case 'catFind': return MAP.cercaEsegui(b);
