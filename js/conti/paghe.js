@@ -84,7 +84,19 @@ function calcola() {
   const perNome = new Map([...perCed].filter(([, ds]) => ds.length === 1).map(([k, ds]) => [k, ds[0].key]));
   for (const d of dip.values()) for (const a of String(d.alias || '').split(',')) if (a.trim()) perNome.set(nomeChiave(a), d.key);
   const perIban = new Map(); for (const p of S.pagamenti) if (p.iban && p.dip && dip.has(p.dip)) perIban.set(p.iban, p.dip);
+  // la tabella dei nomi vince sui pagamenti importati (non su quelli assegnati a mano dalla scheda del pagamento)
+  const tok = n => String(n || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
+  const alias = [...dip.values()].flatMap(d => aliasDi(d).map(a => ({ k: nomeChiave(a), ws: tok(a), key: d.key })));
+  const daTabella = p => {
+    if (!alias.length || !CON_DIP.has(p.tipo) || p.dipManuale || p.fonte === 'a mano') return null;
+    if (p.beneficiario) { const ks = [...new Set(alias.filter(a => a.k === nomeChiave(p.beneficiario)).map(a => a.key))]; if (ks.length === 1) return ks[0]; if (ks.length) return null; }
+    const d = ' ' + tok([p.beneficiario, p.descrizione].filter(Boolean).join(' ')).join(' ') + ' ';
+    const hit = alias.filter(a => a.ws.length >= 2 && a.ws.every(w => d.includes(' ' + w + ' ')));
+    if (!hit.length) return null; const max = Math.max(...hit.map(a => a.ws.length)); const ks = [...new Set(hit.filter(a => a.ws.length === max).map(a => a.key))];
+    return ks.length === 1 ? ks[0] : null;
+  };
   const pag = [...S.pagamenti].map(p => {
+    const t = daTabella(p); if (t && t !== p.dip) return Object.assign({}, p, { dip: t, daTabella: true });
     if (!p.dip) return p;
     const u = mk(p.dip); if (dip.has(u) || !CON_DIP.has(p.tipo)) return u === p.dip ? p : Object.assign({}, p, { dip: u });
     const k = perNome.get(nomeChiave(p.beneficiario || u.replace(/^N-/, ''))) || (p.iban && perIban.get(p.iban));

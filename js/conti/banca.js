@@ -93,7 +93,7 @@ export function movimentiDaParole(pagine) {
 /** Beneficiario o ordinante, IBAN, causale e tipo di operazione dalla descrizione del movimento. */
 export function arricchisci(m) {
   const d = m.descrizione || ''; const g = re => { const x = re.exec(d); return x ? x[1].trim() : ''; };
-  const controparte = g(/(?:A\s+FAVORE\s+DI|A\s*fav\.?:?|BENEFICIARIO:?)\s*(.+?)(?:\s+-\s+|\s+ID\.MSG|\s+ID\.END|\s+RICON|\s+(?:STIPEND|SALARI|RETRIBU|MENSILIT|ACCONTO|ANTICIPO|SALDO|CAUSALE|PER\s)|\s+(?:IBAN|IT\d\d[A-Z])|$)/i) || g(/Ordinante:\s*(.+?)(?:\s+Causale|\s+IBAN|\s+Data|$)/i) || g(/Benef\.\s*(.+?)(?:\s+Comp\.|\s+Spese|$)/i)
+  const controparte = g(/(?:A\s+FAVORE\s+DI|A\s*fav\.?:?|BENEFICIARIO:?)\s*(.+?)(?:\s+-\s+|\s+ID\.MSG|\s+ID\.END|\s+RICON|\s+(?:STIPEND|SALARI|RETRIBU|MENSILIT|ACCONTO|ANTICIPO|SALDO|CAUSALE|PER\s)|\s+(?:IBAN|IT\d\d[A-Z])|\s+(?:VIA|VIALE|V\.LE|PIAZZA|P\.ZZA|CORSO|LOC\.?|LOCALITA|FRAZ\.?|STRADA)\s|$)/i) || g(/Ordinante:\s*(.+?)(?:\s+Causale|\s+IBAN|\s+Data|$)/i) || g(/Benef\.\s*(.+?)(?:\s+Comp\.|\s+Spese|$)/i)
     || g(/CRED\.\s*(.+?)(?:\s+ID\.?\s*MANDATO|\s+RIF\.|$)/i) || g(/PRESSO:\s*(.+?)(?:\s+VIA|\s+CARTA|\s+V\.LE|\s+PIAZZA|$)/i) || g(/Pag\.\s*:\s*(.+)$/i);
   const iban = pulisciIban(g(/(?:Coordinate\s+benef\.?|IBAN\s+ordinante|IBAN\s+benef\w*|IBAN):?\s*([A-Z0-9$]{2}\s?\d{2}[A-Z0-9$ ]{11,34}?)(?=\s|$)/i));
   const causale = g(/RICON\.?\s*1?\.?:?\s*(.+)$/i) || g(/Causale:\s*(.+?)(?:\s+\d{15,}|\s+Data ordine|\s+IBAN|$)/i);

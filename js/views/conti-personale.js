@@ -254,7 +254,7 @@ async function caricaMovimenti(files) {
   Object.assign(PIMP, { righe, file: file.name, altri: 0, pdf: false, estratto: true, ocr: false, tutti: false });
 }
 export function schedaPagamento(id, pre = {}) {
-  const p = id ? S.pagamenti.find(x => x.id === id) : null; const v = Object.assign({ data: today(), tipo: 'stipendio', modalita: 'bonifico', recupero: 'stipendio', come: 'stipendio' }, p || {}, pre);
+  const p = id ? (P.pagamenti().find(x => x.id === id) || S.pagamenti.find(x => x.id === id)) : null; const v = Object.assign({ data: today(), tipo: 'stipendio', modalita: 'bonifico', recupero: 'stipendio', come: 'stipendio' }, p || {}, pre);
   const dips = P.dipendenti(); const vers = P.versamenti();
   const trim = [...new Set(vers.filter(x => /T\d$/.test(x.periodo)).map(x => x.periodo))];
   // mesi: quelli dei cedolini più gli ultimi 14 e il prossimo (per anticipi di mesi non ancora in busta)
@@ -360,7 +360,7 @@ export async function personaleAct(a, b, d, rerender) {
       if (P.CON_DIP.has(tipo) && !dip) throw new Error('Scegli il dipendente.');
       const id = d.id || 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const { id: _o, ...old } = S.pagamenti.find(x => x.id === id) || {}; const modalita = $('#pg_mod').value;
-      const rec = Object.assign(old, { data, importo: r2(imp), tipo, dip: P.CON_DIP.has(tipo) ? dip : '', comp: tipo === 'prestito' || (tipo === 'rimborso' && $('#pg_come').value !== 'stipendio') ? '' : $('#pg_comp').value, modalita: tipo === 'rimborso' ? '' : modalita, descrizione: $('#pg_desc').value.trim(), fonte: old.fonte || 'a mano' });
+      const rec = Object.assign(old, { data, importo: r2(imp), tipo, dip: P.CON_DIP.has(tipo) ? dip : '', comp: tipo === 'prestito' || (tipo === 'rimborso' && $('#pg_come').value !== 'stipendio') ? '' : $('#pg_comp').value, modalita: tipo === 'rimborso' ? '' : modalita, descrizione: $('#pg_desc').value.trim(), fonte: old.fonte || 'a mano', dipManuale: P.CON_DIP.has(tipo) && (!old.fonte || old.fonte === 'a mano' || old.dip !== dip || !!old.dipManuale) });
       for (const k of ['recupero', 'come', 'prestito', 'rata']) delete rec[k];
       if (tipo === 'anticipo') rec.recupero = $('#pg_rec').value;
       if (tipo === 'rimborso') { rec.come = $('#pg_come').value; rec.prestito = $('#pg_pre').value || ''; }
