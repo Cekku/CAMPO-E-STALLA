@@ -111,6 +111,9 @@ async function leggiFiles(files) {
     try { const b = new Uint8Array(await f.arrayBuffer()); await leggiDocumento(f.name, b, IMP.ris); } catch (e) { IMP.ris.push({ tipo: 'errore', nome: f.name, errore: e.message }); }
     IMP.fatti++;
   }
+  // stesso bonifico in due file (contabile ed estratto conto): il secondo non si seleziona
+  const tutte = IMP.ris.filter(x => x.tipo === 'bonifici').flatMap(x => x.righe);
+  if (tutte.length > 1) { const { segnaDoppi } = await import('../conti/paghe.js'); segnaDoppi(tutte); }
   IMP.busy = false; IMP.file = ''; rerender();
 }
 async function salvaImport() {

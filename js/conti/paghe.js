@@ -116,27 +116,74 @@ function calcolaPrestiti(pag) {
   return pre;
 }
 
+/* ---------------- pagamenti doppi ---------------- */
+const giorni = (a, b) => Math.abs(diff(a, b));
+/** Coppie di pagamenti che sembrano lo stesso movimento: stesso tipo e dipendente, stesso importo, date entro 5 giorni, fonti diverse o stessa data. */
+export function doppi(pag) {
+  const out = []; const ps = pag.filter(p => p.dip && CON_DIP.has(p.tipo) && p.data).sort((a, b) => a.data.localeCompare(b.data));
+  for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
+    const a = ps[i], b = ps[j]; if (giorni(a.data, b.data) > 5) break;
+    if (a.tipo !== b.tipo || a.dip !== b.dip || Math.abs(N(a.importo) - N(b.importo)) > 0.01) continue;
+    if (a.comp && b.comp && a.comp !== b.comp) continue;
+    if (a.data === b.data || (a.fonte || 'a mano') !== (b.fonte || 'a mano') || (a.idBanca && a.idBanca === b.idBanca)) out.push([a, b]);
+  }
+  return out;
+}
+/** Segna come "già registrato" le righe da importare che corrispondono a un pagamento già salvato o a un'altra riga dello stesso caricamento. */
+export function segnaDoppi(righe) {
+  const dips = dipendenti(); const salvati = pagamenti();
+  const stesso = (r, p) => Math.abs(N(r.importo) - N(p.importo)) < 0.01 && r.data && p.data && giorni(r.data, p.data) <= 5 && (
+    (r.dip && p.dip && r.dip === p.dip) || (r.iban && p.iban && r.iban === p.iban) || (r.beneficiario && p.beneficiario && nomeChiave(r.beneficiario) === nomeChiave(p.beneficiario)));
+  const visti = [];
+  for (const r of righe) {
+    if (r.entrata || r.tipo === 'fattura' || r.tipo === 'ignora') { visti.push(r); continue; }
+    const giaP = !r.gia && salvati.find(p => p.id !== r.id && CON_DIP.has(p.tipo) && stesso(r, p));
+    const giaR = visti.find(x => !x.entrata && stesso(r, x));
+    if (giaP || giaR) { r.gia = true; r.sel = false; r.doppio = giaP ? `già registrato il ${String(giaP.data).split('-').reverse().join('/')} da ${giaP.fonte || 'inserimento a mano'}` : 'uguale a un altro movimento di questo caricamento'; }
+    visti.push(r);
+  }
+  for (const r of righe.filter(r => r.tipo === 'fattura' && !r.gia)) {
+    const f = S.fatture.find(f => (r.fatt || []).includes(f.id) && (f.pagamentiBanca || []).some(x => x.mov !== r.id && Math.abs(Math.abs(N(x.importo)) - N(r.importo)) < 0.01 && giorni(x.data, r.data) <= 5));
+    if (f) { r.gia = true; r.sel = false; r.doppio = `fattura ${f.numero} già segnata come pagata con un movimento uguale`; }
+  }
+  return righe;
+}
+
 /* ---------------- abbinamento dei pagamenti agli stipendi ---------------- */
-// Ogni pagamento di stipendio va al mese indicato; se il mese non è indicato, al mese più vecchio non ancora saldato
-// (non successivo alla data del pagamento). Quello che avanza resta come pagamento in più.
+// Da quando uno stipendio si può pagare: dal mese dopo; la tredicesima da dicembre, la quattordicesima da giugno.
+export const pagabileDa = p => { const [y, m] = p.split('-').map(Number); if (m === 13) return `${y}-12-01`; if (m === 14) return `${y}-06-01`; return meseSucc(p) + '-01'; };
+// 1) I pagamenti con il mese indicato (a mano, dalla causale, anticipi) vanno a quel mese, e si contano per primi.
+// 2) Gli altri, in ordine di data, vanno ai mesi già maturati alla data del pagamento e non ancora saldati:
+//    prima quello con il residuo uguale all'importo, poi dal più vecchio. Un pagamento non va mai a un mese
+//    che alla sua data non era ancora pagabile, salvo che non ci sia nient'altro da saldare (anticipo).
+// 3) Quello che avanza va all'ultimo mese saldato con quel pagamento (pagato in più).
 function abbina(ced, pag) {
   const righe = [];
   for (const c of ced) { const o = righe.find(r => r.dip === c.dip && r.periodo === c.periodo); if (o) { o.dovuto = r2(o.dovuto + N(c.netto)); continue; } righe.push({ dip: c.dip, nome: c.nome, periodo: c.periodo, dovuto: r2(N(c.netto)), pagato: 0, pag: [], cid: c.id }); }
-  const per = (d, p) => righe.find(r => r.dip === d && r.periodo === p);
+  const ord = (a, b) => pagabileDa(a.periodo).localeCompare(pagabileDa(b.periodo)) || a.periodo.localeCompare(b.periodo);
   const extra = [];
-  for (const p of pag.filter(contaComeStipendio)) {
-    let resto = r2(N(p.importo)); const comp = compDi(p);
+  const senza = (p, periodo, v, voce) => { const o = extra.find(e => e.dip === p.dip && e.periodo === periodo); if (o) { o.pagato = r2(o.pagato + v); o.pag.push(voce(v)); } else extra.push({ dip: p.dip, nome: p.beneficiario || '', periodo, dovuto: 0, pagato: v, pag: [voce(v)], senzaCedolino: true }); };
+  const sp = pag.filter(contaComeStipendio);
+  const conMese = sp.filter(p => compDi(p)), auto = sp.filter(p => !compDi(p)).sort((a, b) => (a.data || '').localeCompare(b.data || '') || String(a.id).localeCompare(String(b.id)));
+  for (const p of [...conMese, ...auto]) {
+    let resto = r2(N(p.importo)); if (resto <= 0) continue; const comp = compDi(p);
     const voce = v => ({ id: p.id, data: p.data, importo: v, modalita: p.modalita, tot: N(p.importo), tipo: p.tipo });
     const metti = (r, v) => { r.pagato = r2(r.pagato + v); r.pag.push(voce(v)); resto = r2(resto - v); };
-    if (comp) { const r = per(p.dip, comp); if (r) metti(r, resto); else { const o = extra.find(e => e.dip === p.dip && e.periodo === comp); if (o) { o.pagato = r2(o.pagato + resto); o.pag.push(voce(resto)); } else extra.push({ dip: p.dip, nome: p.beneficiario || '', periodo: comp, dovuto: 0, pagato: resto, pag: [voce(resto)], senzaCedolino: true }); } continue; }
-    const aperte = righe.filter(r => r.dip === p.dip && inizioPeriodo(r.periodo) <= (p.data || '9999') && r.pagato < r.dovuto - 0.005);
-    // prima il mese con lo stesso importo, poi il più vecchio
-    const esatta = aperte.find(r => Math.abs(r.dovuto - r.pagato - resto) < 0.01);
-    for (const r of esatta ? [esatta] : aperte) { if (resto <= 0.005) break; metti(r, Math.min(resto, r2(r.dovuto - r.pagato))); }
+    if (comp) { const r = righe.find(r => r.dip === p.dip && r.periodo === comp); if (r) metti(r, resto); else senza(p, comp, resto, voce); continue; }
+    const data = p.data || today();
+    const mie = righe.filter(r => r.dip === p.dip).sort(ord);
+    const aperta = r => r.pagato < r.dovuto - 0.005;
+    const maturate = mie.filter(r => pagabileDa(r.periodo) <= data && aperta(r));
+    let lista;
+    if (maturate.length) { const es = maturate.find(r => Math.abs(r2(r.dovuto - r.pagato) - resto) < 0.01); lista = es ? [es, ...maturate.filter(r => r !== es)] : maturate; }
+    else { const prossima = mie.find(r => aperta(r) && pagabileDa(r.periodo) > data); lista = prossima ? [prossima] : []; }
+    let ultima = null;
+    for (const r of lista) { if (resto <= 0.005) break; metti(r, Math.min(resto, r2(r.dovuto - r.pagato))); ultima = r; }
     if (resto > 0.005) {
-      const ult = righe.filter(r => r.dip === p.dip && inizioPeriodo(r.periodo) <= (p.data || '9999')).pop();
-      if (ult) metti(ult, resto);
-      else extra.push({ dip: p.dip, nome: p.beneficiario || '', periodo: (p.data || '').slice(0, 7), dovuto: 0, pagato: resto, pag: [voce(resto)], senzaCedolino: true });
+      // nessun mese da saldare: è lo stipendio del mese prima della data (se il suo cedolino non c'è, "senza cedolino")
+      const naturale = mesePrec(data.slice(0, 7));
+      const dove = ultima || mie.find(r => r.periodo === naturale);
+      if (dove) metti(dove, resto); else senza(p, naturale, resto, voce);
     }
   }
   const g = cfgPaghe().giornoStipendi;
@@ -196,8 +243,8 @@ function controlli(ced, bil, tot, pag, ver, dip, per, pre) {
     if (p.tipo === 'stipendio' && !p.dip) add('warn', 'Pagamento di stipendio senza dipendente', `${eu(N(p.importo))} del ${(p.data || '').split('-').reverse().join('/')}: indica a chi è andato.`, { pid: p.id });
   }
   for (const x of pre) { const d = dip.get(x.dip); if (x.residuo > 0.005 && d && d.cessazione && d.cessazione < t) add('warn', `Prestito non restituito: ${d.nome}`, `Il rapporto è cessato il ${d.cessazione.split('-').reverse().join('/')} e restano ${eu(x.residuo)} del prestito del ${(x.data || '').split('-').reverse().join('/')}.`, { dip: x.dip, pid: x.id }); }
-  // doppioni: stesso giorno, stesso importo, stesso dipendente
-  const visti = new Map(); for (const p of pag) { const k = [p.tipo, p.dip, p.data, r2(N(p.importo))].join('|'); if (visti.has(k)) add('warn', 'Pagamento registrato due volte?', `${eu(N(p.importo))} il ${(p.data || '').split('-').reverse().join('/')}${p.dip ? ' a ' + ((dip.get(p.dip) || {}).nome || '') : ''}: ci sono due movimenti uguali.`, { pid: p.id, dip: p.dip }); else visti.set(k, p); }
+  // doppioni: stesso dipendente, stesso importo, date a pochi giorni (es. la contabile del bonifico e poi l'estratto conto)
+  for (const [a, b] of doppi(pag)) add('err', `Stesso pagamento registrato due volte: ${(dip.get(a.dip) || {}).nome || nomeDi(a.dip) || ''}`.trim(), `${eu(N(a.importo))} il ${(a.data || '').split('-').reverse().join('/')} (${a.fonte || 'a mano'}) e il ${(b.data || '').split('-').reverse().join('/')} (${b.fonte || 'a mano'}). Se è lo stesso bonifico eliminane uno da Pagamenti, altrimenti ignora l'avviso.`, { pid: b.id, dip: a.dip });
   // bilancino contro cedolini
   for (const b of bil) {
     const cs = ced.filter(c => c.periodo === b.periodo);
@@ -235,14 +282,19 @@ export function versamenti(bil = bilanciniPaghe(), pag = pagamenti()) {
   for (const o of fondo.values()) { const [y, q] = [+o.periodo.slice(0, 4), +o.periodo.slice(-1)]; o.scadenza = q === 4 ? `${y + 1}-01-20` : `${y}-${String(q * 3 + 1).padStart(2, '0')}-20`; out.push(o); }
   // abbinamento: pagamento con periodo indicato, altrimenti il più vecchio aperto dello stesso tipo
   for (const o of out) Object.assign(o, { pagato: 0, pag: [] });
-  for (const p of pag.filter(p => ['f24', 'contributi', 'fondo'].includes(p.tipo)).sort((a, b) => (a.data || '').localeCompare(b.data || ''))) {
+  // da quando si può versare: F24 dal mese dopo; contributi e fondo dalla fine del trimestre
+  for (const o of out) { if (o.tipo === 'f24') o.da = meseSucc(meseRif(o.periodo)) + '-01'; else { const [y, q] = [+o.periodo.slice(0, 4), +o.periodo.slice(-1)]; o.da = q === 4 ? `${y + 1}-01-01` : `${y}-${String(q * 3 + 1).padStart(2, '0')}-01`; } }
+  const vp = pag.filter(p => ['f24', 'contributi', 'fondo'].includes(p.tipo));
+  for (const p of [...vp.filter(p => p.comp), ...vp.filter(p => !p.comp).sort((a, b) => (a.data || '').localeCompare(b.data || ''))]) {
     let resto = r2(N(p.importo)); const metti = (o, v) => { o.pagato = r2(o.pagato + v); o.pag.push({ id: p.id, data: p.data, importo: v }); resto = r2(resto - v); };
-    const stessi = out.filter(o => o.tipo === p.tipo);
+    const stessi = out.filter(o => o.tipo === p.tipo).sort((a, b) => a.scadenza.localeCompare(b.scadenza)); if (!stessi.length) continue;
     if (p.comp) { const o = stessi.find(o => o.periodo === p.comp); if (o) { metti(o, resto); continue; } }
-    const aperte = stessi.filter(o => o.pagato < o.dovuto - 0.005).sort((a, b) => a.scadenza.localeCompare(b.scadenza));
-    const esatta = aperte.find(o => Math.abs(o.dovuto - o.pagato - resto) < 0.01);
-    for (const o of esatta ? [esatta] : aperte) { if (resto <= 0.005) break; metti(o, Math.min(resto, r2(o.dovuto - o.pagato))); }
-    if (resto > 0.005 && stessi.length) metti(stessi[stessi.length - 1], resto);
+    const data = p.data || today(); const aperte = stessi.filter(o => o.pagato < o.dovuto - 0.005);
+    const maturi = aperte.filter(o => o.da <= data);
+    const es = maturi.find(o => Math.abs(r2(o.dovuto - o.pagato) - resto) < 0.01);
+    const lista = maturi.length ? (es ? [es, ...maturi.filter(o => o !== es)] : maturi) : aperte.slice(0, 1);
+    let ultima = null; for (const o of lista) { if (resto <= 0.005) break; metti(o, Math.min(resto, r2(o.dovuto - o.pagato))); ultima = o; }
+    if (resto > 0.005) metti(ultima || stessi.filter(o => o.da <= data).pop() || stessi[0], resto);
   }
   for (const o of out) {
     o.differenza = r2(o.dovuto - o.pagato); o.ultimo = o.pag.map(x => x.data).sort().pop() || null;
@@ -376,7 +428,8 @@ export const idPagamento = p => { const k = [p.data, r2(N(p.importo)), String(p.
 export { mesePrec, meseSucc, inizioPeriodo, finePeriodo };
 
 /** Pagamenti da registrare a partire dalle contabili di bonifico lette. */
-export function righeBonifici(bon, file) {
+export function righeBonifici(bon, file) { return segnaDoppi(righeBonifici0(bon, file)); }
+function righeBonifici0(bon, file) {
   const presenti = new Set([...S.pagamenti.map(p => p.id), ...S.fatture.flatMap(f => (f.pagamentiBanca || []).map(p => p.mov))]); const dips = dipendenti(); const gia = new Map();
   return bon.map(b => {
     const m = { data: b.data, importo: r2(b.importo), descrizione: [b.beneficiario, b.causale].filter(Boolean).join(' · '), beneficiario: b.beneficiario, iban: b.iban };

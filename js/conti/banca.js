@@ -179,12 +179,13 @@ export const idMovimento = m => { const k = [m.data, r2(m.importo), String(m.des
 /* ---------------- righe da rivedere prima di salvare ---------------- */
 export const TIPI_MOV = { stipendio: 'Stipendio', anticipo: 'Anticipo sullo stipendio', prestito: 'Prestito al dipendente', rimborso: 'Restituzione di prestito', f24: 'F24 (ritenute)', contributi: 'Contributi INPS agricoli', fondo: 'Fondo pensione', fattura: 'Fattura', ignora: 'Non registrare' };
 /** Dai movimenti dell'estratto conto: righe con il tipo proposto (stipendio di un dipendente, F24, fattura…). */
-export async function righeEstratto(movs, file) {
+export async function righeEstratto(movs, file) { const P0 = await import('./paghe.js'); return P0.segnaDoppi(await righeEstratto0(movs, file)); }
+async function righeEstratto0(movs, file) {
   const P = await import('./paghe.js'); const { competenzaDaCausale } = await import('./bonifici-parse.js');
   const usati = new Set([...S.pagamenti.map(p => p.id), ...S.fatture.flatMap(f => (f.pagamentiBanca || []).map(p => p.mov))]);
-  const gia = new Map(); const dips = P.dipendenti();
+  const gia = new Map(); const dips = P.dipendenti(); const visti = new Set();
   return movs.map(m => {
-    const id = idMovimento(m); m.id = id;
+    let id = idMovimento(m); while (visti.has(id)) id += 'x'; visti.add(id); m.id = id;
     const base = { id, data: m.data, importo: Math.abs(m.importo), entrata: m.importo > 0, descrizione: m.descrizione, beneficiario: m.beneficiario, iban: m.iban, causale: m.causale, fonte: file, gia: usati.has(id), modalita: m.tipoOp === 'assegno' ? 'assegno' : m.tipoOp === 'POS' ? 'carta' : 'bonifico', comp: competenzaDaCausale(m.causale || m.descrizione), fatt: [], proposte: [], motivo: '' };
     let r = null;
     if (m.importo < 0 && m.tipoOp !== 'spese bancarie') r = P.riconosci({ descrizione: m.descrizione, beneficiario: m.beneficiario, iban: m.iban }, dips);
@@ -197,7 +198,7 @@ export async function righeEstratto(movs, file) {
       return Object.assign(base, { tipo: 'fattura', fatt: c.scelte, motivo: c.motivo, sel: !base.gia });
     }
     return Object.assign(base, { tipo: 'ignora', sel: false, altro: true });
-  });
+  }).reduce((t, r) => (t.push(r), t), []);
 }
 /** Salva le righe scelte: pagamenti del personale e pagamenti/incassi delle fatture. */
 export async function salvaRighe(sel, fonte) {
