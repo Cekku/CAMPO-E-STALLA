@@ -514,9 +514,9 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 .leaflet-container { font-family: var(--f-body); }
 .leaflet-control-attribution { font-size: 10px; background: rgba(255, 255, 255, .7) !important; }
 .catasto-tiles { filter: contrast(1.6) brightness(.95); }
-/* il WMS del catasto ha lo sfondo bianco: il livello intero si "moltiplica" con la foto sotto, così resta solo il disegno
-   (sulle singole immagini non basta: il riquadro con z-index le isola e il bianco copriva il satellite) */
-.leaflet-catasto-pane { mix-blend-mode: multiply; }
+/* solo senza collegamento al catasto (immagini WMS, sfondo color crema): il livello intero si "moltiplica" con la foto sotto.
+   Con il collegamento il catasto lo disegna l'app (js/catastomappa.js) e la fusione non serve: la mappa resta fluida. */
+.leaflet-catasto-pane.wms { mix-blend-mode: multiply; }
 #map .sat-tiles { filter: var(--fx, none); }
 #map .field-label { display: none; }
 #map.show-labels .field-label { display: flex; }
@@ -549,12 +549,12 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 .lm-row > span { flex: 1; display: flex; flex-direction: column; }
 .lm-row b { font-size: 14px; font-weight: 650; }
 .lm-row small { font-size: 12px; color: var(--muted); }
-.cat-hint { top: 70px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(15, 25, 20, .78); color: #fff; font-size: 13px; font-weight: 600; backdrop-filter: blur(6px); white-space: nowrap; pointer-events: none; }
+.cat-hint { top: 70px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(15, 25, 20, .86); color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; pointer-events: none; }
 .cat-hint .ic { width: 16px; height: 16px; }
 .draw-fab { right: 14px; bottom: 18px; display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 20px 0 16px; border-radius: 16px; border: 0; background: var(--sun); color: var(--sun-ink); font-weight: 750; font-size: 15px; box-shadow: 0 10px 28px rgba(0, 0, 0, .35); }
 .draw-fab .ic { width: 22px; height: 22px; }
 .mapview.has-card .draw-fab, .mapview.has-bar .draw-fab, .mapview.has-card .map-legend, .mapview.has-bar .map-legend { display: none; }
-.map-legend { left: 14px; bottom: 18px; max-width: calc(100% - 220px); display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px; border-radius: 12px; background: rgba(15, 25, 20, .74); color: #fff; font-size: 12.5px; backdrop-filter: blur(6px); }
+.map-legend { left: 14px; bottom: 18px; max-width: calc(100% - 220px); display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px; border-radius: 12px; background: rgba(15, 25, 20, .84); color: #fff; font-size: 12.5px; }
 .map-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .map-legend i { width: 10px; height: 10px; border-radius: 3px; }
 .map-legend em { font-style: normal; opacity: .75; font-family: var(--f-mono); font-size: 11.5px; }
@@ -738,11 +738,11 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 .chart.hourly .rain { fill: #3D7DC0; }
 
 /* mappa */
-.map-weather { top: 70px; left: 14px; display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 14px; background: rgba(15, 25, 20, .72); color: #fff; backdrop-filter: blur(6px); font-size: 12.5px; }
+.map-weather { top: 70px; left: 14px; display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 14px; background: rgba(15, 25, 20, .84); color: #fff; font-size: 12.5px; }
 .map-weather button { display: flex; align-items: center; gap: 4px; border: 0; background: none; color: inherit; padding: 2px 4px; }
 .map-weather button .ic { color: #FFE08A; width: 20px; height: 20px; } .map-weather b { font-size: 15px; }
 .map-weather span { display: flex; align-items: center; gap: 3px; padding: 0 4px; } .map-weather span .ic { width: 13px; height: 13px; }
-.legend-btn { left: 14px; bottom: 18px; display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 12px; border-radius: 10px; border: 0; background: rgba(15, 25, 20, .78); color: #fff; font-weight: 650; font-size: 13.5px; backdrop-filter: blur(6px); }
+.legend-btn { left: 14px; bottom: 18px; display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 12px; border-radius: 10px; border: 0; background: rgba(15, 25, 20, .86); color: #fff; font-weight: 650; font-size: 13.5px; }
 .legend-btn .ic { width: 15px; height: 15px; transition: transform .15s; }
 .legend-btn.open .ic { transform: rotate(-90deg); }
 #mapControls .map-legend { left: 14px; bottom: 62px; max-width: min(320px, calc(100% - 28px)); flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: 5px; padding: 10px 12px; max-height: 45%; overflow-y: auto; display: flex; }
