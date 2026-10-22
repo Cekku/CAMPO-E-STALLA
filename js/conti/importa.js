@@ -151,7 +151,7 @@ export async function riabbinaBilancino(y) {
   await salvaAnno(y, x => { for (const r of VOCI_BILANCINO) { if (perRiga[r] != null) { x.ce[r] = perRiga[r]; x.fonteCe[r] = 'bilancino'; } else if (x.fonteCe && x.fonteCe[r] === 'bilancino') { delete x.ce[r]; delete x.fonteCe[r]; } } return x; });
 }
 export async function salvaIva(res, anno) {
-  const y = anno || res.anno; if (!y) throw new Error('Anno della dichiarazione non riconosciuto: indicalo.');
+  const y = anno || res.anno; if (!y) throw new Error(`Non ho trovato l'anno della dichiarazione ${res.nome}: scrivilo nella casella "Anno d'imposta" e premi di nuovo Salva.`);
   await salvaAnno(y, b => { b.iva = { righi: res.valori, voci: res.voci, controlli: res.controlli, fonte: res.fonte, file: res.nome, caricato: new Date().toISOString().slice(0, 10), avvisi: res.avvisi }; return b; });
 }
 

@@ -142,7 +142,7 @@ export function vAnalisi() {
 
 /* ---------------- IVA ---------------- */
 export function vIva() {
-  const anni = anniProspetto(UI.anno).filter(y => (bilancio(y) || {}).iva);
+  const anni = S.bilanci.filter(b => b.iva).map(b => +b.id).filter(Boolean).sort((a, b) => a - b).slice(-6);
   if (!anni.length) return nessunDato('percent', 'Nessuna dichiarazione IVA', 'Carica il file telematico della dichiarazione IVA o il PDF del modello: i quadri VE, VF e VL vengono letti da soli.');
   const V = Object.fromEntries(anni.map(y => { const v = Object.assign({}, bilancio(y).iva.voci || {}); v.saldo = v.vl1 == null && v.vl2 == null ? null : N(v.vl1) - N(v.vl2); return [y, v]; }));
   const rows = []; let sez = '';
@@ -150,7 +150,7 @@ export function vIva() {
   for (const x of IVA_VOCI) { if (x.sez !== sez) { sez = x.sez; rows.push({ _sez: NOMI[sez] }); } const o = { q: x.sez, l: x.l, n: x.n || '', _cls: x.tot ? 'grp' : 'det', _ind: x.sub ? 1 : 0 }; anni.forEach(y => (o[y] = V[y][x.k])); rows.push(o); }
   const y = anni.includes(UI.anno) ? UI.anno : anni[anni.length - 1]; const iv = bilancio(y).iva;
   const righi = Object.entries(iv.righi || {}).sort((a, b) => a[0].localeCompare(b[0], 'it', { numeric: true })).map(([k, v]) => ({ rigo: k.replace(':', ' col. '), v }));
-  return `<section class="card"><div class="card-h"><h2>${ic('percent')}Dichiarazioni IVA</h2>${bottoniExport(['iva', 'ivaR'], 'Dichiarazioni IVA')}</div>${tabella('iva', { title: 'Dati delle dichiarazioni IVA', sheet: 'IVA', cols: [{ k: 'q', h: 'Quadro' }, { k: 'l', h: 'Descrizione', fmt: 'text' }, ...anni.map(a => ({ k: a, h: String(a), fmt: 'eur' })), { k: 'n', h: 'Note', fmt: 'text', html: r => `<span class="sub">${esc(r.n)}</span>` }], rows, sort: false })}</section>
+  return `<section class="card"><div class="card-h"><h2>${ic('percent')}Dichiarazioni IVA</h2><span class="muted small">Colonne per anno d'imposta: il Modello IVA presentato l'anno dopo</span>${bottoniExport(['iva', 'ivaR'], 'Dichiarazioni IVA')}</div>${tabella('iva', { title: 'Dati delle dichiarazioni IVA', sheet: 'IVA', cols: [{ k: 'q', h: 'Quadro' }, { k: 'l', h: 'Descrizione', fmt: 'text' }, ...anni.map(a => ({ k: a, h: `${a} (mod. ${a + 1})`, fmt: 'eur' })), { k: 'n', h: 'Note', fmt: 'text', html: r => `<span class="sub">${esc(r.n)}</span>` }], rows, sort: false })}</section>
   <div class="grid-2"><section class="card"><div class="card-h"><h2>Controlli ${y}</h2><span class="muted small">${esc(iv.fonte || '')} · ${esc(iv.file || '')}</span></div><div class="pad-x">${(iv.controlli || []).length ? iv.controlli.map(c => `<div class="esito ${c.esito === 'OK' ? 'ok' : 'ko'}">${ic(c.esito === 'OK' ? 'circle-check' : 'triangle-alert')}${esc(c.d)}: ${esc(c.esito)}${c.esito === 'DIFFERENZA' ? ` (${fmtVal(c.a, 'eur')} / ${fmtVal(c.b, 'eur')})` : ''}</div>`).join('') : '<p class="muted">Nessun controllo disponibile.</p>'}${(iv.avvisi || []).map(a => `<p class="esito wa">${ic('circle-alert')}${esc(a)}</p>`).join('')}</div></section>
   <section class="card"><div class="card-h"><h2>Righi letti ${y}</h2></div>${righi.length ? tabella('ivaR', { title: 'Righi del modello IVA ' + y, sheet: 'Righi ' + y, cols: [{ k: 'rigo', h: 'Rigo' }, { k: 'v', h: 'Valore', fmt: 'eur2' }], rows: righi, sort: false }) : '<div class="empty slim">Dati importati dal file Excel: righi non disponibili.</div>'}</section></div>`;
 }

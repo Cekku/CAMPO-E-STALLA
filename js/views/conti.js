@@ -56,7 +56,9 @@ function panoramica() {
   if (daVer) todo.push(['triangle-alert', daVer === 1 ? '1 fattura da verificare' : `${daVer} fatture da verificare`, 'La somma delle righe non coincide con l\'imponibile', 'fatture', 'cf_stato', 'verifica']);
   if (daCl) todo.push(['tags', daCl === 1 ? '1 riga senza categoria' : `${daCl} righe senza categoria`, 'Assegna la categoria o aggiungi una regola', 'fatture', 'cf_stato', 'daclass']);
   if (!c.has.ce) todo.push(['scale', `Conto economico ${y} vuoto`, 'Carica il bilancino o inserisci gli importi', 'ce']);
-  if (!(bilancio(y) || {}).iva) todo.push(['percent', `Dichiarazione IVA ${y} non caricata`, 'Serve per i controlli di coerenza', 'importa']);
+  const ivaScaduta = new Date().toISOString().slice(0, 10) > `${y + 1}-04-30`;
+  const ivaAnni = S.bilanci.filter(b => b.iva).map(b => +b.id).sort((a, b) => a - b);
+  if (!(bilancio(y) || {}).iva && ivaScaduta) todo.push(['percent', `Dichiarazione IVA dell'anno ${y} non caricata`, `È il Modello IVA ${y + 1}, che riguarda le operazioni del ${y}.${ivaAnni.length ? ' Caricate: anni ' + ivaAnni.join(', ') + '.' : ''}`, 'importa']);
   if (c.has.ce && !P.l_vacca) todo.push(['cow', 'Analisi della stalla incompleta', 'Mancano vacche o litri di latte', 'analisi']);
   const trend = anni.length > 1 ? (anni.some(a => calc(a).has.ce)
     ? colonne(anni.map(String), [{ name: 'Valore della produzione', values: anni.map(a => calc(a).ce[26]), color: COL.ven }, { name: 'Costi della produzione', values: anni.map(a => calc(a).ce[78]), color: COL.acq }, { name: 'Utile', values: anni.map(a => calc(a).ce[105]), color: COL.diff }])
@@ -84,7 +86,7 @@ function vImporta() {
   <section class="card"><div class="card-h"><h2>${ic('list-checks')}Documenti letti</h2><span class="sp"></span><button class="btn sm ghost" data-act="c-impCancel">${ic('x')}Annulla</button><button class="btn sm primary" data-act="c-impSave"${IMP.busy ? ' disabled' : ''}>${ic('check')}Salva tutto</button></div>
   ${fat.length ? `<div class="card-h"><h3>${ic('receipt')}Fatture: ${fat.length} lette, ${nuove.length} nuove</h3></div><div class="imp-list">${rowsF}${fat.length > 60 ? `<p class="muted small pad-x">… e altre ${fat.length - 60}</p>` : ''}</div>` : ''}
   ${bil.map((x, i) => `<div class="card-h"><h3>${ic('scale')}Bilancino ${esc(x.nome)}</h3></div><div class="imp-row"><span class="r-icon">${ic('scale')}</span><span><b>${esc(x.ditta || '')}</b><span>${x.conti.length} conti · ricavi ${fmtVal(sumSez(x, 'RICAVI'), 'eur')} · costi ${fmtVal(sumSez(x, 'COSTI'), 'eur')} · controlli: ${x.controlli.every(c => c.esito === 'OK') ? 'tutti OK' : x.controlli.filter(c => c.esito !== 'OK').map(c => c.esito).join(', ')}</span></span><span>Anno <input class="inp yr-in" inputmode="numeric" data-act="c-impAnno" data-k="${r.indexOf(x)}" value="${esc(x.anno || '')}"></span></div>`).join('')}
-  ${iva.map(x => `<div class="card-h"><h3>${ic('percent')}Dichiarazione IVA ${esc(x.nome)}</h3></div><div class="imp-row"><span class="r-icon">${ic('percent')}</span><span><b>Volume d'affari ${fmtVal(x.voci.ve50, 'eur')} · IVA esigibile ${fmtVal(x.voci.vl1, 'eur')} · detratta ${fmtVal(x.voci.vl2, 'eur')}</b><span>${x.fonte} · ${Object.keys(x.valori).length} righi · controlli: ${x.controlli.every(c => c.esito === 'OK') ? 'tutti OK' : x.controlli.filter(c => c.esito !== 'OK').map(c => c.d + ' ' + c.esito).join('; ')}</span></span><span>Anno <input class="inp yr-in" inputmode="numeric" data-act="c-impAnno" data-k="${r.indexOf(x)}" value="${esc(x.anno || '')}"></span></div>`).join('')}
+  ${iva.map(x => `<div class="card-h"><h3>${ic('percent')}Dichiarazione IVA ${esc(x.nome)}</h3></div><div class="imp-row"><span class="r-icon">${ic('percent')}</span><span><b>Volume d'affari ${fmtVal(x.voci.ve50, 'eur')} · IVA esigibile ${fmtVal(x.voci.vl1, 'eur')} · detratta ${fmtVal(x.voci.vl2, 'eur')}</b><span>${x.fonte} · ${Object.keys(x.valori).length} righi · controlli: ${x.controlli.every(c => c.esito === 'OK') ? 'tutti OK' : x.controlli.filter(c => c.esito !== 'OK').map(c => c.d + ' ' + c.esito).join('; ')}</span></span><span>Anno d'imposta <input class="inp yr-in" inputmode="numeric" data-act="c-impAnno" data-k="${r.indexOf(x)}" value="${esc(x.anno || '')}"><small class="muted" style="display:block">Modello IVA ${x.anno ? x.anno + 1 : '—'}</small></span></div>`).join('')}
   ${xls.map(x => `<div class="card-h"><h3>${ic('file-spreadsheet')}File Excel ${esc(x.nome)}</h3></div><div class="imp-row"><span class="r-icon">${ic('file-spreadsheet')}</span><span><b>${esc(x.azienda.nome || 'Modello di conto economico')}</b><span>Anni ${Object.keys(x.anni).join(', ') || '—'} · ${x.fatture.length} fatture · ${x.regole ? x.regole.length + ' regole delle categorie' : 'regole predefinite'}</span></span><span class="muted small">Sostituisce i valori di quegli anni</span></div>`).join('')}
   ${err.length ? `<div class="card-h"><h3>${ic('triangle-alert')}Non letti: ${err.length}</h3></div>${err.map(x => `<div class="imp-row"><span class="r-icon">${ic('circle-x')}</span><span><b>${esc(x.nome)}</b><span>${esc(x.errore)}</span></span><span></span></div>`).join('')}` : ''}
   </section>`;
@@ -110,10 +112,11 @@ async function salvaImport() {
   const fat = r.filter(x => x.tipo === 'fattura').map(x => x.f);
   if (fat.length) { const o = await M.salvaFatture(fat); msg.push(`${o.nuove} fatture nuove${o.corrette ? ', ' + o.corrette + ' corrette' : ''}${o.doppie ? ', ' + o.doppie + ' già presenti' : ''}`); }
   for (const x of r.filter(x => x.tipo === 'bilancino')) { await M.salvaBilancino(x, +x.anno || null); msg.push('bilancino ' + x.anno); }
-  for (const x of r.filter(x => x.tipo === 'iva')) { await M.salvaIva(x, +x.anno || null); msg.push('IVA ' + x.anno); }
+  for (const x of r.filter(x => x.tipo === 'iva')) { await M.salvaIva(x, +x.anno || null); msg.push(`dichiarazione IVA anno d'imposta ${x.anno}`); }
   IMP.ris = []; toast('Salvato: ' + msg.join(' · '));
   UI.sub.conti = fat.length ? 'fatture' : r.some(x => x.tipo === 'bilancino' || x.tipo === 'excel') ? 'ce' : r.some(x => x.tipo === 'iva') ? 'iva' : 'panoramica';
   const yrs = fat.map(f => +String(f.data || '').slice(0, 4)).filter(Boolean); if (yrs.length) UI.anno = Math.max(...yrs);
+  else { const altri = r.filter(x => (x.tipo === 'iva' || x.tipo === 'bilancino') && +x.anno).map(x => +x.anno); if (altri.length) UI.anno = Math.max(...altri); }
   rerender();
 }
 
