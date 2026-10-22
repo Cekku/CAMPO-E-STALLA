@@ -93,7 +93,7 @@ export function movimentiDaParole(pagine) {
 /** Beneficiario o ordinante, IBAN, causale e tipo di operazione dalla descrizione del movimento. */
 export function arricchisci(m) {
   const d = m.descrizione || ''; const g = re => { const x = re.exec(d); return x ? x[1].trim() : ''; };
-  const controparte = g(/A\s*fav\.?:?\s*(.+?)(?:\s+-\s+|\s+ID\.MSG|\s+ID\.END|\s+RICON|$)/i) || g(/Ordinante:\s*(.+?)(?:\s+Causale|\s+IBAN|\s+Data|$)/i) || g(/Benef\.\s*(.+?)(?:\s+Comp\.|\s+Spese|$)/i)
+  const controparte = g(/(?:A\s+FAVORE\s+DI|A\s*fav\.?:?|BENEFICIARIO:?)\s*(.+?)(?:\s+-\s+|\s+ID\.MSG|\s+ID\.END|\s+RICON|\s+(?:STIPEND|SALARI|RETRIBU|MENSILIT|ACCONTO|ANTICIPO|SALDO|CAUSALE|PER\s)|\s+(?:IBAN|IT\d\d[A-Z])|$)/i) || g(/Ordinante:\s*(.+?)(?:\s+Causale|\s+IBAN|\s+Data|$)/i) || g(/Benef\.\s*(.+?)(?:\s+Comp\.|\s+Spese|$)/i)
     || g(/CRED\.\s*(.+?)(?:\s+ID\.?\s*MANDATO|\s+RIF\.|$)/i) || g(/PRESSO:\s*(.+?)(?:\s+VIA|\s+CARTA|\s+V\.LE|\s+PIAZZA|$)/i) || g(/Pag\.\s*:\s*(.+)$/i);
   const iban = pulisciIban(g(/(?:Coordinate\s+benef\.?|IBAN\s+ordinante|IBAN\s+benef\w*|IBAN):?\s*([A-Z0-9$]{2}\s?\d{2}[A-Z0-9$ ]{11,34}?)(?=\s|$)/i));
   const causale = g(/RICON\.?\s*1?\.?:?\s*(.+)$/i) || g(/Causale:\s*(.+?)(?:\s+\d{15,}|\s+Data ordine|\s+IBAN|$)/i);
@@ -188,8 +188,8 @@ export async function righeEstratto(movs, file) {
     const base = { id, data: m.data, importo: Math.abs(m.importo), entrata: m.importo > 0, descrizione: m.descrizione, beneficiario: m.beneficiario, iban: m.iban, causale: m.causale, fonte: file, gia: usati.has(id), modalita: m.tipoOp === 'assegno' ? 'assegno' : m.tipoOp === 'POS' ? 'carta' : 'bonifico', comp: competenzaDaCausale(m.causale || m.descrizione), fatt: [], proposte: [], motivo: '' };
     let r = null;
     if (m.importo < 0 && m.tipoOp !== 'spese bancarie') r = P.riconosci({ descrizione: m.descrizione, beneficiario: m.beneficiario, iban: m.iban }, dips);
-    if (r && r.tipo === 'stipendio' && !r.dip) r = null;
-    if (r) return Object.assign(base, r, { sel: !base.gia });
+    if (r && r.tipo === 'stipendio' && !r.dip && !r.ambigui) r = m.beneficiario ? { tipo: 'stipendio', dip: P.chiaveDip({ nome: m.beneficiario }), nuovo: true } : null;
+    if (r) return Object.assign(base, r, { sel: !base.gia && !(P.CON_DIP.has(r.tipo) && !r.dip) });
     const c = m.tipoOp === 'spese bancarie' ? { scelte: [], proposte: [] } : candidateFatture(m, gia);
     base.proposte = c.proposte;
     if (c.scelte.length) {
@@ -203,7 +203,7 @@ export async function righeEstratto(movs, file) {
 export async function salvaRighe(sel, fonte) {
   const P = await import('./paghe.js'); let nP = 0, nF = 0;
   const pag = sel.filter(r => r.tipo !== 'fattura' && r.tipo !== 'ignora' && !r.entrata);
-  if (pag.length) { await store.bulkPut(pag.map(r => ({ col: 'pagamenti', id: r.id, data: P.datiPagamento(Object.assign({ fonte }, r)) }))); nP = pag.length; }
+  if (pag.length) { await store.bulkPut(pag.map(r => ({ col: 'pagamenti', id: r.id, data: P.datiPagamento(Object.assign({ fonte }, r)) }))); nP = pag.length; await P.imparaNomi(pag); }
   for (const r of sel.filter(r => r.tipo === 'fattura' && r.fatt && r.fatt.length)) { await registraSuFatture({ id: r.id, data: r.data, importo: r.entrata ? r.importo : -r.importo, descrizione: r.descrizione }, r.fatt, r.fonte || fonte); nF++; }
   return { nP, nF };
 }

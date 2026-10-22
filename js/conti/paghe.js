@@ -74,7 +74,10 @@ function calcola() {
   }
   for (const d of dip.values()) { const e = extra.get(d.key) || {}; d.alias = e.alias || ''; d.nota = e.nota || ''; d.uniti = [...unioni.keys()].filter(k => mk(k) === d.key).map(k => ({ key: k, nome: (ced.find(c => c.dipOrig === k) || {}).nome || (S.pagamenti.find(p => p.dip === k && p.beneficiario) || {}).beneficiario || k.replace(/^N-/, '').replace(/-/g, ' ') })); d.td = /T\.?DET|\bTD\b|OTD|STAGION/i.test(d.qualifica || '') || !!d.scadTD; }
   // pagamenti a dipendenti non ancora nei cedolini (chiave dal nome) o riconoscibili dall'IBAN: si collegano alla scheda giusta
-  const perNome = new Map([...dip.values()].map(d => [nomeChiave(d.nome), d.key]));
+  // nomi uguali (omonimi): si distinguono con il nome da mostrare o con l'anno di nascita
+  const perCed = new Map(); for (const d of dip.values()) { d.nomeCed = d.nome; const k = nomeChiave(d.nome); perCed.set(k, [...(perCed.get(k) || []), d]); }
+  for (const d of dip.values()) { const e = extra.get(d.key) || {}; d.omonimo = perCed.get(nomeChiave(d.nomeCed)).length > 1; d.etichetta = e.etichetta || ''; d.nome = e.etichetta || (d.omonimo ? `${d.nomeCed} (${d.nascita ? 'nato nel ' + d.nascita.slice(0, 4) : 'matr. ' + (d.matricola || '?')})` : d.nomeCed); }
+  const perNome = new Map([...perCed].filter(([, ds]) => ds.length === 1).map(([k, ds]) => [k, ds[0].key]));
   for (const d of dip.values()) for (const a of String(d.alias || '').split(',')) if (a.trim()) perNome.set(nomeChiave(a), d.key);
   const perIban = new Map(); for (const p of S.pagamenti) if (p.iban && p.dip && dip.has(p.dip)) perIban.set(p.iban, p.dip);
   const pag = [...S.pagamenti].map(p => {
@@ -159,11 +162,11 @@ function controlli(ced, bil, tot, pag, ver, dip, per, pre) {
   const t = today(); const eu = v => Number(v).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   // cedolini: controlli interni
   for (const c of ced) {
-    for (const k of (c.controlli || []).filter(k => k.esito !== 'OK')) add('warn', `Cedolino di ${c.nome}, ${nomeMese(c.periodo)}: ${k.d.toLowerCase()}`, k.esito, { dip: c.dip, periodo: c.periodo });
-    if (N(c.netto) <= 0) add('err', `Netto a zero o negativo per ${c.nome} a ${nomeMese(c.periodo)}`, 'Controlla il cedolino con il consulente del lavoro.', { dip: c.dip, periodo: c.periodo });
+    for (const k of (c.controlli || []).filter(k => k.esito !== 'OK')) add('warn', `Cedolino di ${(dip.get(c.dip) || c).nome}, ${nomeMese(c.periodo)}: ${k.d.toLowerCase()}`, k.esito, { dip: c.dip, periodo: c.periodo });
+    if (N(c.netto) <= 0) add('err', `Netto a zero o negativo per ${(dip.get(c.dip) || c).nome} a ${nomeMese(c.periodo)}`, 'Controlla il cedolino con il consulente del lavoro.', { dip: c.dip, periodo: c.periodo });
     const fine = finePeriodo(c.periodo), ini = inizioPeriodo(c.periodo);
-    if (c.scadTD && c.scadTD < ini && !c.cessazione) add('err', `Contratto a termine scaduto: ${c.nome}`, `Il termine era il ${c.scadTD.split('-').reverse().join('/')}, ma c'è il cedolino di ${nomeMese(c.periodo)}. Serve una proroga o una trasformazione a tempo indeterminato.`, { dip: c.dip, periodo: c.periodo });
-    if (c.scadPermesso && c.scadPermesso < fine) add('warn', `Permesso di soggiorno scaduto: ${c.nome}`, `Scadenza indicata sul cedolino di ${nomeMese(c.periodo)}: ${c.scadPermesso.split('-').reverse().join('/')}. Verifica di avere la ricevuta della domanda di rinnovo e fai aggiornare la data al consulente.`, { dip: c.dip, periodo: c.periodo });
+    if (c.scadTD && c.scadTD < ini && !c.cessazione) add('err', `Contratto a termine scaduto: ${(dip.get(c.dip) || c).nome}`, `Il termine era il ${c.scadTD.split('-').reverse().join('/')}, ma c'è il cedolino di ${nomeMese(c.periodo)}. Serve una proroga o una trasformazione a tempo indeterminato.`, { dip: c.dip, periodo: c.periodo });
+    if (c.scadPermesso && c.scadPermesso < fine) add('warn', `Permesso di soggiorno scaduto: ${(dip.get(c.dip) || c).nome}`, `Scadenza indicata sul cedolino di ${nomeMese(c.periodo)}: ${c.scadPermesso.split('-').reverse().join('/')}. Verifica di avere la ricevuta della domanda di rinnovo e fai aggiornare la data al consulente.`, { dip: c.dip, periodo: c.periodo });
   }
   // stesso dipendente, permesso o termine in scadenza nei prossimi 60 giorni (dall'ultimo cedolino)
   for (const d of dip.values()) {
@@ -334,21 +337,35 @@ export async function leggiMovimenti(nome, bytes) {
   return movimentiDaRighe(splitCsv(txt.replace(/^﻿/, '')));
 }
 /** Riconosce dalla descrizione a chi o a cosa va un movimento. */
+export const aliasDi = d => String((d && d.alias) || '').split(',').map(a => a.trim()).filter(Boolean);
 export function riconosci(m, dips = dipendenti()) {
-  if (m.iban) { const p = S.pagamenti.find(x => x.iban === m.iban && x.dip && x.tipo === 'stipendio'); if (p) { const d = dips.find(d => d.key === p.dip || nomeChiave(d.nome) === nomeChiave(p.beneficiario)); return { tipo: 'stipendio', dip: d ? d.key : p.dip }; } }
-  if (m.beneficiario) { const k = nomeChiave(m.beneficiario); const d = dips.find(d => nomeChiave(d.nome) === k || String(d.alias || '').split(',').some(a => a.trim() && nomeChiave(a) === k)); if (d) return { tipo: 'stipendio', dip: d.key }; }
-  const d = ' ' + String([m.beneficiario, m.descrizione].filter(Boolean).join(' ')).toUpperCase().replace(/[^A-Z0-9]+/g, ' ') + ' ';
-  const parole = n => String(n || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(w => w.length > 1);
-  let best = null, bs = 0;
-  for (const p of dips) {
-    const nomi = [parole(p.nome), ...String(p.alias || '').split(',').map(parole).filter(x => x.length)];
-    for (const ws of nomi) {
-      const hit = ws.filter(w => d.includes(' ' + w + ' ')).length;
-      const sc = hit === ws.length ? 10 + hit : hit >= 2 ? hit : 0;
-      if (sc > bs) { bs = sc; best = p; }
-    }
+  const amb = ds => ({ tipo: 'stipendio', dip: '', ambigui: ds.map(d => d.key) });
+  const nc = d => nomeChiave(d.nomeCed || d.nome);
+  // 1) nome scritto esattamente come uno dei nomi associati nella tabella (vince sempre)
+  if (m.beneficiario) {
+    const k = nomeChiave(m.beneficiario);
+    const a = dips.filter(d => aliasDi(d).some(x => nomeChiave(x) === k)); if (a.length === 1) return { tipo: 'stipendio', dip: a[0].key };
   }
-  if (best) return { tipo: 'stipendio', dip: best.key };
+  // 2) IBAN già usato per un dipendente (solo se il nome non è di un omonimo diverso)
+  if (m.iban) { const p = S.pagamenti.find(x => x.iban === m.iban && x.dip && x.tipo === 'stipendio'); if (p) { const d = dips.find(d => d.key === p.dip) || dips.find(d => !d.omonimo && nc(d) === nomeChiave(p.beneficiario)); if (d) return { tipo: 'stipendio', dip: d.key }; } }
+  // 3) nome uguale a quello del cedolino
+  if (m.beneficiario) { const k = nomeChiave(m.beneficiario); const n = dips.filter(d => nc(d) === k); if (n.length === 1) return { tipo: 'stipendio', dip: n[0].key }; if (n.length > 1) return amb(n); }
+  // 3b) nome già usato in un pagamento registrato (anche di chi non ha ancora cedolini)
+  if (m.beneficiario) { const k = nomeChiave(m.beneficiario); const p = S.pagamenti.find(x => x.dip && CON_DIP.has(x.tipo) && x.beneficiario && nomeChiave(x.beneficiario) === k); if (p && !(dips.find(d => d.key === p.dip) || {}).omonimo) return { tipo: 'stipendio', dip: p.dip }; }
+  // 4) nome dentro la descrizione: i nomi della tabella contano anche le iniziali (es. "SINGH AMARJIT G")
+  const d = ' ' + String([m.beneficiario, m.descrizione].filter(Boolean).join(' ')).toUpperCase().replace(/[^A-Z0-9]+/g, ' ') + ' ';
+  const parole = (n, min) => String(n || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(w => w.length >= min);
+  const punti = new Map();
+  for (const p of dips) {
+    let sc = 0;
+    for (const ws of aliasDi(p).map(a => parole(a, 1))) if (ws.length && ws.every(w => d.includes(' ' + w + ' '))) sc = Math.max(sc, 30 + ws.length);
+    const ws = parole(p.nomeCed || p.nome, 2); const hit = ws.filter(w => d.includes(' ' + w + ' ')).length;
+    sc = Math.max(sc, hit === ws.length && ws.length ? 10 + hit : hit >= 2 ? hit : 0);
+    if (sc) punti.set(p, sc);
+  }
+  const max = Math.max(0, ...punti.values()); const migliori = [...punti].filter(([, v]) => v === max).map(([p]) => p);
+  if (migliori.length === 1) return { tipo: 'stipendio', dip: migliori[0].key };
+  if (migliori.length > 1) return amb(migliori);
   if (/\bF24\b|DELEGA|AGENZIA ENTRATE|TRIBUT/.test(d)) return { tipo: 'f24' };
   if (/\bINPS\b|CONTRIBUT|PAGOPA.*INPS/.test(d)) return { tipo: 'contributi' };
   if (/FONDO PENS|PREVID|ALLEATA|\bTFR\b/.test(d)) return { tipo: 'fondo' };
@@ -364,12 +381,12 @@ export function righeBonifici(bon, file) {
   return bon.map(b => {
     const m = { data: b.data, importo: r2(b.importo), descrizione: [b.beneficiario, b.causale].filter(Boolean).join(' · '), beneficiario: b.beneficiario, iban: b.iban };
     let r = riconosci(m, dips);
-    if ((!r || (r.tipo === 'stipendio' && !r.dip)) && b.stipendio) r = { tipo: 'stipendio', dip: 'N-' + slug(b.beneficiario) };
+    if ((!r || (r.tipo === 'stipendio' && !r.dip && !r.ambigui)) && b.stipendio) r = { tipo: 'stipendio', dip: 'N-' + slug(b.beneficiario) };
     const id = b.id ? 'b' + idPagamento({ data: b.id, importo: 0, descrizione: '' }).slice(1) : idPagamento(m);
     let fatt = [], proposte = [], motivo = '';
     if (!r) { const c = candidateFatture({ id, data: b.data || today(), importo: -b.importo, descrizione: [b.beneficiario, b.causale].join(' ') }, gia); proposte = c.proposte; if (c.scelte.length) { r = { tipo: 'fattura' }; fatt = c.scelte; motivo = c.motivo; c.scelte.forEach(f => gia.set(f, (gia.get(f) || 0) + b.importo)); } }
     if (!r) r = { tipo: 'ignora' };
-    return Object.assign(m, r, { id, comp: b.comp || '', modalita: 'bonifico', idBanca: b.id || '', fonte: file, gia: presenti.has(id), sel: !presenti.has(id) && r.tipo !== 'ignora', causale: b.causale, fatt, proposte, motivo, nuovo: r.dip && r.dip.startsWith('N-') && !dips.some(d => d.key === r.dip) });
+    return Object.assign(m, r, { id, comp: b.comp || '', modalita: 'bonifico', idBanca: b.id || '', fonte: file, gia: presenti.has(id), sel: !presenti.has(id) && r.tipo !== 'ignora' && !(r.ambigui && !r.dip), causale: b.causale, fatt, proposte, motivo, nuovo: r.dip && r.dip.startsWith('N-') && !dips.some(d => d.key === r.dip) });
   });
 }
 /** Campi del pagamento da salvare. */
@@ -388,3 +405,36 @@ export async function unisci(da, a, nomeDa) {
   await store.bulkPut(rows);
 }
 export async function separa(da) { await store.remove('paghe', 'u-' + da); }
+
+/** Tabella dei nomi: salva per ogni dipendente i nomi con cui compare nei pagamenti e il nome da mostrare. */
+export async function salvaNomi(righe, etichette = null) {
+  const per = new Map(); for (const [nome, k] of righe) { if (!nome || !k) continue; per.set(k, [...(per.get(k) || []), nome]); }
+  const keys = new Set([...dipendenti().map(d => d.key), ...per.keys(), ...S.paghe.filter(x => x.tipo === 'dipendente').map(x => x.dip)]);
+  const rows = [];
+  for (const k of keys) {
+    const { id: _o, ...e } = S.paghe.find(x => x.id === 'd-' + k) || {};
+    const alias = [...new Set(per.get(k) || [])].join(', ');
+    const et = etichette && k in etichette ? etichette[k] : e.etichetta || '';
+    if ((e.alias || '') === alias && (e.etichetta || '') === et) continue;
+    rows.push({ col: 'paghe', id: 'd-' + k, data: Object.assign(e, { tipo: 'dipendente', dip: k, alias, etichetta: et }) });
+  }
+  if (rows.length) await store.bulkPut(rows);
+  return rows.length;
+}
+/** Dopo aver scelto a mano il dipendente di un pagamento: il nome del beneficiario si ricorda per la prossima volta. */
+export async function imparaNomi(righe) {
+  const dips = dipendenti(); const nuove = [];
+  for (const r of righe) {
+    if (!r.beneficiario || !r.dip || !CON_DIP.has(r.tipo)) continue;
+    const d = dips.find(x => x.key === r.dip); if (!d) continue;
+    const k = nomeChiave(r.beneficiario);
+    if (nomeChiave(d.nomeCed) === k && !d.omonimo) continue;
+    if (dips.some(x => x.key !== d.key && !x.omonimo && nomeChiave(x.nomeCed) === k)) continue;
+    if (dips.some(x => x.key !== d.key && aliasDi(x).some(a => nomeChiave(a) === k))) continue;
+    if (d.omonimo && nomeChiave(d.nomeCed) === k) continue; // il nome del cedolino è di due persone: non si può ricordare
+    if (!aliasDi(d).some(a => nomeChiave(a) === k)) nuove.push([r.beneficiario, d.key]);
+  }
+  if (!nuove.length) return 0;
+  const tutte = dips.flatMap(d => aliasDi(d).map(a => [a, d.key])).concat(nuove);
+  await salvaNomi(tutte); return nuove.length;
+}
