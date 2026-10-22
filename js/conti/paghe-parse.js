@@ -4,7 +4,7 @@
 import { leggiPdf, parole } from './pdftext.js';
 
 export const MESI_NOMI = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
-const MESE_RE = /^(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre|tredicesima|quattordicesima|13a|14a|13\^|14\^)$/i;
+const MESE_RE = /^(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre|tredicesima|quattordicesima|1[34](?:a|ª|°|\^|-?esima|-?ma)|13ma|14ma)$/i;
 const meseNum = s => { s = s.toLowerCase(); const i = MESI_NOMI.findIndex(m => m.toLowerCase() === s); if (i >= 0) return i + 1; if (/^(tredicesima|13)/.test(s)) return 13; if (/^(quattordicesima|14)/.test(s)) return 14; return null; };
 const pulisci = s => String(s || '').replace(/[\u0000-\u001f]/g, '').trim();
 const r2 = v => Math.round(v * 100) / 100;
