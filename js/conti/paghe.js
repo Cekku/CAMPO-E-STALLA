@@ -53,13 +53,15 @@ export function nomeDi(k) {
   const p = S.pagamenti.find(x => x.dip === k && x.beneficiario); if (p) return p.beneficiario;
   return String(k || '').replace(/^N-/, '').replace(/-/g, ' ');
 }
+const periodoOk = p => /^\d{4}-(0[1-9]|1[0-4])$/.test(p || '');
 function calcola() {
   // "è la stessa persona": le chiavi unite a mano puntano al dipendente scelto
   const unioni = new Map(S.paghe.filter(x => x.tipo === 'unione').map(x => [x.da, x.a]));
   const mk = k => { let n = 0; while (k && unioni.has(k) && n++ < 10) k = unioni.get(k); return k; };
   const ced = S.paghe.filter(x => x.tipo === 'cedolino').map(c => Object.assign({}, c, { periodo: periodo(c.anno, c.mese), dip: mk(c.dip || chiaveDip(c)), dipOrig: c.dip || chiaveDip(c) })).sort((a, b) => a.periodo.localeCompare(b.periodo) || (a.nome || '').localeCompare(b.nome || ''));
-  const bil = S.paghe.filter(x => x.tipo === 'bilancino').map(b => Object.assign({}, b, { periodo: periodo(b.anno, b.mese) })).sort((a, b) => a.periodo.localeCompare(b.periodo));
-  const tot = S.paghe.filter(x => x.tipo === 'totali').map(b => Object.assign({}, b, { periodo: periodo(b.anno, b.mese) }));
+  const scartati = ced.filter(c => !periodoOk(c.periodo)); for (let i = ced.length - 1; i >= 0; i--) if (!periodoOk(ced[i].periodo)) ced.splice(i, 1);
+  const bil = S.paghe.filter(x => x.tipo === 'bilancino').map(b => Object.assign({}, b, { periodo: periodo(b.anno, b.mese) })).filter(b => periodoOk(b.periodo)).sort((a, b) => a.periodo.localeCompare(b.periodo));
+  const tot = S.paghe.filter(x => x.tipo === 'totali').map(b => Object.assign({}, b, { periodo: periodo(b.anno, b.mese) })).filter(b => periodoOk(b.periodo));
   const extra = new Map(); for (const x of S.paghe.filter(x => x.tipo === 'dipendente')) { const k = mk(x.dip); const o = extra.get(k); extra.set(k, o ? Object.assign({}, o, { alias: [o.alias, x.alias].filter(Boolean).join(', ') }) : x); }
   const per = [...new Set([...ced.map(c => c.periodo), ...bil.map(b => b.periodo)])].sort();
   // anagrafica dall'ultimo cedolino
@@ -83,6 +85,7 @@ function calcola() {
   const ver = abbina(ced, pag);
   const pre = calcolaPrestiti(pag);
   const ano = controlli(ced, bil, tot, pag, ver, dip, per, pre);
+  for (const c of scartati) ano.unshift({ liv: 'err', testo: `Cedolino senza mese o anno: ${c.nome || 'dipendente non letto'}`, det: `Nel file ${c.file || ''} non ho letto il mese. Eliminalo da Cedolini e ricaricalo, oppure mandami il PDF.`, cid: c.id });
   for (const d of dip.values()) {
     const v = ver.filter(x => x.dip === d.key);
     Object.assign(d, { mesi: d.ced.length, ore: r2(d.ced.reduce((t, c) => t + N(c.ore), 0)), lordo: r2(d.ced.reduce((t, c) => t + N(c.lordo), 0)), netto: r2(d.ced.reduce((t, c) => t + N(c.netto), 0)), irpef: r2(d.ced.reduce((t, c) => t + N(c.irpef), 0)), ritPrev: r2(d.ced.reduce((t, c) => t + N(c.ritPrev), 0)), pagato: r2(v.reduce((t, x) => t + x.pagato, 0)), dovuto: r2(v.reduce((t, x) => t + x.dovuto, 0)) });

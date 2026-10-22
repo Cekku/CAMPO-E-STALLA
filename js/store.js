@@ -172,7 +172,8 @@ async function push() {
   }
 }
 async function pull() {
-  let since = sync.lastSync ? new Date(Date.parse(sync.lastSync) - 15000).toISOString() : '1970-01-01T00:00:00Z';
+  const t0 = sync.lastSync ? Date.parse(String(sync.lastSync).replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1')) : NaN;
+  let since = isFinite(t0) ? new Date(t0 - 15000).toISOString() : '1970-01-01T00:00:00Z';
   let maxTs = sync.lastSync;
   for (let guard = 0; guard < 200; guard++) {
     const { data, error } = await sb.from('records').select('col,id,data,deleted,updated_at').eq('farm_id', sync.farm.id).gt('updated_at', since).order('updated_at', { ascending: true }).limit(1000);

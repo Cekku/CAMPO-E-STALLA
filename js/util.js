@@ -9,8 +9,8 @@ export const eur = (v, d = 0) => Number(v || 0).toLocaleString('it-IT', { style:
 export const isoOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 export const today = () => isoOf(new Date());
 export const okD = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
-const utc = s => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); };
-export const addDays = (s, n) => new Date(utc(s) + n * 864e5).toISOString().slice(0, 10);
+const utc = s => { const [y, m, d] = String(s || '').split('-').map(Number); return Date.UTC(y, m - 1, d); };
+export const addDays = (s, n) => { const t = utc(String(s || '')) + n * 864e5; return isFinite(t) ? new Date(t).toISOString().slice(0, 10) : null; };
 export const diff = (a, b) => Math.round((utc(b) - utc(a)) / 864e5);
 export const fd = s => { if (!okD(s)) return '—'; const [y, m, d] = s.split('-'); return d + '/' + m + '/' + y.slice(2); };
 const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];

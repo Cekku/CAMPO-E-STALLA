@@ -131,6 +131,10 @@ export async function leggiCedolini(bytes, pagine) {
     ced.push(c);
   }
   if (!ced.length && !tot.length) throw new Error('Nessun cedolino riconosciuto nel PDF.');
+  // mese e anno sono gli stessi per tutto il PDF: se una pagina non li ha, si prendono dalle altre
+  const rif = [...ced, ...tot].find(c => c.mese && c.anno);
+  if (!rif) throw new Error('Ho trovato i cedolini ma non il mese e l\'anno (in fondo alla pagina, sopra il netto).');
+  for (const c of [...ced, ...tot]) { if (!c.mese) c.mese = rif.mese; if (!c.anno) c.anno = rif.anno; }
   const mese = (ced[0] || tot[0]).mese, anno = (ced[0] || tot[0]).anno;
   const totali = tot[0] || null;
   const controlli = [];

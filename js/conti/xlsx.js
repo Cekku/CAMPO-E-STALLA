@@ -30,7 +30,7 @@ export async function leggiXlsx(data) {
   }
   return fogli;
 }
-export const serialeAData = n => { if (typeof n !== 'number') return null; const d = new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 864e5); return d.toISOString().slice(0, 10); };
+export const serialeAData = n => { if (typeof n !== 'number' || !(n > 0 && n < 2958466)) return null; const d = new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 864e5); return d.toISOString().slice(0, 10); };
 
 /* ---------------- scrittura ---------------- */
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
