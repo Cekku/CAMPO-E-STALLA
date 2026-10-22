@@ -35,6 +35,12 @@ La chiave *anon* è pensata per stare nelle app: i dati sono protetti dalle rego
 
 Fatture e bilancio devono essere visibili solo al titolare. Se il database esisteva già, apri **SQL Editor → New query**, incolla il contenuto di [`supabase/aggiornamento-conti.sql`](supabase/aggiornamento-conti.sql) e premi **Run** (una volta sola). Finché non lo fai, l'app mostra un avviso nell'area Conti.
 
+## Riservatezza
+
+- I dati **non stanno nel sito**: restano nel browser di ogni dispositivo e, se attivi la sincronizzazione, nel tuo database Supabase, leggibile solo dopo l'accesso. Chi apre l'indirizzo dell'app vede un'app vuota.
+- **Blocco con codice** (La mia azienda → Blocco con codice): l'app chiede il codice all'apertura e dopo qualche minuto di inattività.
+- Il sito non viene indicizzato dai motori di ricerca (`robots.txt` e meta `noindex`).
+
 ## Installare sul telefono
 
 - **Android (Chrome)**: apri l'indirizzo, tocca *Installa l'app* nella schermata Oggi o dal menu ⋮ → *Installa app*.

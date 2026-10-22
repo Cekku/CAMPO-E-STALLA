@@ -24,6 +24,7 @@ import { render as vMag } from './views/magazzino.js';
 import { render as vMezzi } from './views/mezzi.js';
 import { moveSheet, misureImport } from './views/stalle.js';
 import { render as vImp, authUI } from './views/impostazioni.js';
+import { avviaBlocco, blocca, salvaBloccoDaForm, disattivaDaForm } from './lock.js';
 import { render as vConti, onAct as contiAct, onChange as contiChange, onDrop as contiDrop, setRerender, contiVisibili, esportaTutto } from './views/conti.js';
 
 const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, impostazioni: vImp, conti: vConti };
@@ -360,6 +361,8 @@ document.addEventListener('click', async e => {
       case 'ndviField': return ndviField(d.id, b);
       case 'ndviMap': setTab('mappa'); return setTimeout(() => MAP.showNdvi(d.id), 250);
       case 'mapFocus': setTab('mappa'); return setTimeout(() => MAP.focusCampo(d.id), 250);
+      case 'lockNow': return blocca();
+      case 'lockOff': try { toast(await disattivaDaForm($)); } catch (err) { toast(err.message, 'err'); } return render();
       case 'c-expAll': drawer(false); closeSheet(); b.disabled = true; try { await esportaTutto(UI.anno); } finally { b.disabled = false; } return;
       default: if (a === 'tsort' || a === 'texp' || a.startsWith('c-')) return contiAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
     }
@@ -397,6 +400,7 @@ document.addEventListener('submit', async e => {
   const f = e.target; const k = f.dataset.formAct; if (!k) return; e.preventDefault();
   const btn = f.querySelector('[type=submit]'); if (btn) btn.disabled = true;
   try {
+    if (k === 'lockSet') { toast(await salvaBloccoDaForm($)); }
     if (k === 'azienda') { const a = azienda(); await store.put('config', 'azienda', Object.assign({}, a, { nome: $('#az_nome').value.trim(), asl: $('#az_asl').value.trim(), iva: $('#az_iva').value.trim(), indirizzo: ($('#az_ind') || {}).value?.trim?.() || a.indirizzo || '', lat: $('#az_lat').value.trim().replace(',', '.'), lon: $('#az_lon').value.trim().replace(',', '.'), ettari: ($('#az_ha') || {}).value ? N($('#az_ha').value) : a.ettari || null })); toast('Dati aziendali salvati'); }
     if (k === 'gkey') { const a = azienda(); await store.put('config', 'azienda', Object.assign({}, a, { gkey: $('#az_gkey').value.trim() })); try { localStorage.removeItem('ces.gses'); } catch (e) { } toast($('#az_gkey').value.trim() ? 'Chiave salvata: scegli "Google" in Livelli mappa' : 'Chiave rimossa'); }
     if (k === 'aiKey') { const key = $('#ai_key').value.trim(); if (key) lsSet('ces.ai', { key, model: $('#ai_model').value.trim() || 'claude-haiku-5-5' }); else try { localStorage.removeItem('ces.ai'); } catch (e) { } toast(key ? 'Chiave salvata su questo dispositivo' : 'Chiave rimossa'); }
@@ -426,6 +430,7 @@ setRerender(() => render());
 
 /* ---------- avvio ---------- */
 (function boot() {
+  avviaBlocco();
   $('#mapControls').innerHTML = `
     <div class="mapsearch">${ic('search')}<input id="mapSearch" placeholder="Cerca comune, località o coordinate" autocomplete="off" enterkeyhint="search"><div id="mapResults" class="map-results" hidden></div></div>
     <div id="mapWeather" class="map-weather" hidden></div>

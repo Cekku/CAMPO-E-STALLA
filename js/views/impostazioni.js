@@ -1,4 +1,5 @@
 // Impostazioni: azienda, account e sincronizzazione, installazione, dati
+import { sezioneBlocco } from '../lock.js';
 import { S, azienda } from '../state.js';
 import { esc, fd, nf, okD, today, diff, byName } from '../util.js';
 import { fitoMeta } from '../fitodb.js';
@@ -47,6 +48,7 @@ export function render() {
     <label class="fld half"><span class="flabel">Superficie aziendale totale</span><div class="inwrap"><input id="az_ha" value="${esc(a.ettari ? String(a.ettari).replace('.', ',') : '')}" inputmode="decimal" placeholder="Es. 250"><span class="unit">ha</span></div><small>Serve a mostrare quanti ettari hai già mappato.</small></label><span></span>
     <label class="fld half"><span class="flabel">Latitudine</span><div class="inwrap"><input id="az_lat" value="${esc(a.lat || '')}" inputmode="decimal" placeholder="dai campi"></div></label><label class="fld half"><span class="flabel">Longitudine</span><div class="inwrap"><input id="az_lon" value="${esc(a.lon || '')}" inputmode="decimal" placeholder="dai campi"></div></label>
     <div class="fld row-btns"><button class="btn primary" type="submit">Salva</button><button class="btn ghost" type="button" data-act="gpsAzienda">${ic('locate-fixed')}Usa la mia posizione</button></div></form></section>
+  ${sezioneBlocco()}
   ${operatoriSection()}
   ${fitoSection()}
   ${aiSection()}
