@@ -11,12 +11,12 @@ import { tabella, ordina, esporta, fmtVal } from '../conti/tabelle.js';
 import { colonne, linee, barre, torta, PALETTE, COL } from '../conti/grafici.js';
 import { vFatture, vControparti, vProdotti, vCategorie, vMensile, vLatte, schedaFattura, schedaProdotto, mensili, MESI, ok, miniTabs, datalistCat } from './conti-fatture.js';
 import { vCE, vSP, vCespiti, vIndici, vAnalisi, vIva, vControlli } from './conti-bilancio.js';
-import { vPersonale, vDipendenti, vCedolini, vPagamenti, vVerifica, personaleAct, personaleChange, tabellaMovimenti, modificaRiga } from './conti-personale.js';
+import { vPersonale, vDipendenti, vCedolini, vPagamenti, vVerifica, vPrestiti, personaleAct, personaleChange, tabellaMovimenti, modificaRiga } from './conti-personale.js';
 import { anomalie as anomaliePaghe } from '../conti/paghe.js';
 
-export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Cespiti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie' };
-const GRUPPI = [['fatture', 'fornitori', 'clienti', 'prodotti', 'categorie', 'mensile', 'latte'], ['ce', 'sp', 'indici', 'analisi', 'iva', 'cespiti', 'controlli'], ['personale', 'dipendenti', 'cedolini', 'pagamenti', 'verifica']];
-const TAB_NOMI = { personale: 'Riepilogo', cedolini: 'Cedolini', verifica: 'Verifica' };
+export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Cespiti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', prestiti: 'Anticipi e prestiti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie' };
+const GRUPPI = [['fatture', 'fornitori', 'clienti', 'prodotti', 'categorie', 'mensile', 'latte'], ['ce', 'sp', 'indici', 'analisi', 'iva', 'cespiti', 'controlli'], ['personale', 'dipendenti', 'cedolini', 'pagamenti', 'prestiti', 'verifica']];
+const TAB_NOMI = { personale: 'Riepilogo', cedolini: 'Cedolini', prestiti: 'Anticipi e prestiti', verifica: 'Verifica' };
 
 /** Chi può vedere i conti: in locale sempre; con il cloud solo il titolare dell'azienda. */
 export function contiVisibili() {
@@ -29,7 +29,7 @@ export function contiVisibili() {
 export function render() {
   const sub = SUBS[UI.sub.conti] ? UI.sub.conti : 'panoramica';
   if (!contiVisibili()) return { title: 'Conti', html: `<section class="card lock">${ic('shield-check', 'huge')}<h2>Area riservata al titolare</h2><p class="muted">Fatture, bilancio e margini sono visibili solo a chi ha creato l'azienda. Chiedi al titolare se ti servono questi dati.</p></section>` };
-  const V = { panoramica, fatture: vFatture, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, controlli: vControlli, personale: vPersonale, dipendenti: vDipendenti, cedolini: vCedolini, pagamenti: vPagamenti, verifica: vVerifica, regole: vRegole };
+  const V = { panoramica, fatture: vFatture, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, controlli: vControlli, personale: vPersonale, dipendenti: vDipendenti, cedolini: vCedolini, pagamenti: vPagamenti, prestiti: vPrestiti, verifica: vVerifica, regole: vRegole };
   const gruppo = GRUPPI.find(g => g.includes(sub)) || null;
   const t = gruppo ? tabs('conti', gruppo.map(k => [k, TAB_NOMI[k] || SUBS[k]]), sub) : '';
   const azioni = sub === 'importa' ? '' : `<div class="btns"><button class="btn sm" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">${ic('file-up')}Carica documenti</button></div>`;
@@ -162,11 +162,11 @@ export async function esportaTutto(y) {
   const f0 = Object.assign({}, UI.f); ['ce_edit', 'sp_edit', 'cs_edit', 'an_edit', 'pc_mese', 'pc_dip', 'pp_tipo'].forEach(k => (UI.f[k] = '')); UI.f.ce_zeri = 'tutte'; UI.f.sp_zeri = 'tutte';
   registro.clear();
   try {
-    vCE(); vSP(); vIndici(); vAnalisi(); vIva(); vCespiti(); vControlli(); if (S.paghe.length) { vPersonale(); vVerifica(); UI.f.pc_vista = ''; vCedolini(); vPagamenti(); }
+    vCE(); vSP(); vIndici(); vAnalisi(); vIva(); vCespiti(); vControlli(); if (S.paghe.length || S.pagamenti.length) { vPersonale(); vVerifica(); UI.f.pc_vista = ''; vCedolini(); vPagamenti(); vPrestiti(); }
     const fs = fatture().filter(f => f.anno === y);
     tabella('xfatt', { title: 'Fatture ' + y, sheet: 'Fatture ' + y, cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'tipo', h: 'Tipo' }, { k: 'controparte', h: 'Controparte' }, { k: 'piva', h: 'P.IVA' }, { k: 'numero', h: 'Numero' }, { k: 'tipoDoc', h: 'Tipo doc.' }, { k: 'imponibile', h: 'Imponibile', fmt: 'eur2' }, { k: 'iva', h: 'IVA', fmt: 'eur2' }, { k: 'totale', h: 'Totale', fmt: 'eur2' }, { k: 'pagamento', h: 'Pagamento' }, { k: 'scadenza', h: 'Scadenza', fmt: 'date' }, { k: 'controllo', h: 'Controllo' }, { k: 'file', h: 'File' }], rows: fs, sort: false });
     tabella('xrighe', { title: 'Righe delle fatture ' + y, sheet: 'Righe ' + y, cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'tipo', h: 'Tipo' }, { k: 'controparte', h: 'Controparte' }, { k: 'numero', h: 'N. fattura' }, { k: 'ddt', h: 'DDT' }, { k: 'codice', h: 'Codice' }, { k: 'descrizione', h: 'Descrizione' }, { k: 'categoria', h: 'Categoria' }, { k: 'quantita', h: 'Quantità', fmt: 'qta' }, { k: 'um', h: 'UM' }, { k: 'prezzo', h: 'Prezzo', fmt: 'eur4' }, { k: 'sconto', h: 'Sconto' }, { k: 'aliquota', h: '% IVA' }, { k: 'importo', h: 'Importo', fmt: 'eur2' }], rows: righe().filter(r => r.anno === y), sort: false });
-    await esporta(['ce', 'sp', 'ind', 'anD', 'anP', 'iva', 'cesp', 'ctrl', 'xfatt', 'xrighe', 'pmesi', 'pdip', 'pced', 'pver', 'pvers', 'ppag'].filter(id => registroHas(id)), `Conti ${y} – ${azienda().nome || 'azienda'}`, 'xlsx');
+    await esporta(['ce', 'sp', 'ind', 'anD', 'anP', 'iva', 'cesp', 'ctrl', 'xfatt', 'xrighe', 'pmesi', 'pdip', 'pced', 'pver', 'pvers', 'ppag', 'ppre', 'pant'].filter(id => registroHas(id)), `Conti ${y} – ${azienda().nome || 'azienda'}`, 'xlsx');
   } finally { UI.anno = salva; Object.keys(UI.f).forEach(k => delete UI.f[k]); Object.assign(UI.f, f0); }
 }
 import { registro } from '../conti/tabelle.js';

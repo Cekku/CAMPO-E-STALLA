@@ -16,7 +16,14 @@ const inizioPeriodo = p => { const [y, m] = p.split('-').map(Number); const mm =
 const meseSucc = p => { const [y, m] = p.split('-').map(Number); return m >= 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`; };
 const mesePrec = p => { const [y, m] = p.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`; };
 
-export const TIPI_PAG = { stipendio: 'Stipendio', f24: 'F24 (ritenute IRPEF)', contributi: 'Contributi INPS agricoli', fondo: 'Fondo pensione (TFR)', altro: 'Altro' };
+export const TIPI_PAG = { stipendio: 'Stipendio', anticipo: 'Anticipo sullo stipendio', prestito: 'Prestito al dipendente', rimborso: 'Restituzione di un prestito', f24: 'F24 (ritenute IRPEF)', contributi: 'Contributi INPS agricoli', fondo: 'Fondo pensione (TFR)', altro: 'Altro' };
+export const CON_DIP = new Set(['stipendio', 'anticipo', 'prestito', 'rimborso']);
+// come si recupera un anticipo / come rientra una rata di prestito
+export const RECUPERO = { stipendio: 'Lo tolgo io dal bonifico dello stipendio', busta: 'Lo trattiene il consulente in busta paga' };
+export const COME_RIMB = { stipendio: 'Tolta dal bonifico dello stipendio', busta: 'Trattenuta in busta paga', versato: 'Restituita dal dipendente (bonifico o contanti)' };
+/** I movimenti che contano come stipendio pagato: bonifici, anticipi e rate tolte dal bonifico. */
+const contaComeStipendio = p => p.dip && (p.tipo === 'stipendio' || (p.tipo === 'anticipo' && p.recupero !== 'busta') || (p.tipo === 'rimborso' && p.come === 'stipendio'));
+const compDi = p => p.comp || (p.tipo === 'anticipo' ? (p.data || '').slice(0, 7) : p.tipo === 'rimborso' && p.data ? mesePrec(p.data.slice(0, 7)) : '');
 export const MODALITA = { bonifico: 'Bonifico', assegno: 'Assegno', contanti: 'Contanti', carta: 'Carta / altro mezzo tracciabile' };
 export const cfgPaghe = () => Object.assign({ giornoStipendi: 20, giornoF24: 16 }, ((S.econfig.find(x => x.id === 'cfg') || {}).paghe) || {});
 
@@ -33,6 +40,7 @@ export const verifica = () => dati().ver;
 export const anomalie = () => dati().ano;
 export const periodi = () => dati().per;
 export const pagamenti = () => dati().pag;
+export const prestiti = () => dati().pre;
 export const anniPaghe = () => [...new Set(dati().per.map(p => +p.slice(0, 4)))].sort();
 
 // nome confrontabile: parole maiuscole in ordine alfabetico ("Singh Gurinder" = "GURINDER SINGH")
@@ -44,10 +52,13 @@ export function nomeDi(k) {
   return String(k || '').replace(/^N-/, '').replace(/-/g, ' ');
 }
 function calcola() {
-  const ced = S.paghe.filter(x => x.tipo === 'cedolino').map(c => Object.assign({}, c, { periodo: periodo(c.anno, c.mese), dip: c.dip || chiaveDip(c) })).sort((a, b) => a.periodo.localeCompare(b.periodo) || (a.nome || '').localeCompare(b.nome || ''));
+  // "è la stessa persona": le chiavi unite a mano puntano al dipendente scelto
+  const unioni = new Map(S.paghe.filter(x => x.tipo === 'unione').map(x => [x.da, x.a]));
+  const mk = k => { let n = 0; while (k && unioni.has(k) && n++ < 10) k = unioni.get(k); return k; };
+  const ced = S.paghe.filter(x => x.tipo === 'cedolino').map(c => Object.assign({}, c, { periodo: periodo(c.anno, c.mese), dip: mk(c.dip || chiaveDip(c)), dipOrig: c.dip || chiaveDip(c) })).sort((a, b) => a.periodo.localeCompare(b.periodo) || (a.nome || '').localeCompare(b.nome || ''));
   const bil = S.paghe.filter(x => x.tipo === 'bilancino').map(b => Object.assign({}, b, { periodo: periodo(b.anno, b.mese) })).sort((a, b) => a.periodo.localeCompare(b.periodo));
   const tot = S.paghe.filter(x => x.tipo === 'totali').map(b => Object.assign({}, b, { periodo: periodo(b.anno, b.mese) }));
-  const extra = new Map(S.paghe.filter(x => x.tipo === 'dipendente').map(x => [x.dip, x]));
+  const extra = new Map(); for (const x of S.paghe.filter(x => x.tipo === 'dipendente')) { const k = mk(x.dip); const o = extra.get(k); extra.set(k, o ? Object.assign({}, o, { alias: [o.alias, x.alias].filter(Boolean).join(', ') }) : x); }
   const per = [...new Set([...ced.map(c => c.periodo), ...bil.map(b => b.periodo)])].sort();
   // anagrafica dall'ultimo cedolino
   const dip = new Map();
@@ -56,39 +67,59 @@ function calcola() {
     Object.assign(d, { nome: c.nome, cf: c.cf, matricola: c.matricola, qualifica: c.qualifica, mansione: c.mansione, livello: c.livello, assunzione: c.assunzione, scadTD: c.scadTD, scadPermesso: c.scadPermesso, cessazione: c.cessazione, nascita: c.nascita, ultimo: c.periodo, ferie: c.ferie, permessi: c.permessi });
     d.ced.push(c); dip.set(c.dip, d);
   }
-  for (const d of dip.values()) { const e = extra.get(d.key) || {}; d.alias = e.alias || ''; d.nota = e.nota || ''; d.td = /T\.?DET|\bTD\b|OTD|STAGION/i.test(d.qualifica || '') || !!d.scadTD; }
+  for (const d of dip.values()) { const e = extra.get(d.key) || {}; d.alias = e.alias || ''; d.nota = e.nota || ''; d.uniti = [...unioni.keys()].filter(k => mk(k) === d.key).map(k => ({ key: k, nome: (ced.find(c => c.dipOrig === k) || {}).nome || (S.pagamenti.find(p => p.dip === k && p.beneficiario) || {}).beneficiario || k.replace(/^N-/, '').replace(/-/g, ' ') })); d.td = /T\.?DET|\bTD\b|OTD|STAGION/i.test(d.qualifica || '') || !!d.scadTD; }
   // pagamenti a dipendenti non ancora nei cedolini (chiave dal nome) o riconoscibili dall'IBAN: si collegano alla scheda giusta
   const perNome = new Map([...dip.values()].map(d => [nomeChiave(d.nome), d.key]));
   for (const d of dip.values()) for (const a of String(d.alias || '').split(',')) if (a.trim()) perNome.set(nomeChiave(a), d.key);
   const perIban = new Map(); for (const p of S.pagamenti) if (p.iban && p.dip && dip.has(p.dip)) perIban.set(p.iban, p.dip);
   const pag = [...S.pagamenti].map(p => {
-    if (p.tipo !== 'stipendio' || !p.dip || dip.has(p.dip)) return p;
-    const k = perNome.get(nomeChiave(p.beneficiario || p.dip.replace(/^N-/, ''))) || (p.iban && perIban.get(p.iban));
-    return k ? Object.assign({}, p, { dip: k }) : p;
+    if (!p.dip) return p;
+    const u = mk(p.dip); if (dip.has(u) || !CON_DIP.has(p.tipo)) return u === p.dip ? p : Object.assign({}, p, { dip: u });
+    const k = perNome.get(nomeChiave(p.beneficiario || u.replace(/^N-/, ''))) || (p.iban && perIban.get(p.iban));
+    return Object.assign({}, p, { dip: k || u });
   }).sort((a, b) => (a.data || '').localeCompare(b.data || ''));
   const ver = abbina(ced, pag);
-  const ano = controlli(ced, bil, tot, pag, ver, dip, per);
+  const pre = calcolaPrestiti(pag);
+  const ano = controlli(ced, bil, tot, pag, ver, dip, per, pre);
   for (const d of dip.values()) {
     const v = ver.filter(x => x.dip === d.key);
     Object.assign(d, { mesi: d.ced.length, ore: r2(d.ced.reduce((t, c) => t + N(c.ore), 0)), lordo: r2(d.ced.reduce((t, c) => t + N(c.lordo), 0)), netto: r2(d.ced.reduce((t, c) => t + N(c.netto), 0)), irpef: r2(d.ced.reduce((t, c) => t + N(c.irpef), 0)), ritPrev: r2(d.ced.reduce((t, c) => t + N(c.ritPrev), 0)), pagato: r2(v.reduce((t, x) => t + x.pagato, 0)), dovuto: r2(v.reduce((t, x) => t + x.dovuto, 0)) });
     d.saldo = r2(d.dovuto - d.pagato);
+    const ps = pre.filter(x => x.dip === d.key); d.prestiti = ps; d.residuoPrestiti = r2(ps.reduce((t, x) => t + x.residuo, 0));
+    d.anticipi = pag.filter(x => x.tipo === 'anticipo' && x.dip === d.key);
     d.anomalie = ano.filter(a => a.dip === d.key);
     d.stato = d.cessazione && d.cessazione < today() ? 'Cessato' : d.scadTD && d.scadTD < today() ? 'Termine scaduto' : 'In forza';
   }
-  return { ced, bil, tot, per, dip: [...dip.values()].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')), pag, ver, ano };
+  return { ced, bil, tot, per, dip: [...dip.values()].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')), pag, ver, ano, pre };
+}
+
+/* ---------------- prestiti ai dipendenti ---------------- */
+// Ogni restituzione va al prestito indicato; se non è indicato, al prestito più vecchio ancora aperto dello stesso dipendente.
+function calcolaPrestiti(pag) {
+  const pre = pag.filter(p => p.tipo === 'prestito' && p.dip).map(p => ({ id: p.id, dip: p.dip, data: p.data, importo: r2(N(p.importo)), modalita: p.modalita, rata: N(p.rata) || null, descrizione: p.descrizione || '', rimborsi: [], restituito: 0 }));
+  for (const r of pag.filter(p => p.tipo === 'rimborso' && p.dip)) {
+    let x = r.prestito && pre.find(p => p.id === r.prestito);
+    if (!x) x = pre.filter(p => p.dip === r.dip && p.data <= (r.data || '9999') && p.restituito < p.importo - 0.005)[0] || pre.filter(p => p.dip === r.dip).pop();
+    if (!x) continue;
+    x.rimborsi.push({ id: r.id, data: r.data, importo: r2(N(r.importo)), come: r.come }); x.restituito = r2(x.restituito + N(r.importo));
+  }
+  for (const x of pre) { x.residuo = r2(Math.max(0, x.importo - x.restituito)); x.stato = x.residuo < 0.01 ? 'restituito' : x.restituito ? 'in restituzione' : 'da restituire'; x.ultimo = x.rimborsi.map(y => y.data).sort().pop() || null; }
+  return pre;
 }
 
 /* ---------------- abbinamento dei pagamenti agli stipendi ---------------- */
 // Ogni pagamento di stipendio va al mese indicato; se il mese non è indicato, al mese più vecchio non ancora saldato
 // (non successivo alla data del pagamento). Quello che avanza resta come pagamento in più.
 function abbina(ced, pag) {
-  const righe = ced.map(c => ({ dip: c.dip, nome: c.nome, periodo: c.periodo, dovuto: r2(N(c.netto)), pagato: 0, pag: [], cid: c.id }));
+  const righe = [];
+  for (const c of ced) { const o = righe.find(r => r.dip === c.dip && r.periodo === c.periodo); if (o) { o.dovuto = r2(o.dovuto + N(c.netto)); continue; } righe.push({ dip: c.dip, nome: c.nome, periodo: c.periodo, dovuto: r2(N(c.netto)), pagato: 0, pag: [], cid: c.id }); }
   const per = (d, p) => righe.find(r => r.dip === d && r.periodo === p);
   const extra = [];
-  for (const p of pag.filter(p => p.tipo === 'stipendio' && p.dip)) {
-    let resto = r2(N(p.importo));
-    const metti = (r, v) => { r.pagato = r2(r.pagato + v); r.pag.push({ id: p.id, data: p.data, importo: v, modalita: p.modalita, tot: N(p.importo) }); resto = r2(resto - v); };
-    if (p.comp) { const r = per(p.dip, p.comp); if (r) metti(r, resto); else extra.push({ dip: p.dip, nome: p.beneficiario || '', periodo: p.comp, dovuto: 0, pagato: resto, pag: [{ id: p.id, data: p.data, importo: resto, modalita: p.modalita, tot: N(p.importo) }], senzaCedolino: true }); continue; }
+  for (const p of pag.filter(contaComeStipendio)) {
+    let resto = r2(N(p.importo)); const comp = compDi(p);
+    const voce = v => ({ id: p.id, data: p.data, importo: v, modalita: p.modalita, tot: N(p.importo), tipo: p.tipo });
+    const metti = (r, v) => { r.pagato = r2(r.pagato + v); r.pag.push(voce(v)); resto = r2(resto - v); };
+    if (comp) { const r = per(p.dip, comp); if (r) metti(r, resto); else { const o = extra.find(e => e.dip === p.dip && e.periodo === comp); if (o) { o.pagato = r2(o.pagato + resto); o.pag.push(voce(resto)); } else extra.push({ dip: p.dip, nome: p.beneficiario || '', periodo: comp, dovuto: 0, pagato: resto, pag: [voce(resto)], senzaCedolino: true }); } continue; }
     const aperte = righe.filter(r => r.dip === p.dip && inizioPeriodo(r.periodo) <= (p.data || '9999') && r.pagato < r.dovuto - 0.005);
     // prima il mese con lo stesso importo, poi il più vecchio
     const esatta = aperte.find(r => Math.abs(r.dovuto - r.pagato - resto) < 0.01);
@@ -96,7 +127,7 @@ function abbina(ced, pag) {
     if (resto > 0.005) {
       const ult = righe.filter(r => r.dip === p.dip && inizioPeriodo(r.periodo) <= (p.data || '9999')).pop();
       if (ult) metti(ult, resto);
-      else extra.push({ dip: p.dip, nome: p.beneficiario || '', periodo: (p.data || '').slice(0, 7), dovuto: 0, pagato: resto, pag: [{ id: p.id, data: p.data, importo: resto, modalita: p.modalita, tot: N(p.importo) }], senzaCedolino: true });
+      else extra.push({ dip: p.dip, nome: p.beneficiario || '', periodo: (p.data || '').slice(0, 7), dovuto: 0, pagato: resto, pag: [voce(resto)], senzaCedolino: true });
     }
   }
   const g = cfgPaghe().giornoStipendi;
@@ -116,8 +147,9 @@ function abbina(ced, pag) {
 }
 
 /* ---------------- controlli e irregolarità ---------------- */
-function controlli(ced, bil, tot, pag, ver, dip, per) {
+function controlli(ced, bil, tot, pag, ver, dip, per, pre) {
   const A = []; const add = (liv, testo, det, o = {}) => A.push(Object.assign({ liv, testo, det }, o));
+  const nomeDi = k => (dip.get(k) || {}).nome || (S.pagamenti.find(x => x.dip === k && x.beneficiario) || {}).beneficiario || String(k || '').replace(/^N-/, '').replace(/-/g, ' ');
   const t = today(); const eu = v => Number(v).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   // cedolini: controlli interni
   for (const c of ced) {
@@ -139,7 +171,7 @@ function controlli(ced, bil, tot, pag, ver, dip, per) {
   }
   // pagamenti degli stipendi
   for (const v of ver) {
-    const nome = (dip.get(v.dip) || {}).nome || v.nome || 'dipendente';
+    const nome = (dip.get(v.dip) || {}).nome || v.nome || nomeDi(v.dip);
     if (v.stato === 'non pagato') add('err', `Stipendio non pagato: ${nome}, ${nomeMese(v.periodo)}`, `Netto ${eu(v.dovuto)}, scadenza ${v.scadenza.split('-').reverse().join('/')}.`, { dip: v.dip, periodo: v.periodo, ver: true });
     if (v.stato === 'pagato in parte') add('warn', `Stipendio pagato in parte: ${nome}, ${nomeMese(v.periodo)}`, `Netto ${eu(v.dovuto)}, pagato ${eu(v.pagato)}: mancano ${eu(v.differenza)}.`, { dip: v.dip, periodo: v.periodo, ver: true });
     if (v.stato === 'pagato in più') add('warn', `Pagato più del netto: ${nome}, ${nomeMese(v.periodo)}`, `Netto ${eu(v.dovuto)}, pagato ${eu(v.pagato)} (${eu(-v.differenza)} in più). Se era un anticipo del mese dopo, indica il mese sul pagamento.`, { dip: v.dip, periodo: v.periodo, ver: true });
@@ -147,9 +179,14 @@ function controlli(ced, bil, tot, pag, ver, dip, per) {
     if (v.ultimo && v.ritardo > 0 && v.stato !== 'non pagato') add('info', `Stipendio pagato in ritardo: ${nome}, ${nomeMese(v.periodo)}`, `Pagato il ${v.ultimo.split('-').reverse().join('/')}, ${v.ritardo} giorni dopo il giorno ${cfgPaghe().giornoStipendi} del mese successivo.`, { dip: v.dip, periodo: v.periodo });
   }
   for (const p of pag) {
+    if (p.tipo === 'anticipo' && p.modalita === 'contanti') add('err', `Anticipo sullo stipendio in contanti: ${(dip.get(p.dip) || {}).nome || nomeDi(p.dip)} il ${(p.data || '').split('-').reverse().join('/')}`, 'Anche gli anticipi della retribuzione vanno pagati con mezzi tracciabili (legge 205/2017).', { dip: p.dip, pid: p.id });
+    if (p.tipo === 'prestito' && p.modalita === 'contanti' && N(p.importo) >= 5000) add('err', `Prestito in contanti oltre il limite: ${(dip.get(p.dip) || {}).nome || nomeDi(p.dip)}`, `${eu(N(p.importo))} in contanti: il limite per i pagamenti in contanti è 4.999,99 €. Fai un bonifico o un assegno non trasferibile.`, { dip: p.dip, pid: p.id });
+    if (CON_DIP.has(p.tipo) && p.tipo !== 'stipendio' && !p.dip) add('warn', `${TIPI_PAG[p.tipo]} senza dipendente`, `${eu(N(p.importo))} del ${(p.data || '').split('-').reverse().join('/')}: indica a chi è andato.`, { pid: p.id });
+    if (p.tipo === 'anticipo' && p.recupero === 'busta' && p.dip) { const comp = compDi(p); const c = ced.find(c => c.dip === p.dip && c.periodo === comp); if (c && !(c.voci || []).some(v => v.trattenuta && /accont|anticip|prestit/i.test(v.descrizione || '')) && !N(c.acconti)) add('warn', `Anticipo non trattenuto in busta: ${c.nome}, ${nomeMese(comp)}`, `Hai dato ${eu(N(p.importo))} il ${(p.data || '').split('-').reverse().join('/')}, ma nel cedolino di ${nomeMese(comp)} non c'è una trattenuta per acconti o anticipi. Avvisa il consulente, oppure segna che lo togli tu dal bonifico.`, { dip: p.dip, pid: p.id }); }
     if (p.tipo === 'stipendio' && p.modalita === 'contanti') add('err', `Stipendio pagato in contanti: ${(dip.get(p.dip) || {}).nome || ''} il ${(p.data || '').split('-').reverse().join('/')}`, 'Dal 1° luglio 2018 retribuzioni e anticipi si pagano solo con mezzi tracciabili (bonifico, assegno, pagamento elettronico): legge 205/2017, sanzione da 1.000 a 5.000 €.', { dip: p.dip, pid: p.id });
     if (p.tipo === 'stipendio' && !p.dip) add('warn', 'Pagamento di stipendio senza dipendente', `${eu(N(p.importo))} del ${(p.data || '').split('-').reverse().join('/')}: indica a chi è andato.`, { pid: p.id });
   }
+  for (const x of pre) { const d = dip.get(x.dip); if (x.residuo > 0.005 && d && d.cessazione && d.cessazione < t) add('warn', `Prestito non restituito: ${d.nome}`, `Il rapporto è cessato il ${d.cessazione.split('-').reverse().join('/')} e restano ${eu(x.residuo)} del prestito del ${(x.data || '').split('-').reverse().join('/')}.`, { dip: x.dip, pid: x.id }); }
   // doppioni: stesso giorno, stesso importo, stesso dipendente
   const visti = new Map(); for (const p of pag) { const k = [p.tipo, p.dip, p.data, r2(N(p.importo))].join('|'); if (visti.has(k)) add('warn', 'Pagamento registrato due volte?', `${eu(N(p.importo))} il ${(p.data || '').split('-').reverse().join('/')}${p.dip ? ' a ' + ((dip.get(p.dip) || {}).nome || '') : ''}: ci sono due movimenti uguali.`, { pid: p.id, dip: p.dip }); else visti.set(k, p); }
   // bilancino contro cedolini
@@ -329,3 +366,17 @@ export function righeBonifici(bon, file) {
 }
 /** Campi del pagamento da salvare. */
 export const datiPagamento = r => ({ data: r.data, importo: r.importo, tipo: r.tipo, dip: r.tipo === 'stipendio' ? r.dip : '', comp: r.comp || '', modalita: r.modalita || 'bonifico', descrizione: r.descrizione, fonte: r.fonte, ...(r.beneficiario ? { beneficiario: r.beneficiario } : {}), ...(r.iban ? { iban: r.iban } : {}), ...(r.idBanca ? { idBanca: r.idBanca } : {}) });
+
+/** "È la stessa persona": unisce il dipendente (o il nome dei bonifici) `da` a quello `a`. Il nome unito diventa un nome alternativo. */
+export async function unisci(da, a, nomeDa) {
+  if (!da || !a || da === a) return;
+  const rows = [{ col: 'paghe', id: 'u-' + da, data: { tipo: 'unione', da, a, quando: today() } }];
+  if (nomeDa) {
+    const { id: _o, ...e } = S.paghe.find(x => x.id === 'd-' + a) || {};
+    const al = String(e.alias || '').split(',').map(x => x.trim()).filter(Boolean);
+    if (!al.some(x => nomeChiave(x) === nomeChiave(nomeDa))) al.push(nomeDa);
+    rows.push({ col: 'paghe', id: 'd-' + a, data: Object.assign(e, { tipo: 'dipendente', dip: a, alias: al.join(', ') }) });
+  }
+  await store.bulkPut(rows);
+}
+export async function separa(da) { await store.remove('paghe', 'u-' + da); }
