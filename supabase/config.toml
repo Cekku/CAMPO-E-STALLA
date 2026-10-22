@@ -1,4 +1,4 @@
-# Configurazione per l'integrazione GitHub di Supabase: a ogni push sul ramo di produzione
+# Configurazione per l'integrazione GitHub di Supabase (pubblicazione automatica delle funzioni).
 # viene pubblicata la funzione "catasto" (collegamento al catasto dell'Agenzia delle Entrate).
 project_id = "campo-e-stalla"
 
