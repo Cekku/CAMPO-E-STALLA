@@ -93,8 +93,30 @@ export function leggiGml(xml) {
   }
   return out;
 }
-const urlBbox = (tipo, [x0, y0, x1, y1], count) => `${WFS}?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=${tipo}&SRSNAME=urn:ogc:def:crs:EPSG::6706&BBOX=${[y0, x0, y1, x1].map(v => v.toFixed(7)).join(',')}${count ? '&COUNT=' + count : ''}`;
-async function wfs(tipo, bbox, count, timeout) { return leggiGml(await scarica(urlBbox(tipo, bbox, count), { timeout })); }
+const urlBbox = (tipo, [x0, y0, x1, y1], count, extra = '') => `${WFS}?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=${tipo}&SRSNAME=urn:ogc:def:crs:EPSG::6706&BBOX=${[y0, x0, y1, x1].map(v => v.toFixed(7)).join(',')}${count ? '&COUNT=' + count : ''}${extra}`;
+// Il WFS risponde con zero risultati (senza errore) se il riquadro è troppo alto in latitudine: oltre ~0,07° per i fogli,
+// ~0,017° per le particelle (la larghezza e il numero di risultati non contano). Si chiede quindi a riquadri più piccoli.
+const PASSO = { 'CP:CadastralZoning': [0.12, 0.06], 'CP:CadastralParcel': [0.02, 0.015] }; // [longitudine, latitudine]
+function riquadri([x0, y0, x1, y1], [dx, dy]) {
+  const nx = Math.max(1, Math.ceil((x1 - x0) / dx - 1e-9)), ny = Math.max(1, Math.ceil((y1 - y0) / dy - 1e-9)), sx = (x1 - x0) / nx, sy = (y1 - y0) / ny; const out = [];
+  for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) out.push([x0 + i * sx, y0 + j * sy, x0 + (i + 1) * sx, y0 + (j + 1) * sy]);
+  return out;
+}
+// Ogni tanto il servizio risponde "Richiesta non valida" a una richiesta corretta: si riprova con un indirizzo diverso (la risposta sbagliata può restare in cache).
+async function wfsUno(tipo, bbox, count, timeout) {
+  for (let prova = 0; ; prova++) {
+    try { return leggiGml(await scarica(urlBbox(tipo, bbox, count, prova ? '&_=' + Date.now() : ''), { timeout })); }
+    catch (e) { if (e.code !== 'WFS' || prova >= 3) throw e; await new Promise(r => setTimeout(r, 800 * (prova + 1))); }
+  }
+}
+/** Elementi del WFS nel riquadro, chiesti a pezzi (3 richieste alla volta) e senza doppioni. avanz(fatti, totale) */
+async function wfs(tipo, bbox, count, timeout, avanz) {
+  const rs = riquadri(bbox, PASSO[tipo]), coda = rs.slice(), visti = new Map(); let fatti = 0;
+  await Promise.all(Array.from({ length: Math.min(3, rs.length) }, async () => {
+    while (coda.length) { for (const f of await wfsUno(tipo, coda.shift(), count, timeout)) if (f.ref && !visti.has(f.ref)) visti.set(f.ref, f); fatti++; if (avanz && rs.length > 1) avanz(fatti, rs.length); }
+  }));
+  return [...visti.values()];
+}
 
 /* ---------------- geometria ---------------- */
 function dentroAnello(r, x, y) { let d = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) d = !d; } return d; }
@@ -138,7 +160,7 @@ async function fogliDi(c, avanz) {
   avanz(`Cerco il territorio di ${c.nome}…`);
   const [x0, y0, x1, y1] = await riquadroComune(c); const px = (x1 - x0) * 0.03, py = (y1 - y0) * 0.03;
   avanz(`Scarico i fogli di mappa di ${c.nome}…`);
-  const zs = await wfs('CP:CadastralZoning', [x0 - px, y0 - py, x1 + px, y1 + py], 0, 120000);
+  const zs = await wfs('CP:CadastralZoning', [x0 - px, y0 - py, x1 + px, y1 + py], 0, 120000, (i, n) => avanz(`Scarico i fogli di mappa di ${c.nome}… (${i}/${n})`));
   const m = new Map(); for (const z of zs) if (z.ref && z.ref.toUpperCase().startsWith(c.codice)) m.set(z.ref.toUpperCase(), { bbox: z.bbox, label: z.label });
   if (!m.size) throw new ErroreCatasto(`Nessun foglio di mappa trovato per ${c.nome}.`, 'FOGLI');
   FOGLI.set(c.codice, m); lsSet(k, { t: Date.now(), d: Object.fromEntries(m) }); return m;
@@ -154,7 +176,7 @@ export async function cercaParticella(comuneTxt, foglio, particella, { sezione =
   if (!fr) throw new ErroreCatasto(`Il foglio ${foglio} non esiste a ${c.nome}. Fogli presenti: ${[...fogli.values()].map(v => v.label).filter(Boolean).sort((a, b) => parseInt(a) - parseInt(b)).slice(0, 60).join(', ')}.`, 'FOGLIO');
   const f = fogli.get(fr); const voluta = `${fr}.${normPart(particella)}`;
   let parts = PART.get(fr);
-  if (!parts) { avanz(`Scarico le particelle del foglio ${f.label || foglio} di ${c.nome}…`); parts = (await wfs('CP:CadastralParcel', f.bbox, 0, 180000)).filter(p => p.ref.toUpperCase().startsWith(fr + '.')); PART.set(fr, parts); }
+  if (!parts) { avanz(`Scarico le particelle del foglio ${f.label || foglio} di ${c.nome}…`); parts = (await wfs('CP:CadastralParcel', f.bbox, 0, 180000, (i, n) => avanz(`Scarico le particelle del foglio ${f.label || foglio} di ${c.nome}… (${i}/${n})`))).filter(p => p.ref.toUpperCase().startsWith(fr + '.')); PART.set(fr, parts); }
   const hit = parts.find(p => p.ref.toUpperCase() === voluta) || parts.find(p => normPart(p.ref.split('.').pop()) === normPart(particella));
   if (!hit) throw new ErroreCatasto(`La particella ${particella} non esiste nel foglio ${f.label || foglio} di ${c.nome} (${parts.length} particelle nel foglio).`, 'PARTICELLA');
   return Object.assign(leggiRif(hit.ref), { comune: c.nome, sigla: c.sigla, geom: hit.geom, bbox: hit.bbox, areaCatasto: hit.area });
