@@ -4,6 +4,7 @@ import * as store from '../store.js';
 import { N, okD, today, addDays, diff } from '../util.js';
 import { MESI_NOMI } from './paghe-parse.js';
 import { candidateFatture } from './banca.js';
+import { competenzaDaCausale } from './bonifici-parse.js';
 
 const r2 = v => Math.round(v * 100) / 100;
 export const periodo = (anno, mese) => `${anno}-${String(mese).padStart(2, '0')}`;
@@ -24,9 +25,12 @@ export const CON_DIP = new Set(['stipendio', 'anticipo', 'prestito', 'rimborso']
 // come si recupera un anticipo / come rientra una rata di prestito
 export const RECUPERO = { stipendio: 'Lo tolgo io dal bonifico dello stipendio', busta: 'Lo trattiene il consulente in busta paga' };
 export const COME_RIMB = { stipendio: 'Tolta dal bonifico dello stipendio', busta: 'Trattenuta in busta paga', versato: 'Restituita dal dipendente (bonifico o contanti)' };
+export const compCausale = p => competenzaDaCausale(p.causale, p.data) || competenzaDaCausale(p.descrizione, p.data, true);
 /** I movimenti che contano come stipendio pagato: bonifici, anticipi e rate tolte dal bonifico. */
 const contaComeStipendio = p => p.dip && (p.tipo === 'stipendio' || (p.tipo === 'anticipo' && p.recupero !== 'busta') || (p.tipo === 'rimborso' && p.come === 'stipendio'));
-const compDi = p => p.comp || (p.tipo === 'anticipo' ? (p.data || '').slice(0, 7) : p.tipo === 'rimborso' && p.data ? mesePrec(p.data.slice(0, 7)) : '');
+// mese di competenza: quello indicato; altrimenti quello scritto nella causale (l'anno, se manca, si ricava dalla data);
+// per gli anticipi il mese del pagamento, per le rate tolte dallo stipendio il mese prima
+const compDi = p => p.comp || ((p.tipo === 'stipendio' || p.tipo === 'anticipo' || p.tipo === 'rimborso') && (competenzaDaCausale(p.causale, p.data) || competenzaDaCausale(p.descrizione, p.data, true))) || (p.tipo === 'anticipo' ? (p.data || '').slice(0, 7) : p.tipo === 'rimborso' && p.data ? mesePrec(p.data.slice(0, 7)) : '');
 export const MODALITA = { bonifico: 'Bonifico', assegno: 'Assegno', contanti: 'Contanti', carta: 'Carta / altro mezzo tracciabile' };
 export const cfgPaghe = () => Object.assign({ giornoStipendi: 20, giornoF24: 16 }, ((S.econfig.find(x => x.id === 'cfg') || {}).paghe) || {});
 
@@ -443,7 +447,7 @@ function righeBonifici0(bon, file) {
   });
 }
 /** Campi del pagamento da salvare. */
-export const datiPagamento = r => ({ data: r.data, importo: r.importo, tipo: r.tipo, dip: CON_DIP.has(r.tipo) ? r.dip : '', comp: r.comp || '', modalita: r.modalita || 'bonifico', descrizione: r.descrizione, fonte: r.fonte, ...(r.beneficiario ? { beneficiario: r.beneficiario } : {}), ...(r.iban ? { iban: r.iban } : {}), ...(r.idBanca ? { idBanca: r.idBanca } : {}) });
+export const datiPagamento = r => ({ data: r.data, importo: r.importo, tipo: r.tipo, dip: CON_DIP.has(r.tipo) ? r.dip : '', comp: r.comp || '', modalita: r.modalita || 'bonifico', descrizione: r.descrizione, fonte: r.fonte, ...(r.causale ? { causale: r.causale } : {}), ...(r.beneficiario ? { beneficiario: r.beneficiario } : {}), ...(r.iban ? { iban: r.iban } : {}), ...(r.idBanca ? { idBanca: r.idBanca } : {}) });
 
 /** "È la stessa persona": unisce il dipendente (o il nome dei bonifici) `da` a quello `a`. Il nome unito diventa un nome alternativo. */
 export async function unisci(da, a, nomeDa) {

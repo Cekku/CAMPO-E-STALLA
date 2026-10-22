@@ -186,7 +186,7 @@ async function righeEstratto0(movs, file) {
   const gia = new Map(); const dips = P.dipendenti(); const visti = new Set();
   return movs.map(m => {
     let id = idMovimento(m); while (visti.has(id)) id += 'x'; visti.add(id); m.id = id;
-    const base = { id, data: m.data, importo: Math.abs(m.importo), entrata: m.importo > 0, descrizione: m.descrizione, beneficiario: m.beneficiario, iban: m.iban, causale: m.causale, fonte: file, gia: usati.has(id), modalita: m.tipoOp === 'assegno' ? 'assegno' : m.tipoOp === 'POS' ? 'carta' : 'bonifico', comp: competenzaDaCausale(m.causale || m.descrizione), fatt: [], proposte: [], motivo: '' };
+    const base = { id, data: m.data, importo: Math.abs(m.importo), entrata: m.importo > 0, descrizione: m.descrizione, beneficiario: m.beneficiario, iban: m.iban, causale: m.causale, fonte: file, gia: usati.has(id), modalita: m.tipoOp === 'assegno' ? 'assegno' : m.tipoOp === 'POS' ? 'carta' : 'bonifico', comp: competenzaDaCausale(m.causale, m.data) || competenzaDaCausale(m.descrizione, m.data, true), fatt: [], proposte: [], motivo: '' };
     let r = null;
     if (m.importo < 0 && m.tipoOp !== 'spese bancarie') r = P.riconosci({ descrizione: m.descrizione, beneficiario: m.beneficiario, iban: m.iban }, dips);
     if (r && r.tipo === 'stipendio' && !r.dip && !r.ambigui) r = m.beneficiario ? { tipo: 'stipendio', dip: P.chiaveDip({ nome: m.beneficiario }), nuovo: true } : null;
