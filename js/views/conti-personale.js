@@ -218,7 +218,7 @@ export function schedaPagamento(id, pre = {}) {
   const dips = P.dipendenti(); const vers = P.versamenti();
   const trim = [...new Set(vers.filter(x => /T\d$/.test(x.periodo)).map(x => x.periodo))];
   // mesi: quelli dei cedolini più gli ultimi 14 e il prossimo (per anticipi di mesi non ancora in busta)
-  const mesi = new Set(P.periodi()); let m = P.meseSucc(today().slice(0, 7)); for (let n = 0; n < 16; n++) { mesi.add(m); m = P.mesePrec(m); } if (v.comp && !/T\d$/.test(v.comp)) mesi.add(v.comp);
+  const mesi = new Set(P.periodi()); let m = P.meseSucc(today().slice(0, 7)); for (let n = 0; n < 16; n++) { mesi.add(m); m = P.mesePrec(m); } if (v.comp && !/T\d$/.test(v.comp)) mesi.add(v.comp); { const yy = +today().slice(0, 4); for (const y of [yy, yy - 1]) { mesi.add(y + '-13'); mesi.add(y + '-14'); } }
   const dipNoti = dips.some(d => d.key === v.dip);
   const preAperti = P.prestiti().filter(x => x.residuo > 0.005 || x.id === v.prestito);
   openSheet(p ? (P.TIPI_PAG[v.tipo] || 'Pagamento') : 'Registra pagamento o anticipo', `<div class="fgrid" id="pgForm">

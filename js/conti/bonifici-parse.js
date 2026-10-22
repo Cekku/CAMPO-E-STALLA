@@ -14,7 +14,7 @@ export function competenzaDaCausale(c) {
   c = String(c || '');
   let m = new RegExp(`\\b(${MESI_NOMI.join('|')})\\b\\.?\\s*(?:\\/|-)?\\s*(20\\d\\d)`, 'i').exec(c);
   if (m) return `${m[2]}-${String(MESI_NOMI.findIndex(x => x.toLowerCase() === m[1].toLowerCase()) + 1).padStart(2, '0')}`;
-  m = /\b(tredicesima|13\s*[ªa^°]|quattordicesima|14\s*[ªa^°])\b\D{0,12}(20\d\d)/i.exec(c);
+  m = /\b(tredicesima|quattordicesima|1[34]\s*-?\s*(?:esima|ma|[ªa^°]))\D{0,12}(20\d\d)/i.exec(c);
   if (m) return `${m[2]}-${/^(tred|13)/i.test(m[1]) ? '13' : '14'}`;
   m = /(?:stip|mese|mens|paga|salar|retrib)\D{0,25}\b(0?[1-9]|1[0-2])[/.-](20\d\d)\b/i.exec(c);
   if (m) return `${m[2]}-${m[1].padStart(2, '0')}`;

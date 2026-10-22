@@ -13,6 +13,8 @@ export const chiaveDip = c => c.cf && /^[A-Z0-9]{16}$/.test(c.cf) ? c.cf : 'N-' 
 // fine del periodo: la tredicesima si paga a dicembre, la quattordicesima a giugno/luglio
 const finePeriodo = p => { const [y, m] = p.split('-').map(Number); const mm = m === 13 ? 12 : m === 14 ? 6 : m; return addDays(`${mm === 12 ? y + 1 : y}-${String(mm === 12 ? 1 : mm + 1).padStart(2, '0')}-01`, -1); };
 const inizioPeriodo = p => { const [y, m] = p.split('-').map(Number); const mm = m === 13 ? 12 : m === 14 ? 6 : m; return `${y}-${String(mm).padStart(2, '0')}-01`; };
+// mese reale di pagamento: tredicesima a dicembre, quattordicesima a giugno
+const meseRif = p => { const [y, m] = p.split('-').map(Number); return m === 13 ? `${y}-12` : m === 14 ? `${y}-06` : p; };
 const meseSucc = p => { const [y, m] = p.split('-').map(Number); return m >= 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`; };
 const mesePrec = p => { const [y, m] = p.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`; };
 
@@ -133,7 +135,7 @@ function abbina(ced, pag) {
   const g = cfgPaghe().giornoStipendi;
   const out = [...righe, ...extra].map(r => {
     const diffV = r2(r.dovuto - r.pagato);
-    const scad = `${meseSucc(r.periodo.slice(5) > '12' ? r.periodo.slice(0, 4) + '-12' : r.periodo)}-${String(Math.min(28, g)).padStart(2, '0')}`;
+    const scad = `${meseSucc(meseRif(r.periodo))}-${String(Math.min(28, g)).padStart(2, '0')}`;
     const ultimo = r.pag.map(x => x.data).sort().pop() || null;
     let stato;
     if (r.senzaCedolino || (r.dovuto === 0 && r.pagato > 0)) stato = 'senza cedolino';
@@ -214,15 +216,15 @@ function controlli(ced, bil, tot, pag, ver, dip, per, pre) {
 export function versamenti(bil = bilanciniPaghe(), pag = pagamenti()) {
   const out = []; const g = cfgPaghe().giornoF24; const t = today();
   // F24: ritenute IRPEF e addizionali del mese, entro il 16 del mese successivo
-  for (const b of bil) if (N(b.irpef) > 0) out.push({ tipo: 'f24', tipoNome: 'F24 ritenute', periodo: b.periodo, nome: nomeMese(b.periodo), dovuto: r2(N(b.irpef)), scadenza: `${meseSucc(b.periodo)}-${String(g).padStart(2, '0')}` });
+  for (const b of bil) if (N(b.irpef) > 0) out.push({ tipo: 'f24', tipoNome: 'F24 ritenute', periodo: b.periodo, nome: nomeMese(b.periodo), dovuto: r2(N(b.irpef)), scadenza: `${meseSucc(meseRif(b.periodo))}-${String(g).padStart(2, '0')}` });
   // contributi agricoli (operai): l'INPS li chiede per trimestre; scadenze 16/9, 16/12, 16/3, 16/6
   const trim = new Map();
-  for (const b of bil) { const [y, m] = b.periodo.split('-').map(Number); if (m > 12) continue; const q = Math.ceil(m / 3); const k = `${y}-T${q}`; const o = trim.get(k) || { tipo: 'contributi', tipoNome: 'Contributi INPS agricoli', periodo: k, nome: `${q}° trimestre ${y}`, dovuto: 0, mesi: [] }; o.dovuto = r2(o.dovuto + N(b.contribDebito)); o.mesi.push(b.periodo); trim.set(k, o); }
+  for (const b of bil) { const [y, m] = meseRif(b.periodo).split('-').map(Number); const q = Math.ceil(m / 3); const k = `${y}-T${q}`; const o = trim.get(k) || { tipo: 'contributi', tipoNome: 'Contributi INPS agricoli', periodo: k, nome: `${q}° trimestre ${y}`, dovuto: 0, mesi: [] }; o.dovuto = r2(o.dovuto + N(b.contribDebito)); o.mesi.push(b.periodo); trim.set(k, o); }
   const SC = { 1: [0, '09-16'], 2: [0, '12-16'], 3: [1, '03-16'], 4: [1, '06-16'] };
   for (const o of trim.values()) { if (!o.dovuto) continue; const [y, q] = [+o.periodo.slice(0, 4), +o.periodo.slice(-1)]; o.scadenza = `${y + SC[q][0]}-${SC[q][1]}`; out.push(o); }
   // TFR al fondo pensione: per trimestre
   const fondo = new Map();
-  for (const b of bil) { if (!N(b.tfrFpc)) continue; const [y, m] = b.periodo.split('-').map(Number); const q = Math.ceil(Math.min(m, 12) / 3); const k = `${y}-T${q}`; const o = fondo.get(k) || { tipo: 'fondo', tipoNome: 'TFR al fondo pensione', periodo: k, nome: `${q}° trimestre ${y}`, dovuto: 0 }; o.dovuto = r2(o.dovuto + N(b.tfrFpc)); fondo.set(k, o); }
+  for (const b of bil) { if (!N(b.tfrFpc)) continue; const [y, m] = meseRif(b.periodo).split('-').map(Number); const q = Math.ceil(m / 3); const k = `${y}-T${q}`; const o = fondo.get(k) || { tipo: 'fondo', tipoNome: 'TFR al fondo pensione', periodo: k, nome: `${q}° trimestre ${y}`, dovuto: 0 }; o.dovuto = r2(o.dovuto + N(b.tfrFpc)); fondo.set(k, o); }
   for (const o of fondo.values()) { const [y, q] = [+o.periodo.slice(0, 4), +o.periodo.slice(-1)]; o.scadenza = q === 4 ? `${y + 1}-01-20` : `${y}-${String(q * 3 + 1).padStart(2, '0')}-20`; out.push(o); }
   // abbinamento: pagamento con periodo indicato, altrimenti il più vecchio aperto dello stesso tipo
   for (const o of out) Object.assign(o, { pagato: 0, pag: [] });
