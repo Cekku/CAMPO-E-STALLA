@@ -82,8 +82,10 @@ const CatastoLayer = window.L ? L.TileLayer.extend({
 function buildMap() {
   map = L.map('map', { zoomControl: false, attributionControl: true, maxZoom: 21, minZoom: 5, tap: true, preferCanvas: false, zoomSnap: 0.5 });
   map.attributionControl.setPrefix('');
+  // dal basso: sfondo (200), catasto (350), nomi (360), particella evidenziata (390), campi (400): i campi restano sempre sopra
   map.createPane('catasto').style.zIndex = 350;
   map.createPane('labels').style.zIndex = 360; map.getPane('labels').style.pointerEvents = 'none';
+  map.createPane('catSel').style.zIndex = 390; map.getPane('catSel').style.pointerEvents = 'none';
   base.sat = new SatLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Immagini © Esri, Maxar, Earthstar Geographics' });
   base.sat2 = new SatLayer('https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Immagini © Esri World Imagery (Clarity)' });
   base.osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21, attribution: '© OpenStreetMap' });
@@ -273,7 +275,7 @@ let catLayer = null, catPart = null;
 const CAT = () => import('./catasto.js');
 function mostraParticella(p, adatta) {
   if (catLayer) map.removeLayer(catLayer);
-  catLayer = L.geoJSON(p.geom, { style: { color: '#F5D547', weight: 3, fillColor: '#F5D547', fillOpacity: .18, dashArray: '6 4' }, pmIgnore: true, interactive: false }).addTo(map);
+  catLayer = L.geoJSON(p.geom, { style: { color: '#F5D547', weight: 3, fillColor: '#F5D547', fillOpacity: .18, dashArray: '6 4' }, pane: 'catSel', pmIgnore: true, interactive: false }).addTo(map);
   if (adatta) map.fitBounds(catLayer.getBounds(), { padding: [70, 70], maxZoom: 18 });
 }
 function cardParticella(p) {
