@@ -268,28 +268,88 @@ export function endMode() {
   if (had) drawFields();
 }
 
-/* ---------- catasto: dati della particella toccata ---------- */
+/* ---------- catasto: particella toccata o cercata per foglio e mappale ---------- */
+let catLayer = null, catPart = null;
+const CAT = () => import('./catasto.js');
+function mostraParticella(p, adatta) {
+  if (catLayer) map.removeLayer(catLayer);
+  catLayer = L.geoJSON(p.geom, { style: { color: '#F5D547', weight: 3, fillColor: '#F5D547', fillOpacity: .18, dashArray: '6 4' }, pmIgnore: true, interactive: false }).addTo(map);
+  if (adatta) map.fitBounds(catLayer.getBounds(), { padding: [70, 70], maxZoom: 18 });
+}
+function cardParticella(p) {
+  catPart = p; const box = $('#catCard'); box.hidden = false;
+  const ha = Math.round(areaHa(p.geom) * 10000) / 10000; const txt = `Fg. ${p.foglioTxt} mapp. ${p.particella}`;
+  const gia = S.campi.filter(c => String(c.catasto || '').replace(/\s/g, '').toLowerCase().includes(txt.replace(/\s/g, '').toLowerCase()) && (!c.comune || !p.comune || c.comune.toLowerCase() === p.comune.toLowerCase()));
+  const campi = [...S.campi].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'it'));
+  box.innerHTML = `<div class="cc-row">${ic('grid-2x2')}<div><b>${esc(p.comune)} · Foglio ${esc(p.foglioTxt)} · Particella ${esc(p.particella)}</b><span>${nf(ha, 4)} ha (${nf(ha * 10000, 0)} m²)${(() => { const ar = (p.multi || [p]).reduce((t, x) => t + (x.areaCatasto || 0), 0); return ar ? ' · in catasto ' + nf(ar, 0) + ' m²' : ''; })()} · ${esc((p.multi || [p]).map(x => x.ref).join(', '))}${gia.length ? ' · già nel campo ' + gia.map(c => esc(c.nome)).join(', ') : ''}</span></div><button class="iconbtn ghost" data-act="catClose" aria-label="Chiudi">${ic('x')}</button></div>
+  <div class="cc-actions"><button class="btn sm primary" data-act="catNuovo">${ic('plus')}Crea un campo</button>${campi.length ? `<select class="inp sm" id="catCampo" aria-label="Campo"><option value="">Aggiungi al campo…</option>${campi.map(c => `<option value="${c.id}"${c.id === selected ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select><button class="btn sm" data-act="catAggiungi">Aggiungi</button>` : ''}<button class="btn sm ghost" data-act="catSearch">${ic('search')}Altra particella</button><button class="btn sm ghost" data-act="copy" data-txt="${esc(p.comune + ' ' + txt)}">${ic('copy')}Copia</button></div>`;
+}
 async function queryParcel(latlng) {
   if (clickMarker) map.removeLayer(clickMarker);
   clickMarker = L.circleMarker(latlng, { radius: 6, color: '#F5D547', weight: 3, fillOpacity: 0 }).addTo(map);
   const box = $('#catCard'); box.hidden = false;
   box.innerHTML = `<div class="cc-row">${ic('scan-search')}<span>Cerco la particella…</span></div>`;
-  const d = 0.00002, bb = [latlng.lng - d, latlng.lat - d, latlng.lng + d, latlng.lat + d].join(',');
-  const url = `${CAT_URL}?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=CP.CadastralParcel&QUERY_LAYERS=CP.CadastralParcel&STYLES=&SRS=EPSG:6706&BBOX=${bb}&WIDTH=9&HEIGHT=9&X=4&Y=4&INFO_FORMAT=text/html&FEATURE_COUNT=1`;
-  let ref = null;
-  try { const r = await fetch(url); const t = await r.text(); const m = t.match(/([A-Z]\d{3})_(\d{4})([0-9A-Z]{2})\.([0-9A-Za-z]+)/); if (m) ref = { comuneCod: m[1], foglio: String(parseInt(m[2], 10)), allegato: m[3], particella: m[4], raw: m[0] }; } catch (e) { ref = undefined; }
-  let comune = '';
-  try { const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=it&lat=${latlng.lat}&lon=${latlng.lng}`); const j = await r.json(); comune = (j.address && (j.address.city || j.address.town || j.address.village || j.address.municipality)) || ''; } catch (e) { }
   const coords = latlng.lat.toFixed(6) + ', ' + latlng.lng.toFixed(6);
-  if (ref) {
-    const txt = `Fg. ${ref.foglio} mapp. ${ref.particella}`;
-    box.innerHTML = `<div class="cc-row">${ic('grid-2x2')}<div><b>${esc(comune || 'Comune ' + ref.comuneCod)} · Foglio ${esc(ref.foglio)} · Particella ${esc(ref.particella)}</b><span>Codice catastale ${esc(ref.raw)} · ${coords}</span></div><button class="iconbtn ghost" data-act="catClose" aria-label="Chiudi">${ic('x')}</button></div>
-    <div class="cc-actions">${selected ? `<button class="btn sm" data-act="catAssign" data-txt="${esc(txt)}" data-comune="${esc(comune)}">Aggiungi a ${esc(get('campi', selected)?.nome || 'campo')}</button>` : ''}<button class="btn sm ghost" data-act="copy" data-txt="${esc((comune ? comune + ' ' : '') + txt)}">${ic('copy')}Copia</button></div>`;
-  } else {
-    box.innerHTML = `<div class="cc-row">${ic('info')}<div><b>${ref === undefined ? 'Il servizio catastale non risponde da questo dispositivo' : 'Nessuna particella in questo punto'}</b><span>${comune ? esc(comune) + ' · ' : ''}${coords}. Foglio e numero di particella restano leggibili sulla mappa ingrandendo.</span></div><button class="iconbtn ghost" data-act="catClose" aria-label="Chiudi">${ic('x')}</button></div>`;
+  try {
+    const C = await CAT(); const p = await C.particellaNelPunto(latlng.lng, latlng.lat);
+    if (p) { mostraParticella(p, false); cardParticella(p); return; }
+    box.innerHTML = `<div class="cc-row">${ic('info')}<div><b>Nessuna particella in questo punto</b><span>${coords}</span></div><button class="iconbtn ghost" data-act="catClose" aria-label="Chiudi">${ic('x')}</button></div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="cc-row">${ic('info')}<div><b>${e.code === 'NO_PROXY' ? 'Serve il collegamento al catasto' : 'Il catasto non risponde'}</b><span>${esc(e.message)} · ${coords}</span></div><button class="iconbtn ghost" data-act="catClose" aria-label="Chiudi">${ic('x')}</button></div>${e.code === 'NO_PROXY' || e.code === 'PROXY' ? `<div class="cc-actions"><button class="btn sm" data-act="catImposta">${ic('settings')}Imposta il collegamento</button></div>` : ''}`;
   }
 }
-export function closeCat() { $('#catCard').hidden = true; if (clickMarker) { map.removeLayer(clickMarker); clickMarker = null; } }
+/** Pannello di ricerca: comune, foglio, particella (mappale). */
+export async function cercaPanel() {
+  const C = await CAT(); const ult = lsGet('ces.cat.ultimo', {}) || {};
+  const comuni = await C.comuni();
+  const az = azienda(); const def = ult.comune || '';
+  openSheet('Cerca particella catastale', `<div class="fgrid" id="catForm">
+    <label class="fld"><span class="flabel">Comune</span><div class="inwrap"><input id="cat_com" list="dlComuni" value="${esc(def)}" placeholder="Es. Povoletto" autocomplete="off"></div><datalist id="dlComuni">${comuni.map(c => `<option value="${esc(c.nome)} (${c.sigla})">`).join('')}</datalist></label>
+    <label class="fld half"><span class="flabel">Foglio</span><div class="inwrap"><input id="cat_fg" inputmode="numeric" value="${esc(ult.foglio || '')}" placeholder="Es. 12"></div></label>
+    <label class="fld half"><span class="flabel">Particella (mappale)</span><div class="inwrap"><input id="cat_pa" value="" placeholder="Es. 428"></div><small>Anche più numeri separati da virgola: 428, 430, 431</small></label>
+    <label class="fld half"><span class="flabel">Sezione</span><div class="inwrap"><input id="cat_sz" value="${esc(ult.sezione || '')}" placeholder="Solo se c'è"></div></label>
+    <p class="fld muted small" id="cat_msg">La prima ricerca in un comune scarica i fogli di mappa e può richiedere qualche secondo; poi è veloce.</p></div>
+    <div class="factions"><button class="btn" data-act="close">Chiudi</button><span class="sp"></span><button class="btn primary" data-act="catFind">${ic('search')}Cerca</button></div>`);
+  setTimeout(() => { const el = $(def ? '#cat_fg' : '#cat_com'); if (el) el.focus(); }, 100);
+  void az;
+}
+const TROVATE = [];
+export async function cercaEsegui(btn) {
+  const C = await CAT(); const com = $('#cat_com').value.trim(), fg = $('#cat_fg').value.trim(), sz = $('#cat_sz').value.trim();
+  const parti = $('#cat_pa').value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+  const msg = $('#cat_msg'); const avanz = t => { if (msg) msg.textContent = t; };
+  if (!parti.length) { avanz('Scrivi il numero della particella.'); return; }
+  btn.disabled = true; TROVATE.length = 0; const err = [];
+  try {
+    for (const pa of parti) { try { TROVATE.push(await C.cercaParticella(com, fg, pa, { sezione: sz, avanz })); } catch (e) { if (e.code === 'NO_PROXY' || e.code === 'PROXY' || e.code === 'COMUNE' || e.code === 'FOGLIO' || e.code === 'TIMEOUT') throw e; err.push(e.message); } }
+    lsSet('ces.cat.ultimo', { comune: com, foglio: fg, sezione: sz });
+    if (!TROVATE.length) throw new Error(err.join(' '));
+    closeSheet(); if (UI.tab !== 'mappa' || !map) { const b = document.createElement('button'); b.dataset.act = 'nav'; b.dataset.tab = 'mappa'; b.hidden = true; document.body.appendChild(b); b.click(); b.remove(); for (let i = 0; i < 20 && !map; i++) await new Promise(r => setTimeout(r, 100)); await new Promise(r => setTimeout(r, 300)); }
+    const p = TROVATE.length === 1 ? TROVATE[0] : Object.assign({}, TROVATE[0], { particella: TROVATE.map(x => x.particella).join(', '), geom: TROVATE.slice(1).reduce((g, x) => C.unisci(g, x.geom), TROVATE[0].geom), multi: TROVATE.slice() });
+    mostraParticella(p, true); cardParticella(p);
+    if (err.length) toast(err.join(' '), 'err');
+  } catch (e) {
+    avanz(e.message); if (e.code === 'NO_PROXY' || e.code === 'PROXY') { const f = $('#catForm'); if (f && !f.querySelector('[data-act=catImposta]')) f.insertAdjacentHTML('beforeend', `<div class="fld"><button class="btn" data-act="catImposta">${ic('settings')}Imposta il collegamento al catasto</button></div>`); }
+  } finally { btn.disabled = false; }
+}
+/** Crea un campo nuovo con la particella (o le particelle) trovate. */
+export function catNuovo() {
+  const p = catPart; if (!p) return;
+  const ha = Math.round(areaHa(p.geom) * 10000) / 10000;
+  const txt = (p.multi || [p]).map(x => `Fg. ${x.foglioTxt} mapp. ${x.particella}`).join('; ');
+  closeCat(); openEdit('campi', null, { geom: p.geom, superficie: ha, catasto: txt, comune: p.comune, nome: `${p.comune} Fg. ${p.foglioTxt} mapp. ${p.particella}` });
+}
+/** Aggiunge la particella a un campo esistente: confine, superficie e dati catastali. */
+export async function catAggiungi() {
+  const p = catPart; const id = ($('#catCampo') || {}).value; if (!p || !id) return toast('Scegli il campo', 'err');
+  const c = get('campi', id); if (!c) return; const C = await CAT();
+  const geom = c.geom ? C.unisci(c.geom, p.geom) : p.geom; const ha = Math.round(areaHa(geom) * 10000) / 10000;
+  const add = (p.multi || [p]).map(x => `Fg. ${x.foglioTxt} mapp. ${x.particella}`);
+  const cur = (c.catasto || '').trim(); const next = [cur, ...add.filter(a => !cur.includes(a))].filter(Boolean).join('; ');
+  await store.put('campi', c.id, Object.assign({}, c, { geom, superficie: ha, catasto: next, comune: c.comune || p.comune }));
+  toast(`${add.length === 1 ? 'Particella aggiunta' : add.length + ' particelle aggiunte'} a ${c.nome}: ora ${nf(ha, 2)} ha`); closeCat(); select(c.id);
+}
+export function closeCat() { $('#catCard').hidden = true; if (clickMarker) { map.removeLayer(clickMarker); clickMarker = null; } if (catLayer) { map.removeLayer(catLayer); catLayer = null; } catPart = null; }
 export async function assignCatasto(txt, comune) {
   const c = selected && get('campi', selected); if (!c) return;
   const cur = (c.catasto || '').trim(); const add = txt.replace(/^Fg\. /, 'Fg. ');

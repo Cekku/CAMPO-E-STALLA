@@ -54,6 +54,7 @@ export function render() {
   ${aiSection()}
   <section class="card set"><div class="set-h">${ic('map')}<div><h2>Mappe</h2><p>In Friuli Venezia Giulia l'app usa le ortofoto ufficiali della Regione, che sono le più nitide. Facoltativo: con una chiave Google Maps hai anche le immagini satellitari di Google (gratis fino a 100.000 riquadri al mese, poi a pagamento).</p></div></div>
     <form class="fgrid" data-form-act="gkey"><label class="fld"><span class="flabel">Chiave API di Google Maps (Map Tiles API)</span><div class="inwrap"><input id="az_gkey" value="${esc(a.gkey || '')}" placeholder="AIza…" autocomplete="off" class="mono"></div><small>Crea la chiave su console.cloud.google.com, attiva "Map Tiles API" e limitala al dominio cekku.github.io. La guida è nel file LEGGIMI.</small></label><div class="fld row-btns"><button class="btn" type="submit">Salva chiave</button></div></form></section>
+  ${catastoSection()}
   ${cloudSection()}
   <section class="card set"><div class="set-h">${ic('smartphone')}<div><h2>App sul telefono</h2><p>${isStandalone() ? 'Stai usando l\'app installata. Funziona anche senza rete: le modifiche si sincronizzano al ritorno della connessione.' : 'Installala sulla schermata Home: si apre a schermo intero e funziona anche in campagna senza rete.'}</p></div></div>${canInstall() ? `<button class="btn primary" data-act="install">${ic('download')}Installa l'app</button>` : ''}<p class="muted small">Versione ${VERSION}</p></section>
   <section class="card set"><div class="set-h">${ic('history')}<div><h2>Dati</h2><p>Copia di sicurezza completa in un file, da conservare o da caricare su un altro dispositivo.</p></div></div>
@@ -91,3 +92,19 @@ function aiSection() {
   <label class="fld half"><span class="flabel">Modello</span><div class="inwrap"><input id="ai_model" value="${esc(c.model || 'claude-haiku-5-5')}" class="mono" autocomplete="off"></div></label><span></span>
   <div class="fld row-btns"><button class="btn" type="submit">Salva</button>${c.key ? '<button class="btn ghost danger" type="button" data-act="aiForget">Rimuovi chiave</button>' : ''}</div></form></section>`;
 }
+
+/* ---------- collegamento al catasto ---------- */
+import { cfgCatasto, collegamento, statoCollegamento } from '../catasto.js';
+function catastoSection() {
+  const c = cfgCatasto(); const col = collegamento(); const st = statoCollegamento();
+  const stato = !col ? `<span class="esito wa">${ic('circle-alert')}Non impostato</span>` : st === true ? `<span class="esito ok">${ic('circle-check')}Funziona</span>` : st === false ? `<span class="esito ko">${ic('circle-x')}Non risponde</span>` : `<span class="esito muted">${ic('info')}${col.tipo === 'supabase' ? 'Funzione "catasto" del tuo progetto Supabase' : 'Indirizzo personale'}: premi Prova</span>`;
+  return `<section class="card set" id="catastoSez"><div class="set-h">${ic('grid-2x2')}<div><h2>Catasto: ricerca delle particelle</h2><p>Serve a cercare una particella per comune, foglio e mappale, a vedere il confine della particella toccata sulla mappa e a crearne un campo. I servizi dell'Agenzia delle Entrate non si possono interrogare direttamente da una pagina web: passano da un piccolo collegamento tuo, gratuito, da installare una volta sola.</p></div></div>
+  <div class="fgrid"><div class="fld"><span class="flabel">Stato</span><div>${stato}</div></div>
+  <label class="fld"><span class="flabel">Indirizzo del collegamento</span><div class="inwrap"><input id="cat_url" value="${esc(c.url || '')}" placeholder="${col && col.tipo === 'supabase' ? esc(col.url) : 'https://catasto.tuo-account.workers.dev'}" autocomplete="off" class="mono"></div><small>Vuoto = la funzione "catasto" del progetto Supabase collegato (se usi la sincronizzazione).</small></label>
+  <div class="fld row-btns"><button class="btn primary" type="button" data-act="catSalva">${ic('check')}Salva</button><button class="btn" type="button" data-act="catProva">${ic('refresh-cw')}Prova</button></div>
+  <details class="fld"><summary><b>Come si installa (5 minuti)</b></summary><div class="muted small" style="margin-top:8px">
+  <p><b>Con Supabase</b> (se usi già la sincronizzazione): apri il progetto su supabase.com → <i>Edge Functions</i> → <i>Deploy a new function</i> → <i>Via Editor</i>. Nome: <b>catasto</b>. Incolla il contenuto del file <i>supabase/functions/catasto/index.ts</i> del progetto e premi <i>Deploy</i>. Lascia vuoto l'indirizzo qui sopra e premi Prova.</p>
+  <p><b>Con Cloudflare</b> (gratis, senza Supabase): su dash.cloudflare.com → <i>Workers &amp; Pages</i> → <i>Create</i> → <i>Create Worker</i> → <i>Deploy</i> → <i>Edit code</i>. Incolla il file <i>supabase/functions/catasto/cloudflare-worker.js</i> e premi <i>Deploy</i>. Copia qui l'indirizzo del worker (finisce con .workers.dev) e premi Salva, poi Prova.</p>
+  <p>Dal collegamento passano solo le richieste di mappe catastali pubbliche (licenza CC BY 4.0), nessun dato dell'azienda.</p></div></details></div></section>`;
+}
+

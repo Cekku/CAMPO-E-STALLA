@@ -358,6 +358,13 @@ document.addEventListener('click', async e => {
       case 'mapGo': return MAP.goPlace(b);
       case 'catClose': return MAP.closeCat();
       case 'catAssign': return MAP.assignCatasto(d.txt, d.comune);
+      case 'catSearch': return MAP.cercaPanel();
+      case 'catSalva': { const { salvaCfgCatasto } = await import('./catasto.js'); const u = ($('#cat_url').value || '').trim(); if (u && !/^https:\/\//.test(u)) return toast('L\'indirizzo deve iniziare con https://', 'err'); salvaCfgCatasto({ url: u }); toast('Collegamento salvato'); return render(); }
+      case 'catProva': { b.disabled = true; const C = await import('./catasto.js'); const u = ($('#cat_url').value || '').trim(); if (u !== (C.cfgCatasto().url || '')) C.salvaCfgCatasto({ url: u }); try { await C.provaCollegamento(); toast('Il collegamento al catasto funziona'); } catch (e) { toast(e.message, 'err'); } b.disabled = false; return render(); }
+      case 'catFind': return MAP.cercaEsegui(b);
+      case 'catNuovo': return MAP.catNuovo();
+      case 'catAggiungi': return MAP.catAggiungi();
+      case 'catImposta': closeSheet(); UI.tab = 'impostazioni'; UI.detail = null; render(); return setTimeout(() => { const el = document.getElementById('catastoSez'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 200);
       case 'mapNote': return MAP.noteForField(d.id);
       case 'ndviField': return ndviField(d.id, b);
       case 'ndviMap': setTab('mappa'); return setTimeout(() => MAP.showNdvi(d.id), 250);
@@ -435,7 +442,7 @@ setRerender(() => render());
   $('#mapControls').innerHTML = `
     <div class="mapsearch">${ic('search')}<input id="mapSearch" placeholder="Cerca comune, località o coordinate" autocomplete="off" enterkeyhint="search"><div id="mapResults" class="map-results" hidden></div></div>
     <div id="mapWeather" class="map-weather" hidden></div>
-    <div class="map-tools"><button class="mtool" data-act="mapDraw" aria-label="Disegna un campo" title="Disegna un campo">${ic('pentagon')}</button><button class="mtool" data-act="mapLayers" aria-label="Livelli mappa" title="Livelli mappa">${ic('layers')}</button><button class="mtool" data-act="mapLocate" aria-label="La mia posizione" title="La mia posizione">${ic('navigation')}</button><button class="mtool" data-act="mapFit" aria-label="Mostra tutti i campi" title="Mostra tutti i campi">${ic('scan-search')}</button><label class="mtool" aria-label="Importa KML o GeoJSON" title="Importa confini da KML, GeoJSON o shapefile">${ic('file-up')}<input type="file" accept=".kml,.geojson,.json,.zip,.shp,application/vnd.google-earth.kml+xml,application/geo+json,application/zip" data-act="mapImport" hidden></label></div>
+    <div class="map-tools"><button class="mtool" data-act="mapDraw" aria-label="Disegna un campo" title="Disegna un campo">${ic('pentagon')}</button><button class="mtool" data-act="mapLayers" aria-label="Livelli mappa" title="Livelli mappa">${ic('layers')}</button><button class="mtool" data-act="catSearch" aria-label="Cerca particella catastale" title="Cerca particella (foglio e mappale)">${ic('grid-2x2')}</button><button class="mtool" data-act="mapLocate" aria-label="La mia posizione" title="La mia posizione">${ic('navigation')}</button><button class="mtool" data-act="mapFit" aria-label="Mostra tutti i campi" title="Mostra tutti i campi">${ic('scan-search')}</button><label class="mtool" aria-label="Importa KML o GeoJSON" title="Importa confini da KML, GeoJSON o shapefile">${ic('file-up')}<input type="file" accept=".kml,.geojson,.json,.zip,.shp,application/vnd.google-earth.kml+xml,application/geo+json,application/zip" data-act="mapImport" hidden></label></div>
     <div id="catHint" class="cat-hint" hidden>${ic('grid-2x2')}Avvicinati per vedere le particelle</div>
     <button class="legend-btn" data-act="mapLegend">Legenda ${ic('chevron-left', 'rot')}</button>
     <div id="mapLegend" class="map-legend" hidden></div>

@@ -17,6 +17,7 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Conti** (area riservata al titolare): carica fatture elettroniche (XML, P7M, ZIP del cassetto fiscale, PDF dell'Agenzia, stampe TeamSystem, prospetti del latte del caseificio), dichiarazioni IVA (telematico o PDF), bilancini del commercialista in PDF (anche quelli "disegnati" senza testo) e il vecchio file Excel del conto economico. Registro delle fatture a blocchi con categorie modificabili e regole, fornitori, clienti, prodotti con storico dei prezzi, categorie, andamento mensile, latte venduto; conto economico, stato patrimoniale, cespiti, indici di bilancio, analisi della stalla da latte (costo di produzione per litro, IOFC, prezzo di pareggio) con i dati presi da stalla, campi e fatture, controlli di coerenza. Ogni tabella si scarica in Excel, CSV o PDF.
 - **Personale** (nei Conti, riservato al titolare): legge ogni mese il PDF dei cedolini e il bilancino contabile delle paghe del consulente; calcola il netto da pagare a ogni dipendente, registra i pagamenti (a mano o dall'estratto conto della banca in Excel/CSV, con i bonifici riconosciuti dal nome) e tiene anticipi sullo stipendio e prestiti ai dipendenti con le restituzioni, permette di unire nomi diversi della stessa persona e segnala stipendi non pagati o pagati in parte, pagamenti in contanti, doppioni, cedolini mancanti, totali che non tornano con il bilancino, F24 e contributi agricoli non registrati, contratti a termine e permessi di soggiorno scaduti. Salari, oneri sociali e TFR vanno nel conto economico (B.9) finché non c'è il bilancino di fine anno.
 - **Estratto conto della banca** (PDF con testo o scansionato/oscurato, Excel, CSV): legge i movimenti, riconosce stipendi, anticipi, F24 e contributi dei dipendenti (dal nome o dall'IBAN) e i pagamenti e gli incassi delle fatture (controparte, importo, numero nella causale, anche più fatture pagate insieme); le fatture mostrano la data del pagamento in banca. La lettura ottica usa Tesseract in locale (`vendor/tesseract`).
+- **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
 ## Attivare la sincronizzazione (una volta sola, circa 5 minuti)
@@ -36,6 +37,15 @@ La chiave *anon* è pensata per stare nelle app: i dati sono protetti dalle rego
 ### Aggiornamento per i Conti (database creati prima della versione 1.5)
 
 Fatture, bilancio, cedolini e pagamenti dei dipendenti devono essere visibili solo al titolare. Se il database esisteva già (anche se avevi eseguito l'aggiornamento della versione 1.4), apri **SQL Editor → New query**, incolla il contenuto di [`supabase/aggiornamento-conti.sql`](supabase/aggiornamento-conti.sql) e premi **Run** (una volta sola). Finché non lo fai, l'app mostra un avviso nell'area Conti.
+
+### Collegamento al catasto (per la ricerca delle particelle)
+
+I servizi dell'Agenzia delle Entrate non accettano richieste dirette dalle pagine web, quindi serve un piccolo inoltro gratuito, da installare una volta:
+
+- **Supabase** (se usi la sincronizzazione): progetto → *Edge Functions* → *Deploy a new function* → *Via Editor*, nome `catasto`, incolla [`supabase/functions/catasto/index.ts`](supabase/functions/catasto/index.ts) → *Deploy*. Nell'app lascia vuoto l'indirizzo in *La mia azienda → Catasto* e premi *Prova*.
+- **Cloudflare** (senza Supabase): *Workers & Pages → Create → Create Worker → Deploy → Edit code*, incolla [`supabase/functions/catasto/cloudflare-worker.js`](supabase/functions/catasto/cloudflare-worker.js) → *Deploy*; copia l'indirizzo `…workers.dev` in *La mia azienda → Catasto* e premi *Prova*.
+
+Dal collegamento passano solo richieste di cartografia catastale pubblica. L'elenco dei comuni (`data/comuni.json`) viene da ISTAT tramite matteocontrini/comuni-json (MIT).
 
 ## Riservatezza
 
