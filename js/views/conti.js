@@ -26,7 +26,9 @@ export function contiVisibili() {
   try { return localStorage.getItem('ces.role.' + sync.farm.id) === 'titolare'; } catch (e) { return false; }
 }
 
+const PULIZIA = { fatta: false };
 export function render() {
+  if (!PULIZIA.fatta && S.pagamenti.length && contiVisibili()) { PULIZIA.fatta = true; import('../conti/paghe.js').then(m => m.eliminaDoppi()).then(n => { if (n) toast(n === 1 ? 'Eliminato 1 pagamento doppio (stessa data, stesso nome, stesso importo)' : `Eliminati ${n} pagamenti doppi (stessa data, stesso nome, stesso importo)`); }).catch(e => console.warn(e)); }
   const sub = SUBS[UI.sub.conti] ? UI.sub.conti : 'panoramica';
   if (!contiVisibili()) return { title: 'Conti', html: `<section class="card lock">${ic('shield-check', 'huge')}<h2>Area riservata al titolare</h2><p class="muted">Fatture, bilancio e margini sono visibili solo a chi ha creato l'azienda. Chiedi al titolare se ti servono questi dati.</p></section>` };
   const V = { panoramica, fatture: vFatture, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, controlli: vControlli, personale: vPersonale, dipendenti: vDipendenti, cedolini: vCedolini, pagamenti: vPagamenti, prestiti: vPrestiti, verifica: vVerifica, regole: vRegole };
@@ -136,7 +138,7 @@ async function salvaImport() {
   const PG = await import('../conti/paghe.js');
   if (bonSel.some(y => PG.CON_DIP.has(y.tipo) && !y.dip)) throw new Error('Per ogni stipendio, anticipo o prestito scegli il dipendente (o togli la spunta).');
   if (bonSel.some(y => y.tipo === 'fattura' && !(y.fatt || []).length)) throw new Error('Scegli la fattura per ogni pagamento di fattura (o togli la spunta).');
-  if (bonSel.length) { const BK = await import('../conti/banca.js'); const o = await BK.salvaRighe(bonSel, ''); if (o.nP) msg.push(o.nP === 1 ? '1 pagamento del personale' : o.nP + ' pagamenti del personale'); if (o.nF) msg.push(o.nF === 1 ? '1 pagamento di fattura' : o.nF + ' pagamenti di fatture'); }
+  if (bonSel.length) { const BK = await import('../conti/banca.js'); const o = await BK.salvaRighe(bonSel, ''); if (o.nP) msg.push(o.nP === 1 ? '1 pagamento del personale' : o.nP + ' pagamenti del personale'); if (o.nF) msg.push(o.nF === 1 ? '1 pagamento di fattura' : o.nF + ' pagamenti di fatture'); if (o.nD) msg.push(o.nD === 1 ? '1 doppio eliminato' : o.nD + ' doppi eliminati'); }
   const nonLetti = r.filter(x => x.tipo === 'errore').length;
   IMP.ris = []; toast('Salvato: ' + msg.join(' · ') + (nonLetti ? ` · ${nonLetti} file non letti (non salvati)` : ''));
   const paghe = r.filter(x => x.tipo === 'cedolini' || x.tipo === 'bilpaghe');

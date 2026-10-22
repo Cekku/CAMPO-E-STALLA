@@ -155,7 +155,7 @@ export function segnaDoppi(righe) {
     if (r.entrata || r.tipo === 'fattura' || r.tipo === 'ignora') { visti.push(r); continue; }
     const giaP = !r.gia && salvati.find(p => p.id !== r.id && CON_DIP.has(p.tipo) && stesso(r, p));
     const giaR = visti.find(x => !x.entrata && stesso(r, x));
-    if (giaP || giaR) { r.gia = true; r.sel = false; r.doppio = giaP ? `già registrato il ${String(giaP.data).split('-').reverse().join('/')} da ${giaP.fonte || 'inserimento a mano'}` : 'uguale a un altro movimento di questo caricamento'; }
+    if (giaP || giaR) { r.gia = true; r.sel = false; r.stessoGiorno = (giaP || giaR).data === r.data; r.doppio = giaP ? `già registrato il ${String(giaP.data).split('-').reverse().join('/')} da ${giaP.fonte || 'inserimento a mano'}` : 'uguale a un altro movimento di questo caricamento'; }
     visti.push(r);
   }
   for (const r of righe.filter(r => r.tipo === 'fattura' && !r.gia)) {
@@ -506,4 +506,27 @@ export async function imparaNomi(righe) {
   if (!nuove.length) return 0;
   const tutte = dips.flatMap(d => aliasDi(d).map(a => [a, d.key])).concat(nuove);
   await salvaNomi(tutte); return nuove.length;
+}
+
+/**
+ * Elimina i pagamenti doppi: stesso dipendente (o stesso beneficiario), stesso tipo, stesso importo e stessa data
+ * sono lo stesso pagamento, anche se arrivano da file caricati più volte o da file diversi (contabile ed estratto).
+ * Si tiene quello inserito a mano o con il mese indicato, altrimenti il primo; vale anche per i pagamenti segnati sulle fatture.
+ */
+export async function eliminaDoppi() {
+  const risolti = new Map(pagamenti().map(p => [p.id, p]));
+  const chiave = p => { const r = risolti.get(p.id) || p; const chi = CON_DIP.has(p.tipo) ? (r.dip || nomeChiave(p.beneficiario)) : ''; return CON_DIP.has(p.tipo) && !chi ? null : [p.tipo, chi, r2(N(p.importo)), p.data].join('|'); };
+  const peso = p => (p.dipManuale || p.fonte === 'a mano' ? 0 : 2) + (p.comp ? 0 : 1);
+  const gruppi = new Map(); for (const p of S.pagamenti) { if (!p.data) continue; const k = chiave(p); if (!k) continue; gruppi.set(k, [...(gruppi.get(k) || []), p]); }
+  const via = []; for (const g of gruppi.values()) if (g.length > 1) { g.sort((a, b) => peso(a) - peso(b) || String(a.id).localeCompare(String(b.id))); via.push(...g.slice(1)); }
+  for (const p of via) await store.remove('pagamenti', p.id);
+  // fatture: lo stesso movimento segnato due volte
+  const rows = []; let nf = 0;
+  for (const f of S.fatture) {
+    const pb = f.pagamentiBanca || []; if (pb.length < 2) continue;
+    const visti = new Set(); const tieni = pb.filter(x => { const k = x.data + '|' + r2(Math.abs(N(x.importo))); if (visti.has(k)) return false; visti.add(k); return true; });
+    if (tieni.length < pb.length) { nf += pb.length - tieni.length; const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { pagamentiBanca: tieni }) }); }
+  }
+  if (rows.length) await store.bulkPut(rows);
+  return via.length + nf;
 }

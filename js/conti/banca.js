@@ -203,8 +203,10 @@ async function righeEstratto0(movs, file) {
 /** Salva le righe scelte: pagamenti del personale e pagamenti/incassi delle fatture. */
 export async function salvaRighe(sel, fonte) {
   const P = await import('./paghe.js'); let nP = 0, nF = 0;
+  sel = sel.filter(r => !r.stessoGiorno);
   const pag = sel.filter(r => r.tipo !== 'fattura' && r.tipo !== 'ignora' && !r.entrata);
   if (pag.length) { await store.bulkPut(pag.map(r => ({ col: 'pagamenti', id: r.id, data: P.datiPagamento(Object.assign({ fonte }, r)) }))); nP = pag.length; await P.imparaNomi(pag); }
   for (const r of sel.filter(r => r.tipo === 'fattura' && r.fatt && r.fatt.length)) { await registraSuFatture({ id: r.id, data: r.data, importo: r.entrata ? r.importo : -r.importo, descrizione: r.descrizione }, r.fatt, r.fonte || fonte); nF++; }
-  return { nP, nF };
+  const nD = await P.eliminaDoppi();
+  return { nP, nF, nD };
 }
