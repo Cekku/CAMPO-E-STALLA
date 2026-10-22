@@ -513,8 +513,10 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 @media (max-width: 899px) { .mapview { left: 0; bottom: 0; } }
 .leaflet-container { font-family: var(--f-body); }
 .leaflet-control-attribution { font-size: 10px; background: rgba(255, 255, 255, .7) !important; }
-.catasto-tiles { mix-blend-mode: multiply; filter: contrast(1.6) brightness(.95); }
-.leaflet-pane .catasto-tiles img { mix-blend-mode: multiply; }
+.catasto-tiles { filter: contrast(1.6) brightness(.95); }
+/* il WMS del catasto ha lo sfondo bianco: il livello intero si "moltiplica" con la foto sotto, così resta solo il disegno
+   (sulle singole immagini non basta: il riquadro con z-index le isola e il bianco copriva il satellite) */
+.leaflet-catasto-pane { mix-blend-mode: multiply; }
 #map .sat-tiles { filter: var(--fx, none); }
 #map .field-label { display: none; }
 #map.show-labels .field-label { display: flex; }
