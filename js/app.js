@@ -207,15 +207,37 @@ function quickGo(k) {
   }
 }
 
-/* ---------- ricerca ---------- */
+/* ---------- ricerca e comandi rapidi (Ctrl+K o "/") ---------- */
+const AZIONI = [
+  ['att', 'notebook-pen', 'Nuova attività', 'campagna'], ['plan', 'calendar', 'Pianifica attività', 'campagna'], ['campo', 'pentagon', 'Nuovo campo', 'campagna'],
+  ['carico', 'download', 'Carico magazzino', 'tutte'], ['nota', 'pencil', 'Nuova nota', 'tutte'], ['man', 'wrench', 'Manutenzione', 'campagna'],
+  ['ev', 'cow', 'Evento di stalla', 'stalla'], ['tr', 'syringe', 'Trattamento sanitario', 'stalla'], ['latte', 'milk', 'Latte del giorno', 'stalla'], ['capo', 'baby', 'Nuovo capo', 'stalla'],
+];
+const norm = x => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+function comandi() {
+  const pag = []; const seen = new Set();
+  Object.entries(MENU).forEach(([area, secs]) => { if (area === 'conti' && !contiVisibili()) return; secs.forEach(([, items]) => items.forEach(([t, sb, i, l]) => { const k = area + t + sb; if (seen.has(k)) return; seen.add(k); pag.push({ kind: 'pag', area, t, sb, i, l }); })); });
+  return [...AZIONI.map(([k, i, l, area]) => ({ kind: 'az', k, i, l, area })), ...pag];
+}
+const AREA_L = { campagna: 'Campagna', stalla: 'Stalla', conti: 'Conti', tutte: '' };
+function cmdRow(c) {
+  if (c.kind === 'az') return `<button class="row cmd" data-act="cmdAz" data-k="${c.k}" data-area="${c.area}"><span class="r-icon act">${ic(c.i)}</span><span class="r-main"><b>${esc(c.l)}</b><span>Registra${AREA_L[c.area] ? ' · ' + AREA_L[c.area] : ''}</span></span>${ic('plus', 'chev')}</button>`;
+  return `<button class="row cmd" data-act="cmdPag" data-area="${c.area}" data-tab="${c.t}"${c.sb ? ` data-sub="${c.sb}"` : ''}><span class="r-icon">${ic(c.i)}</span><span class="r-main"><b>${esc(c.l)}</b><span>Vai a · ${AREA_L[c.area]}</span></span>${ic('chevron-right', 'chev')}</button>`;
+}
 function searchSheet() {
-  openSheet('Cerca', `<div class="search big">${ic('search')}<input class="inp" id="gq" placeholder="Campi, capi, prodotti, mezzi, note" autocomplete="off" enterkeyhint="search"></div><div id="gres" class="list flat"></div>`);
+  openSheet('Cerca', `<div class="search big">${ic('search')}<input class="inp" id="gq" placeholder="Campi, capi, prodotti… oppure un comando" autocomplete="off" enterkeyhint="search"></div><div id="gres" class="list flat"></div><p class="kbd-tip muted small">${ic('keyboard')}<span><kbd>Ctrl</kbd>+<kbd>K</kbd> o <kbd>/</kbd> cerca · <kbd>N</kbd> registra · <kbd>Invio</kbd> apre il primo risultato</span></p>`);
+  searchRun('');
   setTimeout(() => { const i = $('#gq'); if (i) i.focus(); }, 80);
 }
 function searchRun(q) {
-  q = q.toLowerCase().trim(); const out = $('#gres'); if (!out) return;
-  if (q.length < 2) { out.innerHTML = '<div class="empty slim">Scrivi almeno due lettere.</div>'; return; }
-  const hit = (s) => String(s || '').toLowerCase().includes(q);
+  const out = $('#gres'); if (!out) return;
+  const qn = norm(q.trim());
+  if (qn.length < 2) {
+    const az = comandi().filter(c => c.kind === 'az' && (c.area === UI.area || c.area === 'tutte')).slice(0, 6);
+    out.innerHTML = `<div class="dr-sec left">Azioni rapide</div>${az.map(cmdRow).join('')}`; return;
+  }
+  const hit = (s) => norm(s).includes(qn);
+  const cmd = comandi().filter(c => hit(c.l)).sort((a, b) => (b.area === UI.area) - (a.area === UI.area)).slice(0, 6);
   const rows = [
     ...S.campi.filter(c => hit(c.nome) || hit(cropOf(c)) || hit(c.catasto)).map(c => ['campo', c.id, 'sprout', c.nome, cropOf(c) + ' · ' + nf(campoHa(c), 2) + ' ha']),
     ...S.capi.filter(c => hit(c.nome) || hit(c.matricola)).map(c => ['capo', c.id, 'cow', c.nome || c.matricola, c.matricola]),
@@ -224,7 +246,8 @@ function searchRun(q) {
     ...S.note.filter(n => hit(n.titolo) || hit(n.testo)).map(n => ['nota', n.id, 'pencil', n.titolo, (n.testo || '').slice(0, 60)]),
     ...(contiVisibili() ? S.fatture.filter(f => hit(f.controparte) || hit(f.numero)).slice(0, 15).map(f => ['fattura', f.id, 'receipt', f.controparte + ' n. ' + f.numero, fd(f.data) + ' · ' + (f.tipo === 'Vendita' ? 'vendita' : 'acquisto')]) : []),
   ].slice(0, 40);
-  out.innerHTML = rows.length ? rows.map(([t, id, i, l, s]) => `<button class="row" data-act="${t === 'nota' ? 'edit' : t === 'fattura' ? 'c-fatt' : 'open'}" ${t === 'nota' ? `data-form="note" data-id="${id}"` : `data-type="${t}" data-id="${id}"`}><span class="r-icon">${ic(i)}</span><span class="r-main"><b>${esc(l)}</b><span>${esc(s || '')}</span></span>${ic('chevron-right', 'chev')}</button>`).join('') : '<div class="empty slim">Nessun risultato.</div>';
+  const dati = rows.map(([t, id, i, l, s]) => `<button class="row" data-act="${t === 'nota' ? 'edit' : t === 'fattura' ? 'c-fatt' : 'open'}" ${t === 'nota' ? `data-form="note" data-id="${id}"` : `data-type="${t}" data-id="${id}"`}><span class="r-icon">${ic(i)}</span><span class="r-main"><b>${esc(l)}</b><span>${esc(s || '')}</span></span>${ic('chevron-right', 'chev')}</button>`).join('');
+  out.innerHTML = (rows.length ? `<div class="dr-sec left">Dati</div>${dati}` : '') + (cmd.length ? `<div class="dr-sec left">Comandi</div>${cmd.map(cmdRow).join('')}` : '') || '<div class="empty slim">Nessun risultato.</div>';
 }
 
 /* ---------- esportazioni ---------- */
@@ -312,7 +335,10 @@ document.addEventListener('click', async e => {
       case 'moveCapi': return moveSheet(d.src || '');
       case 'aiForget': try { localStorage.removeItem('ces.ai'); } catch (e) { } toast('Chiave rimossa'); return render();
       case 'search': return searchSheet();
+      case 'cmdAz': if (d.area !== 'tutte' && d.area !== UI.area) { UI.area = d.area; saveUI(); setTab('oggi'); } return quickGo(d.k);
+      case 'cmdPag': if (UI.area !== d.area) { UI.area = d.area; saveUI(); } closeSheet(); return setTab(d.tab, d.sub);
       case 'close': return closeSheet();
+      case 'scrollTo': { const el = document.getElementById(d.target); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       case 'chip': UI.f[d.f] = d.v; return render();
       case 'view': UI.view = d.v; saveUI(); return render();
       case 'collapse': { const k = 'c_' + d.k; UI.f[k] = !UI.f[k]; return render(); }
@@ -400,6 +426,13 @@ document.addEventListener('input', e => {
 const searchSoon = debounce(q => MAP.searchPlace(q), 450);
 document.addEventListener('keydown', e => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.getAttribute && e.target.getAttribute('role') === 'button' && e.target.dataset.act) { e.preventDefault(); e.target.click(); return; }
+  const inField = e.target.closest && e.target.closest('input,textarea,select,[contenteditable="true"]');
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if (!sheetOpen()) searchSheet(); else { const i = $('#gq'); if (i) i.focus(); } return; }
+  if (!inField && !e.ctrlKey && !e.metaKey && !e.altKey && !sheetOpen() && !document.documentElement.classList.contains('app-locked')) {
+    if (e.key === '/') { e.preventDefault(); return searchSheet(); }
+    if ((e.key === 'n' || e.key === 'N') && UI.tab !== 'mappa') { e.preventDefault(); return quickSheet(); }
+  }
+  if (e.key === 'Enter' && e.target.id === 'gq') { e.preventDefault(); const f = $('#gres [data-act]'); if (f) f.click(); return; }
   if (e.key === 'Escape') { if (sheetOpen()) closeSheet(); else if (document.body.classList.contains('drawer-open')) drawer(false); else if (UI.tab === 'mappa') MAP.endMode(); }
   if (e.key === 'Enter' && e.target.id === 'mapSearch') { e.preventDefault(); MAP.searchPlace(e.target.value); }
 });

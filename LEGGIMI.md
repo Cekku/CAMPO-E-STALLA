@@ -20,6 +20,14 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.9
+
+- **Dashboard "cosa c'è da fare"**: saluto con la data, riquadri con superficie, attività e costi dell'annata, avvisi; sul telefono vengono prima agenda e avvisi, poi lo storico.
+- **Prossimi 14 giorni**: un'agenda unica con attività pianificate (anche quelle in ritardo), parti e asciutte previste, fine delle sospensioni del latte e delle carenze, scadenze di revisioni, assicurazioni, controlli funzionali, patentini e prodotti.
+- **Registro trattamenti digitale**: per ogni annata l'app controlla che ogni trattamento abbia prodotto, n. di registrazione, dose, coltura, superficie, fase, avversità e operatore, e mostra cosa manca. Il registro diventa interamente digitale dal 1° gennaio 2027.
+- **Cerca e comandi**: dal pulsante Cerca, oppure con <kbd>Ctrl</kbd>+<kbd>K</kbd> o <kbd>/</kbd> sul computer, trovi dati, pagine e azioni ("latte", "nuovo capo"…). <kbd>N</kbd> apre Registra.
+- Elenchi più leggibili sul telefono: le etichette vanno sotto il nome invece di schiacciarlo.
+
 ## Attivare la sincronizzazione (una volta sola, circa 5 minuti)
 
 Senza questo passaggio l'app funziona lo stesso, ma i dati restano sul singolo dispositivo.

@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.8.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.9.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -19,6 +19,13 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 - Mappa: `js/map.js` (Leaflet + Geoman, ortofoto FVG, satellite, catasto AdE WMS, NDVI Sentinel-2), `js/geo.js` (aree, centroidi, import KML/GeoJSON/shapefile).
 - Blocco con codice: `js/lock.js` (PIN con PBKDF2 in localStorage `ces.lock`).
 - Librerie in `vendor/`: leaflet, geoman, supabase-js, **pdf.js 4.10.38 legacy** (`vendor/pdfjs`), **Tesseract.js 6** con lingua italiana (`vendor/tesseract`, lettura ottica in locale).
+
+## Dashboard e agenda (dalla 1.9.0)
+
+- `js/agenda.js`: `agenda(giorni, area)` raccoglie le scadenze dei prossimi giorni (attività pianificate e in ritardo, parti, asciutte a −60 gg dal parto, fine sospensione latte, fine carenza, revisione/assicurazione/controllo funzionale, patentini, prodotti in scadenza); `agendaCard()` la mostra divisa per giorno. `statoRegistro(y)`/`registroCard(y)`: completezza del registro trattamenti (Reg. UE 2023/564, digitale obbligatorio dal 1/1/2027) sulle righe di `righeTrattamenti`.
+- `views/oggi.js`: saluto, KPI di campagna (superficie, attività, costi €/ha, avvisi), avanzamento colture a barre. Sotto 1080 px `.grid-2.dash` diventa una colonna sola con ordine `o1…o7` (agenda, avvisi, registro, attività…).
+- Ricerca = palette di comandi (`AZIONI` + voci di `MENU` in `app.js`): Ctrl/⌘+K o `/` aprono, `N` apre Registra, Invio apre il primo risultato.
+- Righe con `.r-side.chips` sotto 560 px: le etichette vanno a capo sotto il testo.
 
 ## Modulo Conti (`js/conti/`, viste in `js/views/conti*.js`)
 
