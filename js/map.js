@@ -30,7 +30,7 @@ function applyFx() {
 let notesGroup = null, ndviLayer = null, ndviScenes = null;
 const FVG_BOUNDS = window.L ? L.latLngBounds([[45.57, 12.30], [46.66, 13.94]]) : null;
 const inFVG = (lat, lon) => lat > 45.57 && lat < 46.66 && lon > 12.30 && lon < 13.94;
-let googleLayer = null;
+let googleLayer = null, sotto = null;
 async function getGoogle() {
   const key = (azienda().gkey || '').trim(); if (!key) return null;
   if (googleLayer && googleLayer._key === key) return googleLayer;
@@ -57,7 +57,9 @@ const SatLayer = window.L ? L.TileLayer.extend({
   },
   _urlFor(x, y, z) { return L.Util.template(this._url, L.extend({ s: this._getSubdomain({ x, y }), x, y, z }, this.options)); },
   _try(c, coords, k, cors, done) {
-    if (k > 5) { if (cors) this._try(c, coords, 0, false, done); else done(null, c); return; }
+    // c.complete = true: Leaflet allo zoom butta via le tessere "non complete" (pensate per <img>, un canvas non ha complete)
+    // e senza questo scartava anche quelle già disegnate: per un attimo la mappa restava nera
+    if (k > 5) { if (cors) this._try(c, coords, 0, false, done); else { c.complete = true; done(null, c); } return; }
     const f = 2 ** k, x = Math.floor(coords.x / f), y = Math.floor(coords.y / f), z = coords.z - k;
     const img = new Image(); if (cors) img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -65,7 +67,7 @@ const SatLayer = window.L ? L.TileLayer.extend({
       ctx.clearRect(0, 0, c.width, c.height);
       ctx.drawImage(img, (coords.x % f) * sub, (coords.y % f) * sub, sub, sub, 0, 0, c.width, c.height);
       if (cors && k < 5 && this._isBlank(ctx, c)) { this._try(c, coords, k + 1, true, done); return; }
-      done(null, c);
+      c.complete = true; done(null, c);
     };
     img.onerror = () => { if (cors && k >= 5) this._try(c, coords, 0, false, done); else this._try(c, coords, k + 1, cors, done); };
     img.src = this._urlFor(x, y, z);
@@ -90,7 +92,8 @@ const CatastoLayer = window.L ? L.TileLayer.extend({
 }) : null;
 
 function buildMap() {
-  map = L.map('map', { zoomControl: false, attributionControl: true, maxZoom: 21, minZoom: 5, tap: true, preferCanvas: false, zoomSnap: 0.5 });
+  // rotella a passi più piccoli e frequenti: zoom più continuo
+  map = L.map('map', { zoomControl: false, attributionControl: true, maxZoom: 21, minZoom: 5, tap: true, preferCanvas: false, zoomSnap: 0.25, wheelPxPerZoomLevel: 90, wheelDebounceTime: 20 });
   map.attributionControl.setPrefix('');
   // dal basso: sfondo (200), catasto (350), nomi (360), particella evidenziata (390), campi (400): i campi restano sempre sopra
   map.createPane('catasto').style.zIndex = 350;
@@ -103,6 +106,9 @@ function buildMap() {
   // Ortofoto della Regione FVG (true ortofoto 2017-2020, alta risoluzione), sopra al satellite Esri fuori regione
   const CRS900913 = Object.assign({}, L.CRS.EPSG3857, { code: 'EPSG:900913' });
   const fvg = L.tileLayer.wms('https://irdat-ortofoto.regione.fvg.it/geoserver/ortofoto/wms', { layers: 'trueorto_FVG_1720', format: 'image/jpeg', transparent: false, version: '1.1.1', crs: CRS900913, maxZoom: 21, maxNativeZoom: 20, bounds: FVG_BOUNDS, updateWhenZooming: false, keepBuffer: 4, className: 'sat-tiles', attribution: 'Ortofoto © Regione Autonoma Friuli Venezia Giulia' });
+  // sotto la foto, una sua copia a bassa risoluzione (tessere da 2048 px di tre livelli di zoom più in basso: 1-4 immagini leggere):
+  // allargando o spostando la mappa si vede subito un'immagine sfocata che poi si definisce, mai lo sfondo scuro (come Google Maps)
+  sotto = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { tileSize: 2048, zoomOffset: -3, minNativeZoom: 3, maxNativeZoom: 21, maxZoom: 21, zIndex: 0, updateWhenZooming: false, keepBuffer: 2, className: 'sat-tiles' });
   base.fvg = L.layerGroup([new SatLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Esri' }), fvg]);
   overlays.nomi = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { pane: 'labels', maxNativeZoom: 19, maxZoom: 21 });
   overlays.particelle = new CatastoLayer('CP.CadastralParcel', { pane: 'catasto', minZoom: 15, maxZoom: 21, maxNativeZoom: 20, attribution: 'Catasto © Agenzia delle Entrate (CC BY 4.0)', className: 'catasto-tiles' });
@@ -132,7 +138,8 @@ function applyLayers() {
   applyFx();
   Object.values(base).forEach(l => map.removeLayer(l));
   if (googleLayer) map.removeLayer(googleLayer);
-  if (prefs.base === 'google') { getGoogle().then(l => { if (l && prefs.base === 'google') { l.addTo(map); l.bringToBack(); } else if (!l) { prefs.base = 'sat'; applyLayers(); } }).catch(e => { toast(e.message, 'err'); prefs.base = 'sat'; savePrefs(); applyLayers(); }); }
+  if (['sat', 'sat2', 'fvg', 'google'].includes(prefs.base)) { if (!map.hasLayer(sotto)) sotto.addTo(map); } else map.removeLayer(sotto);
+  if (prefs.base === 'google') { getGoogle().then(l => { if (l && prefs.base === 'google') { l.addTo(map); l.bringToBack(); sotto.bringToBack(); } else if (!l) { prefs.base = 'sat'; applyLayers(); } }).catch(e => { toast(e.message, 'err'); prefs.base = 'sat'; savePrefs(); applyLayers(); }); }
   else (base[prefs.base] || base.sat).addTo(map);
   if (prefs.ndvi) { if (!ndviLayer) ndviLayer = new NdviLayer(); ndviLayer._scene = prefs.ndviScene || null; if (!map.hasLayer(ndviLayer)) ndviLayer.addTo(map); else ndviLayer.redraw(); ndviBar(); }
   else { if (ndviLayer && map.hasLayer(ndviLayer)) map.removeLayer(ndviLayer); const nb = $('#ndviBar'); if (nb) nb.hidden = true; }
