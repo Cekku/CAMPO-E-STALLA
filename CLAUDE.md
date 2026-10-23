@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.9.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.10.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -26,6 +26,13 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 - `views/oggi.js`: saluto, KPI di campagna (superficie, attività, costi €/ha, avvisi), avanzamento colture a barre. Sotto 1080 px `.grid-2.dash` diventa una colonna sola con ordine `o1…o7` (agenda, avvisi, registro, attività…).
 - Ricerca = palette di comandi (`AZIONI` + voci di `MENU` in `app.js`): Ctrl/⌘+K o `/` aprono, `N` apre Registra, Invio apre il primo risultato.
 - Righe con `.r-side.chips` sotto 560 px: le etichette vanno a capo sotto il testo.
+
+## Si@lleva / AIA (dalla 1.10.0)
+
+- `js/aia.js`: lettura dei PDF di Si@lleva (Microsoft Reporting Services, impaginazione fissa: colonne riconosciute dal bordo destro delle parole, `COL_SINT`, `COL_PRE`). `sintetico` (Sintetico individuale ultimo controllo: n. aziendale, razza 02=Frisona/00=Incrocio, n. lattazione, data parto, gg latte, ANA, EVM, latte/grasso/proteine/cellule(×1000)/LS/caseina/lattosio/urea, stato riproduttivo G/F/NI/MI/V, parcheggiata P, gg 1ª insem., gg concepimento, n. fecondazioni), `prestampato` (Scheda di riepilogo del controllo: nome sulla riga sotto la matricola, "ASCIUTTA gg/mm/aaaa", "ULT. CONTROLLO" = la vacca non è stata controllata all'ultimo controllo e il dato del sintetico è vecchio, prossima operazione P/A/F/D con data gg/mm → anno dedotto), `parametri` (Parametri zootecnici aziendali: una riga per controllo, 21 valori, solo la tabella dei bovini da latte). Collettivo, FE01 e Benessere sono riconosciuti ma non importati.
+- `pianoImport(S, reports, uid)`: abbina per matricola; crea capi nuovi, aggiunge numero/razza/nome solo se mancano, crea eventi Parto, Messa in asciutta e Controllo funzionale (id `aia-…`, niente doppioni entro 7 giorni o stessa data), allinea `lattazioniPrecedenti` al n. lattazione AIA, salva `capo.aia` (stato, prossima operazione, EVM, ANA, LS…) e lo storico in `config/aia.storia`. Testato in Node con i PDF veri (332 vacche, controllo 29/09/2026) e reimportazione senza modifiche.
+- `domain.capoInfo`: se non ci sono fecondazioni nell'app dopo l'ultimo parto usa `capo.aia` riferito a quel parto (G = gravida, parto previsto da prossima operazione P, o A + 60 gg; G/F/parcheggiata tolgono "Da fecondare"; V = vuota). `agenda` aggiunge le operazioni AIA F e D.
+- UI: `views/aia-view.js` (scheda in Stalla → Indici e benessere con caricamento di più PDF, anteprima, andamento e tabella esportabile; riquadro "Controllo funzionale AIA" nella scheda del capo).
 
 ## Modulo Conti (`js/conti/`, viste in `js/views/conti*.js`)
 

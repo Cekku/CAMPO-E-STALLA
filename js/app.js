@@ -410,6 +410,7 @@ document.addEventListener('change', e => {
   if (t.dataset.filter && t.tagName === 'SELECT') { UI.f[t.dataset.filter] = t.value; return render(); }
   if (t.dataset.act === 'mapImport' && t.files[0]) { MAP.importFile(t.files[0]); t.value = ''; return; }
   if (t.dataset.act === 'restore' && t.files[0]) { restore(t.files[0]); t.value = ''; return; }
+  if (t.dataset.act === 'aiaImport' && t.files.length) { const fs = [...t.files]; t.value = ''; import('./views/aia-view.js').then(m => m.aiaImport(fs)).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'misureImport' && t.files[0]) { const f = t.files[0]; t.value = ''; misureImport(f).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'fitoImport' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Lettura della banca dati…'); importFito(f).then(n => toast('Banca dati caricata: ' + n + ' prodotti')).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'authTab') { authUI.tab = t.value; return render(); }

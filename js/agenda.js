@@ -28,6 +28,8 @@ export function agenda(giorni = 14, area = 'tutte') {
       const asc = addDays(i.prevParto, -60);
       if (i.stato === 'In lattazione' && asc <= fine) add(asc < T ? T : asc, 'stalla', 'cow', 'Messa in asciutta · ' + nome, asc < T ? 'Da fare: parto il ' + fd(i.prevParto) : '60 giorni prima del parto (' + fd(i.prevParto) + ')', { type: 'capo', id: c.id }, asc < T);
     }
+    const op = c.aia && c.aia.prossima;
+    if (op && okD(op.data) && (op.op === 'F' || op.op === 'D') && op.data <= fine && (!i.fec || op.op === 'D')) add(op.data < T ? T : op.data, 'stalla', op.op === 'F' ? 'heart-pulse' : 'scan-search', (op.op === 'F' ? 'Da fecondare · ' : 'Diagnosi di gravidanza · ') + nome, op.data < T ? 'Indicata dall\'AIA per il ' + fd(op.data) : 'Indicata dal controllo funzionale AIA', { type: 'capo', id: c.id }, op.data < T);
     if (i.inSospLatte && okD(i.sospLatte) && dentro(addDays(i.sospLatte, 1))) add(addDays(i.sospLatte, 1), 'stalla', 'milk', 'Latte di nuovo conferibile · ' + nome, 'Finisce la sospensione del farmaco', { type: 'capo', id: c.id });
   });
 
@@ -50,7 +52,7 @@ export function agendaCard(area, giorni = 14) {
   const days = [...byDay.entries()].slice(0, 7);
   const tot = items.length;
   return `<section class="card agenda-card"><div class="card-h"><h2>${ic('calendar-range')}Prossimi ${giorni} giorni</h2><span class="count">${tot}</span></div>
-  ${tot ? `<div class="agenda">${days.map(([d, xs]) => `<div class="ag-day${d === today() ? ' today' : ''}"><div class="ag-date"><b>${esc(giornoLabel(d))}</b>${d !== today() && diff(today(), d) > 1 ? `<span>tra ${diff(today(), d)} giorni</span>` : ''}</div><div class="ag-items">${xs.map(x => `<button class="ag-i ${COL[x.area] || ''}${x.late ? ' late' : ''}" data-act="go" data-go='${esc(JSON.stringify(x.go))}'><span class="ag-ic">${ic(x.icn)}</span><span class="ag-tx"><b>${esc(x.t)}</b><small>${esc(x.s)}</small></span></button>`).join('')}</div></div>`).join('')}${byDay.size > 7 ? `<p class="more">e altri ${byDay.size - 7} giorni con impegni</p>` : ''}</div>`
+  ${tot ? `<div class="agenda">${days.map(([d, xs]) => `<div class="ag-day${d === today() ? ' today' : ''}"><div class="ag-date"><b>${esc(giornoLabel(d))}</b>${d !== today() && diff(today(), d) > 1 ? `<span>tra ${diff(today(), d)} giorni</span>` : ''}</div><div class="ag-items">${xs.slice(0, 6).map(x => `<button class="ag-i ${COL[x.area] || ''}${x.late ? ' late' : ''}" data-act="go" data-go='${esc(JSON.stringify(x.go))}'><span class="ag-ic">${ic(x.icn)}</span><span class="ag-tx"><b>${esc(x.t)}</b><small>${esc(x.s)}</small></span></button>`).join('')}${xs.length > 6 ? `<span class="ag-more">e altri ${xs.length - 6}</span>` : ''}</div></div>`).join('')}${byDay.size > 7 ? `<p class="more">e altri ${byDay.size - 7} giorni con impegni</p>` : ''}</div>`
     : `<div class="allgood">${ic('calendar', 'big')}<b>Niente in programma</b><span>Pianifica un'attività o registra fecondazioni e scadenze: compariranno qui.</span></div>`}</section>`;
 }
 

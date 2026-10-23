@@ -8,6 +8,7 @@ import { capiIn, boxKey, siloInfo, indici, benessere, misureDi, CAMPI_MISURE, gu
 import { parseCSV, decode, isoDate } from '../fitodb.js';
 import { spark } from './charts.js';
 import * as store from '../store.js';
+import { aiaCard } from './aia-view.js';
 
 const STATO_COL = { 'In lattazione': 'var(--ok)', 'Asciutta': 'var(--hay)', 'Manza': 'var(--info)', 'Vitella': '#7FB3DB', 'Vitello': '#7FB3DB', 'Maschio': 'var(--muted)' };
 const kpi = (l, v, u, s, cls = '') => `<div class="kpi static"><span class="k-l">${l}</span><span class="k-v ${cls}">${v}${u ? `<small>${u}</small>` : ''}</span>${s ? `<span class="k-s">${s}</span>` : ''}</div>`;
@@ -84,7 +85,8 @@ export function indiciView() {
   <div class="list">${al.length ? al.map(a => `<button class="row" data-act="open" data-type="capo" data-id="${a.c.id}"><span class="avatar ${a.lv}">${esc((a.c.nome || a.c.matricola || '?')[0])}</span><span class="r-main"><b>${esc(a.t)} · ${esc(a.c.nome || a.c.matricola)}</b><span>${esc(a.s)} · ${fd(a.data)}</span></span>${chip(a.lv === 'bad' ? 'Urgente' : a.lv === 'warn' ? 'Da controllare' : 'Info', a.lv)}</button>`).join('') : `<div class="empty slim">${nMis ? 'Nessun allarme: tutte le vacche nella norma.' : 'Importa i dati della sala di mungitura o dei collari per avere gli allarmi.'}</div>`}</div></section>
   <section class="card set"><div class="set-h">${ic('file-spreadsheet')}<div><h2>Dati dai sistemi di stalla</h2><p>Esporta in CSV o Excel (salvato come CSV) i dati giornalieri per vacca da Alpro, MooMonitor, SCR, Lely, Afimilk… e caricali qui: l'app riconosce le colonne, abbina gli animali per matricola, numero aziendale o nome e calcola allarmi e grafici.</p></div></div>
   ${nMis ? `<div class="syncbox ok">${ic('circle-check')}<div><b>${nf(nMis, 0)} misure caricate</b><span>ultima del ${fd(lastM)}${lastM ? ' · ' + diff(lastM, T) + ' giorni fa' : ''}</span></div></div>` : ''}
-  <div class="btns"><label class="btn primary">${ic('file-up')}Importa CSV<input type="file" accept=".csv,.txt,text/csv" data-act="misureImport" hidden></label></div></section>`;
+  <div class="btns"><label class="btn primary">${ic('file-up')}Importa CSV<input type="file" accept=".csv,.txt,text/csv" data-act="misureImport" hidden></label></div></section>
+  ${aiaCard()}`;
 }
 
 // Importazione con riconoscimento delle colonne e anteprima

@@ -6,6 +6,7 @@ import { GEST, capoI, razioneInfo, giac } from '../domain.js';
 import { tabs, empty, newBtn, fact, chip, exChip } from '../ui.js';
 import { latteChart, spark } from './charts.js';
 import { stalle, strutturaDetail, indiciView, capoMisure } from './stalle.js';
+import { capoAia } from './aia-view.js';
 import { boxOf, benessere } from '../herd.js';
 
 const STATO = { 'In lattazione': 'ok', 'Asciutta': 'hay', 'Manza': 'info', 'Vitella': 'info', 'Vitello': 'info', 'Maschio': '', 'Uscita': 'ghost' };
@@ -133,6 +134,7 @@ function detail(c) {
   <div class="quick-ev">${quick.map(([t, l, icn]) => `<button data-act="new" data-form="eventi" data-capo="${c.id}" data-tipo="${t}">${ic(icn)}<span>${l}</span></button>`).join('')}</div>
   ${cycle}
   <dl class="facts">${fact('Nascita', okD(c.nascita) ? fd(c.nascita) + ' <small>' + eta(c.nascita) + '</small>' : '—')}${fact('Lattazioni', String(i.nLatt || 0))}${fact('Ultimo parto', i.pData ? fd(i.pData) : '—')}${fact('Ultima fecondazione', i.fec ? fd(i.fec.data) + (i.nFec > 1 ? ' <small>' + i.nFec + 'ª</small>' : '') : '—')}${fact('Parto previsto', i.prevParto ? fd(i.prevParto) + (i.gravida ? '' : ' <small>presunto</small>') : '—')}${fact('Sospensione latte', i.inSospLatte ? chip('fino al ' + fd(i.sospLatte), 'bad') : 'Nessuna')}${fact('Ultimo controllo', i.ctrl ? `<span class="num">${nf(i.ctrl.kg, 1)} kg</span> <small>${fd(i.ctrl.data)}</small>` : '—')}${fact('Madre · padre', esc([c.madre, c.padre].filter(Boolean).join(' · ') || '—'))}${fact('Stalla e box', (b => b ? `<button class="linkbtn" data-act="open" data-type="struttura" data-id="${b.s.id}">${esc(b.s.nome)} · ${esc(b.nome)}</button>` : '—')(boxOf(c)))}${c.numero ? fact('N. aziendale', esc(c.numero)) : ''}</dl>
+  ${capoAia(c)}
   ${capoMisure(c)}
   ${ctrls.length >= 2 ? `<section class="card"><div class="card-h"><h2>Controlli funzionali</h2></div><div class="ctrl-spark">${spark(ctrls.map(e => N(e.kg)), 300, 56)}<span class="muted small">${nf(ctrls[0].kg, 1)} → <b>${nf(ctrls[ctrls.length - 1].kg, 1)} kg/giorno</b></span></div></section>` : ''}
   ${c.note ? `<section class="card note">${esc(c.note)}</section>` : ''}

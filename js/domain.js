@@ -57,9 +57,14 @@ export function capoInfo(c, ev) {
   const fec = last('Fecondazione', pData);
   const nFec = ev.filter(e => e.tipo === 'Fecondazione' && (!pData || e.data > pData)).length;
   const diag = fec ? last('Diagnosi gravidanza', fec.data) : null;
-  const gravida = diag ? diag.esito === 'Positiva' : null;
+  let gravida = diag ? diag.esito === 'Positiva' : null;
   const asc = pData ? last('Messa in asciutta', pData) : null;
-  const prevParto = fec && gravida !== false ? addDays(fec.data, GEST) : null;
+  let prevParto = fec && gravida !== false ? addDays(fec.data, GEST) : null;
+  // dati del controllo funzionale AIA (Si@lleva) riferiti a questo parto, se nell'app non ci sono fecondazioni
+  const A = !fec && c.aia && c.aia.stato && (!pData || !c.aia.parto || c.aia.parto === pData) ? c.aia : null;
+  const aiaFec = !!(A && (A.stato === 'G' || A.stato === 'F' || A.parcheggiata));
+  if (A && A.stato === 'G') { gravida = true; const op = A.prossima; if (op && okD(op.data)) prevParto = op.op === 'P' ? op.data : op.op === 'A' ? addDays(op.data, 60) : null; }
+  else if (A && A.stato === 'V') gravida = false;
   let stato;
   if (uscita) stato = 'Uscita';
   else if (c.sesso === 'M') stato = okD(c.nascita) && diff(c.nascita, T) < 365 ? 'Vitello' : 'Maschio';
@@ -79,14 +84,14 @@ export function capoInfo(c, ev) {
   const nLatt = N(c.lattazioniPrecedenti) + ev.filter(e => e.tipo === 'Parto').length;
   const alerts = [];
   if (!uscita && c.sesso !== 'M') {
-    if (stato === 'In lattazione' && !fec && dim >= 50) alerts.push({ k: 'fec', lv: 'warn', t: 'Da fecondare', s: dim + ' giorni dal parto' });
+    if (stato === 'In lattazione' && !fec && !aiaFec && dim >= 50) alerts.push({ k: 'fec', lv: 'warn', t: 'Da fecondare', s: dim + ' giorni dal parto' });
     if (stato === 'Manza' && !fec && okD(c.nascita) && diff(c.nascita, T) >= 440) alerts.push({ k: 'fec', lv: 'warn', t: 'Manza da fecondare', s: eta(c.nascita) });
     if (fec && !diag && diff(fec.data, T) >= 28) alerts.push({ k: 'diag', lv: 'info', t: 'Diagnosi di gravidanza', s: 'fecondata il ' + fd(fec.data) });
     if (gravida && stato === 'In lattazione' && prevParto && diff(T, prevParto) <= 67) alerts.push({ k: 'asc', lv: 'warn', t: 'Da mettere in asciutta', s: 'parto previsto il ' + fd(prevParto) });
     if (gravida && prevParto && diff(T, prevParto) <= 21 && diff(T, prevParto) >= -15) alerts.push({ k: 'parto', lv: 'info', t: 'Parto vicino', s: 'previsto il ' + fd(prevParto) });
     if (inSospLatte) alerts.push({ k: 'sosp', lv: 'bad', t: 'Latte da non conferire', s: 'sospensione fino al ' + fd(sospLatte) });
   }
-  return { stato, pData, dim, fec, nFec, diag, gravida, prevParto, sospLatte, inSospLatte, sospCarne, inSospCarne, ctrl, nLatt, alerts, ev, uscita };
+  return { stato, pData, dim, fec, nFec, diag, gravida, prevParto, sospLatte, inSospLatte, sospCarne, inSospCarne, ctrl, nLatt, alerts, ev, uscita, aia: A };
 }
 
 export function derive() {

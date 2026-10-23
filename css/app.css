@@ -1185,3 +1185,5 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
   .grid-2.dash .o5 { order: 5; } .grid-2.dash .o6 { order: 6; } .grid-2.dash .o7 { order: 7; }
   .grid-2.dash .o3:empty { display: none; }
 }
+.ag-more { font-size: 12.5px; color: var(--muted); padding: 2px 4px; }
+.syncbox.warn > .ic { color: var(--warn); } .syncbox.warn { background: var(--warn-soft); }

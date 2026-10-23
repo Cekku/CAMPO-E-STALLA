@@ -20,6 +20,10 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.10: dati da Si@lleva
+
+In Si@lleva genera e salva in PDF il **Sintetico individuale ultimo controllo**, la **Scheda di riepilogo del controllo** e i **Parametri zootecnici aziendali**. In Campo e Stalla vai in Stalla → Indici e benessere → **Carica report Si@lleva (PDF)** e selezionali insieme. Vedi un riepilogo prima di salvare: l'app aggiunge i capi che mancano, parti, asciutte, controlli funzionali, stato riproduttivo e l'andamento mese per mese. Ricaricare gli stessi report non crea doppioni. Ripeti dopo ogni controllo funzionale.
+
 ## Novità della versione 1.9
 
 - **Dashboard "cosa c'è da fare"**: saluto con la data, riquadri con superficie, attività e costi dell'annata, avvisi; sul telefono vengono prima agenda e avvisi, poi lo storico.
