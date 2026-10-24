@@ -313,7 +313,7 @@ function cardParticella(p) {
   const gia = S.campi.filter(c => String(c.catasto || '').replace(/\s/g, '').toLowerCase().includes(txt.replace(/\s/g, '').toLowerCase()) && (!c.comune || !p.comune || c.comune.toLowerCase() === p.comune.toLowerCase()));
   const campi = [...S.campi].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'it'));
   box.innerHTML = `<div class="cc-row">${ic('grid-2x2')}<div><b>${esc(p.comune)} · Foglio ${esc(p.foglioTxt)} · Particella ${esc(p.particella)}</b><span>${nf(ha, 4)} ha (${nf(ha * 10000, 0)} m²)${(() => { const ar = (p.multi || [p]).reduce((t, x) => t + (x.areaCatasto || 0), 0); return ar ? ' · in catasto ' + nf(ar, 0) + ' m²' : ''; })()} · ${esc((p.multi || [p]).map(x => x.ref).join(', '))}${gia.length ? ' · già nel campo ' + gia.map(c => esc(c.nome)).join(', ') : ''}</span></div><button class="iconbtn ghost" data-act="catClose" aria-label="Chiudi">${ic('x')}</button></div>
-  <div class="cc-actions"><button class="btn sm primary" data-act="catNuovo">${ic('plus')}Crea un campo</button>${campi.length ? `<select class="inp sm" id="catCampo" aria-label="Campo"><option value="">Aggiungi al campo…</option>${campi.map(c => `<option value="${c.id}"${c.id === selected ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select><button class="btn sm" data-act="catAggiungi">Aggiungi</button>` : ''}<button class="btn sm ghost" data-act="catSearch">${ic('search')}Altra particella</button><button class="btn sm ghost" data-act="copy" data-txt="${esc(p.comune + ' ' + txt)}">${ic('copy')}Copia</button></div>`;
+  <div class="cc-actions"><button class="btn sm primary" data-act="catNuovo">${ic('plus')}Crea un campo</button>${campi.length ? `<select class="inp sm" id="catCampo" aria-label="Campo"><option value="">Aggiungi al campo…</option>${campi.map(c => `<option value="${c.id}"${c.id === selected ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select><button class="btn sm" data-act="catAggiungi">Aggiungi</button>` : ''}<button class="btn sm" data-act="catVisura" title="Apre l'area riservata dell'Agenzia delle Entrate e copia i dati della particella">${ic('file-text')}Visura</button><button class="btn sm ghost" data-act="catSearch">${ic('search')}Altra particella</button><button class="btn sm ghost" data-act="copy" data-txt="${esc(p.comune + ' ' + txt)}">${ic('copy')}Copia</button></div>`;
 }
 async function queryParcel(latlng) {
   if (clickMarker) map.removeLayer(clickMarker);
@@ -362,6 +362,16 @@ export async function cercaEsegui(btn) {
   } catch (e) {
     avanz(e.message); if (e.code === 'NO_PROXY' || e.code === 'PROXY') { const f = $('#catForm'); if (f && !f.querySelector('[data-act=catImposta]')) f.insertAdjacentHTML('beforeend', `<div class="fld"><button class="btn" data-act="catImposta">${ic('settings')}Imposta il collegamento al catasto</button></div>`); }
   } finally { btn.disabled = false; }
+}
+/** Visura: apre l'area riservata dell'Agenzia delle Entrate (visure per immobile gratuite anche su immobili di altri dal 2025,
+ *  accesso con SPID/CIE/CNS) e copia i dati da inserire. Il servizio non accetta i dati nell'indirizzo: vanno incollati. */
+const AREA_RISERVATA_ADE = 'https://portale.agenziaentrate.gov.it/PortaleWeb/home';
+export function catVisura() {
+  const p = catPart; if (!p) return;
+  window.open(AREA_RISERVATA_ADE, '_blank', 'noopener'); // subito, prima di ogni attesa: altrimenti il browser blocca la finestra
+  const txt = (p.multi || [p]).map(x => `Catasto Terreni · ${x.comune}${x.sigla ? ' (' + x.sigla + ')' : ''} · codice ${x.codice}${x.sezione ? ' · Sezione ' + x.sezione : ''} · Foglio ${x.foglioTxt} · Particella ${x.particella}`).join('\n');
+  const guida = 'In Area riservata: Servizi → Consultazioni visure, planimetrie e ispezioni ipotecarie → visura per immobile.';
+  navigator.clipboard.writeText(txt).then(() => toast('Dati della particella copiati. ' + guida), () => toast(txt + ' — ' + guida));
 }
 /** Crea un campo nuovo con la particella (o le particelle) trovate. */
 export function catNuovo() {
