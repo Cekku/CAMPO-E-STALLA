@@ -391,6 +391,7 @@ document.addEventListener('click', async e => {
       case 'catFind': return MAP.cercaEsegui(b);
       case 'catNuovo': return MAP.catNuovo();
       case 'catAggiungi': return MAP.catAggiungi();
+      case 'catVisura': return MAP.catVisura();
       case 'catImposta': closeSheet(); UI.tab = 'impostazioni'; UI.detail = null; render(); return setTimeout(() => { const el = document.getElementById('catastoSez'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 200);
       case 'mapNote': return MAP.noteForField(d.id);
       case 'ndviField': return ndviField(d.id, b);
