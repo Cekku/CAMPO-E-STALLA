@@ -9,7 +9,9 @@ const mem = {}; COLS.forEach(c => (mem[c] = new Map()));
 const listeners = new Set();
 export const onSync = fn => { listeners.add(fn); return () => listeners.delete(fn); };
 
-export const sync = { mode: 'local', status: 'idle', pending: 0, lastSync: null, user: null, farm: null, members: [], error: '' };
+// found: aziende di cui l'utente è già membro, cercate dopo l'accesso quando il dispositivo non ne ha una collegata
+// (null = non ancora cercate, 'cerco' = ricerca in corso); locali = registrazioni del dispositivo che non sono esempi né impostazioni
+export const sync = { mode: 'local', status: 'idle', pending: 0, lastSync: null, user: null, farm: null, members: [], error: '', found: null, locali: 0 };
 const emitSync = () => listeners.forEach(f => { try { f(sync); } catch (e) { } });
 
 function openIDB() {
@@ -91,7 +93,7 @@ async function initCloud() {
   setInterval(() => syncNow(), 90000);
 }
 async function afterLogin() {
-  if (!sync.farm) { emitSync(); return; }
+  if (!sync.farm) { await findFarms(); return; }
   try {
     const { data, error } = await sb.from('farms').select('id,name,join_code').eq('id', sync.farm.id).maybeSingle();
     if (error) throw error;
@@ -109,7 +111,7 @@ export async function loadMembers() {
 export async function signIn(email, password) { const { error } = await sb.auth.signInWithPassword({ email, password }); if (error) throw error; }
 export async function signUp(email, password) { const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } }); if (error) throw error; return data; }
 export async function resetPassword(email) { const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname }); if (error) throw error; }
-export async function signOut() { await sb.auth.signOut(); stopRealtime(); }
+export async function signOut() { await sb.auth.signOut(); stopRealtime(); sync.found = null; sync.locali = 0; }
 
 export async function createFarm(name) {
   const { data, error } = await sb.rpc('create_farm', { farm_name: name }); if (error) throw error;
@@ -119,13 +121,43 @@ export async function joinFarm(code) {
   const { data, error } = await sb.rpc('join_farm', { code }); if (error) throw error;
   await attachFarm(data, false);
 }
+
+// Registrazioni vere del dispositivo: gli esempi e le impostazioni (config) non contano, quelle dell'azienda condivisa vincono
+const datoVero = r => !r.deleted && r.col !== 'config' && !(r.data && r.data.esempio);
+
+// Dopo l'accesso su un dispositivo senza azienda: cerca le aziende di cui l'utente è già membro.
+// Una sola azienda e nessun dato vero sul dispositivo → collegamento automatico; altrimenti la scelta la fa l'utente.
+export async function findFarms() {
+  if (!sb || !sync.user || sync.farm) return;
+  sync.found = 'cerco'; emitSync();
+  try {
+    const { data: mem, error } = await sb.from('farm_members').select('farm_id,role').eq('user_id', sync.user.id);
+    if (error) throw error;
+    let farms = [];
+    if (mem.length) {
+      const { data, error: e2 } = await sb.from('farms').select('id,name,join_code,created_at').in('id', mem.map(m => m.farm_id));
+      if (e2) throw e2;
+      farms = data.map(f => Object.assign(f, { role: (mem.find(m => m.farm_id === f.id) || {}).role })).sort((a, b) => (a.role === 'titolare' ? 0 : 1) - (b.role === 'titolare' ? 0 : 1) || String(a.created_at).localeCompare(b.created_at));
+    }
+    sync.locali = idb ? (await getAll('records')).filter(datoVero).length : 0;
+    sync.found = farms;
+  } catch (e) { sync.found = null; sync.error = e.message || String(e); emitSync(); return; }
+  if (sync.found.length === 1 && !sync.locali) { await attachFarm(sync.found[0].id, false); return; }
+  emitSync();
+}
+// Collega un'azienda già esistente trovata dopo l'accesso: 'unisci' carica anche i dati veri del dispositivo, 'sostituisci' li scarta
+export async function attachExisting(farmId, modo) { await attachFarm(farmId, modo === 'unisci' ? datoVero : false); }
+
 async function attachFarm(farmId, uploadLocal) {
   const { data } = await sb.from('farms').select('id,name,join_code').eq('id', farmId).single();
-  sync.farm = data; sync.lastSync = null;
+  sync.farm = data; sync.lastSync = null; sync.found = null; sync.locali = 0;
   await metaSet('farm', data); await metaSet('lastSync', null);
   if (uploadLocal) {
-    const recs = await getAll('records');
-    await tx(['outbox'], 'readwrite', t => recs.forEach(r => t.objectStore('outbox').put(r)));
+    // true = tutto (azienda appena creata); una funzione = solo le registrazioni che la soddisfano
+    const tutti = await getAll('records'), scelti = typeof uploadLocal === 'function' ? tutti.filter(uploadLocal) : tutti;
+    const presi = new Set(scelti.map(r => r.k)), via = tutti.filter(r => !presi.has(r.k));   // esempi e impostazioni del dispositivo: lasciano il posto a quelli dell'azienda
+    await tx(['records', 'outbox'], 'readwrite', t => { scelti.forEach(r => t.objectStore('outbox').put(r)); via.forEach(r => t.objectStore('records').delete(r.k)); });
+    via.forEach(r => mem[r.col] && mem[r.col].delete(r.id)); if (via.length) { rebuild(); schedule(); }
   } else {
     // entrando in un'azienda esistente, i dati locali vengono sostituiti da quelli condivisi
     await tx(['records', 'outbox'], 'readwrite', t => { t.objectStore('records').clear(); t.objectStore('outbox').clear(); });
