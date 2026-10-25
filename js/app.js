@@ -356,6 +356,11 @@ document.addEventListener('click', async e => {
       case 'backup': { const o = await store.exportAll(); download(`campo-e-stalla-${today()}.json`, JSON.stringify(o), 'application/json'); return; }
       case 'wipe': return arm(b, 'Conferma: cancella tutto da questo dispositivo', () => store.wipeLocal());
       case 'syncNow': return store.syncNow();
+      case 'findFarms': return store.findFarms();
+      case 'attachFarm': {
+        const go = async () => { try { await store.attachExisting(d.id, d.modo); toast('Collegato all\'azienda ' + sync.farm.name); } catch (err) { toast(traduci(err), 'err'); } render(); };
+        return d.modo === 'sostituisci' && sync.locali ? arm(b, 'Conferma: togli i dati del dispositivo', go) : go();
+      }
       case 'syncTile': if (sync.farm) { store.syncNow(); toast('Sincronizzazione avviata'); return drawer(false); } return setTab('impostazioni');
       case 'signOut': await store.signOut(); toast('Disconnesso'); return render();
       case 'leaveFarm': return arm(b, 'Conferma: scollega', async () => { await store.leaveFarm(); toast('Dispositivo scollegato dall\'azienda'); render(); });

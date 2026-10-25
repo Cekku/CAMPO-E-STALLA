@@ -1203,3 +1203,11 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 .cd-msg p { margin: 0 0 6px; } .cd-msg ul { margin: 0 0 6px; padding-left: 18px; } .cd-msg li { margin: 2px 0; }
 .caldo .mt-legend { display: block; }
 @media (max-width: 560px) { .cd-days { grid-template-columns: repeat(7, 84px); } }
+
+/* aziende trovate dopo l'accesso */
+.farm-found { flex-wrap: wrap; row-gap: 8px; }
+.farm-found .btns { margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+.farm-altro { margin-top: 12px; }
+.farm-altro summary { cursor: pointer; font-weight: 650; color: var(--ink-2); padding: 6px 0; }
+.farm-altro .grid-2 { margin-top: 8px; }
+@media (max-width: 560px) { .farm-found .btns { margin-left: 0; justify-content: flex-start; flex: 1 0 100%; } }
