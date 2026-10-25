@@ -39,7 +39,7 @@ const MENU = {
   ],
   stalla: [
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['stalla', 'mandria', 'cow', 'Mandria'], ['stalla', 'stalle', 'layout-grid', 'Stalle e silos'], ['stalla', 'indici', 'gauge', 'Indici e benessere'], ['stalla', 'riproduzione', 'heart-pulse', 'Riproduzione'], ['stalla', 'latte', 'milk', 'Latte']]],
-    ['Alimentazione e salute', [['stalla', 'razioni', 'wheat', 'Razioni'], ['stalla', 'sanitario', 'syringe', 'Sanitario'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino']]],
+    ['Alimentazione e salute', [['stalla', 'razioni', 'wheat', 'Razioni'], ['stalla', 'sanitario', 'syringe', 'Sanitario'], ['meteo', null, 'thermometer', 'Meteo e caldo'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino']]],
     ['Gestione', [['note', null, 'pencil', 'Note'], ['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
   ],
   conti: [
@@ -323,7 +323,7 @@ document.addEventListener('click', async e => {
       case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'conti' ? 'conti' : 'oggi');
       case 'sub': if (d.tab && UI.tab !== d.tab) { UI.tab = d.tab; UI.detail = null; UI.hist = []; } UI.sub[d.sec] = d.sub; saveUI(); render(); return window.scrollTo(0, 0);
       case 'open': if (sheetOpen()) closeSheet(); return openDetail(d.type, d.id);
-      case 'go': { const g = JSON.parse(d.go); if (g.form) return openEdit(g.form); if (g.edit) return openEdit(g.edit, g.id); return openDetail(g.type, g.id); }
+      case 'go': { const g = JSON.parse(d.go); if (g.tab) return setTab(g.tab, g.sub); if (g.form) return openEdit(g.form); if (g.edit) return openEdit(g.edit, g.id); return openDetail(g.type, g.id); }
       case 'back': return history.state && history.state.d ? history.back() : goBack();
       case 'new': { if (d.form === 'operazioni') return startWizard({ campoId: d.campo, tipo: d.tipo, stato: d.stato }); const pre = {}; if (d.campo) pre.campoId = d.campo; if (d.capo) pre.capoId = d.capo; if (d.tipo) pre.tipo = d.tipo; if (d.prodotto) pre.prodottoId = d.prodotto; if (d.mezzo) pre.mezzoId = d.mezzo; return openEdit(d.form, null, pre); }
       case 'edit': return openEdit(d.form, d.id);

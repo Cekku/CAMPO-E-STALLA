@@ -3,6 +3,7 @@ import { esc, nf, weekday, fdShort } from '../util.js';
 import { ic } from '../icons.js';
 import { getMeteo, wmo, finestraTrattamenti } from '../meteo.js';
 import { empty } from '../ui.js';
+import { caldoCard } from '../caldo.js';
 
 function hourlyChart(h) {
   const now = Date.now(); let i0 = h.time.findIndex(t => Date.parse(t) >= now - 3600e3); if (i0 < 0) i0 = 0;
@@ -28,6 +29,7 @@ export function render() {
   const days = d.time.map((t, i) => { const [di, dl] = wmo(d.weather_code[i]); const f = finestraTrattamenti(data, i); return `<div class="md-row${i === 0 ? ' today' : ''}"><span class="md-d"><b>${i === 0 ? 'Oggi' : weekday(t)}</b><small>${fdShort(t)}</small></span><span class="md-ic">${ic(di)}<small>${esc(dl)}</small></span><span class="md-t"><b>${Math.round(d.temperature_2m_max[i])}°</b> ${Math.round(d.temperature_2m_min[i])}°</span><span class="md-r${d.precipitation_sum[i] >= 1 ? ' wet' : ''}">${ic('droplets')}${nf(d.precipitation_sum[i], 1)} mm <small>${d.precipitation_probability_max[i] ?? 0}%</small></span><span class="md-w">${ic('wind')}${Math.round(d.wind_speed_10m_max[i])} km/h</span><span class="md-et">ET₀ ${nf(d.et0_fao_evapotranspiration[i], 1)}</span><span class="chip ${f.ok ? 'ok' : ''}" title="${esc(f.why)}">${f.ok ? 'Trattamenti sì' : esc(f.why)}</span></div>`; }).join('');
   return { title: 'Meteo', html: `<section class="card meteo-hero"><div class="mh-now">${ic(icn)}<div><span class="mh-t">${Math.round(c.temperature_2m)}°</span><b>${esc(lab)}</b><span>${pos.src === 'campi' ? 'Al centro dei tuoi campi' : 'Sede aziendale'} · ${pos.lat.toFixed(3)}, ${pos.lon.toFixed(3)}</span></div></div>
     <div class="mh-facts"><div><dt>Vento</dt><dd>${Math.round(c.wind_speed_10m)} km/h</dd><small>raffiche ${Math.round(c.wind_gusts_10m)}</small></div><div><dt>Umidità</dt><dd>${c.relative_humidity_2m}%</dd></div><div><dt>Oggi</dt><dd>${Math.round(d.temperature_2m_min[0])}° / ${Math.round(d.temperature_2m_max[0])}°</dd></div><div><dt>Pioggia 7 gg</dt><dd>${nf(d.precipitation_sum.reduce((a, b) => a + b, 0), 1)} mm</dd></div></div></section>
+  ${caldoCard({ sempre: true })}
   ${data.hourly ? `<section class="card"><div class="card-h"><h2>Prossime 48 ore</h2><span class="muted small">temperatura e pioggia</span></div><div class="chartbox">${hourlyChart(data.hourly)}</div></section>` : ''}
   <section class="card"><div class="card-h"><h2>Prossimi 7 giorni</h2></div><div class="md-list">${days}</div><p class="mt-legend">Trattamenti sì: vento sotto 15 km/h, niente pioggia prevista, massima sotto 28 °C. ET₀ = evapotraspirazione di riferimento in mm.</p></section>
   <p class="muted small">Previsioni Open-Meteo.com${at ? ', aggiornate alle ' + new Date(at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : ''}.</p>` };
