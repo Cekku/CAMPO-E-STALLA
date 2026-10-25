@@ -50,8 +50,9 @@ Senza questo passaggio l'app funziona lo stesso, ma i dati restano sul singolo d
 3. Apri **Authentication → URL Configuration** e in **Site URL** metti l'indirizzo dell'app (ad esempio `https://TUONOME.github.io/campo-e-stalla/`).
 4. Apri **Project Settings → API** e copia **Project URL** e la chiave **anon public**.
 5. Nell'app: **Impostazioni → Sincronizzazione**, incolla i due valori e premi **Collega**. In alternativa inseriscili in `js/config.js`, così nessun dispositivo li deve digitare.
-6. Crea il tuo account, conferma la mail, poi **Crea la tua azienda**: i dati già inseriti vengono caricati online.
-7. Per i collaboratori: installano l'app, creano l'account e inseriscono il **codice di invito** che trovi in Impostazioni.
+6. Crea il tuo account, conferma la mail, poi **Crea la tua azienda**: i dati già inseriti vengono caricati online. Fallo sul dispositivo dove hai i dati.
+7. **Sugli altri tuoi dispositivi** (telefono, secondo computer) inserisci gli stessi due valori e accedi con lo **stesso account**: l'app trova da sola la tua azienda e la collega, senza codice (dalla 1.11.1). Se su quel dispositivo ci sono dati non ancora online, chiede se **unirli** all'azienda o **usare solo i dati dell'azienda**. I dati di esempio e le impostazioni del dispositivo non contano: vincono quelle dell'azienda. Se il tuo account fa parte di più aziende, scegli tu quale collegare.
+8. Per i collaboratori: installano l'app, creano il **loro** account e inseriscono il **codice di invito** che trovi in Impostazioni.
 
 La chiave *anon* è pensata per stare nelle app: i dati sono protetti dalle regole di accesso del database, per cui ogni utente vede solo le aziende di cui fa parte.
 

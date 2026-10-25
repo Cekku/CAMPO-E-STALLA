@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.11.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.11.1** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -90,6 +90,12 @@ Con il cloud la riservatezza è garantita dalle regole RLS in `supabase/schema.s
 - Progetto: `vamcoyvunyjqgzxujsal` (URL `https://vamcoyvunyjqgzxujsal.supabase.co`). Collegato al repository con l'integrazione GitHub (Deploy to production, working directory `.`, ramo `main`).
 - Prima configurazione: eseguire `supabase/schema.sql` nello SQL Editor; per database vecchi `supabase/aggiornamento-conti.sql`.
 - Nell'app: La mia azienda → Sincronizzazione (Project URL + chiave anon/publishable; mai la service_role).
+- **Azienda trovata dopo l'accesso** (1.11.1, `findFarms` in `store.js`): se il dispositivo non ha un'azienda collegata (`meta.farm`), dopo l'accesso cerca in `farm_members` le aziende dell'utente e poi le legge da `farms`. Le regole RLS esistenti bastano: `members_select`/`farms_select` con `is_member`. `sync.found` vale `null` (non cercate o errore, si vedono i moduli classici), `'cerco'` oppure l'elenco con il ruolo, titolare per primo. `sync.locali` conta le registrazioni vere del dispositivo (`datoVero`: non cancellate, non `config`, non `esempio`).
+  - Una sola azienda e `locali` = 0: collegamento automatico (`attachFarm(id, false)`, che svuota e scarica).
+  - Altrimenti l'elenco in Impostazioni: "Collega e unisci" (`attachExisting(id, 'unisci')`, che carica solo `datoVero` e toglie dal dispositivo esempi e `config`, così vincono quelli dell'azienda) oppure "Usa solo i dati dell'azienda" (conferma in due tocchi se ci sono dati locali).
+  - "Crea un'altra azienda" ed "Entra con un codice" restano in "Altre possibilità", con l'avviso dei dati divisi.
+  - `attachFarm(farmId, uploadLocal)`: `uploadLocal` può essere `true` (tutto, per l'azienda appena creata) o un filtro.
+  - Provato nel browser con un finto Supabase in memoria (pagina di prova non nel repository): solo esempi → collegamento automatico; un dato locale → scelta, e l'unione carica il dato e scarica quello online; due aziende → scelta; "usa solo" → conferma, poi solo i dati dell'azienda scelta.
 
 ## Come lavorare
 
@@ -119,5 +125,5 @@ Cartella `C:\Users\Marco\Desktop\PROGETTO CAMPO E STALLA`: contiene questo repos
 - Visura catastale in PDF: leggerla (comune, foglio, particella, intestatari con quote, qualità, classe, superficie, redditi) e collegarla a particella e campo, così il proprietario compare al tocco della particella. Serve un PDF vero dell'Agenzia come esempio prima di scrivere il lettore.
 - Estratti conto di altre banche e distinte con più bonifici: adattare i lettori su esempi reali.
 - Integrazioni stalla (Alpro, MooMonitor, Si@lleva, SCR, carro miscelatore) per una dashboard unica.
-- Sincronizzazione: un nuovo dispositivo dello stesso titolare, dopo l'accesso, vede "Crea la tua azienda" / "Entra con un codice" perché l'azienda collegata è salvata solo in locale. Se per sbaglio sceglie "Crea", nasce un'azienda doppia. Idea: dopo l'accesso cercare in `farm_members` le aziende dell'utente e collegarle da sole. Si potrebbero anche mettere URL e chiave anon in `js/config.js`.
+- Sincronizzazione: URL e chiave anon si potrebbero mettere in `js/config.js`, così nessun dispositivo li deve incollare. Il collegamento automatico all'azienda c'è dalla 1.11.1.
 - Fotovoltaico: lettura dalla Solar API dell'inverter Fronius e previsione della produzione con il meteo.
