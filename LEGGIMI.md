@@ -6,7 +6,7 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Campi**: quaderno di campagna con scarico automatico dei prodotti, tempi di carenza, costi e margini per ettaro.
 - **Stalla**: mandria, eventi (parti, fecondazioni, diagnosi, asciutte, trattamenti, controlli), calendario dei parti, latte giornaliero, razioni, registro trattamenti con sospensioni.
 - **Magazzino e mezzi**: giacenze, scorte minime, scadenze, ore motore, tagliandi, revisioni.
-- **Meteo** a 7 giorni sui campi, con i giorni adatti ai trattamenti.
+- **Meteo** a 7 giorni sui campi, con i giorni adatti ai trattamenti e l'**avviso di stress da caldo** per le vacche (THI).
 - **Controlli automatici sui trattamenti**: coltura autorizzata in etichetta, dose massima, numero di interventi, intervallo, carenza rispetto alla raccolta, giacenza, patentino dell'operatore, controllo funzionale dell'irroratrice, vento e pioggia previsti.
 - **Quaderno di campagna (QDCA)** stampabile o in PDF, CSV per Excel e registro dei trattamenti in formato dati (JSON).
 - **Banca dati fitofarmaci** del Ministero della Salute: si carica il CSV open data e le schede prodotto si compilano da sole; i prodotti revocati vengono segnalati.
@@ -19,6 +19,15 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Estratto conto della banca** (PDF con testo o scansionato/oscurato, Excel, CSV): legge i movimenti, riconosce stipendi, anticipi, F24 e contributi dei dipendenti (dal nome o dall'IBAN) e i pagamenti e gli incassi delle fatture (controparte, importo, numero nella causale, anche più fatture pagate insieme); le fatture mostrano la data del pagamento in banca. La lettura ottica usa Tesseract in locale (`vendor/tesseract`).
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
+
+## Novità della versione 1.11: avviso di stress da caldo
+
+L'app calcola ora per ora il **THI** (indice di temperatura e umidità) dei prossimi 7 giorni dalle previsioni meteo, nella posizione della sede o dei campi.
+
+- **Dashboard della Stalla**: quando è previsto caldo compare il riquadro "Caldo per le vacche". Per ogni giorno mostra il THI più alto, la temperatura massima e le ore sopra 72. Per il giorno peggiore indica a che ora arriva il picco, se di notte ci sono abbastanza ore fresche e quanti giorni di fila dura il caldo. Sotto ci sono i consigli pratici: ventilatori, docce, acqua, razione nelle ore fresche, animali da non spostare.
+- **Da fare in stalla**: se oggi, domani o dopodomani lo stress è almeno moderato (THI 72 o più), compare un avviso. Toccandolo si apre il meteo.
+- **Meteo**: il riquadro c'è sempre. Nei giorni freschi dice solo "Nessuno stress". Si apre anche dal menu della Stalla, alla voce **Meteo e caldo**.
+- **Livelli**: sotto 68 nessuno stress · 68-71 lieve · 72-78 moderato · 79-88 forte · da 89 grave. Nelle giornate più calde la stalla può essere 1-2 °C più calda della previsione.
 
 ## Novità della versione 1.10: dati da Si@lleva
 

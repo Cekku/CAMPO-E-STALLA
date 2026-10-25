@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.10.2** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.11.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -26,6 +26,12 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 - `views/oggi.js`: saluto, KPI di campagna (superficie, attività, costi €/ha, avvisi), avanzamento colture a barre. Sotto 1080 px `.grid-2.dash` diventa una colonna sola con ordine `o1…o7` (agenda, avvisi, registro, attività…).
 - Ricerca = palette di comandi (`AZIONI` + voci di `MENU` in `app.js`): Ctrl/⌘+K o `/` aprono, `N` apre Registra, Invio apre il primo risultato.
 - Righe con `.r-side.chips` sotto 560 px: le etichette vanno a capo sotto il testo.
+
+## Stress da caldo (dalla 1.11.0)
+
+- `js/caldo.js`: THI ora per ora (formula NRC 1971, `thi(t, ur)`) dalle previsioni orarie che `meteo.js` già scarica (`temperature_2m`, `relative_humidity_2m`, 7 giorni, nessuna richiesta in più). `giorniCaldo(data)`: per ogni giorno con almeno 20 ore THI massimo e ora del picco, ore ≥ 68 e ≥ 72, ore fresche (< 68), livello calcolato sul valore arrotondato, così il colore corrisponde al numero mostrato (78,6 → 79 = forte). Livelli: < 68 nessuno, 68-71 lieve, 72-78 moderato, 79-88 forte, ≥ 89 grave. Consigli per livello (`consigli(n)`), ondata = giorni di fila ≥ 72 prima e dopo il giorno, "poche ore fresche" se sono meno di 6.
+- `caldoCard({ sempre })`: riquadro con 7 giorni, frase sul giorno peggiore e consigli. In dashboard Stalla (`views/oggi.js`) compare solo se c'è almeno stress lieve; in Meteo (`views/meteo.js`) sempre, con "Nessuno stress" nei giorni freschi. Avviso in `extraAlerts` (area `stalla`) per il giorno peggiore tra oggi e +2 se il livello è almeno moderato, con `go: { tab: 'meteo' }`: `case 'go'` in `app.js` accetta anche `tab`/`sub`. Voce "Meteo e caldo" nel menu Stalla.
+- Provato nel browser con una previsione finta di ondata di caldo (cache `ces.meteo` sostituita): colori, ondata di 6 giorni, avviso che apre il Meteo, telefono (i riquadri scorrono di lato senza allargare la pagina) e tema scuro; con il meteo vero di fine ottobre THI 55-62 → nessun riquadro in dashboard.
 
 ## Si@lleva / AIA (dalla 1.10.0)
 
@@ -100,8 +106,18 @@ Con il cloud la riservatezza è garantita dalle regole RLS in `supabase/schema.s
 - Ogni tabella esportabile in Excel, CSV e PDF.
 - I controlli non devono dare incongruenze: abbinamenti dei pagamenti per data e causale, niente doppioni.
 
+## Lavori fuori dall'app (sul PC di Marco, 24-25/10/2026)
+
+Cartella `C:\Users\Marco\Desktop\PROGETTO CAMPO E STALLA`: contiene questo repository clonato in `CAMPO-E-STALLA\` (Git installato il 25/10/2026 con winget) e lavori che **non** stanno nel repository.
+
+- **Timestral-209M** (Mistral, previsione di serie temporali, licenza MIT modificata: gratis sotto i 20 M$ di fatturato al mese) in `models\Timestral-209M` (837 MB), con `.venv` (Python 3.14, torch 2.14.1 CPU, libreria `timestral`). Prova: doppio clic su `Avvia prova Timestral.bat`. Non va nel repository: GitHub Pages non esegue Python e i file sopra 100 MB non entrano. Per usarlo nell'app restano tre strade: un server locale sul PC, il modello 5M/28M convertito in ONNX nel browser, oppure un server nel cloud (sconsigliato: i dati escono dall'azienda). Esito delle prove sul meteo: a 1 giorno sbaglia quanto "domani come oggi", e l'estate intera non la prevede. Per il meteo non serve; potrebbe servire per latte, consumi di mangime e silos, fotovoltaico.
+- **`meteo-povoletto\`**: temperatura e umidità oraria di Povoletto dal 2016 (Open-Meteo/ERA5), analisi dell'estate 2026 e pagina web (`Apri analisi meteo.bat`, istruzioni in `LEGGIMI.md`). Estate 2026 contro la media 2021-2025: 25,0 °C contro 23,3 di media, 51 giorni sopra 30 °C contro 33, 12 sopra 35 contro 2, 35 notti tropicali contro 19, 1.203 ore con THI > 72 contro 906, picco di 38,2 °C il 6/8. È da qui che nasce l'avviso di stress da caldo della 1.11.
+- **Fotovoltaico Fronius (Solar.web)**: non ancora fatto. La strada consigliata è la Solar API locale dell'inverter (gratis, senza password; va attivata nella pagina dell'inverter, Comunicazione → Solar API). L'esportazione da Solar.web è un servizio Premium a pagamento, la Query API è a pagamento. Niente script con la password del sito.
+
 ## Idee e punti aperti
 
 - Visura catastale in PDF: leggerla (comune, foglio, particella, intestatari con quote, qualità, classe, superficie, redditi) e collegarla a particella e campo, così il proprietario compare al tocco della particella. Serve un PDF vero dell'Agenzia come esempio prima di scrivere il lettore.
 - Estratti conto di altre banche e distinte con più bonifici: adattare i lettori su esempi reali.
 - Integrazioni stalla (Alpro, MooMonitor, Si@lleva, SCR, carro miscelatore) per una dashboard unica.
+- Sincronizzazione: un nuovo dispositivo dello stesso titolare, dopo l'accesso, vede "Crea la tua azienda" / "Entra con un codice" perché l'azienda collegata è salvata solo in locale. Se per sbaglio sceglie "Crea", nasce un'azienda doppia. Idea: dopo l'accesso cercare in `farm_members` le aziende dell'utente e collegarle da sole. Si potrebbero anche mettere URL e chiave anon in `js/config.js`.
+- Fotovoltaico: lettura dalla Solar API dell'inverter Fronius e previsione della produzione con il meteo.
