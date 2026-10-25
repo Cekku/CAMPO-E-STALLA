@@ -1187,3 +1187,19 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 }
 .ag-more { font-size: 12.5px; color: var(--muted); padding: 2px 4px; }
 .syncbox.warn > .ic { color: var(--warn); } .syncbox.warn { background: var(--warn-soft); }
+
+/* caldo per le vacche (THI) */
+.caldo > p { padding: 0 18px 14px; margin: 0; }
+.cd-days { display: grid; grid-template-columns: repeat(7, minmax(84px, 1fr)); gap: 8px; padding: 0 18px 12px; overflow-x: auto; scrollbar-width: none; }
+.cd-days::-webkit-scrollbar { display: none; }
+.cd-day { --k: var(--ok); --ks: var(--ok-soft); display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--ks); border: 1px solid transparent; min-width: 0; }
+.cd-day.hay { --k: var(--hay); --ks: var(--hay-soft); } .cd-day.warn { --k: var(--warn); --ks: var(--warn-soft); } .cd-day.bad { --k: var(--bad); --ks: var(--bad-soft); }
+.cd-day.peak { border-color: var(--k); }
+.cd-d { display: flex; align-items: baseline; gap: 5px; } .cd-d b { font-size: 13px; font-weight: 700; } .cd-d small { font-size: 11.5px; color: var(--muted); }
+.cd-v { font-family: var(--f-display); font-size: 26px; font-weight: 750; line-height: 1.1; color: var(--k); }
+.cd-s, .cd-h { font-size: 11.5px; color: var(--ink-2); } .cd-h { color: var(--muted); }
+.cd-msg { --k: var(--ok); margin: 0 18px 12px; padding: 10px 14px; border-left: 4px solid var(--k); border-radius: 10px; background: var(--sunk); font-size: 14px; }
+.cd-msg.hay { --k: var(--hay); } .cd-msg.warn { --k: var(--warn); } .cd-msg.bad { --k: var(--bad); }
+.cd-msg p { margin: 0 0 6px; } .cd-msg ul { margin: 0 0 6px; padding-left: 18px; } .cd-msg li { margin: 2px 0; }
+.caldo .mt-legend { display: block; }
+@media (max-width: 560px) { .cd-days { grid-template-columns: repeat(7, 84px); } }
