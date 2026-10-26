@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.11.2** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.11.3** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -18,7 +18,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 - Aree: **Campagna** (campi, mappa, attività, magazzino, mezzi, meteo, note), **Stalla** (capi, eventi, latte, razioni, box/silos), **Conti** (riservata al titolare).
 - Mappa: `js/map.js` (Leaflet + Geoman, ortofoto FVG, satellite, catasto AdE WMS, NDVI Sentinel-2), `js/geo.js` (aree, centroidi, import KML/GeoJSON/shapefile).
 - Blocco con codice: `js/lock.js` (PIN con PBKDF2 in localStorage `ces.lock`).
-- Librerie in `vendor/`: leaflet, geoman, supabase-js, **pdf.js 4.10.38 legacy** (`vendor/pdfjs`), **Tesseract.js 6** con lingua italiana (`vendor/tesseract`, lettura ottica in locale).
+- Librerie in `vendor/`: leaflet, geoman, supabase-js 2.117.3 (build UMD da npm), **pdf.js 4.10.38 legacy** (`vendor/pdfjs`), **Tesseract.js 6** con lingua italiana (`vendor/tesseract`, lettura ottica in locale).
 
 ## Dashboard e agenda (dalla 1.9.0)
 
@@ -62,7 +62,7 @@ Con il cloud la riservatezza è garantita dalle regole RLS in `supabase/schema.s
   2. gli altri, in ordine di data, ai mesi già pagabili alla data del pagamento e non saldati (prima quello con residuo uguale all'importo, poi il più vecchio); mai a un mese non ancora maturato salvo che sia l'unico aperto (anticipo);
   3. l'eccedenza va all'ultimo mese pagato; senza cedolino → "senza cedolino" sul mese prima della data.
 - **Doppioni**: stesso tipo, stesso dipendente (o beneficiario), stesso importo e **stessa data** = stesso pagamento → `eliminaDoppi()` li cancella in automatico (all'apertura dei Conti e dopo ogni importazione). Date diverse entro 5 giorni → avviso rosso. In importazione `segnaDoppi()` deseleziona i movimenti già registrati.
-- **Nomi**: tabella "Nomi nei pagamenti" (Dipendenti) = alias per dipendente (`d-<chiave>` in `paghe`), vince sul riconoscimento automatico anche per i pagamenti già importati (non per quelli assegnati a mano, `dipManuale`). Omonimi (es. due SINGH AMARJIT con CF diversi) mostrati con l'anno di nascita o con il "nome da mostrare"; un bonifico al solo nome comune resta da scegliere. Unione manuale "è la stessa persona" (`u-<chiave>`), annullabile.
+- **Nomi**: tabella "Nomi nei pagamenti" (Dipendenti) = alias per dipendente (`d-<chiave>` in `paghe`), vince sul riconoscimento automatico anche per i pagamenti già importati (non per quelli assegnati a mano, `dipManuale`). Omonimi (es. due dipendenti con lo stesso nome e CF diversi) mostrati con l'anno di nascita o con il "nome da mostrare"; un bonifico al solo nome comune resta da scegliere. Unione manuale "è la stessa persona" (`u-<chiave>`), annullabile.
 - **Controlli/irregolarità**: stipendi non pagati / in parte / in più / in ritardo, pagamenti in contanti (L. 205/2017), anticipi non trattenuti in busta, prestiti non restituiti da cessati, cedolini mancanti, lordi/netti che non tornano con bilancino o totali, F24/contributi/fondo non registrati, contratti a termine e permessi di soggiorno scaduti. "Ignora tutti" (testi in `econfig.cfg.pagheIgnora`).
 - Viste: Riepilogo, Dipendenti (+ tabella nomi), Cedolini e bilancini, Pagamenti (import estratto/bonifici), Anticipi e prestiti, Verifica (matrice dipendenti × mesi, versamenti, scadenze).
 
@@ -96,6 +96,14 @@ Con il cloud la riservatezza è garantita dalle regole RLS in `supabase/schema.s
   - "Crea un'altra azienda" ed "Entra con un codice" restano in "Altre possibilità", con l'avviso dei dati divisi.
   - `attachFarm(farmId, uploadLocal)`: `uploadLocal` può essere `true` (tutto, per l'azienda appena creata) o un filtro.
   - Provato nel browser con un finto Supabase in memoria (pagina di prova non nel repository): solo esempi → collegamento automatico; un dato locale → scelta, e l'unione carica il dato e scarica quello online; due aziende → scelta; "usa solo" → conferma, poi solo i dati dell'azienda scelta.
+
+## Sicurezza
+
+- **Il repository è pubblico** (GitHub Pages gratuito): niente nomi di dipendenti, codici fiscali, IBAN, importi o dati veri in questi file, nei commenti o negli esempi. Il nome di un dipendente comparso in CLAUDE.md è stato tolto nella 1.11.3 (resta nella storia dei commit).
+- Controllo del 26/10/2026: regole RLS corrette, nella storia git solo la chiave anon, librerie in `vendor/` senza problemi noti dopo l'aggiornamento di supabase-js (prima 2.45.4 con auth-js 2.65.0, avviso GHSA-8r88-6cj9-9fh5). La nuova build UMD è un solo file (`591.supabase.js` tolto) e crea lo stesso `window.supabase`.
+- Le librerie in `vendor/` si aggiornano a mano: scegliere versioni uscite da almeno due settimane e confrontare il file con il pacchetto npm (integrità sha512).
+- Controllo settimanale automatico delle vulnerabilità sul PC di Marco: `Desktop\CONTROLLO SICUREZZA\` (avviso su Telegram). Se aggiungi o aggiorni una libreria in `vendor/`, aggiorna anche l'elenco in `controllo_sicurezza.py`.
+- Codice di invito dell'azienda: vale finché il titolare non lo rigenera; rigenerarlo quando un collaboratore lascia l'azienda.
 
 ## Come lavorare
 
