@@ -1,5 +1,5 @@
 // Service worker: app disponibile offline, mappe e meteo in copia locale
-const VERSION = 'ces-1.11.3';
+const VERSION = 'ces-1.11.4';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/state.js', './js/util.js', './js/icons.js', './js/geo.js', './js/domain.js', './js/store.js', './js/config.js', './js/ui.js', './js/forms.js', './js/map.js', './js/meteo.js', './js/install.js', './js/esempi.js', './js/version.js', './js/checks.js', './js/fitodb.js', './js/registro.js', './js/pcg.js', './js/nlp.js', './js/herd.js', './js/ndvi.js',
@@ -16,6 +16,14 @@ self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Pr
 self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
 
 async function trim(name, max) { const c = await caches.open(name); const keys = await c.keys(); if (keys.length > max) for (const k of keys.slice(0, keys.length - max)) await c.delete(k); }
+// le immagini della mappa cambiano di rado: una copia con meno di 30 giorni si usa senza riscaricarla (prima ogni tessera mostrata
+// partiva comunque anche dalla rete, e occupava le 6 connessioni per sito che servono alle tessere nuove). 'x-ces-at' = quando è stata salvata.
+const TILE_FRESCA = 30 * 864e5; let salvate = 0;
+async function salvaTessera(c, req, r) {
+  const h = new Headers({ 'content-type': r.headers.get('content-type') || 'image/jpeg', 'x-ces-at': String(Date.now()) });
+  await c.put(req, new Response(await r.blob(), { status: r.status, statusText: r.statusText, headers: h }));
+  if (++salvate % 50 === 0) trim(TILE_CACHE, TILE_MAX);   // trim legge l'elenco di tutte le tessere: non a ogni salvataggio
+}
 
 self.addEventListener('fetch', e => {
   const req = e.request; if (req.method !== 'GET') return;
@@ -24,12 +32,17 @@ self.addEventListener('fetch', e => {
   if (url.hostname.endsWith('supabase.co') || url.hostname.includes('nominatim') || url.search.includes('GetFeatureInfo') || url.hostname.includes('anthropic.com')) return;
   // indice di vegetazione: le interrogazioni sempre dalla rete, le immagini in copia locale
   if (url.hostname.startsWith('sentinel.') && !url.pathname.endsWith('/exportImage')) return;
-  // pezzi di mappa (satellite, stradale, catasto): prima la copia locale, aggiornata in background
-  if (/arcgisonline|arcgis\.com|tile\.openstreetmap|opentopomap|cartografia\.agenziaentrate|regione\.fvg/.test(url.hostname)) {
+  // ortofoto della Regione FVG: risponde senza CORS e con no-store, quindi non si può tenere in copia; passa diretta al browser
+  if (url.hostname.endsWith('regione.fvg.it')) return;
+  // pezzi di mappa (satellite, stradale, catasto): prima la copia locale; dalla rete solo se manca o ha più di 30 giorni
+  if (/arcgisonline|arcgis\.com|tile\.openstreetmap|opentopomap|cartografia\.agenziaentrate/.test(url.hostname)) {
     e.respondWith(caches.open(TILE_CACHE).then(async c => {
       const hit = await c.match(req);
-      const net = fetch(req).then(r => { if (r && r.ok) { c.put(req, r.clone()); trim(TILE_CACHE, TILE_MAX); } return r; }).catch(() => hit || Response.error());
-      return hit || net;
+      if (hit && Date.now() - +(hit.headers.get('x-ces-at') || 0) < TILE_FRESCA) return hit;
+      const net = fetch(req);
+      // il salvataggio si registra subito (prima che la risposta arrivi alla pagina), così il service worker non viene fermato a metà
+      e.waitUntil(net.then(r => r && r.ok ? salvaTessera(c, req, r.clone()) : null).catch(() => { }));
+      return hit || net.catch(() => Response.error());
     }));
     return;
   }
