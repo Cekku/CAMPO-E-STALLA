@@ -30,7 +30,9 @@ function applyFx() {
 let notesGroup = null, ndviLayer = null, ndviScenes = null;
 const FVG_BOUNDS = window.L ? L.latLngBounds([[45.57, 12.30], [46.66, 13.94]]) : null;
 const inFVG = (lat, lon) => lat > 45.57 && lat < 46.66 && lon > 12.30 && lon < 13.94;
-let googleLayer = null, sotto = null;
+let googleLayer = null, sotto = null, esriFuori = null;
+// Ortofoto FVG: Esri sotto solo se la vista non sta tutta dentro il riquadro della Regione
+const esriSeServe = () => { if (map && esriFuori) { if (FVG_BOUNDS.contains(map.getBounds())) base.fvg.removeLayer(esriFuori); else base.fvg.addLayer(esriFuori); } };
 async function getGoogle() {
   const key = (azienda().gkey || '').trim(); if (!key) return null;
   if (googleLayer && googleLayer._key === key) return googleLayer;
@@ -105,11 +107,17 @@ function buildMap() {
   base.topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { subdomains: 'abc', maxNativeZoom: 17, maxZoom: 21, updateWhenZooming: false, keepBuffer: 4, attribution: '© OpenStreetMap, SRTM · OpenTopoMap' });
   // Ortofoto della Regione FVG (true ortofoto 2017-2020, alta risoluzione), sopra al satellite Esri fuori regione
   const CRS900913 = Object.assign({}, L.CRS.EPSG3857, { code: 'EPSG:900913' });
-  const fvg = L.tileLayer.wms('https://irdat-ortofoto.regione.fvg.it/geoserver/ortofoto/wms', { layers: 'trueorto_FVG_1720', format: 'image/jpeg', transparent: false, version: '1.1.1', crs: CRS900913, maxZoom: 21, maxNativeZoom: 20, bounds: FVG_BOUNDS, updateWhenZooming: false, keepBuffer: 4, className: 'sat-tiles', attribution: 'Ortofoto © Regione Autonoma Friuli Venezia Giulia' });
+  // tiled=true: le tessere (256 px, allineate alla griglia EPSG:900913) passano dalla cache GeoWebCache della Regione. La prima volta
+  // una zona costa 1,3-1,9 s per tessera (il server disegna un blocco 4×4 e lo tiene per tutti), poi 0,2 s. Senza, ogni tessera era
+  // ridisegnata sempre (0,3-0,6 s, 1,6 s con 6 richieste insieme). Misurato il 27/10/2026 a 1280×800: 2,5 s per lo schermo, 0,2 s alla seconda visita.
+  // Il server risponde no-store e senza CORS: né il browser né il service worker ne possono tenere copia.
+  const fvg = L.tileLayer.wms('https://irdat-ortofoto.regione.fvg.it/geoserver/ortofoto/wms', { layers: 'trueorto_FVG_1720', tiled: true, format: 'image/jpeg', transparent: false, version: '1.1.1', crs: CRS900913, maxZoom: 21, maxNativeZoom: 20, bounds: FVG_BOUNDS, updateWhenZooming: false, keepBuffer: 4, zIndex: 2, className: 'sat-tiles', attribution: 'Ortofoto © Regione Autonoma Friuli Venezia Giulia' });
   // sotto la foto, una sua copia a bassa risoluzione (tessere da 2048 px di tre livelli di zoom più in basso: 1-4 immagini leggere):
   // allargando o spostando la mappa si vede subito un'immagine sfocata che poi si definisce, mai lo sfondo scuro (come Google Maps)
   sotto = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { tileSize: 2048, zoomOffset: -3, minNativeZoom: 3, maxNativeZoom: 21, maxZoom: 21, zIndex: 0, updateWhenZooming: false, keepBuffer: 2, className: 'sat-tiles' });
-  base.fvg = L.layerGroup([new SatLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Esri' }), fvg]);
+  // il satellite Esri serve solo dove la vista esce dal riquadro della Regione: dentro scaricava 20-22 tessere coperte dall'ortofoto
+  esriFuori = new SatLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, zIndex: 1, className: 'sat-tiles', attribution: 'Esri' });
+  base.fvg = L.layerGroup([fvg]);
   overlays.nomi = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { pane: 'labels', maxNativeZoom: 19, maxZoom: 21 });
   overlays.particelle = new CatastoLayer('CP.CadastralParcel', { pane: 'catasto', minZoom: 15, maxZoom: 21, maxNativeZoom: 20, attribution: 'Catasto © Agenzia delle Entrate (CC BY 4.0)', className: 'catasto-tiles' });
   overlays.fogli = new CatastoLayer('CP.CadastralZoning', { pane: 'catasto', minZoom: 12, maxZoom: 21, maxNativeZoom: 20, className: 'catasto-tiles fogli' });
@@ -120,6 +128,7 @@ function buildMap() {
   applyLayers();
   const v = lsGet('ces.mapview', null);
   if (v) map.setView([v.lat, v.lng], v.z); else fitAll(true);
+  esriSeServe(); map.on('moveend', esriSeServe);
   map.on('moveend', debounce(() => { const c = map.getCenter(); lsSet('ces.mapview', { lat: c.lat, lng: c.lng, z: map.getZoom() }); }, 400));
   map.on('zoomend', () => { $('#map').classList.toggle('show-labels', map.getZoom() >= 14 && prefs.etichette); updateCatHint(); });
   map.on('click', e => { if (mode !== 'view') return; if (selected) select(null); if (prefs.particelle && map.getZoom() >= 15) queryParcel(e.latlng); });
