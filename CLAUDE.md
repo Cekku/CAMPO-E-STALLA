@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.11.3** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.11.4** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -84,6 +84,11 @@ Con il cloud la riservatezza è garantita dalle regole RLS in `supabase/schema.s
 - Perché non il WMS: le particelle hanno un riempimento crema `#FDECBD` con linee nere, i numeri (`codice_plla`) compaiono solo da zoom ~19, la scritta rossa di copyright è stampata sempre, accetta solo immagini 256 px (512 → 400) e blocca per qualche minuto l'IP che fa troppe richieste (HTTP 500 `Rejected by SLM Monitor`; il WFS no). Senza collegamento resta il WMS, con la fusione `multiply` sul riquadro (`.leaflet-catasto-pane.wms`).
 - Ordine dei riquadri in `map.js`: catasto 350, nomi 360, particella evidenziata `catSel` 390, campi 400 (sempre sopra). Fluidità: niente filtro `--fx` sugli sfondi quando i colori sono quelli di partenza, `updateWhenZooming: false` sugli sfondi, niente `backdrop-filter` sui riquadri sopra la mappa; campi con intensità predefinita 40 (`prefs.v3` porta il vecchio 70 a 40).
 - Zoom senza nero (1.10.1): `SatLayer` disegna su canvas e `TileLayer._abortLoading` di Leaflet, a ogni cambio di livello, scarta le tessere senza `complete` (pensato per `<img>`): scartava anche quelle già disegnate e per 0,1-0,7 s la mappa restava scura. Ora `c.complete = true` quando la tessera è pronta. Sotto la foto c'è `sotto`, copia Esri a bassa risoluzione (tessere 2048 px, `zoomOffset: -3`, 1-4 immagini) per gli sfondi satellitari: allargando o spostando si vede un'immagine sfocata invece del nero. Rotella: `zoomSnap: 0.25`, `wheelPxPerZoomLevel: 90`. Misurato con una sonda a ogni fotogramma (35 punti dello schermo): da 260 fotogrammi con buchi (schermo intero) a 27 (solo bordi, ~0,25 s, allargando di due livelli in un colpo).
+- **Ortofoto FVG più veloce (1.11.4)**, misurato il 27/10/2026. Il WMS `irdat-ortofoto.regione.fvg.it` senza `tiled` ridisegnava ogni tessera a ogni richiesta (0,3-0,6 s da sola, ~1,6 s con 6 insieme): 2,5 s per uno schermo 1280×800 (20 tessere, il browser ne scarica 6 alla volta per sito), uguale a ogni visita. In più `base.fvg` scaricava sotto altre 22 tessere Esri, coperte dall'ortofoto.
+  - Ora c'è `tiled: true`: le tessere 256 px allineate alla griglia EPSG:900913 passano da GeoWebCache (`geowebcache-cache-result: HIT/MISS`). La prima volta in una zona costano 1,3-1,9 s ciascuna (il server disegna un blocco 4×4 e lo tiene per tutti; 4-7 s per lo schermo), poi 0,2 s per l'intero schermo.
+  - Esri sotto l'ortofoto (`esriFuori`) solo se la vista non sta tutta dentro `FVG_BOUNDS` (`esriSeServe` a ogni `moveend`); resta `sotto`.
+  - Scartati: tessere WMS da 512 px (1,7 s sempre, GeoWebCache non le tiene) e la copia nel service worker, impossibile perché il server risponde `no-store` e senza CORS (risposte opache): per questo `sw.js` lascia passare `regione.fvg.it`.
+  - `sw.js`, tessere degli altri sfondi: prima rimandava ogni tessera mostrata anche alla rete. Ora una copia con meno di 30 giorni (`x-ces-at`, scritto da `salvaTessera`) si usa e basta; `trim` gira ogni 50 salvataggi invece che a ogni tessera. Provato: 20 tessere Esri riaperte dalla copia, 0 riscaricate.
 
 ## Supabase
 
