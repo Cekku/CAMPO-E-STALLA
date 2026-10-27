@@ -115,7 +115,10 @@ function esplodi() {
     // lo spostamento è nelle coordinate della scena: il genitore del gruppo non è scalato dalla lavorazione (metri)
     o.obj.position.set(o.base.x + d.v[0] * k, o.base.y + d.v[1] * k, o.base.z + d.v[2] * k);
   }
-  G.renderer.shadowMap.needsUpdate = true; G.dirty = true;
+  // telefoni vecchi (modo leggero): l'ombra a terra si ridisegna solo a pezzi fermi, come nel Libretto Q5
+  if (G.lite) { clearTimeout(G.ombraT); G.ombraT = setTimeout(() => { G.renderer.shadowMap.needsUpdate = true; G.dirty = true; }, 150); }
+  else G.renderer.shadowMap.needsUpdate = true;
+  G.dirty = true;
 }
 
 function evidenzia(gruppi) {

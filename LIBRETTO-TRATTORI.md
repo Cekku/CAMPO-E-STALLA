@@ -117,6 +117,8 @@ Nell'app i nodi si chiamano `<gruppo>__g` (quello che si sposta nell'esploso) e 
 
 ## Cose imparate
 
+- **Misure sul Mi 5** (Adreno 530, modo leggero, 27/10/2026): primo caricamento del 3D 0,75-0,95 s da server locale, 56-58 fotogrammi al secondo durante l'esploso e girando la vista, 166 mila triangoli e 309 chiamate di disegno. Sui telefoni in modo leggero l'ombra a terra si ridisegna solo a pezzi fermi (dalla 1.12.1): lo scatto peggiore è sceso da 99 a 50 ms. Il Pixel 9 Pro non è ancora stato misurato.
+
 - **Indice del catalogo John Deere:** scaricarlo in automatico tramite le sue interfacce interne è stato bloccato, ed è giusto così. Si usano solo i collegamenti, che sono stabili: `navigation/equipment/<id>` e `sidebyside/equipment/<id>/referrer/navigation/pgId/<tavola>`.
 - **Fendt:** il catalogo AGCO Parts Books richiede le credenziali del concessionario. In rete non ci sono tavole libere.
 - **Modelli 3D liberi** dei trattori esatti dell'azienda non esistono su Sketchfab con licenza utilizzabile. Quelli John Deere "Free Standard" o NonCommercial non vanno bene; l'8360R CC BY sì.
