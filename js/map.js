@@ -17,35 +17,22 @@ import { CatastoVettoriale, ZOOM_PARTICELLE } from './catastomappa.js';
 
 const CAT_URL = 'https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php';
 let map = null, fieldsGroup = null, base = {}, overlays = {}, mode = 'view', selected = null, editLayer = null, editId = null, drawFor = null, gpsMarker = null, gpsCircle = null, clickMarker = null;
-const prefs = Object.assign({ base: 'sat2', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura', intensita: 40 }, lsGet('ces.map', {}));
+const prefs = Object.assign({ base: 'fvg', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura', intensita: 40 }, lsGet('ces.map', {}));
 if (!prefs.v2) { prefs.v2 = 1; prefs.base = 'sat2'; prefs.lum = 100; prefs.con = 100; prefs.sat = 100; prefs.cal = 0; delete prefs.satFx; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
 // campi meno coprenti (si vede la foto sotto): il vecchio valore predefinito 70 passa a 40
 if (!prefs.v3) { prefs.v3 = 1; if (!prefs.intensita || prefs.intensita === 70) prefs.intensita = 40; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
-// con i colori dello sfondo non toccati niente filtro: un filtro su ogni tessera rallenta zoom e spostamenti
-function applyFx() {
-  const m = document.getElementById('map'); if (!m) return; const lum = prefs.lum || 100, con = prefs.con || 100, sat = prefs.sat || 100, cal = prefs.cal || 0;
-  if (lum === 100 && con === 100 && sat === 100 && !cal) m.style.removeProperty('--fx');
-  else m.style.setProperty('--fx', `brightness(${lum / 100}) contrast(${con / 100}) saturate(${sat / 100}) hue-rotate(${cal}deg)`);
-}
+// 1.13: sfondi solo Ortofoto FVG, Stradale e Rilievo (tolti Satellite, Satellite 2 e Google) e niente più regolazione dei colori a mano
+if (!prefs.v4) { prefs.v4 = 1; if (!['fvg', 'osm', 'topo'].includes(prefs.base)) prefs.base = 'fvg'; ['lum', 'con', 'sat', 'cal'].forEach(k => delete prefs[k]); try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
+// Colori dell'ortofoto della Regione portati verso quelli di Google Maps (confronto sugli stessi campi di Povoletto, 27/10/2026):
+// medie sugli stessi pixel: luminosità 0,522 contro 0,450 di Google, saturazione 0,224 contro 0,265 (contrasto quasi uguale).
+// Con il filtro: 0,456 e 0,286. Il filtro si applica una volta sola a ogni tessera, quando la si disegna.
+const FILTRO_FVG = 'brightness(0.88) contrast(1.08) saturate(1.18)';
 let notesGroup = null, ndviLayer = null, ndviScenes = null;
 const FVG_BOUNDS = window.L ? L.latLngBounds([[45.57, 12.30], [46.66, 13.94]]) : null;
 const inFVG = (lat, lon) => lat > 45.57 && lat < 46.66 && lon > 12.30 && lon < 13.94;
-let googleLayer = null, sotto = null, esriFuori = null;
+let sotto = null, esriFuori = null;
 // Ortofoto FVG: Esri sotto solo se la vista non sta tutta dentro il riquadro della Regione
 const esriSeServe = () => { if (map && esriFuori) { if (FVG_BOUNDS.contains(map.getBounds())) base.fvg.removeLayer(esriFuori); else base.fvg.addLayer(esriFuori); } };
-async function getGoogle() {
-  const key = (azienda().gkey || '').trim(); if (!key) return null;
-  if (googleLayer && googleLayer._key === key) return googleLayer;
-  let ses = lsGet('ces.gses', null);
-  if (!ses || ses.key !== key || Date.now() / 1000 > +ses.expiry - 3600) {
-    const r = await fetch('https://tile.googleapis.com/v1/createSession?key=' + encodeURIComponent(key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mapType: 'satellite', language: 'it-IT', region: 'IT' }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error('Google ha rifiutato la chiave: ' + ((j.error && j.error.message) || r.status));
-    ses = { key, session: j.session, expiry: j.expiry }; lsSet('ces.gses', ses);
-  }
-  googleLayer = L.tileLayer(`https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${ses.session}&key=${encodeURIComponent(key)}`, { maxZoom: 22, maxNativeZoom: 21, className: 'sat-tiles g-tiles', attribution: 'Immagini © Google' });
-  googleLayer._key = key; return googleLayer;
-}
 const savePrefs = () => lsSet('ces.map', prefs);
 
 // Il WMS catastale accetta solo coordinate geografiche (EPSG:6706, WMS 1.1.1, ordine lon,lat)
@@ -83,6 +70,19 @@ const SatLayer = window.L ? L.TileLayer.extend({
     } catch (e) { return false; }
   },
 }) : null;
+// Ortofoto FVG disegnata su canvas con FILTRO_FVG: un costo per tessera invece di un filtro dal vivo su tutto lo strato,
+// che rallentava zoom e spostamenti. Il server non ha CORS: l'immagine si può disegnare (canvas "sporcato") ma non leggere, e non serve.
+const filtroCanvas = typeof CanvasRenderingContext2D !== 'undefined' && 'filter' in CanvasRenderingContext2D.prototype;
+const FvgLayer = window.L ? L.TileLayer.WMS.extend({
+  createTile(coords, done) {
+    const c = document.createElement('canvas'), sz = this.getTileSize(); c.width = sz.x; c.height = sz.y;
+    const img = new Image();
+    img.onload = () => { const ctx = c.getContext('2d'); if (filtroCanvas) ctx.filter = FILTRO_FVG; ctx.drawImage(img, 0, 0, c.width, c.height); c.complete = true; done(null, c); };
+    img.onerror = e => { c.complete = true; done(e, c); };
+    img.src = this.getTileUrl(coords);
+    return c;
+  },
+}) : null;
 const CatastoLayer = window.L ? L.TileLayer.extend({
   initialize(layer, opts) { L.TileLayer.prototype.initialize.call(this, '', opts); this._wmsLayer = layer; },
   getTileUrl(c) {
@@ -101,8 +101,6 @@ function buildMap() {
   map.createPane('catasto').style.zIndex = 350;
   map.createPane('labels').style.zIndex = 360; map.getPane('labels').style.pointerEvents = 'none';
   map.createPane('catSel').style.zIndex = 390; map.getPane('catSel').style.pointerEvents = 'none';
-  base.sat = new SatLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Immagini © Esri, Maxar, Earthstar Geographics' });
-  base.sat2 = new SatLayer('https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, className: 'sat-tiles', attribution: 'Immagini © Esri World Imagery (Clarity)' });
   base.osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21, updateWhenZooming: false, keepBuffer: 4, attribution: '© OpenStreetMap' });
   base.topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { subdomains: 'abc', maxNativeZoom: 17, maxZoom: 21, updateWhenZooming: false, keepBuffer: 4, attribution: '© OpenStreetMap, SRTM · OpenTopoMap' });
   // Ortofoto della Regione FVG (true ortofoto 2017-2020, alta risoluzione), sopra al satellite Esri fuori regione
@@ -111,7 +109,7 @@ function buildMap() {
   // una zona costa 1,3-1,9 s per tessera (il server disegna un blocco 4×4 e lo tiene per tutti), poi 0,2 s. Senza, ogni tessera era
   // ridisegnata sempre (0,3-0,6 s, 1,6 s con 6 richieste insieme). Misurato il 27/10/2026 a 1280×800: 2,5 s per lo schermo, 0,2 s alla seconda visita.
   // Il server risponde no-store e senza CORS: né il browser né il service worker ne possono tenere copia.
-  const fvg = L.tileLayer.wms('https://irdat-ortofoto.regione.fvg.it/geoserver/ortofoto/wms', { layers: 'trueorto_FVG_1720', tiled: true, format: 'image/jpeg', transparent: false, version: '1.1.1', crs: CRS900913, maxZoom: 21, maxNativeZoom: 20, bounds: FVG_BOUNDS, updateWhenZooming: false, keepBuffer: 4, zIndex: 2, className: 'sat-tiles', attribution: 'Ortofoto © Regione Autonoma Friuli Venezia Giulia' });
+  const fvg = new FvgLayer('https://irdat-ortofoto.regione.fvg.it/geoserver/ortofoto/wms', { layers: 'trueorto_FVG_1720', tiled: true, format: 'image/jpeg', transparent: false, version: '1.1.1', crs: CRS900913, maxZoom: 21, maxNativeZoom: 20, bounds: FVG_BOUNDS, updateWhenZooming: false, keepBuffer: 4, zIndex: 2, className: 'sat-tiles' + (filtroCanvas ? '' : ' fvg-css'), attribution: 'Ortofoto © Regione Autonoma Friuli Venezia Giulia' });
   // sotto la foto, una sua copia a bassa risoluzione (tessere da 2048 px di tre livelli di zoom più in basso: 1-4 immagini leggere):
   // allargando o spostando la mappa si vede subito un'immagine sfocata che poi si definisce, mai lo sfondo scuro (come Google Maps)
   sotto = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { tileSize: 2048, zoomOffset: -3, minNativeZoom: 3, maxNativeZoom: 21, maxZoom: 21, zIndex: 0, updateWhenZooming: false, keepBuffer: 2, className: 'sat-tiles' });
@@ -144,16 +142,13 @@ function buildMap() {
 }
 
 function applyLayers() {
-  applyFx();
   Object.values(base).forEach(l => map.removeLayer(l));
-  if (googleLayer) map.removeLayer(googleLayer);
-  if (['sat', 'sat2', 'fvg', 'google'].includes(prefs.base)) { if (!map.hasLayer(sotto)) sotto.addTo(map); } else map.removeLayer(sotto);
-  if (prefs.base === 'google') { getGoogle().then(l => { if (l && prefs.base === 'google') { l.addTo(map); l.bringToBack(); sotto.bringToBack(); } else if (!l) { prefs.base = 'sat'; applyLayers(); } }).catch(e => { toast(e.message, 'err'); prefs.base = 'sat'; savePrefs(); applyLayers(); }); }
-  else (base[prefs.base] || base.sat).addTo(map);
+  if (prefs.base === 'fvg') { if (!map.hasLayer(sotto)) sotto.addTo(map); } else map.removeLayer(sotto);
+  (base[prefs.base] || base.fvg).addTo(map);
   if (prefs.ndvi) { if (!ndviLayer) ndviLayer = new NdviLayer(); ndviLayer._scene = prefs.ndviScene || null; if (!map.hasLayer(ndviLayer)) ndviLayer.addTo(map); else ndviLayer.redraw(); ndviBar(); }
   else { if (ndviLayer && map.hasLayer(ndviLayer)) map.removeLayer(ndviLayer); const nb = $('#ndviBar'); if (nb) nb.hidden = true; }
   const vett = !!collegamento();
-  ['nomi', 'particelle', 'fogli'].forEach(k => { const on = prefs[k] && (k !== 'nomi' || ['sat', 'sat2', 'fvg', 'google'].includes(prefs.base)) && (k === 'nomi' || !vett); if (on) overlays[k].addTo(map); else map.removeLayer(overlays[k]); });
+  ['nomi', 'particelle', 'fogli'].forEach(k => { const on = prefs[k] && (k !== 'nomi' || prefs.base === 'fvg') && (k === 'nomi' || !vett); if (on) overlays[k].addTo(map); else map.removeLayer(overlays[k]); });
   const cv = overlays.catasto;
   if (vett && (prefs.particelle || prefs.fogli)) {
     const cambia = cv.options.particelle !== !!prefs.particelle || cv.options.fogli !== !!prefs.fogli;
@@ -428,15 +423,15 @@ export function goPlace(b) {
 
 /* ---------- strati ---------- */
 export function layersPanel() {
-  const bases = [['fvg', 'Ortofoto FVG'], ...(azienda().gkey ? [['google', 'Google']] : []), ['sat', 'Satellite'], ['sat2', 'Satellite 2'], ['osm', 'Stradale'], ['topo', 'Rilievo']];
+  const bases = [['fvg', 'Ortofoto FVG'], ['osm', 'Stradale'], ['topo', 'Rilievo']];
   const radio = (k, l) => `<label class="lp-row"><span>${l}</span><input type="radio" name="colorBy" value="${k}"${prefs.colorBy === k ? ' checked' : ''}></label>`;
   const sw = (k, l, s) => `<label class="lp-row"><span>${l}${s ? `<small>${s}</small>` : ''}</span><input type="checkbox" class="switch" name="${k}"${prefs[k] ? ' checked' : ''}></label>`;
   openSheet('Livelli mappa', `<form id="lpForm" class="lp">
     <h3>Sfondo</h3><div class="lm-bases">${bases.map(([k, l]) => `<label><input type="radio" name="base" value="${k}"${prefs.base === k ? ' checked' : ''}><span class="lm-prev ${k}"></span>${l}</label>`).join('')}</div>
     <h3>Colora campi per</h3>${radio('coltura', 'Colture')}${radio('conduzione', 'Conduzione')}${radio('attivita', 'Ultime attività')}${radio('nessuno', 'Nessun colore')}
-    ${azienda().gkey ? '' : '<p class="muted small">Per le immagini di Google inserisci una chiave in La mia azienda → Mappe.</p>'}<h3>Colori dello sfondo</h3><button type="button" class="btn wide" data-act="mapFx">${ic('sun')}Regola colori guardando la mappa</button>
-    <label class="lp-row slider"><span>Intensità dei colori<small>Più alta = campi più pieni, meno satellite visibile</small></span><input type="range" name="intensita" min="20" max="90" step="5" value="${prefs.intensita || 40}"></label>
-    <h3>Visualizza</h3>${sw('etichette', 'Nomi dei campi')}${sw('note', 'Note')}${sw('nomi', 'Strade e luoghi', 'Solo sul satellite')}
+    <h3>Colori dei campi</h3>
+    <label class="lp-row slider"><span>Intensità dei colori<small>Più alta = campi più pieni, meno foto visibile</small></span><input type="range" name="intensita" min="20" max="90" step="5" value="${prefs.intensita || 40}"></label>
+    <h3>Visualizza</h3>${sw('etichette', 'Nomi dei campi')}${sw('note', 'Note')}${sw('nomi', 'Strade e luoghi', 'Solo sull\'ortofoto')}
     <h3>Mostra livelli su mappa</h3>${sw('ndvi', 'Vigore vegetativo (NDVI)', 'Satellite Sentinel-2, scegli la data in basso')}${sw('particelle', 'Catasto: particelle', 'Agenzia delle Entrate, visibili da vicino')}${sw('fogli', 'Catasto: fogli di mappa')}
     <button type="button" class="btn ok wide" data-act="mapApply">Applica</button></form>`);
 }
@@ -453,7 +448,7 @@ async function ndviBar() {
 export function showNdvi(id) { prefs.ndvi = true; savePrefs(); if (map) { applyLayers(); drawFields(); } if (id) setTimeout(() => focusCampo(id), 200); }
 export function applyPanel() {
   const f = $('#lpForm'); if (!f) return;
-  prefs.base = (f.querySelector('input[name=base]:checked') || {}).value || 'sat';
+  prefs.base = (f.querySelector('input[name=base]:checked') || {}).value || 'fvg';
   prefs.colorBy = (f.querySelector('input[name=colorBy]:checked') || {}).value || 'coltura';
   prefs.intensita = +(f.querySelector('input[name=intensita]') || {}).value || 40;
   ['etichette', 'note', 'nomi', 'particelle', 'fogli', 'ndvi'].forEach(k => { prefs[k] = !!f.querySelector(`input[name=${k}]`).checked; });
@@ -516,14 +511,3 @@ export function showMap() {
 export const mapInfo = () => ({ mode, selected });
 export function perimeterOf(c) { return c.geom ? perimeterM(c.geom) : 0; }
 
-// Regolazione dal vivo di luminosità, contrasto, saturazione e tinta dello sfondo
-export function fxPanel() {
-  closeSheet();
-  const el = $('#fxPanel'); if (!el) return;
-  const row = (k, l, min, max, unit) => `<label class="fx-row"><span>${l}</span><input type="range" min="${min}" max="${max}" step="1" value="${prefs[k] ?? (k === 'cal' ? 0 : 100)}" data-fx="${k}"><em id="fxv_${k}">${prefs[k] ?? (k === 'cal' ? 0 : 100)}${unit}</em></label>`;
-  el.innerHTML = `<div class="fx-h"><b>Colori dello sfondo</b><button class="btn xs ghost" data-act="fxReset">Originali</button><button class="btn xs ok" data-act="fxDone">Fatto</button></div>${row('lum', 'Luminosità', 60, 140, '%')}${row('con', 'Contrasto', 60, 160, '%')}${row('sat', 'Saturazione', 0, 200, '%')}${row('cal', 'Tinta', -30, 30, '°')}`;
-  el.hidden = false; $('#mapView').classList.add('has-bar');
-  el.oninput = e => { const k = e.target.dataset.fx; if (!k) return; prefs[k] = +e.target.value; const u = k === 'cal' ? '°' : '%'; const v = $('#fxv_' + k); if (v) v.textContent = prefs[k] + u; applyFx(); };
-}
-export function fxDone() { savePrefs(); const el = $('#fxPanel'); if (el) el.hidden = true; $('#mapView').classList.remove('has-bar'); }
-export function fxReset() { prefs.lum = 100; prefs.con = 100; prefs.sat = 100; prefs.cal = 0; applyFx(); fxPanel(); }

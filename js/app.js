@@ -378,9 +378,6 @@ document.addEventListener('click', async e => {
       case 'mapDeselect': return MAP.select(null);
       case 'mapLayers': return MAP.layersPanel();
       case 'mapApply': return MAP.applyPanel();
-      case 'mapFx': return MAP.fxPanel();
-      case 'fxDone': return MAP.fxDone();
-      case 'fxReset': return MAP.fxReset();
       case 'mapLegend': return MAP.toggleLegend();
       case 'mapPlus': return MAP.plusMenu();
       case 'mapNoteHere': return MAP.noteHere();
@@ -452,7 +449,6 @@ document.addEventListener('submit', async e => {
   try {
     if (k === 'lockSet') { toast(await salvaBloccoDaForm($)); }
     if (k === 'azienda') { const a = azienda(); await store.put('config', 'azienda', Object.assign({}, a, { nome: $('#az_nome').value.trim(), asl: $('#az_asl').value.trim(), iva: $('#az_iva').value.trim(), indirizzo: ($('#az_ind') || {}).value?.trim?.() || a.indirizzo || '', lat: $('#az_lat').value.trim().replace(',', '.'), lon: $('#az_lon').value.trim().replace(',', '.'), ettari: ($('#az_ha') || {}).value ? N($('#az_ha').value) : a.ettari || null })); toast('Dati aziendali salvati'); }
-    if (k === 'gkey') { const a = azienda(); await store.put('config', 'azienda', Object.assign({}, a, { gkey: $('#az_gkey').value.trim() })); try { localStorage.removeItem('ces.gses'); } catch (e) { } toast($('#az_gkey').value.trim() ? 'Chiave salvata: scegli "Google" in Livelli mappa' : 'Chiave rimossa'); }
     if (k === 'aiKey') { const key = $('#ai_key').value.trim(); if (key) lsSet('ces.ai', { key, model: $('#ai_model').value.trim() || 'claude-haiku-5-5' }); else try { localStorage.removeItem('ces.ai'); } catch (e) { } toast(key ? 'Chiave salvata su questo dispositivo' : 'Chiave rimossa'); }
     if (k === 'cloudCfg') { const u = $('#cfg_url').value.trim(), key = $('#cfg_key').value.trim(); if (!/^https:\/\/.+/.test(u) || key.length < 20) throw new Error('Controlla URL e chiave: li trovi in Supabase → Project Settings → API.'); store.setCloudConfig(u, key); }
     if (k === 'login') { await store.signIn($('#au_email').value.trim(), $('#au_pw').value); toast('Accesso eseguito'); }
@@ -491,7 +487,7 @@ setRerender(() => render());
     <button class="map-plus" data-act="mapPlus" aria-label="Aggiungi">${ic('plus')}</button>
     <div id="mapBar" class="map-bar" hidden></div>
     <div id="ndviBar" class="ndvi-bar" hidden></div>
-    <div id="fxPanel" class="fx-panel" hidden></div>
+    
     <div id="catCard" class="cat-card" hidden></div>
     <div id="mapCard" class="map-card" hidden></div>`;
   const h = (location.hash || '').slice(1); if (VIEWS[h] || h === 'mappa') UI.tab = h;

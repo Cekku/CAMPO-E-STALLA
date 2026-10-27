@@ -64,8 +64,7 @@ export function render() {
   ${operatoriSection()}
   ${fitoSection()}
   ${aiSection()}
-  <section class="card set"><div class="set-h">${ic('map')}<div><h2>Mappe</h2><p>In Friuli Venezia Giulia l'app usa le ortofoto ufficiali della Regione, che sono le più nitide. Facoltativo: con una chiave Google Maps hai anche le immagini satellitari di Google (gratis fino a 100.000 riquadri al mese, poi a pagamento).</p></div></div>
-    <form class="fgrid" data-form-act="gkey"><label class="fld"><span class="flabel">Chiave API di Google Maps (Map Tiles API)</span><div class="inwrap"><input id="az_gkey" value="${esc(a.gkey || '')}" placeholder="AIza…" autocomplete="off" class="mono"></div><small>Crea la chiave su console.cloud.google.com, attiva "Map Tiles API" e limitala al dominio cekku.github.io. La guida è nel file LEGGIMI.</small></label><div class="fld row-btns"><button class="btn" type="submit">Salva chiave</button></div></form></section>
+  <section class="card set"><div class="set-h">${ic('map')}<div><h2>Mappe</h2><p>In Friuli Venezia Giulia lo sfondo è l'ortofoto ufficiale della Regione, la più nitida, con i colori ritoccati per somigliare a Google Maps. Fuori regione sotto c'è il satellite Esri. In Livelli mappa puoi scegliere anche Stradale e Rilievo.</p></div></div></section>
   ${catastoSection()}
   ${cloudSection()}
   <section class="card set"><div class="set-h">${ic('smartphone')}<div><h2>App sul telefono</h2><p>${isStandalone() ? 'Stai usando l\'app installata. Funziona anche senza rete: le modifiche si sincronizzano al ritorno della connessione.' : 'Installala sulla schermata Home: si apre a schermo intero e funziona anche in campagna senza rete.'}</p></div></div>${canInstall() ? `<button class="btn primary" data-act="install">${ic('download')}Installa l'app</button>` : ''}<p class="muted small">Versione ${VERSION}</p></section>
