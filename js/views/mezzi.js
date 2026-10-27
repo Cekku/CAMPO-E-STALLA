@@ -5,24 +5,27 @@ import { ic } from '../icons.js';
 import { mezzoOre, mezzoTagliando } from '../domain.js';
 import { empty, newBtn, fact, chip, exChip } from '../ui.js';
 import { opRow } from './oggi.js';
+import { isTrattore, riepilogo } from '../trattori.js';
+import { detail as libretto } from './libretto.js';
 
 const costoAnno = m => sum(S.manutenzioni.filter(x => x.mezzoId === m.id && yearOf(x.data) === UI.anno), x => x.costo);
 const oreAnno = m => sum(S.operazioni.filter(o => o.mezzoId === m.id && yearOf(o.data) === UI.anno), o => o.ore);
 function scad(m) {
-  let s = ''; const t = mezzoTagliando(m), ore = mezzoOre(m);
+  let s = ''; const t = isTrattore(m) ? null : mezzoTagliando(m), ore = mezzoOre(m);
+  if (isTrattore(m)) { const r = riepilogo(m); if (r.bad.length) s += chip(r.bad.length + (r.bad.length === 1 ? ' manutenzione scaduta' : ' manutenzioni scadute'), 'bad'); if (r.warn.length) s += chip(r.warn.length + ' in scadenza', 'warn'); }
   if (t) { const r = t.prossimo - ore; s += chip(r < 0 ? 'Tagliando superato' : 'Tagliando tra ' + nf(r, 0) + ' h', r < 0 ? 'bad' : r <= 25 ? 'warn' : 'ok'); }
   [['scadenzaRevisione', 'Revisione', 30], ['scadenzaAssicurazione', 'Assicurazione', 30], ['controlloFunzionale', 'Controllo funzionale', 60]].forEach(([k, l, g]) => { if (okD(m[k])) { const d = diff(today(), m[k]); if (d <= g) s += chip(l + ' ' + fd(m[k]), d < 0 ? 'bad' : 'warn'); } });
   if (m.tipo === 'Irroratrice' && !okD(m.controlloFunzionale)) s += chip('Controllo funzionale da inserire', 'warn');
   return s;
 }
 export function render() {
-  if (UI.detail && UI.detail.type === 'mezzo') { const m = get('mezzi', UI.detail.id); if (m) return detail(m); UI.detail = null; }
+  if (UI.detail && UI.detail.type === 'mezzo') { const m = get('mezzi', UI.detail.id); if (m) return isTrattore(m) ? libretto(m) : detail(m); UI.detail = null; }
   const list = [...S.mezzi].sort(byName);
-  const head = `<header class="pagehead"><h1>Mezzi</h1><div class="btns"><button class="btn sm" data-act="new" data-form="manutenzioni">${ic('wrench')}Manutenzione</button>${newBtn('mezzi', 'Mezzo')}</div></header>`;
+  const head = `<header class="pagehead"><h1>Mezzi</h1><div class="btns"><button class="btn sm" data-act="new" data-form="manutenzioni">${ic('wrench')}Manutenzione</button><button class="btn sm" data-act="lib-trattori">${ic('tractor')}Trattori dell'azienda</button>${newBtn('mezzi', 'Mezzo')}</div></header>`;
   if (!list.length) return { title: 'Mezzi', html: head + `<section class="card">${empty('tractor', 'Nessun mezzo', 'Aggiungi trattori e attrezzi con ore motore, costo orario e scadenze: le ore dei lavori in campo si sommano da sole.', newBtn('mezzi', 'Aggiungi mezzo'))}</section>` };
   return { title: 'Mezzi', html: head + `<div class="kpis three"><div class="kpi static"><span class="k-l">Ore lavorate ${UI.anno}</span><span class="k-v">${nf(sum(list, oreAnno), 0)}<small>h</small></span><span class="k-s">dai lavori registrati</span></div><div class="kpi static"><span class="k-l">Manutenzioni ${UI.anno}</span><span class="k-v">${eur(sum(list, costoAnno))}</span><span class="k-s">${S.manutenzioni.filter(x => yearOf(x.data) === UI.anno).length} interventi</span></div><div class="kpi static"><span class="k-l">Parco mezzi</span><span class="k-v">${list.length}</span><span class="k-s">mezzi e attrezzi</span></div></div>
   <div class="field-grid">${list.map(m => { const ore = mezzoOre(m), t = mezzoTagliando(m); const pct = t ? Math.max(0, Math.min(100, (ore - t.ult) / (t.prossimo - t.ult) * 100)) : 0;
-    return `<button class="field-card mezzo" data-act="open" data-type="mezzo" data-id="${m.id}"><span class="r-icon big">${ic(m.tipo === 'Irroratrice' ? 'droplets' : 'tractor')}</span><span class="fc-body"><b>${esc(m.nome)}${exChip(m)}</b><span class="fc-crop">${esc([m.tipo, m.modello, m.targa].filter(Boolean).join(' · '))}</span><span class="fc-meta"><span class="num">${nf(ore, 0)} h motore</span><span>${nf(oreAnno(m), 1)} h nel ${UI.anno}</span></span>${t ? `<span class="service"><i style="width:${pct}%" class="${pct >= 95 ? 'bad' : pct >= 85 ? 'warn' : ''}"></i></span>` : ''}<span class="chips">${scad(m)}</span></span>${ic('chevron-right', 'chev')}</button>`; }).join('')}</div>` };
+    return `<button class="field-card mezzo" data-act="open" data-type="mezzo" data-id="${m.id}"><span class="r-icon big">${ic(m.tipo === 'Irroratrice' ? 'droplets' : 'tractor')}</span><span class="fc-body"><b>${esc(m.nome)}${exChip(m)}</b><span class="fc-crop">${esc([m.tipo, m.modello !== m.nome ? m.modello : '', m.targa, m.anno].filter(Boolean).join(' · '))}</span><span class="fc-meta"><span class="num">${nf(ore, 0)} h motore</span><span>${nf(oreAnno(m), 1)} h nel ${UI.anno}</span></span>${t ? `<span class="service"><i style="width:${pct}%" class="${pct >= 95 ? 'bad' : pct >= 85 ? 'warn' : ''}"></i></span>` : ''}<span class="chips">${scad(m)}</span></span>${ic('chevron-right', 'chev')}</button>`; }).join('')}</div>` };
 }
 function detail(m) {
   const ore = mezzoOre(m), t = mezzoTagliando(m);

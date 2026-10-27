@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.11.4** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.12.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -18,7 +18,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 - Aree: **Campagna** (campi, mappa, attività, magazzino, mezzi, meteo, note), **Stalla** (capi, eventi, latte, razioni, box/silos), **Conti** (riservata al titolare).
 - Mappa: `js/map.js` (Leaflet + Geoman, ortofoto FVG, satellite, catasto AdE WMS, NDVI Sentinel-2), `js/geo.js` (aree, centroidi, import KML/GeoJSON/shapefile).
 - Blocco con codice: `js/lock.js` (PIN con PBKDF2 in localStorage `ces.lock`).
-- Librerie in `vendor/`: leaflet, geoman, supabase-js 2.117.3 (build UMD da npm), **pdf.js 4.10.38 legacy** (`vendor/pdfjs`), **Tesseract.js 6** con lingua italiana (`vendor/tesseract`, lettura ottica in locale).
+- Librerie in `vendor/`: leaflet, geoman, supabase-js 2.117.3 (build UMD da npm), **pdf.js 4.10.38 legacy** (`vendor/pdfjs`), **Tesseract.js 6** con lingua italiana (`vendor/tesseract`, lettura ottica in locale), **three.js r128** (`vendor/three`, con GLTFLoader, OrbitControls e RoomEnvironment: solo per il 3D del libretto dei trattori).
 
 ## Dashboard e agenda (dalla 1.9.0)
 
@@ -26,6 +26,14 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 - `views/oggi.js`: saluto, KPI di campagna (superficie, attività, costi €/ha, avvisi), avanzamento colture a barre. Sotto 1080 px `.grid-2.dash` diventa una colonna sola con ordine `o1…o7` (agenda, avvisi, registro, attività…).
 - Ricerca = palette di comandi (`AZIONI` + voci di `MENU` in `app.js`): Ctrl/⌘+K o `/` aprono, `N` apre Registra, Invio apre il primo risultato.
 - Righe con `.r-side.chips` sotto 560 px: le etichette vanno a capo sotto il testo.
+
+## Libretto dei trattori (dalla 1.12.0)
+
+Guida completa e di passaggio: **`LIBRETTO-TRATTORI.md`**. In breve:
+- `js/trattori.js` (catalogo di 32 pezzi con intervalli in ore e mesi, modelli dell'azienda con il catalogo ricambi John Deere o AGCO, `stato()`), `js/views/libretto.js` (scheda del trattore con le schede Libretto, Interventi, Scadenze, Ricambi e 3D; azioni `data-act="lib-…"` instradate da `app.js`), `js/allegati.js` (fatture e foto: cache `ces-allegati-1` + Supabase Storage `allegati/<azienda>/<id>`), `js/trattore3d.js` (three.js r128 in `vendor/three`, modello `modelli/trattore.glb`, CC BY 4.0).
+- I mezzi di tipo Trattore aprono la scheda nuova; gli altri mezzi tengono quella di prima. `mezzoOre` usa la lettura del contaore (`oreLettura` + lavori successivi).
+- Fatture lette con Claude: pagina ponte su claude.ai (`strumenti/ponte-fatture-trattori.html`, indirizzo in `PONTE_FATTURE`) → appunti `CAMPOSTALLA-FATTURA:{json}` → l'app compila l'intervento. Se aggiungi un pezzo a `CATALOGO`, aggiornalo anche nella pagina ponte e in `COMP3D`.
+- Archivio fatture online: `supabase/aggiornamento-allegati.sql` (versione schema 4), da eseguire una volta nello SQL Editor.
 
 ## Stress da caldo (dalla 1.11.0)
 

@@ -1,0 +1,220 @@
+<title>Fatture trattori</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Pagina ponte di Campo e Stalla: una colonna di passi — fotografa, Claude legge, copia e torna all'app. Sorgente: strumenti/ponte-fatture-trattori.html */
+:root {
+  --bg: #F2F3EE; --surface: #FFFFFF; --sunk: #EAECE5; --ink: #16201B; --muted: #66716B; --line: #DDE1D8;
+  --brand: #12382A; --brand-ink: #FFFFFF; --ok: #23794C; --bad: #B42318;
+  --f-display: "Bricolage Grotesque", "Arial Narrow", system-ui, sans-serif; --f-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif; --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0D1411; --surface: #151D19; --sunk: #1B2520; --ink: #E6ECE8; --muted: #8E9A93; --line: #26312B; --brand: #9BD3AE; --brand-ink: #0B1A11; --ok: #7FCB97; --bad: #F2867B; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #0D1411; --surface: #151D19; --sunk: #1B2520; --ink: #E6ECE8; --muted: #8E9A93; --line: #26312B; --brand: #9BD3AE; --brand-ink: #0B1A11; --ok: #7FCB97; --bad: #F2867B; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+button, input, textarea { font: inherit; color: inherit; }
+.wrap { max-width: 560px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 22px 40px; display: grid; gap: 16px; }
+.eyebrow { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--f-display); font-size: 34px; font-weight: 700; line-height: 1.05; margin: 4px 0 0; letter-spacing: -.01em; }
+.lead { margin: 6px 0 0; color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 12px; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 12px 16px; font-weight: 650; text-align: center; cursor: pointer; display: block; width: 100%; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.btn:disabled { opacity: .6; }
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); }
+.thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+.thumbs img, .thumbs span { width: 64px; height: 86px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); background: var(--sunk); display: grid; place-items: center; font: 700 13px var(--f-body); color: var(--muted); }
+.status { margin: 0; display: flex; gap: 10px; align-items: center; }
+.status.busy::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--brand); animation: spin .9s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .status.busy::before { animation: none; } }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; }
+dt { color: var(--muted); font-size: 13px; }
+dd { margin: 0; font-weight: 550; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.done { border-color: var(--ok); }
+.done b { color: var(--ok); }
+.err { color: var(--bad); margin: 0; }
+textarea { width: 100%; min-height: 110px; font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 8px; }
+a { color: var(--ok); font-weight: 600; }
+.hint { margin: 0; font-size: 13px; color: var(--muted); }
+[hidden] { display: none !important; }
+</style>
+
+<main class="wrap">
+  <header>
+    <p class="eyebrow">Campo e Stalla · Mezzi</p>
+    <h1>Leggi la fattura del trattore</h1>
+    <p class="lead">Fotografa la fattura dell'officina o del concessionario: Claude legge data, ore motore, pezzi, codici e totale e li riporta nel libretto del trattore.</p>
+  </header>
+
+  <section class="card" id="stepPick">
+    <label class="btn primary" for="pick">Fotografa o scegli la fattura</label>
+    <input type="file" id="pick" class="vh" accept="image/*,application/pdf,.pdf" multiple>
+    <p class="hint">Puoi scegliere più pagine insieme, anche un PDF.</p>
+    <div class="thumbs" id="thumbs"></div>
+    <p class="status" id="status" hidden></p>
+  </section>
+
+  <section class="card" id="stepResult" hidden>
+    <p class="eyebrow">Letto dalla fattura</p>
+    <dl id="summary"></dl>
+    <button class="btn primary" id="copy">Copia e torna all'app</button>
+    <button class="btn" id="again">Rifai la lettura</button>
+  </section>
+
+  <section class="card done" id="stepDone" hidden>
+    <p style="margin:0"><b>Dati copiati.</b> Ora chiudi questa pagina con la <b>✕ in alto</b>: Campo e Stalla si riapre e compila l'intervento da solo. Tu controlli e salvi.</p>
+    <p style="margin:0">Dal computer: <a href="https://cekku.github.io/CAMPO-E-STALLA/" target="_blank" rel="noopener">apri Campo e Stalla</a> e tocca <b>Incolla i dati letti</b>.</p>
+  </section>
+
+  <section class="card" id="stepManual" hidden>
+    <p style="margin:0">Questo telefono non mi lascia copiare da solo. Tieni premuto nel riquadro, scegli <b>Seleziona tutto</b> e poi <b>Copia</b>. Poi chiudi la pagina e in Campo e Stalla tocca <b>Incolla</b>.</p>
+    <textarea id="manualBox" readonly aria-label="Dati da copiare"></textarea>
+  </section>
+
+  <p class="err" id="unavailable" hidden>Questa pagina funziona aperta su claude.ai con il tuo account Claude. Se l'hai già aperta da lì, ricaricala.</p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Stesso elenco di js/trattori.js (CATALOGO): se aggiungi un pezzo nell'app, aggiungilo anche qui
+const CATALOG = [["olio_motore","Olio motore e filtro olio"],["gioco_valvole","Gioco valvole"],["refrigerante","Liquido di raffreddamento"],["cinghia","Cinghia servizi e tendicinghia"],["radiatori","Radiatori e masse radianti"],["turbo","Turbocompressore"],["iniettori","Iniettori e pompa iniezione"],["filtro_gasolio","Filtri gasolio e separatore d'acqua"],["filtro_aria","Filtro aria (elemento principale)"],["filtro_aria_sic","Filtro aria di sicurezza"],["serbatoio","Serbatoio gasolio"],["adblue","Sistema AdBlue (SCR) e filtro AdBlue"],["scarico","Scarico, marmitta e catalizzatore"],["olio_trasm","Olio trasmissione e idraulico"],["filtri_trasm","Filtri olio trasmissione e idraulico"],["assale_ant","Olio assale anteriore e riduttori"],["frizione","Frizione e inversore"],["pto","Presa di forza (PTO)"],["sollevatore","Sollevatore e attacco a tre punti"],["distributori","Distributori e attacchi rapidi"],["pompa_idr","Pompa idraulica"],["idroguida","Sterzo e idroguida"],["ingrassaggio","Ingrassaggio"],["pneumatici","Pneumatici e cerchi"],["mozzi","Mozzi e cuscinetti ruote anteriori"],["freni","Freni e freno di stazionamento"],["filtro_cabina","Filtro aria cabina"],["clima","Climatizzatore"],["cabina","Cabina, vetri, sedile e tergicristalli"],["batteria","Batterie"],["alternatore","Alternatore e motorino di avviamento"],["luci","Luci, lampeggiante e impianto elettrico"]];
+const CMAP = Object.fromEntries(CATALOG);
+const PREFIX = 'CAMPOSTALLA-FATTURA:';
+let sample = null, maxImages = 4, payload = '';
+
+const status = (t, busy) => { const el = $('#status'); el.hidden = !t; el.textContent = t || ''; el.classList.toggle('busy', !!busy); };
+const isPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+
+async function fileToPages(f) {
+  if (isPdf(f)) {
+    const lib = window.pdfjsLib;
+    if (!lib) throw new Error('pdf');
+    if (!lib.GlobalWorkerOptions.workerSrc) {
+      // pdf.js gira nella pagina: un worker da un altro sito non è ammesso qui
+      await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+      lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    const pdf = await lib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+    const out = [];
+    for (let i = 1; i <= Math.min(pdf.numPages, 3); i++) {
+      const page = await pdf.getPage(i);
+      const vp = page.getViewport({ scale: Math.min(3, 1800 / page.getViewport({ scale: 1 }).width) });
+      const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+      await page.render({ canvasContext: x, viewport: vp }).promise;
+      out.push(c);
+    }
+    return out;
+  }
+  let src;
+  try { src = await createImageBitmap(f, { imageOrientation: 'from-image' }); }
+  catch (e) {
+    const url = URL.createObjectURL(f);
+    try { src = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; }); }
+    finally { URL.revokeObjectURL(url); }
+  }
+  const w = src.width || src.naturalWidth, h = src.height || src.naturalHeight, k = Math.min(1, 3200 / Math.max(w, h));
+  const c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k);
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  return [c];
+}
+function crop(c, y, h, maxSide, quality) {
+  const k = Math.min(1, maxSide / Math.max(c.width, h));
+  const o = document.createElement('canvas'); o.width = Math.round(c.width * k); o.height = Math.round(h * k);
+  const x = o.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height);
+  x.drawImage(c, 0, y, c.width, h, 0, 0, o.width, o.height);
+  return new Promise(r => o.toBlob(r, 'image/jpeg', quality));
+}
+// Claude vede ogni immagine a circa 1,2 megapixel: le due metà di una pagina verticale tengono leggibili le scritte piccole
+async function pagesToImages(pages) {
+  const split = pages.length * 2 <= maxImages, out = [];
+  for (const c of pages.slice(0, split ? pages.length : maxImages)) {
+    if (split && c.height > c.width * 1.1) { const part = Math.round(c.height * 0.56); out.push(await crop(c, 0, part, 2400, 0.88), await crop(c, c.height - part, part, 2400, 0.88)); }
+    else out.push(await crop(c, 0, c.height, 2400, 0.88));
+  }
+  return { images: out.filter(Boolean), split };
+}
+function prompt(split) {
+  const list = CATALOG.map(([id, n]) => `${id}: ${n}`).join('\n');
+  return `Le immagini sono ${split ? 'le pagine di una fattura, ognuna divisa in metà superiore e metà inferiore che si sovrappongono un po\'' : 'le pagine di una fattura'}, in ordine. È una fattura, ricevuta, bolla o preventivo di un'officina o di un concessionario di macchine agricole per lavori o ricambi su un trattore (John Deere, Fendt o altro) di un'azienda agricola italiana.
+
+Estrai i dati e rispondi con un solo oggetto JSON, senza altro testo, con questa forma:
+{"date": "YYYY-MM-DD" o null, "hours": numero o null, "workshop": "nome dell'officina o del rivenditore" o null, "invoiceNumber": "numero documento" o null, "total": numero (totale da pagare, IVA inclusa) o null, "model": "marca e modello del trattore scritti sul documento" o null, "serial": "numero di serie, telaio o PIN scritto sul documento" o null, "plate": "targa scritta sul documento" o null, "title": "titolo breve del lavoro, es. Tagliando 500 ore, Sostituzione frizione", "components": ["id", ...], "items": [{"description": "voce", "code": "codice ricambio" o null, "qty": numero o null, "amount": numero o null, "component": "id dell'elenco" o null}], "notes": "consigli o osservazioni dell'officina, altrimenti stringa vuota", "confidence": "alta" | "media" | "bassa"}
+
+Regole:
+- Le date italiane sono gg/mm/aaaa: convertile. Gli importi usano la virgola per i decimali e il punto per le migliaia: restituisci numeri.
+- hours: le ore motore del trattore (cerca "ore", "h", "ore lavoro", "contaore", "ore macchina"). Non confondere le ore motore con le ore di manodopera fatturate, con codici, quantità o importi.
+- components: usa solo gli id dell'elenco qui sotto, e solo per pezzi sostituiti o fluidi cambiati o rabboccati, non per semplici controlli. Olio motore e filtro olio sono "olio_motore"; filtri o olio della trasmissione/idraulico (Hy-Gard, Vario) sono "filtri_trasm" e "olio_trasm"; l'ingrassaggio è "ingrassaggio".
+- items: una voce per ogni riga della fattura (ricambi e manodopera), con l'importo della riga e, per i ricambi, il codice e l'id del pezzo dell'elenco a cui appartiene (es. un filtro olio → "olio_motore").
+- Se un dato non si legge con sicurezza metti null: non inventare nulla.
+- Se il documento non riguarda lavori o ricambi di un trattore, metti "confidence": "bassa" e spiegalo in "notes".
+
+Elenco componenti (id: nome):
+${list}`;
+}
+const ERR = {
+  not_granted: 'Non hai consentito a questa pagina di usare Claude. Ricaricala e scegli Consenti.',
+  images_unavailable: 'Questa pagina non può inviare foto a Claude. Ricaricala e consenti le immagini.',
+  rate_limited: 'Troppe letture ravvicinate o limite di utilizzo raggiunto. Riprova più tardi.',
+  session_expired: 'La sessione di claude.ai è scaduta: accedi di nuovo e riprova.',
+  image_rejected: 'Una foto non è leggibile. Prova con una foto più nitida.',
+  invalid_json: 'Non sono riuscito a interpretare la fattura. Riprova.',
+  refused: 'Questo documento non si può leggere automaticamente.',
+};
+const eur = n => (typeof n === 'number' && isFinite(n)) ? n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' }) : '—';
+
+async function read(files) {
+  $('#stepResult').hidden = $('#stepDone').hidden = $('#stepManual').hidden = true;
+  $('#thumbs').innerHTML = files.map(f => isPdf(f) ? '<span>PDF</span>' : `<img src="${URL.createObjectURL(f)}" alt="">`).join('');
+  $('#pick').disabled = true;
+  try {
+    status('Preparo le pagine…', true);
+    const pages = [];
+    for (const f of files) pages.push(...await fileToPages(f));
+    const { images, split } = await pagesToImages(pages);
+    status('Claude sta leggendo la fattura… di solito 20–60 secondi.', true);
+    const d = await sample.json(prompt(split), { images, modelTier: 'default', cache: false });
+    // una copia compressa della prima pagina torna all'app come foto della fattura
+    const first = pages[0];
+    const jpg = await crop(first, 0, first.height, 1600, 0.74);
+    const b64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(jpg); });
+    const name = (files[0].name || 'fattura').replace(/\.[^.]+$/, '') + '.jpg';
+    payload = PREFIX + JSON.stringify({ v: 1, data: d, image: { name, type: 'image/jpeg', b64 } });
+    const comps = (Array.isArray(d.components) ? d.components : []).filter(id => CMAP[id]).map(id => CMAP[id]);
+    const codes = (Array.isArray(d.items) ? d.items : []).filter(i => i && i.code).length;
+    $('#summary').innerHTML = [
+      ['Lavoro', d.title || '—'], ['Data', d.date || '—'], ['Ore motore', d.hours != null ? Number(d.hours).toLocaleString('it-IT') + ' h' : '—'],
+      ['Trattore', [d.model, d.serial, d.plate].filter(Boolean).join(' · ') || '—'], ['Officina', d.workshop || '—'], ['Totale', eur(d.total)],
+      ['Pezzi', comps.join(', ') || '—'], ['Voci', (Array.isArray(d.items) ? d.items.length : 0) + (codes ? ' · ' + codes + ' con codice' : '')],
+      ...(d.confidence === 'bassa' ? [['Attenzione', d.notes || 'Lettura incerta']] : []),
+    ].map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
+    status('');
+    $('#stepResult').hidden = false;
+  } catch (e) {
+    console.error(e);
+    status(ERR[e && e.code] || (e && e.code ? 'La lettura non è riuscita. Riprova tra poco.' : 'Non riesco ad aprire questo file. Usa una foto JPG o PNG, oppure un PDF.'));
+  } finally { $('#pick').disabled = false; }
+}
+
+$('#pick').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; if (f.length && sample) read(f); });
+$('#again').addEventListener('click', () => { $('#stepResult').hidden = true; $('#pick').click(); });
+$('#copy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(payload); $('#stepResult').hidden = true; $('#stepDone').hidden = false; }
+  catch (e) { const box = $('#manualBox'); box.value = payload; $('#stepManual').hidden = false; box.focus(); box.select(); }
+});
+
+(async () => {
+  try { sample = window.claude && window.claude.use ? await window.claude.use('sample') : null; } catch (e) { sample = null; }
+  const lim = sample ? await sample.limits().catch(() => null) : null;
+  if (!lim || !lim.images) { sample = null; $('#unavailable').hidden = false; $('#stepPick').hidden = true; return; }
+  maxImages = lim.images.maxCount || 4;
+})();
+})();
+</script>

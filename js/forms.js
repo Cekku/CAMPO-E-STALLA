@@ -9,6 +9,8 @@ import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
 import { fitoLookup, fitoSearch, fitoMeta } from './fitodb.js';
 import { esc } from './util.js';
 import { FASI_BOX, allBoxes } from './herd.js';
+import { CATALOGO, GRUPPI_COMP, OPZ_MODELLI, MODELLI, isTrattore } from './trattori.js';
+import { boxAllegati, salvaAllegati } from './views/libretto.js';
 
 const oCampi = () => [...S.campi].sort(byName).map(c => [c.id, `${c.nome} · ${nf(campoHa(c), 2)} ha`]);
 const oProd = cats => () => [...S.prodotti].filter(p => !cats || cats.includes(p.categoria)).sort(byName).map(p => [p.id, `${p.nome} — ${nf(giac(p), 1)} ${p.unita || ''}`]);
@@ -139,14 +141,16 @@ export const SPEC = {
     fields: () => [
       { k: 'nome', l: 'Nome', req: 1, ph: 'Es. Trattore 140 CV' },
       { k: 'tipo', l: 'Tipo', t: 'select', opts: TIPI_MEZZO, half: 1 },
+      { k: 'catalogo', l: 'Modello per il libretto', t: 'select', opts: OPZ_MODELLI, blank: 'Altro modello', show: v => v.tipo === 'Trattore', hint: 'Collega il catalogo ricambi e gli intervalli di manutenzione del modello' },
       { k: 'modello', l: 'Marca e modello', half: 1 },
-      { k: 'targa', l: 'Targa o telaio', half: 1 },
+      { k: 'targa', l: 'Targa', half: 1 },
+      { k: 'serie', l: 'Numero di serie (PIN)', half: 1, show: v => v.tipo === 'Trattore', hint: 'Sulla targhetta del trattore: i ricambi cambiano con il numero di serie' },
       { k: 'anno', l: 'Anno', t: 'number', half: 1 },
       { k: 's1', l: 'Ore e costi', t: 'section' },
       { k: 'oreIniziali', l: 'Ore motore attuali', t: 'number', half: 1, unit: 'h', hint: 'Le ore dei lavori si sommano da qui' },
       { k: 'costoOra', l: 'Costo orario', t: 'number', half: 1, unit: '€/h', hint: 'Gasolio, usura, ammortamento' },
-      { k: 'intervallo', l: 'Tagliando ogni', t: 'number', half: 1, unit: 'h' },
-      { k: 'oreUltimoTagliando', l: 'Ultimo tagliando a', t: 'number', half: 1, unit: 'h' },
+      { k: 'intervallo', l: 'Tagliando ogni', t: 'number', half: 1, unit: 'h', show: v => v.tipo !== 'Trattore' },
+      { k: 'oreUltimoTagliando', l: 'Ultimo tagliando a', t: 'number', half: 1, unit: 'h', show: v => v.tipo !== 'Trattore' },
       { k: 's2', l: 'Scadenze', t: 'section' },
       { k: 'scadenzaRevisione', l: 'Revisione', t: 'date', half: 1 },
       { k: 'scadenzaAssicurazione', l: 'Assicurazione', t: 'date', half: 1 },
@@ -154,6 +158,7 @@ export const SPEC = {
       { k: 'taratura', l: 'Ultima regolazione strumentale', t: 'date', half: 1, show: v => v.tipo === 'Irroratrice' },
       { k: 'note', l: 'Note', t: 'textarea' }],
     canDel: m => S.manutenzioni.some(x => x.mezzoId === m.id) || S.operazioni.some(o => o.mezzoId === m.id) ? 'Il mezzo ha lavori o manutenzioni registrati e non si può eliminare.' : null,
+    onChange(ch, v) { if (ch === 'catalogo' && MODELLI[v.catalogo]) { const md = MODELLI[v.catalogo], n = md.marca + ' ' + md.modello; if (!FORM.dirty.has('modello')) setVal('modello', n); if (!v.nome) setVal('nome', n); } },
   },
   manutenzioni: {
     title: 'Manutenzione', icon: 'wrench',
@@ -164,9 +169,18 @@ export const SPEC = {
       { k: 'ore', l: 'Ore motore', t: 'number', half: 1, unit: 'h' },
       { k: 'costo', l: 'Costo', t: 'number', half: 1, unit: '€' },
       { k: 'descrizione', l: 'Descrizione', ph: 'Es. olio motore e filtri' },
-      { k: 'officina', l: 'Officina' },
+      { k: 'officina', l: 'Officina', half: 1 },
+      { k: 'fattura', l: 'N. fattura', half: 1 },
+      { k: 'componenti', l: 'Pezzi sostituiti o rabboccati', t: 'checks', opts: () => GRUPPI_COMP.map(([g, l]) => [l, CATALOGO.filter(c => c.g === g).map(c => [c.id, c.nome])]), show: v => isTrattore(get('mezzi', v.mezzoId)), hint: 'Aggiornano il libretto: da qui partono le prossime scadenze di ogni pezzo' },
+      { k: 'ricambi', l: 'Ricambi e voci della fattura', t: 'rows', addLabel: 'Aggiungi voce', cols: [{ k: 'codice', l: 'Codice', ph: 'Codice', w: '1fr' }, { k: 'descrizione', l: 'Descrizione', ph: 'Descrizione', w: '1.6fr' }, { k: 'qta', l: 'Q.tà', ph: 'Q.tà', t: 'number', w: '60px' }, { k: 'importo', l: 'Importo', ph: 'Importo €', t: 'number', unit: '€', w: '90px' }] },
+      { k: 'allegati', l: 'Fattura e foto', t: 'box' },
       { k: 'note', l: 'Note', t: 'textarea' }],
     defaults: () => ({ data: today(), tipo: 'Tagliando' }),
+    onChange(ch, v) {
+      if (ch === null) boxAllegati();
+      if ((ch === null || ch === 'tipo' || ch === 'mezzoId') && v.tipo === 'Tagliando' && !FORM.dirty.has('componenti') && !(v.componenti || []).length && isTrattore(get('mezzi', v.mezzoId)) && !FORM.id) setVal('componenti', ['olio_motore']);
+    },
+    async save(id, v) { await salvaAllegati(id, v); },
   },
   operatori: {
     title: 'Operatore', icon: 'id-card',

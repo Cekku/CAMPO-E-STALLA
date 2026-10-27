@@ -54,6 +54,8 @@ function fieldHTML(f, v) {
   if (f.t === 'box') return `<div class="fld fbox" data-k="${f.k}" id="box_${f.k}"></div>`;
   if (f.t === 'rows') { const rows = Array.isArray(v) && v.length ? v : [{}]; return `<div class="${cls}" data-k="${f.k}"><span class="flabel">${esc(f.l)}${req}</span><div class="rowsgrid" style="--cols:${f.cols.map(c => c.w || '1fr').join(' ')} 40px"><div class="rg-h">${f.cols.map(c => `<span>${esc(c.l)}${c.unit ? ' <em>' + esc(c.unit) + '</em>' : ''}</span>`).join('')}<span></span></div><div class="lines" id="lines_${f.k}">${rows.map(r => rowLineHTML(f, r)).join('')}</div></div><button type="button" class="btn ghost sm" data-act="lineAdd" data-k="${f.k}">${ic('plus')}${esc(f.addLabel || 'Aggiungi riga')}</button>${f.hint ? `<small>${esc(f.hint)}</small>` : ''}</div>`; }
   if (f.t === 'lines') { const rows = Array.isArray(v) && v.length ? v : [{}]; return `<div class="${cls}" data-k="${f.k}"><span class="flabel">${esc(f.l)}${req}</span><div class="lines" id="lines_${f.k}">${rows.map(r => lineHTML(f, r)).join('')}</div><button type="button" class="btn ghost sm" data-act="lineAdd" data-k="${f.k}">${ic('plus')}Aggiungi alimento</button>${f.hint ? `<small>${esc(f.hint)}</small>` : ''}</div>`; }
+  // caselle a scelta multipla, divise in gruppi: opts = [[gruppo, [[valore, etichetta], …]], …]
+  if (f.t === 'checks') { const sel = new Set(Array.isArray(v) ? v : []); const groups = typeof f.opts === 'function' ? f.opts() : f.opts; return `<div class="${cls} checks" data-k="${f.k}"><span class="flabel">${esc(f.l)}${req}</span>${groups.map(([gl, items]) => `<div class="ck-g">${gl ? `<span class="ck-h">${esc(gl)}</span>` : ''}<div class="ck-l">${items.map(([val, l]) => `<label class="ck"><input type="checkbox" name="${f.k}" value="${esc(val)}"${sel.has(val) ? ' checked' : ''}><span>${esc(l)}</span></label>`).join('')}</div></div>`).join('')}${f.hint ? `<small id="h_${f.k}">${esc(f.hint)}</small>` : ''}</div>`; }
   if (f.t === 'seg') { const opts = typeof f.opts === 'function' ? f.opts() : f.opts; return `<div class="${cls}" data-k="${f.k}"><span class="flabel">${esc(f.l)}${req}</span><div class="seg" role="radiogroup">${opts.map(o => { const [val, l] = Array.isArray(o) ? o : [o, o]; return `<label><input type="radio" name="${f.k}" value="${esc(val)}"${String(val) === String(v ?? '') ? ' checked' : ''}><span>${esc(l)}</span></label>`; }).join('')}</div>${f.hint ? `<small id="h_${f.k}">${esc(f.hint)}</small>` : ''}</div>`; }
   let inp;
   if (f.t === 'select') { const opts = typeof f.opts === 'function' ? f.opts() : f.opts; inp = `<select id="${id}" name="${f.k}">${f.blank === false ? '' : `<option value="">${esc(f.blank || '—')}</option>`}${optList(opts, v)}</select>`; }
@@ -84,6 +86,7 @@ export function readForm() {
     if (f.t === 'rows') { v[f.k] = $$('#lines_' + f.k + ' .line').map(r => { const o = {}; f.cols.forEach(c => { const el = r.querySelector(`[data-line="${c.k}"]`); const s = el ? el.value.trim() : ''; o[c.k] = c.t === 'number' ? (s === '' ? null : N(s)) : s; }); return o; }).filter(o => f.cols.some(c => o[c.k] !== null && o[c.k] !== '')); return; }
     if (f.t === 'lines') { v[f.k] = $$('#lines_' + f.k + ' .line').map(r => ({ prodottoId: r.querySelector('[data-line=prodottoId]').value, kg: r.querySelector('[data-line=kg]').value === '' ? null : N(r.querySelector('[data-line=kg]').value) })).filter(r => r.prodottoId); return; }
     if (f.t === 'seg') { const c = $(`#frm input[name="${f.k}"]:checked`); v[f.k] = c ? c.value : ''; return; }
+    if (f.t === 'checks') { v[f.k] = $$(`#frm input[name="${f.k}"]:checked`).map(x => x.value); return; }
     const el = document.getElementById('f_' + f.k); if (!el) return; const s = el.value.trim();
     v[f.k] = f.t === 'number' ? (s === '' ? null : N(s)) : s;
   });
@@ -92,6 +95,7 @@ export function readForm() {
 export function setVal(k, val) {
   const f = FORM && FORM.fields.find(x => x.k === k);
   if (f && f.t === 'seg') { $$(`#frm input[name="${k}"]`).forEach(r => (r.checked = r.value === String(val))); return; }
+  if (f && f.t === 'checks') { const a = new Set(Array.isArray(val) ? val : []); $$(`#frm input[name="${k}"]`).forEach(r => (r.checked = a.has(r.value))); return; }
   const el = document.getElementById('f_' + k); if (el) el.value = f && f.t === 'number' && val !== null && val !== undefined && val !== '' ? String(val).replace('.', ',') : (val ?? '');
 }
 export function setHint(k, text) { const h = document.getElementById('h_' + k); if (h) h.textContent = text; }
@@ -114,7 +118,7 @@ export function openForm(o) {
     FORM.fields.forEach(f => {
       if (f.t === 'section' || f.t === 'box') return;
       const w = $(`#frm [data-k="${f.k}"]`); const vis = !(w && w.hidden);
-      if (!vis) { vals[f.k] = f.t === 'lines' || f.t === 'rows' ? [] : null; return; }
+      if (!vis) { vals[f.k] = f.t === 'lines' || f.t === 'rows' || f.t === 'checks' ? [] : null; return; }
       const miss = f.req && (vals[f.k] === null || vals[f.k] === '' || (Array.isArray(vals[f.k]) && !vals[f.k].length));
       if (w) w.classList.toggle('err', !!miss); if (miss) bad.push(f.l);
     });

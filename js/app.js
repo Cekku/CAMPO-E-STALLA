@@ -72,7 +72,7 @@ function syncInfo() {
   return { icn, t, cls };
 }
 function syncPill() { const el = $('#syncBtn'); if (!el) return; const s = syncInfo(); el.className = 'ab-btn sync ' + s.cls; el.innerHTML = ic(s.icn); el.title = s.t; el.setAttribute('aria-label', s.t); }
-onSync(() => { syncPill(); schedule(); });
+onSync(() => { syncPill(); schedule(); if (sync.farm && sync.status === 'ok') import('./allegati.js').then(x => x.inviaInSospeso()).catch(() => { }); });
 
 function isCur(tab, sub) { if (UI.tab !== tab) return false; if (!sub) return true; return UI.sub[tab] === sub; }
 function drawerHTML() {
@@ -405,7 +405,8 @@ document.addEventListener('click', async e => {
       case 'lockNow': return blocca();
       case 'lockOff': try { toast(await disattivaDaForm($)); } catch (err) { toast(err.message, 'err'); } return render();
       case 'c-expAll': drawer(false); closeSheet(); b.disabled = true; try { await esportaTutto(UI.anno); } finally { b.disabled = false; } return;
-      default: if (a === 'tsort' || a === 'texp' || a.startsWith('c-')) return contiAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+      default: if (a.startsWith('lib-')) return import('./views/libretto.js').then(x => x.libAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+        if (a === 'tsort' || a === 'texp' || a.startsWith('c-')) return contiAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
     }
   } catch (err) { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); }
 });

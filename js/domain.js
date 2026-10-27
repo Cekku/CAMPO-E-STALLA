@@ -2,6 +2,7 @@
 import { S, D, UI, get } from './state.js';
 import { N, okD, addDays, diff, today, yearOf, sum, byDate, fd, eta, nf } from './util.js';
 import { areaHa } from './geo.js';
+import { isTrattore, riepilogo } from './trattori.js';
 
 export const COLTURE = ['Mais da granella', 'Mais trinciato', 'Frumento tenero', 'Frumento duro', 'Orzo', 'Triticale', 'Soia', 'Erba medica', 'Prato polifita', 'Loiessa', 'Sorgo', 'Girasole', 'Colza', 'Barbabietola', 'Vite', 'Pomodoro da industria', 'Riposo'];
 export const TIPI_OP = ['Lavorazione terreno', 'Semina', 'Concimazione', 'Trattamento fitosanitario', 'Diserbo', 'Irrigazione', 'Sfalcio', 'Raccolta', 'Altro'];
@@ -9,7 +10,7 @@ export const OP_PROD = ['Semina', 'Concimazione', 'Trattamento fitosanitario', '
 export const CATEGORIE = ['Fitofarmaco', 'Diserbante', 'Concime', 'Seme', 'Mangime', 'Foraggio', 'Farmaco veterinario', 'Gasolio', 'Altro'];
 export const UNITA = ['kg', 'l', 'q', 't', 'dosi', 'pz'];
 export const TIPI_MEZZO = ['Trattore', 'Mietitrebbia', 'Carro miscelatore', 'Rimorchio', 'Irroratrice', 'Attrezzo', 'Pick-up', 'Altro'];
-export const TIPI_MAN = ['Tagliando', 'Riparazione', 'Pneumatici', 'Revisione', 'Altro'];
+export const TIPI_MAN = ['Tagliando', 'Riparazione', 'Controllo', 'Ingrassaggio', 'Pneumatici', 'Revisione', 'Altro'];
 export const RAZZE = ['Frisona', 'Bruna', 'Pezzata Rossa', 'Jersey', 'Simmental', 'Rendena', 'Incrocio', 'Altra'];
 export const GRUPPI = ['Alta produzione', 'Media produzione', 'Bassa produzione', 'Fresche', 'Asciutta', 'Preparto', 'Manze', 'Vitelle', 'Vitelli'];
 export const TIPI_EV = ['Parto', 'Calore', 'Fecondazione', 'Diagnosi gravidanza', 'Messa in asciutta', 'Trattamento sanitario', 'Vaccinazione', 'Controllo funzionale', 'Uscita', 'Nota'];
@@ -108,8 +109,15 @@ export function derive() {
 export const giac = p => D.giac.get(p.id) || 0;
 export const capoI = c => D.capi.get(c.id);
 export function mezzoOre(m) {
-  const base = N(m.oreIniziali) + sum(S.operazioni.filter(o => o.mezzoId === m.id), o => o.ore);
+  const ops = S.operazioni.filter(o => o.mezzoId === m.id);
+  const base = N(m.oreIniziali) + sum(ops, o => o.ore);
   const man = Math.max(0, ...S.manutenzioni.filter(x => x.mezzoId === m.id).map(x => N(x.ore)));
+  // lettura del contaore ("Aggiorna ore" nel libretto): più le ore dei lavori registrati dopo quel giorno
+  // vince sui conti fatti con le ore iniziali, che possono essere sbagliate; contano solo gli interventi successivi alla lettura
+  if (N(m.oreLettura) && okD(m.oreLetturaData)) {
+    const dopo = d => okD(d) && d > m.oreLetturaData;
+    return Math.max(N(m.oreLettura) + sum(ops.filter(o => dopo(o.data)), o => o.ore), ...S.manutenzioni.filter(x => x.mezzoId === m.id && dopo(x.data)).map(x => N(x.ore)));
+  }
   return Math.max(base, man);
 }
 export function mezzoTagliando(m) {
@@ -157,7 +165,9 @@ export function allAlerts() {
     if (okD(p.scadenza) && g > 0) { const d = diff(T, p.scadenza); if (d < 0) out.push({ lv: 'bad', area: 'magazzino', t: 'Scaduto: ' + p.nome, s: 'Scaduto il ' + fd(p.scadenza), go: { type: 'prodotto', id: p.id } }); else if (d <= 60) out.push({ lv: 'warn', area: 'magazzino', t: 'In scadenza: ' + p.nome, s: 'Scade il ' + fd(p.scadenza), go: { type: 'prodotto', id: p.id } }); }
   });
   S.mezzi.forEach(m => {
-    const t = mezzoTagliando(m), ore = mezzoOre(m);
+    // trattori: un avviso per mezzo con i pezzi del libretto scaduti o in scadenza (il tagliando è il pezzo "olio motore")
+    if (isTrattore(m)) { const r = riepilogo(m), l = r.bad.length ? r.bad : r.warn; if (l.length) out.push({ lv: r.bad.length ? 'bad' : 'warn', area: 'mezzi', t: (r.bad.length ? 'Manutenzione scaduta: ' : 'Manutenzione in scadenza: ') + m.nome, s: l.slice(0, 3).map(c => c.nome).join(', ') + (l.length > 3 ? ' e altri ' + (l.length - 3) : ''), go: { type: 'mezzo', id: m.id } }); }
+    const t = isTrattore(m) ? null : mezzoTagliando(m), ore = mezzoOre(m);
     if (t && t.prossimo - ore <= 25) out.push({ lv: t.prossimo - ore < 0 ? 'bad' : 'warn', area: 'mezzi', t: 'Tagliando ' + m.nome, s: t.prossimo - ore < 0 ? 'Superato di ' + nf(ore - t.prossimo, 0) + ' ore' : 'Tra ' + nf(t.prossimo - ore, 0) + ' ore di lavoro', go: { type: 'mezzo', id: m.id } });
     [['scadenzaRevisione', 'Revisione'], ['scadenzaAssicurazione', 'Assicurazione']].forEach(([k, l]) => { if (okD(m[k])) { const d = diff(T, m[k]); if (d <= 30) out.push({ lv: d < 0 ? 'bad' : 'warn', area: 'mezzi', t: l + ' ' + m.nome, s: (d < 0 ? 'Scaduta il ' : 'Scade il ') + fd(m[k]), go: { type: 'mezzo', id: m.id } }); } });
   });

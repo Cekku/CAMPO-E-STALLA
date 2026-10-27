@@ -4,6 +4,7 @@ import { esc, fd, fdShort, weekday, today, addDays, diff, okD, N, nf, yearOf } f
 import { ic } from './icons.js';
 import { capoI, giac, campoInfo, cropOf } from './domain.js';
 import { righeTrattamenti } from './registro.js';
+import { isTrattore, compDi, stato } from './trattori.js';
 
 // Ogni voce: { data, area: 'campi'|'stalla'|'mezzi'|'magazzino', icn, t, s, go, late }
 export function agenda(giorni = 14, area = 'tutte') {
@@ -35,6 +36,9 @@ export function agenda(giorni = 14, area = 'tutte') {
 
   // scadenze di mezzi, patentini, prodotti
   S.mezzi.forEach(m => [['scadenzaRevisione', 'Revisione'], ['scadenzaAssicurazione', 'Assicurazione'], ['controlloFunzionale', 'Controllo funzionale']].forEach(([k, l]) => { if (dentro(m[k])) add(m[k], 'mezzi', 'tractor', l + ' · ' + m.nome, 'Scadenza', { type: 'mezzo', id: m.id }); }));
+  // libretto dei trattori: altre scadenze del mezzo e pezzi che scadono a data (quelli a ore stanno negli avvisi)
+  S.mezzi.forEach(m => (m.scadenze || []).forEach(x => { if (dentro(x.data)) add(x.data, 'mezzi', 'tractor', x.titolo + ' · ' + m.nome, 'Scadenza', { type: 'mezzo', id: m.id }); }));
+  S.mezzi.filter(isTrattore).forEach(m => compDi(m).forEach(c => { const st = stato(m, c.id); if (st.prossData && st.prossData <= fine && (st.restOre === null || st.restOre > 0)) add(st.prossData < T ? T : st.prossData, 'mezzi', 'wrench', c.nome + ' · ' + m.nome, st.prossData < T ? 'Scaduto il ' + fd(st.prossData) : 'Manutenzione a calendario', { type: 'mezzo', id: m.id }, st.prossData < T); }));
   S.operatori.forEach(o => { if (dentro(o.scadenzaPatentino)) add(o.scadenzaPatentino, 'campi', 'id-card', 'Patentino · ' + o.nome, 'Scadenza del patentino fitosanitario', { edit: 'operatori', id: o.id }); });
   S.prodotti.forEach(p => { if (dentro(p.scadenza) && giac(p) > 0) add(p.scadenza, 'magazzino', 'package', 'Scade · ' + p.nome, nf(giac(p), 1) + ' ' + (p.unita || '') + ' in magazzino', { type: 'prodotto', id: p.id }); });
 

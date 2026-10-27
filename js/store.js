@@ -75,6 +75,7 @@ const baseSupabase = u => { const s = String(u || '').trim(); try { return new U
 export function cloudConfig() { const o = lsGet('ces.cloud', null); if (o && o.url && o.key) return Object.assign({}, o, { url: baseSupabase(o.url) }); if (CONFIG.supabaseUrl && CONFIG.supabaseKey) return { url: baseSupabase(CONFIG.supabaseUrl), key: CONFIG.supabaseKey, fromConfig: true }; return null; }
 export function setCloudConfig(url, key) { if (!url) { try { localStorage.removeItem('ces.cloud'); } catch (e) { } } else lsSet('ces.cloud', { url: baseSupabase(url), key: key.trim() }); location.reload(); }
 export const cloudReady = () => !!sb;
+export const cloudClient = () => sb;   // per lo spazio file (js/allegati.js)
 
 async function initCloud() {
   const cfg = cloudConfig();

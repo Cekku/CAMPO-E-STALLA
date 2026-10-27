@@ -6,6 +6,7 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Campi**: quaderno di campagna con scarico automatico dei prodotti, tempi di carenza, costi e margini per ettaro.
 - **Stalla**: mandria, eventi (parti, fecondazioni, diagnosi, asciutte, trattamenti, controlli), calendario dei parti, latte giornaliero, razioni, registro trattamenti con sospensioni.
 - **Magazzino e mezzi**: giacenze, scorte minime, scadenze, ore motore, tagliandi, revisioni.
+- **Libretto dei trattori**: per ogni trattore lo stato di ogni pezzo in ore e mesi, gli interventi con le fatture allegate (lette anche da Claude), il catalogo ricambi con le tavole esplose e un modello 3D esploso.
 - **Meteo** a 7 giorni sui campi, con i giorni adatti ai trattamenti e l'**avviso di stress da caldo** per le vacche (THI).
 - **Controlli automatici sui trattamenti**: coltura autorizzata in etichetta, dose massima, numero di interventi, intervallo, carenza rispetto alla raccolta, giacenza, patentino dell'operatore, controllo funzionale dell'irroratrice, vento e pioggia previsti.
 - **Quaderno di campagna (QDCA)** stampabile o in PDF, CSV per Excel e registro dei trattamenti in formato dati (JSON).
@@ -19,6 +20,20 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Estratto conto della banca** (PDF con testo o scansionato/oscurato, Excel, CSV): legge i movimenti, riconosce stipendi, anticipi, F24 e contributi dei dipendenti (dal nome o dall'IBAN) e i pagamenti e gli incassi delle fatture (controparte, importo, numero nella causale, anche più fatture pagate insieme); le fatture mostrano la data del pagamento in banca. La lettura ottica usa Tesseract in locale (`vendor/tesseract`).
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
+
+## Novità della versione 1.12: libretto dei trattori
+
+In **Macchinari → Trattori dell'azienda** scegli i tuoi trattori (John Deere 7530 Premium, 7810, 6420S, 5080M, 6800, 6900 e Fendt 724 Vario Profi Plus). Ogni scheda ha:
+
+- **Libretto**: i pezzi da tenere d'occhio, dall'olio motore all'ingrassaggio, divisi per gruppo. Per ognuno vedi quando è stato fatto l'ultima volta e quando va rifatto, a ore o a mesi (vale quello che arriva prima). Toccando un pezzo puoi cambiarne l'intervallo, scrivere il codice del ricambio e vedere lo storico. Gli intervalli di partenza sono indicativi: controllali sul manuale d'uso.
+- **Aggiorna ore**: scrivi le ore del contaore; da lì si aggiungono da sole le ore dei lavori registrati con quel trattore.
+- **Interventi**: tagliandi e riparazioni, con i pezzi cambiati, le voci della fattura e la fattura stessa in foto o PDF.
+- **Leggi fattura**: si apre la pagina di Claude su claude.ai. Fotografi la fattura, Claude legge data, ore, officina, pezzi, codici e totale, tu tocchi **Copia e torna all'app** e l'intervento si compila da solo. Controlli e salvi.
+- **Scadenze**: revisione, assicurazione e altre scadenze tue, come il collaudo del caricatore o l'estintore.
+- **Ricambi**: il catalogo ricambi ufficiale con le tavole esplose (John Deere gratuito; Fendt con le credenziali del concessionario) e i codici già usati sul trattore.
+- **3D**: un trattore esploso. Tocca un gruppo per vedere i suoi pezzi e il loro stato; da un pezzo del libretto, "Vedi nel 3D" lo evidenzia.
+
+**Archivio delle fatture online (una volta sola):** finché non lo attivi, le foto delle fatture restano sul dispositivo dove le hai caricate. Nella scheda Interventi tocca **Copia il codice**, poi in Supabase apri **SQL Editor → New query**, incolla e premi **Run**.
 
 ## Novità della versione 1.11: avviso di stress da caldo
 
@@ -87,7 +102,7 @@ Esporta dal programma della sala di mungitura o dei collari un file CSV con una 
 ## Fonti dei dati
 
 Immagini satellitari Esri World Imagery · NDVI Sentinel-2 © Copernicus tramite il servizio Esri Sentinel-2 Views · Banca dati prodotti fitosanitari © Ministero della Salute · OpenStreetMap · OpenTopoMap · Cartografia catastale © Agenzia delle Entrate (CC BY 4.0, servizio WMS) · Meteo Open-Meteo.com · Ricerca luoghi Nominatim.
-Librerie: Leaflet, Leaflet-Geoman, supabase-js, pdf.js (Mozilla, Apache 2.0), icone Lucide.
+Librerie: Leaflet, Leaflet-Geoman, supabase-js, pdf.js (Mozilla, Apache 2.0), three.js (MIT), icone Lucide. Modello 3D del trattore: "John Deere 8360r" di Miamux02 su Sketchfab (CC BY 4.0), ricolorato e diviso in gruppi.
 
 ## Aggiornare l'app
 
