@@ -7,18 +7,18 @@
 <meta name="robots" content="noindex, nofollow">
 <script>try { if (localStorage.getItem('ces.lock')) document.documentElement.classList.add('app-locked'); } catch (e) { }</script>
 <meta name="description" content="Gestionale per l'azienda agricola e zootecnica: campi sulla mappa con catasto, quaderno di campagna, stalla da latte, magazzino e mezzi.">
-<meta name="theme-color" content="#3E7B52" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0D1411" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F3EFE4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15191E" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Campo e Stalla">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/favicon-64.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..800;1,6..72,400..600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="vendor/geoman/leaflet-geoman.css">
 <link rel="stylesheet" href="css/app.css">
@@ -38,6 +38,7 @@
       <button class="ab-btn sync" id="syncBtn" data-act="nav" data-tab="impostazioni" aria-label="Sincronizzazione"></button>
       <button class="ab-reg" data-act="quick"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>Registra</span></button>
     </header>
+    <nav id="topnav" class="topnav" aria-label="Menu"></nav>
     <main id="view" class="view" tabindex="-1"></main>
     <section id="mapView" class="mapview" hidden><div id="map"></div><div id="mapControls"></div></section>
   </div>

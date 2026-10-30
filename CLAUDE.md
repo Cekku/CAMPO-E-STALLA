@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.13.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.14.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -19,6 +19,14 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 - Mappa: `js/map.js` (Leaflet + Geoman, sfondi Ortofoto FVG / Stradale / Rilievo, catasto AdE WMS, NDVI Sentinel-2), `js/geo.js` (aree, centroidi, import KML/GeoJSON/shapefile).
 - Blocco con codice: `js/lock.js` (PIN con PBKDF2 in localStorage `ces.lock`).
 - Librerie in `vendor/`: leaflet, geoman, supabase-js 2.117.3 (build UMD da npm), **pdf.js 4.10.38 legacy** (`vendor/pdfjs`), **Tesseract.js 6** con lingua italiana (`vendor/tesseract`, lettura ottica in locale), **three.js r128** (`vendor/three`, con GLTFLoader, OrbitControls e RoomEnvironment: solo per il 3D del libretto dei trattori).
+
+## Stile "Quaderno" e menu in alto (dalla 1.14.0)
+
+- Scelto da Marco il 30/10/2026 tra tre proposte (Cruscotto, Quaderno, Bento), disegnate su una tela claude.ai per telefono e PC.
+- Aspetto (`css/app.css`, gettoni in `:root`): carta `--bg` #F3EFE4 a righe (`--rule`, sfondo di `body`), inchiostro `--ink` #1C2530, schede `--surface` più chiare con filetto sottile e senza ombra, angoli 4-8 px. Titoli Newsreader (con le grazie), testo IBM Plex Sans, numeri ed etichette IBM Plex Mono (Google Fonts in `index.html`). `--accent` blu penna #24507A per collegamenti e dettagli, `--action`/`--fab` rosso matita #B33A26 per Registra; `--bad` resta il rosso degli errori. `--cover` = testata scura del menu laterale. Tema scuro "notturno": fondo #15191E, testo crema. Le righe di KPI (`.kpis`) sono un registro: filetti tra le celle fatti con l'ombra a sinistra e sopra di ogni `.kpi`, tagliata dal bordo (`overflow: hidden`, `gap: 1px`), così funziona con qualsiasi numero di celle.
+- Computer (≥ 900 px): niente menu laterale. Sotto la testata (`.appbar`: titolo, annata, cerca, sincronizzazione, Registra) c'è `#topnav` (`topnavHTML()` in `app.js`): aree Campagna/Stalla/Conti, le voci della prima sezione di `MENU` in vista, le altre sezioni a tendina (`.tn-dd`, azione `tnMenu`, si chiudono con un clic fuori o Esc), Installa ed Esporta a destra. Il menu va a capo sugli schermi stretti: un `ResizeObserver` scrive l'altezza in `--tn-h`, che sposta in basso la mappa a tutto schermo (`.mapview`). Contenuto centrato con `--wide` 1360 px e `--pad-x`.
+- Telefono: come prima menu laterale (`#drawer`) e barra in basso (`.bnav`), ristilizzati.
+- `theme-color` e manifest color carta; `apple-mobile-web-app-status-bar-style` = `default` (con la carta chiara il testo bianco di `black-translucent` non si leggeva).
 
 ## Dashboard e agenda (dalla 1.9.0)
 

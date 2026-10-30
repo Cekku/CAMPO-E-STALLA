@@ -1,4 +1,4 @@
-// Avvio, navigazione (menu laterale Campagna/Stalla) e azioni dell'app
+// Avvio, navigazione (menu in alto sul computer, laterale e barra in basso sul telefono) e azioni dell'app
 import { S, UI, D, bus, get, azienda, COLS } from './state.js';
 import { $, $$, esc, N, nf, fd, today, addDays, yearOf, byDate, byName, lsSet, debounce, sum } from './util.js';
 import { ic } from './icons.js';
@@ -75,6 +75,7 @@ function syncPill() { const el = $('#syncBtn'); if (!el) return; const s = syncI
 onSync(() => { syncPill(); schedule(); if (sync.farm && sync.status === 'ok') import('./allegati.js').then(x => x.inviaInSospeso()).catch(() => { }); });
 
 function isCur(tab, sub) { if (UI.tab !== tab) return false; if (!sub) return true; return UI.sub[tab] === sub; }
+const isVoce = (t, s) => isCur(t, s) && !(t === 'magazzino' && !s);
 function drawerHTML() {
   const a = azienda(); const ha = sum(S.campi, campoHa); const si = syncInfo();
   const nAl = allAlerts().filter(x => UI.area === 'stalla' ? ['stalla', 'latte', 'magazzino'].includes(x.area) : x.area !== 'stalla' && x.area !== 'latte').length;
@@ -83,7 +84,7 @@ function drawerHTML() {
   return `<div class="dr-head"><img src="icons/icon-192.png" alt="" width="44" height="44"><div><b>${esc(a.nome || (sync.farm && sync.farm.name) || 'La tua azienda')}</b><span>${sottotitolo}</span></div></div>
   <button class="dr-user" data-act="nav" data-tab="impostazioni"><span class="dr-av">${ic(sync.user ? 'user' : si.icn)}</span><span><b>${esc(sync.user ? sync.user.email : 'Nessun account')}</b><small class="${si.cls}">${esc(si.t)}</small></span>${ic('chevron-right', 'chev')}</button>
   <div class="dr-tiles"><button data-act="syncTile">${ic('refresh-cw')}<span>Sincronizza</span></button><button data-act="nav" data-tab="oggi">${ic('triangle-alert')}<span>Avvisi</span>${nAl ? `<i class="badge">${nAl}</i>` : ''}</button><button data-act="exportSheet">${ic('download')}<span>Esporta</span></button></div>
-  <nav class="dr-nav">${MENU[UI.area].map(([sec, items]) => `<div class="dr-sec">${esc(sec)}</div>` + items.map(([t, s, i, l]) => `<button class="dr-i" data-act="nav" data-tab="${t}"${s ? ` data-sub="${s}"` : ''} aria-current="${isCur(t, s) && !(t === 'magazzino' && !s) ? 'page' : 'false'}">${ic(i)}<span>${esc(l)}</span></button>`).join('')).join('')}
+  <nav class="dr-nav">${MENU[UI.area].map(([sec, items]) => `<div class="dr-sec">${esc(sec)}</div>` + items.map(([t, s, i, l]) => `<button class="dr-i" data-act="nav" data-tab="${t}"${s ? ` data-sub="${s}"` : ''} aria-current="${isVoce(t, s) ? 'page' : 'false'}">${ic(i)}<span>${esc(l)}</span></button>`).join('')).join('')}
   ${canInstall() ? `<button class="dr-i" data-act="install">${ic('smartphone')}<span>Installa l'app</span></button>` : ''}</nav>
   <nav class="dr-areas" aria-label="Area">${aree.map(([k, i, l]) => `<button data-act="area" data-area="${k}" aria-current="${UI.area === k}">${ic(i)}<span>${l}</span></button>`).join('')}</nav>`;
 }
@@ -97,6 +98,22 @@ const BNAV = {
 function bnavHTML() {
   return BNAV[UI.area].map(x => x ? `<button data-act="nav" data-tab="${x[0]}"${x[1] ? ` data-sub="${x[1]}"` : ''} aria-current="${!UI.detail && isCur(x[0], x[1]) ? 'page' : 'false'}">${ic(x[2])}<span>${x[3]}</span></button>` : `<button class="bn-plus" data-act="quick" aria-label="Registra"><span>${ic('plus')}</span></button>`).join('');
 }
+// Menu in alto sul computer: le voci della prima sezione in vista, le altre sezioni a tendina
+function topnavHTML() {
+  const aree = [['campagna', 'Campagna'], ['stalla', 'Stalla'], ...(contiVisibili() ? [['conti', 'Conti']] : [])];
+  const attr = ([t, s]) => `data-act="nav" data-tab="${t}"${s ? ` data-sub="${s}"` : ''} aria-current="${isVoce(t, s) ? 'page' : 'false'}"`;
+  const [[, prime], ...altre] = MENU[UI.area];
+  return `<div class="tn-areas" role="group" aria-label="Area">${aree.map(([k, l]) => `<button data-act="area" data-area="${k}" aria-pressed="${UI.area === k}">${l}</button>`).join('')}</div>
+  ${prime.map(v => `<button class="tn-i" ${attr(v)}>${esc(v[3])}</button>`).join('')}
+  ${altre.map(([sec, items]) => `<div class="tn-dd"><button class="tn-i" data-act="tnMenu" aria-expanded="false" aria-current="${items.some(v => isVoce(v[0], v[1])) ? 'page' : 'false'}">${esc(sec)}${ic('chevron-down')}</button><div class="tn-menu">${items.map(v => `<button class="tn-mi" ${attr(v)}>${ic(v[2])}<span>${esc(v[3])}</span></button>`).join('')}</div></div>`).join('')}
+  <span class="sp"></span>
+  ${canInstall() ? `<button class="tn-i" data-act="install">${ic('smartphone')}Installa</button>` : ''}
+  <button class="tn-i" data-act="exportSheet">${ic('download')}Esporta</button>`;
+}
+const closeTn = () => $$('.tn-dd.open').forEach(x => { x.classList.remove('open'); x.firstElementChild.setAttribute('aria-expanded', 'false'); });
+// l'altezza del menu (va a capo sugli schermi stretti) sposta la mappa a tutto schermo
+if (window.ResizeObserver) new ResizeObserver(([e]) => document.documentElement.style.setProperty('--tn-h', e.target.offsetHeight + 'px')).observe($('#topnav'));
+
 function render() {
   derive();
   if (UI.area === 'conti' && (!contiVisibili() || !['conti', 'impostazioni'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'conti'; }
@@ -104,6 +121,7 @@ function render() {
   document.body.dataset.area = UI.area;
   $('#drawer').innerHTML = drawerHTML();
   $('#bnav').innerHTML = bnavHTML();
+  $('#topnav').innerHTML = topnavHTML();
   syncPill();
   const years = new Set([new Date().getFullYear(), UI.anno]); S.operazioni.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.eventi.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); if (UI.tab === 'conti') { S.fatture.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.bilanci.forEach(b => { if (+b.id) years.add(+b.id); }); S.paghe.forEach(p => { if (+p.anno) years.add(+p.anno); }); const cy = new Date().getFullYear(); for (let y = Math.min(cy - 4, ...years); y <= cy; y++) years.add(y); }
   $('#yearSel').innerHTML = [...years].sort((a, b) => b - a).map(y => `<option value="${y}"${y === UI.anno ? ' selected' : ''}>${y}</option>`).join('');
@@ -307,6 +325,7 @@ async function markDone(id) {
 /* ---------- clic ---------- */
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]');
+  if (!e.target.closest('.tn-dd')) closeTn();
   if (!b) {
     if (e.target.id === 'sheet') closeSheet();
     if (!e.target.closest('#layerMenu,[data-act=mapLayers]')) { const m = $('#layerMenu'); if (m) m.hidden = true; }
@@ -319,6 +338,7 @@ document.addEventListener('click', async e => {
     switch (a) {
       case 'menu': return drawer(true);
       case 'drawerClose': return drawer(false);
+      case 'tnMenu': { const dd = b.parentElement, open = !dd.classList.contains('open'); closeTn(); dd.classList.toggle('open', open); b.setAttribute('aria-expanded', open); return; }
       case 'nav': case 'tab': return setTab(d.tab, d.sub);
       case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'conti' ? 'conti' : 'oggi');
       case 'sub': if (d.tab && UI.tab !== d.tab) { UI.tab = d.tab; UI.detail = null; UI.hist = []; } UI.sub[d.sec] = d.sub; saveUI(); render(); return window.scrollTo(0, 0);
@@ -438,7 +458,7 @@ document.addEventListener('keydown', e => {
     if ((e.key === 'n' || e.key === 'N') && UI.tab !== 'mappa') { e.preventDefault(); return quickSheet(); }
   }
   if (e.key === 'Enter' && e.target.id === 'gq') { e.preventDefault(); const f = $('#gres [data-act]'); if (f) f.click(); return; }
-  if (e.key === 'Escape') { if (sheetOpen()) closeSheet(); else if (document.body.classList.contains('drawer-open')) drawer(false); else if (UI.tab === 'mappa') MAP.endMode(); }
+  if (e.key === 'Escape') { if ($('.tn-dd.open')) closeTn(); else if (sheetOpen()) closeSheet(); else if (document.body.classList.contains('drawer-open')) drawer(false); else if (UI.tab === 'mappa') MAP.endMode(); }
   if (e.key === 'Enter' && e.target.id === 'mapSearch') { e.preventDefault(); MAP.searchPlace(e.target.value); }
 });
 
