@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Campo e Stalla</string>
+    <string name="title_activity_main">Campo e Stalla</string>
+    <string name="package_name">it.cecutti.campoestalla</string>
+    <string name="custom_url_scheme">it.cecutti.campoestalla</string>
+</resources>

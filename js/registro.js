@@ -4,6 +4,7 @@ import { esc, nf, fd, N, addDays, yearOf, byDate, byName, today, okD } from './u
 import { campoHa, cropOf, colturaOf, giac } from './domain.js';
 import { isFitoOp, FITO, operatoreDi, impiegoPer } from './checks.js';
 import { sync } from './store.js';
+import { nativa, stampaHtml } from './nativo.js';
 
 const it = (n, d = 2) => n === null || n === undefined || n === '' ? '' : nf(n, d);
 const opsAnno = (y, f) => S.operazioni.filter(o => o.stato !== 'Pianificata' && yearOf(o.data) === y && f(o)).sort((a, b) => byDate(a, b) || (a.oraInizio || '').localeCompare(b.oraInizio || ''));
@@ -76,6 +77,7 @@ export function registroJSON(y) {
 // Stampa tramite iframe nascosto (funziona anche nell'app installata), con file scaricabile come ripiego
 export function stampaRegistro(y) {
   const html = registroHTML(y);
+  if (nativa) return stampaHtml(html, `Quaderno di campagna ${y}`);
   let fr = document.getElementById('printFrame'); if (fr) fr.remove();
   fr = document.createElement('iframe'); fr.id = 'printFrame'; fr.setAttribute('aria-hidden', 'true');
   fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';

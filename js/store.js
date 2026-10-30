@@ -2,6 +2,7 @@
 import { S, COLS, UI, bus } from './state.js';
 import { uid, lsGet, lsSet, debounce } from './util.js';
 import { CONFIG } from './config.js';
+import { indirizzoPubblico } from './nativo.js';
 
 const DBN = 'campoestalla', VER = 1;
 let idb = null;
@@ -110,8 +111,8 @@ export async function loadMembers() {
   sync.members = data || []; emitSync();
 }
 export async function signIn(email, password) { const { error } = await sb.auth.signInWithPassword({ email, password }); if (error) throw error; }
-export async function signUp(email, password) { const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } }); if (error) throw error; return data; }
-export async function resetPassword(email) { const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname }); if (error) throw error; }
+export async function signUp(email, password) { const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: indirizzoPubblico() } }); if (error) throw error; return data; }
+export async function resetPassword(email) { const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: indirizzoPubblico() }); if (error) throw error; }
 export async function signOut() { await sb.auth.signOut(); stopRealtime(); sync.found = null; sync.locali = 0; }
 
 export async function createFarm(name) {

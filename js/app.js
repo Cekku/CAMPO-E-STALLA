@@ -10,6 +10,8 @@ import { openEdit, openColtura } from './forms.js';
 import { startWizard } from './wizard.js';
 import * as MAP from './map.js';
 import { promptInstall, canInstall } from './install.js';
+import { nativa, alTastoIndietro, controllaAggiornamento } from './nativo.js';
+import { VERSION } from './version.js';
 import { exampleRows } from './esempi.js';
 import { stampaRegistro, registroJSON, registroHTML, righeTrattamenti, scarica } from './registro.js';
 import { initFito, importFito, clearFito } from './fitodb.js';
@@ -518,7 +520,15 @@ setRerender(() => render());
   store.initStore().then(() => { if (q === 'operazione') startWizard(); else if (q === 'latte') openEdit('latte'); else if (q === 'evento') openEdit('eventi'); });
   window.addEventListener('online', () => { syncPill(); schedule(); });
   window.addEventListener('offline', () => { syncPill(); schedule(); });
-  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  alTastoIndietro(puoTornare => {
+    if (sheetOpen()) { closeSheet(); return true; }
+    if (document.body.classList.contains('drawer-open')) { drawer(false); return true; }
+    if (UI.detail) { if (puoTornare) history.back(); else goBack(); return true; }
+    return false;
+  });
+  controllaAggiornamento(VERSION);
+  // nell'app Android i file sono già nel telefono: il service worker servirebbe solo a tenere copie vecchie
+  if ('serviceWorker' in navigator && location.protocol === 'https:' && !nativa) {
     navigator.serviceWorker.register('./sw.js').then(reg => {
       reg.addEventListener('updatefound', () => { const w = reg.installing; if (!w) return; w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(w); }); });
     }).catch(() => { });

@@ -1,1 +1,6 @@
 shots/
+
+# app Android: la chiave di firma non va mai nel repository
+*.jks
+*.keystore
+chiave.properties

@@ -1,0 +1,73 @@
+apply plugin: 'com.android.application'
+
+// Versione presa da js/version.js del sito (es. 1.15.0 → versionCode 11500)
+def versioneSito = (rootProject.file('../../js/version.js').text =~ /VERSION = '([0-9.]+)'/)[0][1]
+def pezzi = versioneSito.tokenize('.').collect { it as int }
+// Chiave di firma: fuori dal repository, nella cartella chiave-android accanto al progetto
+def fileChiave = rootProject.file('../../../chiave-android/chiave.properties')
+def chiave = new Properties()
+if (fileChiave.exists()) fileChiave.withInputStream { chiave.load(it) }
+
+android {
+    signingConfigs {
+        release {
+            if (fileChiave.exists()) {
+                storeFile new File(fileChiave.parentFile, chiave['storeFile'])
+                storePassword chiave['storePassword']
+                keyAlias chiave['keyAlias']
+                keyPassword chiave['keyPassword']
+            }
+        }
+    }
+    namespace = "it.cecutti.campoestalla"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "it.cecutti.campoestalla"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode pezzi[0] * 10000 + pezzi[1] * 100 + pezzi[2]
+        versionName versioneSito
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (fileChiave.exists()) signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

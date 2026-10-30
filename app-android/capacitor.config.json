@@ -1,0 +1,8 @@
+{
+  "appId": "it.cecutti.campoestalla",
+  "appName": "Campo e Stalla",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#F3EFE4"
+  }
+}

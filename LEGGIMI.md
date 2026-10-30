@@ -21,6 +21,16 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.15: app Android vera
+
+Campo e Stalla esiste anche come **app Android** da installare (file APK), con l'icona nuova della Frisona.
+Si scarica dalla pagina principale del progetto su GitHub (pulsante *Scarica l'app Android*): vedi **Installare sul telefono**.
+Dentro l'app:
+- i file esportati (Excel, CSV, copie di sicurezza, allegati) finiscono in **Documenti › Campo e Stalla** del telefono, con il pulsante *Condividi* per mandarli su WhatsApp, mail o Drive;
+- *Stampa / PDF* apre la stampa di Android, dove si sceglie la stampante oppure **Salva come PDF**;
+- il tasto **Indietro** chiude prima il foglio aperto o il menu, poi torna alla pagina precedente;
+- quando esce una versione nuova dell'app compare l'avviso *C'è l'app nuova* con il pulsante *Scarica*.
+
 ## Novità della versione 1.12: libretto dei trattori
 
 In **Macchinari → Trattori dell'azienda** scegli i tuoi trattori (John Deere 7530 Premium, 7810, 6420S, 5080M, 6800, 6900 e Fendt 724 Vario Profi Plus). Ogni scheda ha:
@@ -92,7 +102,10 @@ Dal collegamento passano solo richieste di cartografia catastale pubblica. L'ele
 
 ## Installare sul telefono
 
-- **Android (Chrome)**: apri l'indirizzo, tocca *Installa l'app* nella schermata Oggi o dal menu ⋮ → *Installa app*.
+- **Android, app vera (consigliata)**: dal telefono apri la pagina del progetto su GitHub e tocca *Scarica l'app Android*, poi apri il file `Campo-e-Stalla.apk`. La prima volta Android chiede di permettere l'installazione "da questa fonte" (Chrome o File): consentila e torna indietro. Per gli aggiornamenti si scarica e si apre il file nuovo nello stesso modo: i dati restano.
+  - I dati dell'app non sono gli stessi della versione aperta da Chrome: accedi con il tuo account per scaricarli dalla sincronizzazione, oppure usa *La mia azienda → Scarica copia* in Chrome e *Carica copia* nell'app.
+  - Sui telefoni vecchi (Android 8, per esempio il Mi 5) aggiorna prima **Android System WebView** dal Play Store: l'app la usa per mostrare le pagine.
+- **Android (Chrome), senza installare file**: apri l'indirizzo, tocca *Installa l'app* nella schermata Oggi o dal menu ⋮ → *Installa app*.
 - **iPhone (Safari)**: tocca Condividi → *Aggiungi alla schermata Home*.
 
 ## Dati da Alpro, MooMonitor e altri sistemi di stalla

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs>
+  <linearGradient id="cc" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024"><stop offset="0" stop-color="#8FD3F0"/><stop offset=".62" stop-color="#D9F1F4"/><stop offset=".62" stop-color="#6DB85A"/><stop offset="1" stop-color="#3E8A3E"/></linearGradient>
+  <linearGradient id="testa" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#EDE7DD"/></linearGradient>
+  <linearGradient id="muso" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6C3BA"/><stop offset="1" stop-color="#E79A90"/></linearGradient>
+  <clipPath id="cap"><path d="M512 262 C 640 262 690 330 688 430 C 686 520 664 560 652 620 L372 620 C 360 560 338 520 336 430 C 334 330 384 262 512 262Z"/></clipPath>
+</defs>
+<rect x="-400" y="-400" width="1824" height="1824" fill="url(#cc)"/>
+<circle cx="800" cy="210" r="80" fill="#FFE07A"/>
+<!-- corna -->
+<path d="M392 300 C 352 286 330 250 338 214 C 362 246 392 262 424 268Z" fill="#F1E3C4" stroke="#C9B48A" stroke-width="6"/>
+<path d="M632 300 C 672 286 694 250 686 214 C 662 246 632 262 600 268Z" fill="#F1E3C4" stroke="#C9B48A" stroke-width="6"/>
+<!-- orecchie -->
+<g transform="rotate(-22 300 380)"><ellipse cx="300" cy="380" rx="92" ry="46" fill="#1F2328"/><ellipse cx="308" cy="384" rx="58" ry="24" fill="#E79A90"/></g>
+<g transform="rotate(22 724 380)"><ellipse cx="724" cy="380" rx="92" ry="46" fill="#FFFFFF"/><ellipse cx="716" cy="384" rx="58" ry="24" fill="#E79A90"/></g>
+<!-- testa -->
+<path d="M512 262 C 640 262 690 330 688 430 C 686 520 664 560 652 620 L372 620 C 360 560 338 520 336 430 C 334 330 384 262 512 262Z" fill="url(#testa)"/>
+<g clip-path="url(#cap)">
+  <path d="M300 250 H500 C 520 300 470 330 488 380 C 500 420 470 470 420 500 C 380 520 350 500 330 520 Z" fill="#1F2328"/>
+  <path d="M600 250 C 610 300 660 300 700 280 V360 C 660 360 630 330 600 250Z" fill="#1F2328"/>
+</g>
+<path d="M496 266 C 470 300 520 316 512 340 C 540 316 560 296 532 266Z" fill="#1F2328"/>
+<!-- occhi -->
+<circle cx="430" cy="456" r="26" fill="#14171A"/><circle cx="439" cy="447" r="8" fill="#FFFFFF"/>
+<circle cx="594" cy="456" r="26" fill="#14171A"/><circle cx="603" cy="447" r="8" fill="#FFFFFF"/>
+<!-- muso -->
+<ellipse cx="512" cy="640" rx="178" ry="116" fill="url(#muso)"/>
+<ellipse cx="452" cy="636" rx="26" ry="34" fill="#9C4D47" transform="rotate(-14 452 636)"/>
+<ellipse cx="572" cy="636" rx="26" ry="34" fill="#9C4D47" transform="rotate(14 572 636)"/>
+<path d="M452 704 Q512 732 572 704" fill="none" stroke="#9C4D47" stroke-width="10" stroke-linecap="round"/>
+</svg>

@@ -4,7 +4,7 @@ import { ic } from './icons.js';
 import { openSheet } from './ui.js';
 
 let deferred = null;
-export const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+export const isStandalone = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) || window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 export const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 export const canInstall = () => !isStandalone() && (!!deferred || isIOS());
 

@@ -3,6 +3,7 @@ import { UI, azienda } from '../state.js';
 import { esc, nf, fd } from '../util.js';
 import { ic } from '../icons.js';
 import { scriviXlsx } from './xlsx.js';
+import { nativa, stampaHtml } from '../nativo.js';
 
 const REG = new Map();   // tabelle visibili, per l'esportazione
 export const registro = REG;
@@ -97,6 +98,7 @@ export function stampa(titolo, corpo) {
   tr.sez td { background: #3F7D5A; color: #fff; font-weight: 700; } tr.tot td { background: #CFE3D6; font-weight: 700; border-top: 0.5px solid #9DBFA9; } tr.grp td, tr.bold td { font-weight: 700; }
   thead { display: table-header-group; } footer { margin-top: 12px; color: #6B7A72; font-size: 8.5px; }
   </style></head><body><header><div><h1>${esc(titolo)}</h1><span>${esc(az.nome || '')}${az.iva ? ' · P.IVA ' + esc(az.iva) : ''}</span></div><span>Campo e Stalla · ${new Date().toLocaleDateString('it-IT')}</span></header>${corpo}<footer>Prospetto gestionale: non sostituisce il bilancio redatto dal commercialista.</footer></body></html>`;
+  if (nativa) return stampaHtml(html, titolo);
   let fr = document.getElementById('printFrame'); if (fr) fr.remove();
   fr = document.createElement('iframe'); fr.id = 'printFrame'; fr.setAttribute('aria-hidden', 'true');
   fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
