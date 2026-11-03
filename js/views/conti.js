@@ -4,7 +4,7 @@ import { esc, nf, fd, N, $, $$ } from '../util.js';
 import { ic } from '../icons.js';
 import * as store from '../store.js';
 import { sync } from '../store.js';
-import { toast, closeSheet, arm, empty, tabs } from '../ui.js';
+import { toast, closeSheet, arm, empty, tabs, openSheet } from '../ui.js';
 import { fatture, righe, regole, cfg, pivaPropria, anniFatture, anniBilancio, calc, ind, parametri, bilancio, DA_CLASSIFICARE } from '../conti/dati.js';
 import { REGOLE_PREDEFINITE } from '../conti/regole.js';
 import { tabella, ordina, esporta, fmtVal } from '../conti/tabelle.js';
@@ -209,10 +209,24 @@ async function salvaCategoria(fid, i, cat, el) {
   const f = S.fatture.find(x => x.id === fid); if (!f || !cat) return;
   const righe_ = (f.righe || []).map((r, k) => k === i ? Object.assign({}, r, { categoria: cat, catManuale: true }) : r);
   const { id, ...data } = f; await store.put('fatture', fid, Object.assign(data, { righe: righe_ }));
-  const r = f.righe[i]; const simili = S.fatture.reduce((t, x) => t + (x.righe || []).filter((y, k) => !(x.id === fid && k === i) && y.descrizione === r.descrizione && y.categoria !== cat).length, 0);
-  toast('Categoria salvata');
+  const r = f.righe[i];
+  // impara subito: le righe uguali o quasi uguali classificate in automatico prendono la stessa categoria
+  const { propagaCorrezione } = await import('../conti/importa.js'); const prop = await propagaCorrezione(f.tipo, r.descrizione, cat);
+  const simili = S.fatture.reduce((t, x) => t + (x.righe || []).filter((y, k) => !(x.id === fid && k === i) && y.descrizione === r.descrizione && y.categoria !== cat).length, 0);
+  toast(prop ? `Categoria salvata e applicata anche a ${prop === 1 ? '1 riga simile classificata' : prop + ' righe simili classificate'} in automatico` : 'Categoria salvata');
   const box = $('#catHint');
   if (box && simili) box.innerHTML = `<div class="note-box">${ic('sparkles')}<span>Ci sono altre ${simili} righe con la stessa descrizione. <button class="linkbtn" data-act="c-catAll" data-desc="${esc(r.descrizione)}" data-cat="${esc(cat)}" data-tipo="${f.tipo}">Applica "${esc(cat)}" anche a loro</button> · <button class="linkbtn" data-act="c-catRule" data-desc="${esc(r.descrizione)}" data-cat="${esc(cat)}" data-tipo="${f.tipo}">Crea una regola</button></span></div>`;
+}
+/** Esito della prova di precisione, con lo storico delle prove e gli errori del modello. */
+function schedaProva(es) {
+  const pc = v => es.provate ? Math.round(v / es.provate * 100) + '%' : '—';
+  const st = (cfg().provaIA || []).slice(-8);
+  openSheet('Prova di precisione', `<p>Ho preso <b>${es.provate}</b> righe che avevi già classificato, ho nascosto la categoria e le ho fatte classificare al ${es.motore === 'locale' ? 'modello sul PC' : 'Claude'}, con gli altri tuoi esempi come guida.</p>
+  <div class="kpis"><div class="kpi static"><span class="k-l">Giuste</span><span class="k-v sm">${pc(es.giuste)}</span><span class="k-s">${es.giuste} righe</span></div><div class="kpi static"><span class="k-l">Incerte</span><span class="k-v sm">${pc(es.incerte)}</span><span class="k-s">lasciate da classificare</span></div><div class="kpi static"><span class="k-l">Sbagliate</span><span class="k-v sm">${pc(es.sbagliate)}</span><span class="k-s">${es.sbagliate} righe</span></div></div>
+  ${st.length > 1 ? `<h3 class="sheet-h">Come sta migliorando</h3><div class="list flat">${st.map(p => `<div class="row static"><span class="r-main"><b>${esc(p.data)} · ${p.provate ? Math.round(p.giuste / p.provate * 100) : 0}% giuste</b><span>${p.sbagliate} sbagliate, ${p.incerte} incerte su ${p.provate}</span></span></div>`).join('')}</div>` : ''}
+  ${es.errori.length ? `<h3 class="sheet-h">Dove ha sbagliato</h3><p class="muted small">Se la tua categoria è giusta non serve fare niente: è già un esempio. Se invece aveva ragione il modello, correggi la riga nella fattura.</p><div class="tablewrap etab"><table><thead><tr><th class="t">Controparte</th><th class="t">Descrizione</th><th class="t">Tua categoria</th><th class="t">Modello</th></tr></thead><tbody>${es.errori.slice(0, 100).map(e => `<tr><td class="t">${esc(e.c)}</td><td class="t">${esc(e.d)}</td><td class="t">${esc(e.giusta)}</td><td class="t">${esc(e.modello)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+  <p class="muted small">Più righe classifichi o correggi tu, più esempi ha il modello e più la percentuale sale. Rifai la prova ogni tanto per vederlo.</p>
+  <div class="factions"><span class="sp"></span><button class="btn" data-act="close">Chiudi</button></div>`, { wide: true });
 }
 async function catTutte(desc, cat) {
   const rows = []; for (const f of S.fatture) { let c = false; const rr = (f.righe || []).map(r => { if (r.descrizione === desc && r.categoria !== cat) { c = true; return Object.assign({}, r, { categoria: cat, catManuale: true }); } return r; }); if (c) { const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { righe: rr }) }); } }
@@ -246,15 +260,21 @@ export async function onAct(a, b, d) {
     case 'c-regMove': { const r = leggiRegoleConVuote(); const i = +d.i, j = i + +d.d; if (j < 0 || j >= r.length) return; [r[i], r[j]] = [r[j], r[i]]; await salvaCfg({ regole: r }); return; }
     case 'c-regSave': await salvaCfg({ regole: leggiRegole() }); return toast('Regole salvate');
     case 'c-autoCat': { b.disabled = true; try { const { riapplicaRegole } = await import('../conti/importa.js'); const n = await riapplicaRegole(); const resto = righe().filter(r => r.categoria === DA_CLASSIFICARE).length; toast(n ? (n === 1 ? 'Classificata 1 riga' : `Classificate ${n} righe`) + (resto ? (resto === 1 ? ': ne resta 1' : `: ne restano ${resto}`) : '') : 'Nessuna riga in più riconosciuta dalle regole o dalle categorie già date'); } finally { b.disabled = false; } return; }
-    case 'c-iaCat': {
+    case 'c-iaCat': case 'c-iaRiguarda': case 'c-iaProva': {
       if (IA.attiva) return;
       const motore = d.motore === 'locale' ? 'locale' : 'claude'; const chi = motore === 'locale' ? 'Il modello sul PC' : 'Claude';
-      Object.assign(IA, { attiva: true, motore, viste: 0, totale: 0 }); rerender();
+      const lavoro = a === 'c-iaProva' ? 'prova' : a === 'c-iaRiguarda' ? 'riguarda' : 'nuove';
+      Object.assign(IA, { attiva: true, motore, lavoro, viste: 0, totale: 0 }); rerender();
+      const prog = (viste, totale) => { Object.assign(IA, { viste, totale }); rerender(); };
       try {
-        const { classificaConIA } = await import('../conti/importa.js');
-        const n = await classificaConIA((viste, totale) => { Object.assign(IA, { viste, totale }); rerender(); }, motore);
-        const resto = righe().filter(r => r.categoria === DA_CLASSIFICARE).length;
-        toast(`${chi} ha classificato ${n === 1 ? '1 riga' : n + ' righe'}` + (resto ? `: ne restano ${resto} da guardare a mano` : ''));
+        const M = await import('../conti/importa.js');
+        if (lavoro === 'prova') { const es = await M.provaPrecisione(prog, motore); IA.attiva = false; rerender(); return schedaProva(es); }
+        const r = await M.classificaConIA(prog, motore, lavoro);
+        const resto = righe().filter(x => x.categoria === DA_CLASSIFICARE).length;
+        const mem = r.memoria ? `La memoria ne ha sistemate ${r.memoria} da sola. ` : '';
+        toast(lavoro === 'riguarda'
+          ? mem + `${chi} ha ricontrollato le righe classificate in automatico: ${r.cambiate === 1 ? '1 cambiata' : r.cambiate + ' cambiate'}`
+          : mem + `${chi} ha classificato ${r.fatte === 1 ? '1 riga' : r.fatte + ' righe'}` + (resto ? `: ne restano ${resto} da guardare a mano` : ''));
       } catch (e) { toast(e.message, 'err'); } finally { IA.attiva = false; rerender(); }
       return;
     }

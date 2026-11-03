@@ -11,7 +11,7 @@ import { pareBonifico, leggiBonifici } from './bonifici-parse.js';
 import { pareEstratto } from './banca.js';
 import { unzip } from './zip.js';
 import { leggiXlsx, serialeAData, colLett } from './xlsx.js';
-import { classifica, classificaConMemoria, impara, categorie, REGOLE_PREDEFINITE, RETTIFICA, DA_CLASSIFICARE } from './regole.js';
+import { classifica, classificaConMemoria, impara, categorie, ricordi, indiceRicordi, esempiPer, chiaveSimile, REGOLE_PREDEFINITE, RETTIFICA, DA_CLASSIFICARE } from './regole.js';
 import { cfg, regole, pivaPropria, bilancio } from './dati.js';
 import { CE, SP, CESPITI } from './schema.js';
 import { DATI } from './analisi.js';
@@ -219,45 +219,138 @@ async function chiediModello(motore, sys, testo) {
 }
 
 export const FERMA_IA = { si: false, attiva: false };
-/** Classifica con un modello di linguaggio le righe rimaste "Da classificare". Al modello vanno solo descrizione della riga,
- *  nome della controparte e l'elenco delle categorie: niente importi, partite IVA o altri dati.
- *  Salva dopo ogni blocco (se si ferma, il lavoro fatto resta). Ritorna quante righe sono state classificate. */
-export async function classificaConIA(onProgresso = () => { }, motore = 'claude') {
-  const reg = regole(); let fatte = 0; const passo = motore === 'locale' ? 40 : 120;
+const K = (c, d) => c + '\u0001' + d;
+const categorieTipo = (reg, tipo) => { const cats = new Set(categorie(reg, tipo)); S.fatture.forEach(f => { if (f.tipo === tipo) (f.righe || []).forEach(r => { if (r.categoria && r.categoria !== DA_CLASSIFICARE) cats.add(r.categoria); }); }); return cats; };
+
+/** Chiede al modello un blocco di righe [{ c, d }], mostrandogli gli esempi più simili già classificati.
+ *  Ritorna un array di categorie (DA_CLASSIFICARE se incerto) o null se la risposta non è utilizzabile. */
+async function chiediBlocco(motore, tipo, cats, blocco, idx, escludi = null) {
+  const elenco = [...cats].sort((a, b) => a.localeCompare(b, 'it'));
+  const esempi = esempiPer(blocco, idx, 30, escludi);
+  const chi = tipo === 'Vendita' ? 'cliente' : 'fornitore';
+  const sys = `Classifichi le righe delle fatture di ${tipo === 'Vendita' ? 'vendita' : 'acquisto'} di un'azienda agricola italiana con vacche da latte. Tra parentesi quadre c'è il nome del ${chi}.
+Per ogni riga scegli UNA categoria da questo elenco, scritta esattamente così: ${JSON.stringify(elenco)}.
+${esempi.length ? 'Ti do degli esempi già classificati dall\'agricoltore: seguili, perché mostrano come vuole lui le categorie (stesso prodotto o stesso ' + chi + ' → di solito stessa categoria).\n' : ''}Se nessuna categoria va bene o non sei sicuro, usa "${DA_CLASSIFICARE}". Rispondi SOLO con un array JSON di ${blocco.length} stringhe, una per riga da classificare, nello stesso ordine, senza altro testo.`;
+  const testo = (esempi.length ? 'ESEMPI GIÀ CLASSIFICATI:\n' + esempi.map(e => `- [${e.c}] ${e.d} → ${e.cat}`).join('\n') + '\n\n' : '') +
+    'RIGHE DA CLASSIFICARE:\n' + blocco.map((v, k) => `${k + 1}. [${v.c}] ${v.d}`).join('\n');
+  const txt = await chiediModello(motore, sys, testo);
+  const m = txt.match(/\[[\s\S]*\]/); let arr = null; try { arr = m ? JSON.parse(m[0]) : null; } catch (e) { arr = null; }
+  if (!Array.isArray(arr) || arr.length !== blocco.length) return null; // risposta incompleta: meglio non rischiare abbinamenti sbagliati
+  return arr.map(c => typeof c === 'string' && cats.has(c) ? c : DA_CLASSIFICARE);
+}
+
+/** Classifica con un modello di linguaggio le righe "Da classificare" (modo 'nuove') o ripassa quelle già decise dal modello
+ *  con gli esempi più recenti (modo 'riguarda'). Prima applica regole e memoria (gratis e immediate).
+ *  Al modello vanno solo descrizione della riga, nome della controparte, l'elenco delle categorie e gli esempi
+ *  (descrizione → categoria): niente importi, partite IVA o altri dati. Salva dopo ogni blocco.
+ *  Ritorna { fatte, cambiate, memoria }: righe classificate, righe che hanno cambiato categoria, righe sistemate dalla memoria. */
+export async function classificaConIA(onProgresso = () => { }, motore = 'claude', modo = 'nuove') {
+  const reg = regole(); let fatte = 0, cambiate = 0; const passo = motore === 'locale' ? 40 : 120;
   FERMA_IA.si = false; FERMA_IA.attiva = true;
   try {
+    const memoria = await riapplicaRegole();
     const lavoro = [];
     for (const tipo of ['Acquisto', 'Vendita']) {
-      const cats = new Set(categorie(reg, tipo)); S.fatture.filter(f => f.tipo === tipo).forEach(f => (f.righe || []).forEach(r => { if (r.categoria && r.categoria !== DA_CLASSIFICARE) cats.add(r.categoria); }));
+      const cats = categorieTipo(reg, tipo); const idx = indiceRicordi(ricordi(S.fatture, tipo));
       const voci = new Map();
-      for (const f of S.fatture) if (f.tipo === tipo) for (const r of f.righe || []) if (r.categoria === DA_CLASSIFICARE && !r.catManuale) { const k = f.controparte + '\u0001' + r.descrizione; if (!voci.has(k)) voci.set(k, { c: f.controparte || '', d: r.descrizione || '' }); }
-      const tutte = [...voci.entries()];
-      for (let i = 0; i < tutte.length; i += passo) lavoro.push({ tipo, cats, blocco: tutte.slice(i, i + passo) });
+      for (const f of S.fatture) if (f.tipo === tipo) for (const r of f.righe || []) {
+        if (r.catManuale) continue;
+        if (modo === 'riguarda' ? r.catAuto !== 'ia' : r.categoria !== DA_CLASSIFICARE) continue;
+        const k = K(f.controparte, r.descrizione); if (!voci.has(k)) voci.set(k, { k, c: f.controparte || '', d: r.descrizione || '' });
+      }
+      // righe dello stesso fornitore insieme: gli esempi scelti per il blocco sono più mirati
+      const tutte = [...voci.values()].sort((a, b) => a.c.localeCompare(b.c, 'it') || a.d.localeCompare(b.d, 'it'));
+      for (let i = 0; i < tutte.length; i += passo) lavoro.push({ tipo, cats, idx, blocco: tutte.slice(i, i + passo) });
     }
     const totale = lavoro.reduce((t, x) => t + x.blocco.length, 0); let viste = 0;
-    for (const { tipo, cats, blocco } of lavoro) {
+    for (const { tipo, cats, idx, blocco } of lavoro) {
       if (FERMA_IA.si) break;
       onProgresso(viste, totale);
-      const sys = `Classifichi le righe delle fatture di ${tipo === 'Vendita' ? 'vendita' : 'acquisto'} di un'azienda agricola italiana con vacche da latte. Tra parentesi quadre c'è il nome della ${tipo === 'Vendita' ? 'cliente' : 'fornitore'}.
-Per ogni riga scegli UNA categoria da questo elenco, scritta esattamente così: ${JSON.stringify([...cats].sort((a, b) => a.localeCompare(b, 'it')))}.
-Se nessuna va bene o non sei sicuro, usa "${DA_CLASSIFICARE}". Rispondi SOLO con un array JSON di ${blocco.length} stringhe, una per riga, nello stesso ordine, senza altro testo.`;
-      const txt = await chiediModello(motore, sys, blocco.map(([, v], k) => `${k + 1}. [${v.c}] ${v.d}`).join('\n'));
-      const m = txt.match(/\[[\s\S]*\]/); let arr = []; try { arr = m ? JSON.parse(m[0]) : []; } catch (e) { arr = []; }
+      const arr = await chiediBlocco(motore, tipo, cats, blocco, idx);
       viste += blocco.length;
-      if (arr.length !== blocco.length) continue; // risposta incompleta: meglio non rischiare abbinamenti sbagliati
-      const scelte = new Map(); blocco.forEach(([k], n) => { const c = arr[n]; if (typeof c === 'string' && c !== DA_CLASSIFICARE && cats.has(c)) scelte.set(k, c); });
-      if (!scelte.size) continue;
+      if (!arr) continue;
+      const scelte = new Map(blocco.map((v, n) => [v.k, arr[n]]));
       const rows = [];
       for (const f of S.fatture) {
         if (f.tipo !== tipo) continue; let cambiata = false;
-        const righe = (f.righe || []).map(r => { const c = r.categoria === DA_CLASSIFICARE && !r.catManuale && scelte.get(f.controparte + '\u0001' + r.descrizione); if (!c) return r; cambiata = true; fatte++; return Object.assign({}, r, { categoria: c, catAuto: 'ia' }); });
+        const righe = (f.righe || []).map(r => {
+          if (r.catManuale) return r;
+          const c = scelte.get(K(f.controparte, r.descrizione)); if (!c) return r;
+          if (modo === 'riguarda') {
+            if (r.catAuto !== 'ia' || c === r.categoria) return r;
+            cambiata = true; cambiate++;
+            if (c === DA_CLASSIFICARE) { const x = Object.assign({}, r, { categoria: DA_CLASSIFICARE }); delete x.catAuto; return x; }
+            return Object.assign({}, r, { categoria: c, catAuto: 'ia' });
+          }
+          if (r.categoria !== DA_CLASSIFICARE || c === DA_CLASSIFICARE) return r;
+          cambiata = true; fatte++; return Object.assign({}, r, { categoria: c, catAuto: 'ia' });
+        });
         if (cambiata) { const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { righe }) }); }
       }
       if (rows.length) await store.bulkPut(rows);
     }
     onProgresso(viste, totale);
+    return { fatte, cambiate, memoria };
   } finally { FERMA_IA.attiva = false; }
-  return fatte;
+}
+
+/** Prova di precisione: prende fino a `n` righe classificate a mano (o, se sono poche, dalle regole), nasconde la categoria,
+ *  le fa classificare al modello con gli altri esempi e confronta. Non cambia nessuna fattura.
+ *  Salva l'esito nello storico (cfg.provaIA) per vedere se migliora. */
+export async function provaPrecisione(onProgresso = () => { }, motore = 'locale', n = 100) {
+  const reg = regole(); const passo = motore === 'locale' ? 40 : 120;
+  FERMA_IA.si = false; FERMA_IA.attiva = true;
+  try {
+    let giuste = 0, incerte = 0, provate = 0; const errori = [];
+    const campioni = [];
+    for (const tipo of ['Acquisto', 'Vendita']) {
+      const tutti = ricordi(S.fatture, tipo); const man = tutti.filter(e => e.manuale);
+      const base = man.length >= 20 ? man : tutti;
+      // campione sparso: un po' da ogni controparte, in ordine fisso (così due prove sono confrontabili)
+      const per = new Map(); base.forEach(e => { if (!per.has(e.c)) per.set(e.c, []); per.get(e.c).push(e); });
+      const giri = [...per.values()].map(l => l.sort((a, b) => a.d.localeCompare(b.d, 'it')));
+      const scelti = []; for (let i = 0; scelti.length < n && giri.some(l => l.length > i); i++) for (const l of giri) if (l[i] && scelti.length < n) scelti.push(l[i]);
+      if (scelti.length) campioni.push({ tipo, cats: categorieTipo(reg, tipo), idx: indiceRicordi(tutti), scelti });
+    }
+    // dividi n tra acquisti e vendite in proporzione
+    const tot = campioni.reduce((t, x) => t + x.scelti.length, 0); if (!tot) throw new Error('Per la prova servono righe già classificate da te o dalle regole');
+    campioni.forEach(x => { x.scelti = x.scelti.slice(0, Math.max(1, Math.round(n * x.scelti.length / tot))); });
+    const totale = campioni.reduce((t, x) => t + x.scelti.length, 0);
+    for (const { tipo, cats, idx, scelti } of campioni) {
+      const escludi = new Set(scelti.map(e => e.k));
+      for (let i = 0; i < scelti.length; i += passo) {
+        if (FERMA_IA.si) break;
+        onProgresso(provate, totale);
+        const blocco = scelti.slice(i, i + passo);
+        const arr = await chiediBlocco(motore, tipo, cats, blocco, idx, escludi);
+        provate += blocco.length; if (!arr) { incerte += blocco.length; continue; }
+        blocco.forEach((e, k) => { const c = arr[k]; if (c === e.cat) giuste++; else if (c === DA_CLASSIFICARE) incerte++; else errori.push({ tipo, c: e.c, d: e.d, giusta: e.cat, modello: c }); });
+      }
+    }
+    onProgresso(provate, totale);
+    const esito = { data: new Date().toISOString().slice(0, 16).replace('T', ' '), motore, provate, giuste, incerte, sbagliate: errori.length };
+    if (provate) { const st = (cfg().provaIA || []).concat([esito]).slice(-20); await store.put('econfig', 'cfg', Object.assign({}, cfg(), { provaIA: st })); }
+    return Object.assign({ errori }, esito);
+  } finally { FERMA_IA.attiva = false; }
+}
+
+/** Quando correggi a mano una riga, l'app corregge subito anche le righe con descrizione uguale o quasi uguale
+ *  classificate in automatico (dalla memoria o dal modello), mai quelle scelte a mano. Ritorna quante ne ha cambiate. */
+export async function propagaCorrezione(tipo, descrizione, cat) {
+  const ks = chiaveSimile(descrizione); const d0 = String(descrizione || '').toUpperCase().trim(); if (!ks && !d0) return 0;
+  const rows = []; let n = 0;
+  for (const f of S.fatture) {
+    if (f.tipo !== tipo) continue; let cambiata = false;
+    const righe = (f.righe || []).map(r => {
+      if (r.catManuale || r.categoria === cat || !(r.catAuto || r.categoria === DA_CLASSIFICARE)) return r;
+      const uguale = String(r.descrizione || '').toUpperCase().trim() === d0 || (ks && chiaveSimile(r.descrizione) === ks);
+      if (!uguale) return r;
+      cambiata = true; n++; return Object.assign({}, r, { categoria: cat, catAuto: 'simile' });
+    });
+    if (cambiata) { const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { righe }) }); }
+  }
+  if (rows.length) await store.bulkPut(rows);
+  return n;
 }
 /** Ricalcola Acquisto/Vendita dopo aver cambiato la P.IVA dell'azienda. */
 export async function ricalcolaTipi(piva) {

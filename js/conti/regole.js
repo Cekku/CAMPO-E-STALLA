@@ -190,27 +190,86 @@ export function classifica(descrizione, controparte, regole, tipo = 'Acquisto') 
   return DA_CLASSIFICARE;
 }
 const normDesc = s => String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
-/** Memoria delle categorie già date: stessa descrizione → stessa categoria; fornitore con quasi tutte le righe in una categoria. */
+// parole che non dicono cosa è il prodotto: confezioni, unità di misura, parole di collegamento
+const VUOTE = new Set(('DI DA DEL DELLA DELLO DEI DEGLI DELLE AL ALLA ALLO AI AGLI ALLE PER CON SU IN E ED IL LO LA LE GLI UN UNO UNA ' +
+  'FUSTO FUSTI TANICA TANICHE SACCO SACCHI SACCHETTO SACCHETTI CONF CONFEZIONE CONFEZIONI SCATOLA SCATOLE CARTONE CARTONI FLACONE FLACONI BOTTIGLIA ' +
+  'BIDONE BIDONI SECCHIO SECCHIELLO BUSTA BUSTE BIG BAG BAGS BANCALE PALLET ROTOLO ROTOLI PEZZI PEZZO PZ NR NUM N KG KGS GR G LT LTR L ML MT M CM MM ' +
+  'CF CT TON QL QLI X ART COD RIF DDT ARTICOLO ARTICOLI PRODOTTO PRODOTTI MATERIALE MATERIALI VARIE VARI VARIO VOCE CODICE DESCRIZIONE RIGA ' +
+  'FORNITURA FORNITURE ACQUISTO VENDITA FATTURA NOSTRO VOSTRO VS NS').split(' '));
+/** Parole che contano di una descrizione: maiuscole, senza accenti, numeri, codici, misure e confezioni. */
+export function parole(s) {
+  return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^A-Z0-9]+/)
+    .filter(w => w.length >= 3 && !/\d/.test(w) && !VUOTE.has(w));
+}
+/** Chiave per riconoscere le descrizioni quasi uguali ("OLIO 15W40 FUSTO 20L" e "OLIO 15W40 TANICA 5L" → "OLIO"). */
+export const chiaveSimile = s => [...new Set(parole(s))].sort().join(' ');
+/** Le righe da cui imparare: scelte a mano o dalle regole (non quelle decise in automatico, per non ripetere un errore a catena). */
+export const daImparare = r => r.categoria && r.categoria !== DA_CLASSIFICARE && (r.catManuale || !r.catAuto);
+
+/** Memoria delle categorie già date: stessa descrizione o descrizione quasi uguale → stessa categoria;
+ *  fornitore con quasi tutte le righe in una categoria. */
 export function impara(fatture) {
-  const desc = new Map(), forn = new Map();
+  const desc = new Map(), simili = new Map(), forn = new Map();
+  const conta = (map, k, cat, peso) => { const v = map.get(k) || new Map(); v.set(cat, (v.get(cat) || 0) + peso); map.set(k, v); };
   for (const f of fatture) for (const r of f.righe || []) {
-    if (!r.categoria || r.categoria === DA_CLASSIFICARE || r.catAuto === 'fornitore') continue;
-    const kd = f.tipo + '|' + normDesc(r.descrizione); const vd = desc.get(kd) || new Map(); vd.set(r.categoria, (vd.get(r.categoria) || 0) + (r.catManuale ? 3 : 1)); desc.set(kd, vd);
-    const kf = f.tipo + '|' + normDesc(f.controparte); const vf = forn.get(kf) || new Map(); vf.set(r.categoria, (vf.get(r.categoria) || 0) + 1); forn.set(kf, vf);
+    if (!daImparare(r)) continue;
+    const peso = r.catManuale ? 3 : 1;
+    conta(desc, f.tipo + '|' + normDesc(r.descrizione), r.categoria, peso);
+    const ks = chiaveSimile(r.descrizione); if (ks) conta(simili, f.tipo + '|' + ks, r.categoria, peso);
+    conta(forn, f.tipo + '|' + normDesc(f.controparte), r.categoria, 1);
   }
   const prima = (m, quota, minimo) => { const tot = [...m.values()].reduce((t, n) => t + n, 0); const [c, n] = [...m.entries()].sort((a, b) => b[1] - a[1])[0]; return tot >= minimo && n / tot >= quota ? c : null; };
   return {
     desc: new Map([...desc].map(([k, m]) => [k, prima(m, 0.6, 1)]).filter(x => x[1])),
+    simili: new Map([...simili].map(([k, m]) => [k, prima(m, 0.75, 1)]).filter(x => x[1])),
     forn: new Map([...forn].map(([k, m]) => [k, prima(m, 0.8, 3)]).filter(x => x[1])),
   };
 }
-/** Categoria con le regole e, se nessuna regola corrisponde, con la memoria. Ritorna { categoria, auto } (auto: 'descrizione' | 'fornitore' | ''). */
+/** Categoria con le regole e, se nessuna regola corrisponde, con la memoria.
+ *  Ritorna { categoria, auto } (auto: 'descrizione' | 'simile' | 'fornitore' | ''). */
 export function classificaConMemoria(descrizione, controparte, regole, tipo, mem) {
   const c = classifica(descrizione, controparte, regole, tipo);
   if (c !== DA_CLASSIFICARE || !mem) return { categoria: c, auto: '' };
   const d = mem.desc.get(tipo + '|' + normDesc(descrizione)); if (d) return { categoria: d, auto: 'descrizione' };
+  const ks = chiaveSimile(descrizione); const s = ks && mem.simili && mem.simili.get(tipo + '|' + ks); if (s) return { categoria: s, auto: 'simile' };
   const f = mem.forn.get(tipo + '|' + normDesc(controparte)); if (f) return { categoria: f, auto: 'fornitore' };
   return { categoria: DA_CLASSIFICARE, auto: '' };
+}
+
+/** Esempi già classificati di un tipo (fattura di acquisto o vendita), uno per coppia controparte + descrizione. */
+export function ricordi(fatture, tipo) {
+  const out = new Map();
+  for (const f of fatture) if (f.tipo === tipo) for (const r of f.righe || []) {
+    if (!daImparare(r)) continue;
+    const k = f.controparte + '\u0001' + r.descrizione; const x = out.get(k);
+    if (!x || (r.catManuale && !x.manuale)) out.set(k, { k, c: f.controparte || '', d: r.descrizione || '', cat: r.categoria, manuale: !!r.catManuale, w: parole(r.descrizione) });
+  }
+  return [...out.values()];
+}
+/** Indice per parola e per controparte degli esempi, per trovare in fretta quelli utili a un blocco di righe. */
+export function indiceRicordi(lista) {
+  const perParola = new Map(), perForn = new Map();
+  for (const e of lista) {
+    for (const w of new Set(e.w)) { if (!perParola.has(w)) perParola.set(w, []); perParola.get(w).push(e); }
+    const kf = normDesc(e.c); if (!perForn.has(kf)) perForn.set(kf, []); perForn.get(kf).push(e);
+  }
+  return { perParola, perForn };
+}
+/** Gli esempi più utili per un blocco di righe [{ c, d }]: stessa controparte e parole in comune, prima quelli scelti a mano.
+ *  `escludi` = chiavi da non usare (per la prova di precisione). */
+export function esempiPer(blocco, idx, max = 30, escludi = null) {
+  const punti = new Map();
+  const add = (e, p) => { if (escludi && escludi.has(e.k)) return; punti.set(e, (punti.get(e) || 0) + p); };
+  for (const v of blocco) {
+    for (const e of (idx.perForn.get(normDesc(v.c)) || []).slice(0, 40)) add(e, 2);
+    const ws = new Set(parole(v.d));
+    for (const w of ws) { const l = idx.perParola.get(w) || []; for (const e of l.slice(0, 60)) add(e, (normDesc(e.c) === normDesc(v.c) ? 2 : 1) * (l.length > 200 ? 0.3 : 1)); }
+  }
+  const scelti = [...punti.entries()].map(([e, p]) => [e, p + (e.manuale ? 1 : 0)]).sort((a, b) => b[1] - a[1]);
+  // varietà: al massimo 8 esempi con la stessa categoria e la stessa controparte
+  const out = [], quanti = new Map();
+  for (const [e] of scelti) { const q = e.c + '|' + e.cat; if ((quanti.get(q) || 0) >= 8) continue; quanti.set(q, (quanti.get(q) || 0) + 1); out.push(e); if (out.length >= max) break; }
+  return out;
 }
 /** Elenco delle categorie usate dalle regole, per tipo. */
 export function categorie(regole, tipo) {
