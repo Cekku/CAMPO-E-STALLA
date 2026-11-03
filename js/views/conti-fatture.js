@@ -9,6 +9,10 @@ import { tabella, bottoniExport, fmtVal } from '../conti/tabelle.js';
 import { colonne, linee, barre, torta, PALETTE, COL, coloreAnno } from '../conti/grafici.js';
 import { statoPagamento } from '../conti/banca.js';
 import { aiConfig } from '../nlp.js';
+import { lsGet } from '../util.js';
+
+/** Stato della classificazione con un modello di linguaggio (per mostrare l'avanzamento anche dopo i ridisegni). */
+export const IA = { attiva: false, motore: '', viste: 0, totale: 0 };
 
 export const MESI = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
 const MESI_L = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
@@ -61,7 +65,11 @@ export function vFatture() {
     }) + (fs.length > LIM && !UI.f.cf_tutte ? `<button class="more-btn" data-act="chip" data-f="cf_tutte" data-v="1">Mostra tutte le ${fs.length} fatture</button>` : '');
   }
   const nRighe = righe().filter(r => r.categoria === DA_CLASSIFICARE).length;
-  const boxCat = UI.f.cf_stato === 'daclass' && nRighe ? `<div class="note-box">${ic('sparkles')}<span><b>${nRighe === 1 ? '1 riga' : nf(nRighe) + ' righe'} da classificare (in tutti gli anni).</b> L'app può farlo per te: prima usa le regole e le categorie che hai già dato (stessa descrizione o stesso fornitore), poi, se hai inserito la chiave di Claude, chiede a Claude le righe rimaste. A Claude vanno solo la descrizione della riga e il nome del fornitore, niente importi né partite IVA. Le categorie scelte a mano non cambiano e puoi sempre correggerle.<span class="btns" style="margin-top:8px"><button class="btn sm primary" data-act="c-autoCat">${ic('tags')}Classifica in automatico</button>${aiConfig() && aiConfig().key ? `<button class="btn sm" data-act="c-iaCat">${ic('sparkles')}Chiedi a Claude le righe rimaste</button>` : `<button class="btn sm ghost" data-act="nav" data-tab="impostazioni">${ic('settings')}Inserisci la chiave di Claude</button>`}</span></span></div>` : '';
+  const conClaude = !!(aiConfig() && aiConfig().key), conPc = !!lsGet('ces.llm', null);
+  const bottoniIA = IA.attiva
+    ? `<button class="btn sm" data-act="c-iaStop">${ic('x')}Ferma (${IA.motore === 'locale' ? 'modello sul PC' : 'Claude'}: ${nf(IA.viste)} di ${nf(IA.totale)} righe guardate)</button>`
+    : (conPc ? `<button class="btn sm" data-act="c-iaCat" data-motore="locale">${ic('sparkles')}Classifica con il modello sul PC</button>` : '') + (conClaude ? `<button class="btn sm" data-act="c-iaCat" data-motore="claude">${ic('sparkles')}Chiedi a Claude le righe rimaste</button>` : '') + (!conPc || !conClaude ? `<button class="btn sm ghost" data-act="nav" data-tab="impostazioni">${ic('settings')}${conPc || conClaude ? 'Altre impostazioni' : 'Collega il modello sul PC o Claude'}</button>` : '');
+  const boxCat = UI.f.cf_stato === 'daclass' && nRighe ? `<div class="note-box">${ic('sparkles')}<span><b>${nRighe === 1 ? '1 riga' : nf(nRighe) + ' righe'} da classificare (in tutti gli anni).</b> L'app può farlo per te: prima usa le regole e le categorie che hai già dato (stessa descrizione o stesso fornitore), poi può chiedere le righe rimaste al modello sul tuo PC (LM Studio, gratis, i dati non escono dal computer) o a Claude. Al modello vanno solo la descrizione della riga e il nome del fornitore, niente importi né partite IVA. Il lavoro si salva man mano: puoi fermarlo e riprenderlo. Le categorie scelte a mano non cambiano e puoi sempre correggerle.<span class="btns" style="margin-top:8px"><button class="btn sm primary" data-act="c-autoCat"${IA.attiva ? ' disabled' : ''}>${ic('tags')}Classifica in automatico</button>${bottoniIA}</span></span></div>` : '';
   return `${filtri}${kp}${boxCat}<section class="card"><div class="card-h"><div>${miniTabs('cf_vista', [['fatture', 'Fatture'], ['righe', 'Righe e prodotti']], vista)}</div>${bottoniExport([vista === 'righe' ? 'righe' : 'fatt'], vista === 'righe' ? 'Righe delle fatture ' + UI.anno : 'Fatture ' + UI.anno)}</div>${corpo}</section>${datalistCat()}`;
 }
 

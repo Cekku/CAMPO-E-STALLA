@@ -355,6 +355,7 @@ document.addEventListener('click', async e => {
       case 'quickgo': return quickGo(d.k);
       case 'nlApply': return nlApply();
       case 'moveCapi': return moveSheet(d.src || '');
+      case 'llmForget': try { localStorage.removeItem('ces.llm'); } catch (e) { } toast('Modello sul PC scollegato'); return render();
       case 'aiForget': try { localStorage.removeItem('ces.ai'); } catch (e) { } toast('Chiave rimossa'); return render();
       case 'search': return searchSheet();
       case 'cmdAz': if (d.area !== 'tutte' && d.area !== UI.area) { UI.area = d.area; saveUI(); setTab('oggi'); } return quickGo(d.k);
@@ -471,6 +472,13 @@ document.addEventListener('submit', async e => {
   try {
     if (k === 'lockSet') { toast(await salvaBloccoDaForm($)); }
     if (k === 'azienda') { const a = azienda(); await store.put('config', 'azienda', Object.assign({}, a, { nome: $('#az_nome').value.trim(), asl: $('#az_asl').value.trim(), iva: $('#az_iva').value.trim(), indirizzo: ($('#az_ind') || {}).value?.trim?.() || a.indirizzo || '', lat: $('#az_lat').value.trim().replace(',', '.'), lon: $('#az_lon').value.trim().replace(',', '.'), ettari: ($('#az_ha') || {}).value ? N($('#az_ha').value) : a.ettari || null })); toast('Dati aziendali salvati'); }
+    if (k === 'llmSave') {
+      const url = ($('#llm_url').value.trim() || 'http://localhost:1235').replace(/\/+$/, '');
+      const { modelliLocali } = await import('./conti/importa.js'); const ms = await modelliLocali(url);
+      const model = $('#llm_model').value.trim() || ms[0] || '';
+      if (!model) throw new Error('LM Studio risponde ma non ha nessun modello caricato: caricane uno e riprova');
+      lsSet('ces.llm', { url, model }); toast(`Collegato a ${model}`); render();
+    }
     if (k === 'aiKey') { const key = $('#ai_key').value.trim(); if (key) lsSet('ces.ai', { key, model: $('#ai_model').value.trim() || 'claude-haiku-5-5' }); else try { localStorage.removeItem('ces.ai'); } catch (e) { } toast(key ? 'Chiave salvata su questo dispositivo' : 'Chiave rimossa'); }
     if (k === 'cloudCfg') { const u = $('#cfg_url').value.trim(), key = $('#cfg_key').value.trim(); if (!/^https:\/\/.+/.test(u) || key.length < 20) throw new Error('Controlla URL e chiave: li trovi in Supabase → Project Settings → API.'); store.setCloudConfig(u, key); }
     if (k === 'login') { await store.signIn($('#au_email').value.trim(), $('#au_pw').value); toast('Accesso eseguito'); }

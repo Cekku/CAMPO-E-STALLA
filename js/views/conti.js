@@ -9,7 +9,7 @@ import { fatture, righe, regole, cfg, pivaPropria, anniFatture, anniBilancio, ca
 import { REGOLE_PREDEFINITE } from '../conti/regole.js';
 import { tabella, ordina, esporta, fmtVal } from '../conti/tabelle.js';
 import { colonne, linee, barre, torta, PALETTE, COL } from '../conti/grafici.js';
-import { vFatture, vControparti, vProdotti, vCategorie, vMensile, vLatte, schedaFattura, schedaProdotto, mensili, MESI, ok, miniTabs, datalistCat } from './conti-fatture.js';
+import { vFatture, vControparti, vProdotti, vCategorie, vMensile, vLatte, schedaFattura, schedaProdotto, mensili, MESI, ok, miniTabs, datalistCat, IA } from './conti-fatture.js';
 import { vCE, vSP, vCespiti, vIndici, vAnalisi, vIva, vControlli } from './conti-bilancio.js';
 import { vPersonale, vDipendenti, vCedolini, vPagamenti, vVerifica, vPrestiti, personaleAct, personaleChange, tabellaMovimenti, modificaRiga } from './conti-personale.js';
 import { anomalie as anomaliePaghe } from '../conti/paghe.js';
@@ -246,7 +246,19 @@ export async function onAct(a, b, d) {
     case 'c-regMove': { const r = leggiRegoleConVuote(); const i = +d.i, j = i + +d.d; if (j < 0 || j >= r.length) return; [r[i], r[j]] = [r[j], r[i]]; await salvaCfg({ regole: r }); return; }
     case 'c-regSave': await salvaCfg({ regole: leggiRegole() }); return toast('Regole salvate');
     case 'c-autoCat': { b.disabled = true; try { const { riapplicaRegole } = await import('../conti/importa.js'); const n = await riapplicaRegole(); const resto = righe().filter(r => r.categoria === DA_CLASSIFICARE).length; toast(n ? (n === 1 ? 'Classificata 1 riga' : `Classificate ${n} righe`) + (resto ? (resto === 1 ? ': ne resta 1' : `: ne restano ${resto}`) : '') : 'Nessuna riga in più riconosciuta dalle regole o dalle categorie già date'); } finally { b.disabled = false; } return; }
-    case 'c-iaCat': { b.disabled = true; const t0 = b.innerHTML; try { const { classificaConIA } = await import('../conti/importa.js'); const n = await classificaConIA((i, tot) => { b.textContent = `Claude sta classificando… ${i}/${tot}`; }); const resto = righe().filter(r => r.categoria === DA_CLASSIFICARE).length; toast(`Claude ha classificato ${n} righe` + (resto ? `: ne restano ${resto} da guardare a mano` : '')); } catch (e) { toast(e.message, 'err'); } finally { b.disabled = false; b.innerHTML = t0; } return; }
+    case 'c-iaCat': {
+      if (IA.attiva) return;
+      const motore = d.motore === 'locale' ? 'locale' : 'claude'; const chi = motore === 'locale' ? 'Il modello sul PC' : 'Claude';
+      Object.assign(IA, { attiva: true, motore, viste: 0, totale: 0 }); rerender();
+      try {
+        const { classificaConIA } = await import('../conti/importa.js');
+        const n = await classificaConIA((viste, totale) => { Object.assign(IA, { viste, totale }); rerender(); }, motore);
+        const resto = righe().filter(r => r.categoria === DA_CLASSIFICARE).length;
+        toast(`${chi} ha classificato ${n === 1 ? '1 riga' : n + ' righe'}` + (resto ? `: ne restano ${resto} da guardare a mano` : ''));
+      } catch (e) { toast(e.message, 'err'); } finally { IA.attiva = false; rerender(); }
+      return;
+    }
+    case 'c-iaStop': { const { FERMA_IA } = await import('../conti/importa.js'); FERMA_IA.si = true; return toast('Mi fermo dopo il blocco in corso: il lavoro fatto è già salvato'); }
     case 'c-regApply': { await salvaCfg({ regole: leggiRegole() }); const { riapplicaRegole } = await import('../conti/importa.js'); const n = await riapplicaRegole(); return toast(`Regole riapplicate: ${n} righe cambiate (le categorie scelte a mano restano)`); }
     case 'c-regReset': return arm(b, 'Conferma: torna alle predefinite', async () => { await salvaCfg({ regole: REGOLE_PREDEFINITE.map(r => [...r]) }); toast('Regole predefinite ripristinate'); });
   }

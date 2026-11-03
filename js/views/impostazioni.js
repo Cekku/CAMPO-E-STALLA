@@ -1,7 +1,7 @@
 // Impostazioni: azienda, account e sincronizzazione, installazione, dati
 import { sezioneBlocco } from '../lock.js';
 import { S, azienda } from '../state.js';
-import { esc, fd, nf, okD, today, diff, byName } from '../util.js';
+import { esc, fd, nf, okD, today, diff, byName, lsGet } from '../util.js';
 import { fitoMeta } from '../fitodb.js';
 import { aiConfig } from '../nlp.js';
 import { ic } from '../icons.js';
@@ -63,7 +63,7 @@ export function render() {
   ${sezioneBlocco()}
   ${operatoriSection()}
   ${fitoSection()}
-  ${aiSection()}
+  ${aiSection()}${llmSection()}
   <section class="card set"><div class="set-h">${ic('map')}<div><h2>Mappe</h2><p>In Friuli Venezia Giulia lo sfondo è l'ortofoto ufficiale della Regione, la più nitida, con i colori ritoccati per somigliare a Google Maps. Fuori regione sotto c'è il satellite Esri. In Livelli mappa puoi scegliere anche Stradale e Rilievo.</p></div></div></section>
   ${catastoSection()}
   ${cloudSection()}
@@ -96,6 +96,14 @@ function fitoSection() {
   <div class="btns"><label class="btn ${fitoMeta.n ? '' : 'primary'}">${ic('file-up')}${fitoMeta.n ? 'Aggiorna banca dati' : 'Carica file CSV'}<input type="file" accept=".csv,.txt,text/csv" data-act="fitoImport" hidden></label>${fitoMeta.n ? `<button class="btn ghost danger" data-act="fitoClear">Rimuovi</button>` : ''}<a class="btn ghost" href="https://www.fitosanitari.salute.gov.it/fitosanitariws_new/FitosanitariServlet" target="_blank" rel="noopener">${ic('search')}Etichette sul sito del Ministero</a></div></section>`;
 }
 
+function llmSection() {
+  const c = lsGet('ces.llm', null) || {};
+  return `<section class="card set" id="llm"><div class="set-h">${ic('sparkles')}<div><h2>Modello di intelligenza artificiale sul PC</h2><p>Gratis e privato: se sul computer hai LM Studio (o Ollama) con un modello caricato, l'app lo usa per classificare le righe delle fatture nei Conti. I dati non escono dal computer. Funziona solo su questo PC, con LM Studio aperto.</p>
+  <p class="muted small">Serve il <b>ponte</b>: nella cartella del progetto, in <i>strumenti</i>, fai doppio clic su <b>Avvia ponte LM Studio</b> e lascia aperta la finestra. Il ponte fa entrare solo questa app: LM Studio resta chiuso agli altri siti (non serve "Enable CORS"). Se il browser chiede di "accedere ai dispositivi della rete locale", rispondi Consenti.</p></div></div>
+  <form class="fgrid" data-form-act="llmSave"><label class="fld half"><span class="flabel">Indirizzo</span><div class="inwrap"><input id="llm_url" value="${esc(c.url || 'http://localhost:1235')}" class="mono" autocomplete="off"></div><small>Ponte: http://localhost:1235</small></label>
+  <label class="fld half"><span class="flabel">Modello</span><div class="inwrap"><input id="llm_model" value="${esc(c.model || '')}" placeholder="vuoto = quello caricato" class="mono" autocomplete="off"></div></label>
+  <div class="fld row-btns"><button class="btn" type="submit">${c.model ? 'Ricollega' : 'Collega e prova'}</button>${c.model ? `<span class="muted small">${ic('circle-check')}Collegato a ${esc(c.model)}</span><button class="btn ghost danger" type="button" data-act="llmForget">Scollega</button>` : ''}</div></form></section>`;
+}
 function aiSection() {
   const c = aiConfig() || {};
   return `<section class="card set" id="ai"><div class="set-h">${ic('sparkles')}<div><h2>Registrazione a voce e con testo libero</h2><p>Dal pulsante Registra puoi scrivere o dettare frasi come "ieri diserbo su Pradone 1,5 l/ha". Funziona già senza configurare nulla. Facoltativo: con una chiave API di Anthropic le frasi vengono interpretate da Claude, che capisce anche i modi di dire più liberi (costo di pochi centesimi al mese). La stessa chiave serve per classificare in automatico le righe delle fatture nei Conti.</p></div></div>

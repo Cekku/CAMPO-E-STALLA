@@ -183,45 +183,80 @@ export async function riapplicaRegole() {
   return n;
 }
 
-/** Classifica con Claude le righe rimaste "Da classificare". A Claude vanno solo descrizione della riga, nome della controparte
- *  e l'elenco delle categorie: niente importi, partite IVA o altri dati. Ritorna quante righe sono state classificate. */
-export async function classificaConIA(onProgresso = () => { }) {
-  const { aiConfig } = await import('../nlp.js');
-  const ai = aiConfig(); if (!ai || !ai.key) throw new Error('Manca la chiave API di Anthropic (Impostazioni → Registrazione a voce e con testo libero)');
-  const reg = regole(); let fatte = 0;
-  for (const tipo of ['Acquisto', 'Vendita']) {
-    const cats = new Set(categorie(reg, tipo)); S.fatture.filter(f => f.tipo === tipo).forEach(f => (f.righe || []).forEach(r => { if (r.categoria && r.categoria !== DA_CLASSIFICARE) cats.add(r.categoria); }));
-    const elenco = [...cats].sort((a, b) => a.localeCompare(b, 'it'));
-    const voci = new Map();
-    for (const f of S.fatture) if (f.tipo === tipo) for (const r of f.righe || []) if (r.categoria === DA_CLASSIFICARE && !r.catManuale) { const k = f.controparte + '\u0001' + r.descrizione; if (!voci.has(k)) voci.set(k, { c: f.controparte || '', d: r.descrizione || '' }); }
-    const tutte = [...voci.entries()]; const scelte = new Map();
-    for (let i = 0; i < tutte.length; i += 120) {
-      const blocco = tutte.slice(i, i + 120);
-      onProgresso(Math.min(i + 120, tutte.length), tutte.length, tipo);
-      const sys = `Classifichi le righe delle fatture di ${tipo === 'Vendita' ? 'vendita' : 'acquisto'} di un'azienda agricola italiana con vacche da latte.
-Per ogni riga scegli UNA categoria da questo elenco, scritta esattamente così: ${JSON.stringify(elenco)}.
-Se nessuna va bene o non sei sicuro, usa "${DA_CLASSIFICARE}". Rispondi SOLO con un array JSON di stringhe, una per riga, nello stesso ordine.`;
-      const testo = blocco.map(([, v], k) => `${k + 1}. [${v.c}] ${v.d}`).join('\n');
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': ai.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: ai.model || 'claude-haiku-5-5', max_tokens: 4096, system: sys, messages: [{ role: 'user', content: testo }] }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error('Claude non ha risposto: ' + ((j.error && j.error.message) || r.status));
-      const txt = (j.content || []).map(c => c.text || '').join(''); const m = txt.match(/\[[\s\S]*\]/);
-      let arr = []; try { arr = m ? JSON.parse(m[0]) : []; } catch (e) { arr = []; }
-      blocco.forEach(([k], n) => { const c = arr[n]; if (typeof c === 'string' && c !== DA_CLASSIFICARE && cats.has(c)) scelte.set(k, c); });
-    }
-    if (!scelte.size) continue;
-    const rows = [];
-    for (const f of S.fatture) {
-      if (f.tipo !== tipo) continue; let cambiata = false;
-      const righe = (f.righe || []).map(r => { const c = r.categoria === DA_CLASSIFICARE && !r.catManuale && scelte.get(f.controparte + '\u0001' + r.descrizione); if (!c) return r; cambiata = true; fatte++; return Object.assign({}, r, { categoria: c, catAuto: 'ia' }); });
-      if (cambiata) { const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { righe }) }); }
-    }
-    if (rows.length) await store.bulkPut(rows);
+/* ---------------- classificazione con un modello di linguaggio ---------------- */
+// 'claude': API di Anthropic con la chiave di Impostazioni. 'locale': modello sul PC (LM Studio, Ollama: API compatibile OpenAI).
+export const llmLocale = () => { try { return JSON.parse(localStorage.getItem('ces.llm') || 'null'); } catch (e) { return null; } };
+const togliThink = s => String(s || '').replace(/<think>[\s\S]*?<\/think>/g, '');
+// Di solito si passa dal ponte (strumenti/ponte-lmstudio.py, porta 1235), che lascia entrare solo l'app: LM Studio resta senza CORS.
+const baseLocale = url => String(url || 'http://localhost:1235').trim().replace(/\/+$/, '').replace(/\/v1$/, '');
+const NON_RISPONDE = 'Il modello sul PC non risponde: controlla che LM Studio sia aperto con il server acceso e che il ponte sia avviato (file "Avvia ponte LM Studio" nella cartella strumenti)';
+/** Modelli disponibili sul server locale (senza quelli per gli embedding). */
+export async function modelliLocali(url) {
+  let r; try { r = await fetch(baseLocale(url) + '/v1/models'); } catch (e) { throw new Error(NON_RISPONDE); }
+  const j = await r.json().catch(() => ({})); return (j.data || []).map(m => m.id).filter(id => !/embed/i.test(id));
+}
+async function chiediModello(motore, sys, testo) {
+  if (motore === 'locale') {
+    const c = llmLocale() || {}; const model = c.model || (await modelliLocali(c.url))[0];
+    if (!model) throw new Error('Nessun modello caricato in LM Studio');
+    let r; try {
+      r = await fetch(baseLocale(c.url) + '/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model, temperature: 0, reasoning_effort: 'none', max_tokens: 3000, messages: [{ role: 'system', content: sys }, { role: 'user', content: testo }] }) });
+    } catch (e) { throw new Error(NON_RISPONDE); }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error('Il modello sul PC ha dato errore: ' + ((j.error && (j.error.message || j.error)) || r.status));
+    return togliThink(((j.choices || [])[0] || {}).message?.content);
   }
+  const { aiConfig } = await import('../nlp.js'); const ai = aiConfig();
+  if (!ai || !ai.key) throw new Error('Manca la chiave API di Anthropic (Impostazioni → Registrazione a voce e con testo libero)');
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': ai.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: ai.model || 'claude-haiku-5-5', max_tokens: 4096, system: sys, messages: [{ role: 'user', content: testo }] }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error('Claude non ha risposto: ' + ((j.error && j.error.message) || r.status));
+  return (j.content || []).map(c => c.text || '').join('');
+}
+
+export const FERMA_IA = { si: false, attiva: false };
+/** Classifica con un modello di linguaggio le righe rimaste "Da classificare". Al modello vanno solo descrizione della riga,
+ *  nome della controparte e l'elenco delle categorie: niente importi, partite IVA o altri dati.
+ *  Salva dopo ogni blocco (se si ferma, il lavoro fatto resta). Ritorna quante righe sono state classificate. */
+export async function classificaConIA(onProgresso = () => { }, motore = 'claude') {
+  const reg = regole(); let fatte = 0; const passo = motore === 'locale' ? 40 : 120;
+  FERMA_IA.si = false; FERMA_IA.attiva = true;
+  try {
+    const lavoro = [];
+    for (const tipo of ['Acquisto', 'Vendita']) {
+      const cats = new Set(categorie(reg, tipo)); S.fatture.filter(f => f.tipo === tipo).forEach(f => (f.righe || []).forEach(r => { if (r.categoria && r.categoria !== DA_CLASSIFICARE) cats.add(r.categoria); }));
+      const voci = new Map();
+      for (const f of S.fatture) if (f.tipo === tipo) for (const r of f.righe || []) if (r.categoria === DA_CLASSIFICARE && !r.catManuale) { const k = f.controparte + '\u0001' + r.descrizione; if (!voci.has(k)) voci.set(k, { c: f.controparte || '', d: r.descrizione || '' }); }
+      const tutte = [...voci.entries()];
+      for (let i = 0; i < tutte.length; i += passo) lavoro.push({ tipo, cats, blocco: tutte.slice(i, i + passo) });
+    }
+    const totale = lavoro.reduce((t, x) => t + x.blocco.length, 0); let viste = 0;
+    for (const { tipo, cats, blocco } of lavoro) {
+      if (FERMA_IA.si) break;
+      onProgresso(viste, totale);
+      const sys = `Classifichi le righe delle fatture di ${tipo === 'Vendita' ? 'vendita' : 'acquisto'} di un'azienda agricola italiana con vacche da latte. Tra parentesi quadre c'è il nome della ${tipo === 'Vendita' ? 'cliente' : 'fornitore'}.
+Per ogni riga scegli UNA categoria da questo elenco, scritta esattamente così: ${JSON.stringify([...cats].sort((a, b) => a.localeCompare(b, 'it')))}.
+Se nessuna va bene o non sei sicuro, usa "${DA_CLASSIFICARE}". Rispondi SOLO con un array JSON di ${blocco.length} stringhe, una per riga, nello stesso ordine, senza altro testo.`;
+      const txt = await chiediModello(motore, sys, blocco.map(([, v], k) => `${k + 1}. [${v.c}] ${v.d}`).join('\n'));
+      const m = txt.match(/\[[\s\S]*\]/); let arr = []; try { arr = m ? JSON.parse(m[0]) : []; } catch (e) { arr = []; }
+      viste += blocco.length;
+      if (arr.length !== blocco.length) continue; // risposta incompleta: meglio non rischiare abbinamenti sbagliati
+      const scelte = new Map(); blocco.forEach(([k], n) => { const c = arr[n]; if (typeof c === 'string' && c !== DA_CLASSIFICARE && cats.has(c)) scelte.set(k, c); });
+      if (!scelte.size) continue;
+      const rows = [];
+      for (const f of S.fatture) {
+        if (f.tipo !== tipo) continue; let cambiata = false;
+        const righe = (f.righe || []).map(r => { const c = r.categoria === DA_CLASSIFICARE && !r.catManuale && scelte.get(f.controparte + '\u0001' + r.descrizione); if (!c) return r; cambiata = true; fatte++; return Object.assign({}, r, { categoria: c, catAuto: 'ia' }); });
+        if (cambiata) { const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { righe }) }); }
+      }
+      if (rows.length) await store.bulkPut(rows);
+    }
+    onProgresso(viste, totale);
+  } finally { FERMA_IA.attiva = false; }
   return fatte;
 }
 /** Ricalcola Acquisto/Vendita dopo aver cambiato la P.IVA dell'azienda. */
