@@ -27,9 +27,10 @@ export function contiVisibili() {
   try { return localStorage.getItem('ces.role.' + sync.farm.id) === 'titolare'; } catch (e) { return false; }
 }
 
-const PULIZIA = { fatta: false };
+const PULIZIA = { fatta: false, controlli: false };
 export function render() {
   if (!PULIZIA.fatta && S.pagamenti.length && contiVisibili()) { PULIZIA.fatta = true; import('../conti/paghe.js').then(m => m.eliminaDoppi()).then(n => { if (n) toast(n === 1 ? 'Eliminato 1 pagamento doppio (stessa data, stesso nome, stesso importo)' : `Eliminati ${n} pagamenti doppi (stessa data, stesso nome, stesso importo)`); }).catch(e => console.warn(e)); }
+  if (!PULIZIA.controlli && S.fatture.length && contiVisibili()) { PULIZIA.controlli = true; import('../conti/importa.js').then(m => m.aggiornaControlli()).then(n => { if (n) toast(n === 1 ? '1 fattura con ritenuta d\'acconto ora risulta corretta' : `${n} fatture con ritenuta d'acconto ora risultano corrette`); }).catch(e => console.warn(e)); }
   const sub = SUBS[UI.sub.conti] ? UI.sub.conti : 'panoramica';
   if (!contiVisibili()) return { title: 'Conti', html: `<section class="card lock">${ic('shield-check', 'huge')}<h2>Area riservata al titolare</h2><p class="muted">Fatture, bilancio e margini sono visibili solo a chi ha creato l'azienda. Chiedi al titolare se ti servono questi dati.</p></section>` };
   const V = { panoramica, fatture: vFatture, mancanti: vMancanti, rls: vRls, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, controlli: vControlli, personale: vPersonale, dipendenti: vDipendenti, cedolini: vCedolini, pagamenti: vPagamenti, prestiti: vPrestiti, verifica: vVerifica, regole: vRegole };
@@ -244,6 +245,8 @@ export async function onAct(a, b, d) {
     case 'c-regDel': { const r = leggiRegoleConVuote(); r.splice(+d.i, 1); await salvaCfg({ regole: r }); return; }
     case 'c-regMove': { const r = leggiRegoleConVuote(); const i = +d.i, j = i + +d.d; if (j < 0 || j >= r.length) return; [r[i], r[j]] = [r[j], r[i]]; await salvaCfg({ regole: r }); return; }
     case 'c-regSave': await salvaCfg({ regole: leggiRegole() }); return toast('Regole salvate');
+    case 'c-autoCat': { b.disabled = true; try { const { riapplicaRegole } = await import('../conti/importa.js'); const n = await riapplicaRegole(); const resto = righe().filter(r => r.categoria === DA_CLASSIFICARE).length; toast(n ? (n === 1 ? 'Classificata 1 riga' : `Classificate ${n} righe`) + (resto ? (resto === 1 ? ': ne resta 1' : `: ne restano ${resto}`) : '') : 'Nessuna riga in più riconosciuta dalle regole o dalle categorie già date'); } finally { b.disabled = false; } return; }
+    case 'c-iaCat': { b.disabled = true; const t0 = b.innerHTML; try { const { classificaConIA } = await import('../conti/importa.js'); const n = await classificaConIA((i, tot) => { b.textContent = `Claude sta classificando… ${i}/${tot}`; }); const resto = righe().filter(r => r.categoria === DA_CLASSIFICARE).length; toast(`Claude ha classificato ${n} righe` + (resto ? `: ne restano ${resto} da guardare a mano` : '')); } catch (e) { toast(e.message, 'err'); } finally { b.disabled = false; b.innerHTML = t0; } return; }
     case 'c-regApply': { await salvaCfg({ regole: leggiRegole() }); const { riapplicaRegole } = await import('../conti/importa.js'); const n = await riapplicaRegole(); return toast(`Regole riapplicate: ${n} righe cambiate (le categorie scelte a mano restano)`); }
     case 'c-regReset': return arm(b, 'Conferma: torna alle predefinite', async () => { await salvaCfg({ regole: REGOLE_PREDEFINITE.map(r => [...r]) }); toast('Regole predefinite ripristinate'); });
   }

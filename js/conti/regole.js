@@ -189,6 +189,29 @@ export function classifica(descrizione, controparte, regole, tipo = 'Acquisto') 
   }
   return DA_CLASSIFICARE;
 }
+const normDesc = s => String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
+/** Memoria delle categorie già date: stessa descrizione → stessa categoria; fornitore con quasi tutte le righe in una categoria. */
+export function impara(fatture) {
+  const desc = new Map(), forn = new Map();
+  for (const f of fatture) for (const r of f.righe || []) {
+    if (!r.categoria || r.categoria === DA_CLASSIFICARE || r.catAuto === 'fornitore') continue;
+    const kd = f.tipo + '|' + normDesc(r.descrizione); const vd = desc.get(kd) || new Map(); vd.set(r.categoria, (vd.get(r.categoria) || 0) + (r.catManuale ? 3 : 1)); desc.set(kd, vd);
+    const kf = f.tipo + '|' + normDesc(f.controparte); const vf = forn.get(kf) || new Map(); vf.set(r.categoria, (vf.get(r.categoria) || 0) + 1); forn.set(kf, vf);
+  }
+  const prima = (m, quota, minimo) => { const tot = [...m.values()].reduce((t, n) => t + n, 0); const [c, n] = [...m.entries()].sort((a, b) => b[1] - a[1])[0]; return tot >= minimo && n / tot >= quota ? c : null; };
+  return {
+    desc: new Map([...desc].map(([k, m]) => [k, prima(m, 0.6, 1)]).filter(x => x[1])),
+    forn: new Map([...forn].map(([k, m]) => [k, prima(m, 0.8, 3)]).filter(x => x[1])),
+  };
+}
+/** Categoria con le regole e, se nessuna regola corrisponde, con la memoria. Ritorna { categoria, auto } (auto: 'descrizione' | 'fornitore' | ''). */
+export function classificaConMemoria(descrizione, controparte, regole, tipo, mem) {
+  const c = classifica(descrizione, controparte, regole, tipo);
+  if (c !== DA_CLASSIFICARE || !mem) return { categoria: c, auto: '' };
+  const d = mem.desc.get(tipo + '|' + normDesc(descrizione)); if (d) return { categoria: d, auto: 'descrizione' };
+  const f = mem.forn.get(tipo + '|' + normDesc(controparte)); if (f) return { categoria: f, auto: 'fornitore' };
+  return { categoria: DA_CLASSIFICARE, auto: '' };
+}
 /** Elenco delle categorie usate dalle regole, per tipo. */
 export function categorie(regole, tipo) {
   const s = new Set(regole.filter(r => !r[3] || r[3] === tipo).map(r => r[2]));

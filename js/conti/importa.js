@@ -2,7 +2,7 @@
 // vecchio file Excel del conto economico. Prima si leggono e si mostra l'anteprima, poi si salvano.
 import { S } from '../state.js';
 import * as store from '../store.js';
-import { leggiFileFattura } from './fatture-parse.js';
+import { leggiFileFattura, controlloTotale } from './fatture-parse.js';
 import { leggiDichiarazioneIva, riepilogoIva, IVA_VOCI } from './iva-parse.js';
 import { leggiBilancino, interpreta, calcolaCe } from './bilancino-parse.js';
 import { leggiPdf, testoPagina } from './pdftext.js';
@@ -11,7 +11,7 @@ import { pareBonifico, leggiBonifici } from './bonifici-parse.js';
 import { pareEstratto } from './banca.js';
 import { unzip } from './zip.js';
 import { leggiXlsx, serialeAData, colLett } from './xlsx.js';
-import { classifica, REGOLE_PREDEFINITE, RETTIFICA } from './regole.js';
+import { classifica, classificaConMemoria, impara, categorie, REGOLE_PREDEFINITE, RETTIFICA, DA_CLASSIFICARE } from './regole.js';
 import { cfg, regole, pivaPropria, bilancio } from './dati.js';
 import { CE, SP, CESPITI } from './schema.js';
 import { DATI } from './analisi.js';
@@ -114,7 +114,7 @@ export function preparaFatture(lette) {
     const conta = {}; (em.length ? em.map(p => [p, 1]) : lette.flatMap(f => [[f.pivaFornitore, 1], [f.pivaCliente, 1.01]])).forEach(([p, w]) => { if (p) conta[p] = (conta[p] || 0) + w; });
     propria = Object.entries(conta).sort((a, b) => b[1] - a[1]).map(x => x[0])[0] || '';
   }
-  const reg = regole();
+  const reg = regole(); const mem = impara(S.fatture);
   return {
     propria, records: lette.map(f => {
       const s = f.segno; const vendita = !!propria && f.pivaFornitore === propria;
@@ -122,12 +122,25 @@ export function preparaFatture(lette) {
       const scad = f.pagamenti.map(p => p.scadenza).filter(Boolean).sort();
       return {
         id: idFattura(f.chiave), chiave: f.chiave, data: f.data, tipo, controparte, piva, tipoDoc: f.tipoDoc, numero: f.numero,
-        imponibile: s * f.imponibile, iva: s * f.iva, totale: s * (f.totale || 0), pagamento: (f.pagamenti[0] || {}).modalita || '', scadenza: scad[scad.length - 1] || null,
+        imponibile: s * f.imponibile, iva: s * f.iva, totale: s * (f.totale || 0), ...(f.ritenuta ? { ritenuta: s * f.ritenuta } : {}), pagamento: (f.pagamenti[0] || {}).modalita || '', scadenza: scad[scad.length - 1] || null,
         controllo: f.controllo, file: f.file, fonte: f.fonte, caricata: new Date().toISOString().slice(0, 10),
-        righe: f.righe.map(r => ({ codice: r.codice, descrizione: r.descrizione, categoria: classifica(r.descrizione, controparte, reg, tipo), quantita: r.quantita != null ? s * r.quantita : null, um: r.um, prezzo: r.prezzo, sconto: r.sconto, aliquota: r.aliquota, importo: s * (r.importo || 0), ddt: r.ddt })),
+        righe: f.righe.map(r => { const c = classificaConMemoria(r.descrizione, controparte, reg, tipo, mem); return { codice: r.codice, descrizione: r.descrizione, categoria: c.categoria, ...(c.auto ? { catAuto: c.auto } : {}), quantita: r.quantita != null ? s * r.quantita : null, um: r.um, prezzo: r.prezzo, sconto: r.sconto, aliquota: r.aliquota, importo: s * (r.importo || 0), ddt: r.ddt }; }),
       };
     }),
   };
+}
+/** Rifà il controllo dei totali sulle fatture già salvate (es. ritenuta d'acconto riconosciuta dopo). Ritorna quante sono diventate OK. */
+export async function aggiornaControlli() {
+  const rows = [];
+  for (const f of S.fatture) {
+    if (!String(f.controllo || '').startsWith('totale ≠')) continue;
+    const s = (f.imponibile || 0) < 0 || (f.totale || 0) < 0 ? -1 : 1;
+    const c = controlloTotale(s * (f.totale || 0), s * (f.imponibile || 0), s * (f.iva || 0), s * (f.ritenuta || 0));
+    if (!c.controllo.startsWith('OK')) continue;
+    const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { controllo: c.controllo, ritenuta: s * c.ritenuta }) });
+  }
+  if (rows.length) await store.bulkPut(rows);
+  return rows.length;
 }
 /** Salva le fatture: salta i doppioni, sostituisce quelle già presenti ma incomplete tenendo le categorie scelte a mano. */
 export async function salvaFatture(lette) {
@@ -151,16 +164,65 @@ export async function salvaFatture(lette) {
   if (propria && !cfg().piva) await store.put('econfig', 'cfg', Object.assign({}, cfg(), { piva: propria }));
   return { nuove, doppie, corrette };
 }
-/** Riapplica le regole a tutte le righe non corrette a mano. */
+/** Riapplica le regole (e la memoria delle categorie già date) a tutte le righe non corrette a mano.
+ *  Le righe classificate dall'IA restano se nessuna regola le cambia. */
 export async function riapplicaRegole() {
-  const reg = regole(); const rows = []; let n = 0;
+  const reg = regole(); const mem = impara(S.fatture); const rows = []; let n = 0;
   for (const f of S.fatture) {
     let cambiata = false;
-    const righe = (f.righe || []).map(r => { if (r.catManuale) return r; const c = classifica(r.descrizione, f.controparte, reg, f.tipo); if (c !== r.categoria) { cambiata = true; n++; return Object.assign({}, r, { categoria: c }); } return r; });
+    const righe = (f.righe || []).map(r => {
+      if (r.catManuale) return r;
+      const c = classificaConMemoria(r.descrizione, f.controparte, reg, f.tipo, mem);
+      if (c.categoria === DA_CLASSIFICARE && r.catAuto === 'ia') return r;
+      if (c.categoria === r.categoria) return r;
+      cambiata = true; n++; const x = Object.assign({}, r, { categoria: c.categoria }); if (c.auto) x.catAuto = c.auto; else delete x.catAuto; return x;
+    });
     if (cambiata) { const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { righe }) }); }
   }
   if (rows.length) await store.bulkPut(rows);
   return n;
+}
+
+/** Classifica con Claude le righe rimaste "Da classificare". A Claude vanno solo descrizione della riga, nome della controparte
+ *  e l'elenco delle categorie: niente importi, partite IVA o altri dati. Ritorna quante righe sono state classificate. */
+export async function classificaConIA(onProgresso = () => { }) {
+  const { aiConfig } = await import('../nlp.js');
+  const ai = aiConfig(); if (!ai || !ai.key) throw new Error('Manca la chiave API di Anthropic (Impostazioni → Registrazione a voce e con testo libero)');
+  const reg = regole(); let fatte = 0;
+  for (const tipo of ['Acquisto', 'Vendita']) {
+    const cats = new Set(categorie(reg, tipo)); S.fatture.filter(f => f.tipo === tipo).forEach(f => (f.righe || []).forEach(r => { if (r.categoria && r.categoria !== DA_CLASSIFICARE) cats.add(r.categoria); }));
+    const elenco = [...cats].sort((a, b) => a.localeCompare(b, 'it'));
+    const voci = new Map();
+    for (const f of S.fatture) if (f.tipo === tipo) for (const r of f.righe || []) if (r.categoria === DA_CLASSIFICARE && !r.catManuale) { const k = f.controparte + '\u0001' + r.descrizione; if (!voci.has(k)) voci.set(k, { c: f.controparte || '', d: r.descrizione || '' }); }
+    const tutte = [...voci.entries()]; const scelte = new Map();
+    for (let i = 0; i < tutte.length; i += 120) {
+      const blocco = tutte.slice(i, i + 120);
+      onProgresso(Math.min(i + 120, tutte.length), tutte.length, tipo);
+      const sys = `Classifichi le righe delle fatture di ${tipo === 'Vendita' ? 'vendita' : 'acquisto'} di un'azienda agricola italiana con vacche da latte.
+Per ogni riga scegli UNA categoria da questo elenco, scritta esattamente così: ${JSON.stringify(elenco)}.
+Se nessuna va bene o non sei sicuro, usa "${DA_CLASSIFICARE}". Rispondi SOLO con un array JSON di stringhe, una per riga, nello stesso ordine.`;
+      const testo = blocco.map(([, v], k) => `${k + 1}. [${v.c}] ${v.d}`).join('\n');
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': ai.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: ai.model || 'claude-haiku-5-5', max_tokens: 4096, system: sys, messages: [{ role: 'user', content: testo }] }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error('Claude non ha risposto: ' + ((j.error && j.error.message) || r.status));
+      const txt = (j.content || []).map(c => c.text || '').join(''); const m = txt.match(/\[[\s\S]*\]/);
+      let arr = []; try { arr = m ? JSON.parse(m[0]) : []; } catch (e) { arr = []; }
+      blocco.forEach(([k], n) => { const c = arr[n]; if (typeof c === 'string' && c !== DA_CLASSIFICARE && cats.has(c)) scelte.set(k, c); });
+    }
+    if (!scelte.size) continue;
+    const rows = [];
+    for (const f of S.fatture) {
+      if (f.tipo !== tipo) continue; let cambiata = false;
+      const righe = (f.righe || []).map(r => { const c = r.categoria === DA_CLASSIFICARE && !r.catManuale && scelte.get(f.controparte + '\u0001' + r.descrizione); if (!c) return r; cambiata = true; fatte++; return Object.assign({}, r, { categoria: c, catAuto: 'ia' }); });
+      if (cambiata) { const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { righe }) }); }
+    }
+    if (rows.length) await store.bulkPut(rows);
+  }
+  return fatte;
 }
 /** Ricalcola Acquisto/Vendita dopo aver cambiato la P.IVA dell'azienda. */
 export async function ricalcolaTipi(piva) {

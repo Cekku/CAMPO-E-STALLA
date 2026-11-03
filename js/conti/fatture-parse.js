@@ -387,9 +387,29 @@ export function leggiFatturaXml(bytes, p7m = false) {
     });
     const riep = tutti(body, 'DatiRiepilogo').map(r => ({ aliquota: F(T(r, 'AliquotaIVA')) || 0, imponibile: F(T(r, 'ImponibileImporto')) || 0, imposta: F(T(r, 'Imposta')) || 0, natura: T(r, 'Natura') }));
     const pag = tutti(body, 'DettaglioPagamento').map(p => ({ modalita: T(p, 'ModalitaPagamento'), scadenza: D(T(p, 'DataScadenzaPagamento')), importo: F(T(p, 'ImportoPagamento')) }));
-    out.push({ fornitore, pivaFornitore: pivaF, cliente, pivaCliente: pivaC, tipoDoc: T(gen, 'TipoDocumento'), numero: T(gen, 'Numero'), data: D(T(gen, 'Data')), righe, riepiloghi: riep, pagamenti: pag, totale: F(T(gen, 'ImportoTotaleDocumento')), avvisi: [], fonte: 'xml' });
+    const rit = r2(figli(gen, 'DatiRitenuta').reduce((t, d) => t + (F(T(d, 'ImportoRitenuta')) || 0), 0));
+    out.push({ fornitore, pivaFornitore: pivaF, cliente, pivaCliente: pivaC, tipoDoc: T(gen, 'TipoDocumento'), numero: T(gen, 'Numero'), data: D(T(gen, 'Data')), righe, riepiloghi: riep, pagamenti: pag, totale: F(T(gen, 'ImportoTotaleDocumento')), ritenuta: rit || 0, avvisi: [], fonte: 'xml' });
   }
   return out;
+}
+
+const eu = v => v.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Ritenuta d'acconto che spiega un totale più basso di imponibile + IVA (veterinari, agronomi, professionisti):
+ *  20% (o 23%, 4%, 11,5%) sul compenso, con la cassa previdenziale del 2% (ENPAV) o del 4% già dentro l'imponibile. */
+export function ritenutaDa(diff, imponibile, ritenutaLetta = 0) {
+  const r = r2(-diff); if (!(r > 0.05) || !(imponibile > 0)) return 0;
+  if (ritenutaLetta && Math.abs(ritenutaLetta - r) <= 0.05) return r;
+  for (const cassa of [0, 2, 4]) for (const al of [20, 23, 4, 11.5]) if (Math.abs(r2(imponibile / (1 + cassa / 100) * al / 100) - r) <= 0.02) return r;
+  return 0;
+}
+/** Esito del controllo "totale = imponibile + IVA" (il bollo di 2 € e la ritenuta d'acconto sono normali). */
+export function controlloTotale(totale, imponibile, iva, ritenutaLetta = 0) {
+  const diff = r2((totale || 0) - imponibile - iva);
+  if (Math.abs(diff) <= 0.05 || Math.abs(Math.abs(diff) - 2) <= 0.01) return { controllo: 'OK', ritenuta: 0 };
+  const rit = ritenutaDa(diff, imponibile, ritenutaLetta) || ritenutaDa(r2(diff + 2), imponibile, ritenutaLetta);
+  if (rit) return { controllo: `OK (ritenuta d'acconto ${eu(rit)})`, ritenuta: rit };
+  return { controllo: `totale ≠ imponibile + IVA (diff. ${eu(diff)})`, ritenuta: 0 };
 }
 
 /** Totali, controllo di quadratura, segno e chiave univoca (come completa() di estrai_fatture). */
@@ -398,12 +418,10 @@ export function completa(f) {
   if (f.riepiloghi.length) { f.imponibile = r2(f.riepiloghi.reduce((t, r) => t + r.imponibile, 0)); f.iva = r2(f.riepiloghi.reduce((t, r) => t + r.imposta, 0)); }
   else { f.imponibile = somma; f.iva = f.totale != null ? r2((f.totale || somma) - somma) : 0; }
   if (f.totale == null) f.totale = r2(f.imponibile + f.iva);
-  const eu = v => v.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (!f.riepiloghi.length) f.controllo = f.righe.length ? 'OK (imponibile dalle righe)' : 'riepilogo IVA non trovato';
   else if (Math.abs(somma - f.imponibile) <= 0.05) {
-    f.controllo = 'OK';
-    const diff = r2((f.totale || 0) - f.imponibile - f.iva);
-    if (Math.abs(diff) > 0.05 && Math.abs(Math.abs(diff) - 2) > 0.01) f.controllo = `totale ≠ imponibile + IVA (diff. ${eu(diff)})`;
+    const c = controlloTotale(f.totale, f.imponibile, f.iva, f.ritenuta);
+    f.controllo = c.controllo; if (c.ritenuta) f.ritenuta = c.ritenuta;
   } else f.controllo = `righe ${eu(somma)} ≠ imponibile ${eu(f.imponibile)}`;
   for (const r of f.righe) { const a = r.aliquota; if (typeof a === 'string' && /^\d+([.,]\d+)?$/.test(a.trim())) r.aliquota = parseFloat(a.trim().replace(',', '.')); }
   f.segno = NOTE_CREDITO.has(f.tipoDoc) ? -1 : 1;
