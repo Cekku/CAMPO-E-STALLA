@@ -24,6 +24,38 @@ const r2 = v => Math.round(v * 100) / 100;
 export function miniTabs(f, items, cur) { return `<div class="mini-tabs" role="group">${items.map(([v, l]) => `<button data-act="chip" data-f="${f}" data-v="${esc(v)}" aria-pressed="${cur === v}">${esc(l)}</button>`).join('')}</div>`; }
 export const datalistCat = () => ['Acquisto', 'Vendita'].map(t => { const s = new Set(categorie(regole(), t)); righe().filter(r => r.tipo === t && !r.rett).forEach(r => s.add(r.categoria)); s.add(DA_CLASSIFICARE); return `<datalist id="dlcat-${t}">${[...s].sort((a, b) => a.localeCompare(b, 'it')).map(c => `<option value="${esc(c)}">`).join('')}</datalist>`; }).join('');
 
+/** Righe classificate in automatico (memoria o modello) che non hai ancora confermato o corretto. */
+export const daConfermare = r => !!r.catAuto && !r.catManuale && r.categoria && r.categoria !== DA_CLASSIFICARE;
+const COME = { ia: 'scelta dall\'IA', simile: 'simile a una tua', descrizione: 'stessa descrizione di una tua', fornitore: 'come le altre del fornitore' };
+const bottoneConferma = (fid, i) => `<button class="iconbtn sm" data-act="c-confRiga" data-fid="${fid}" data-i="${i}" title="Conferma: è giusta" aria-label="Conferma la categoria">${ic('check')}</button>`;
+
+/** Righe da confermare raggruppate per categoria e controparte: si scorre una categoria e si vede subito la riga fuori posto. */
+function vistaConferma(fs) {
+  const gruppi = new Map();
+  for (const f of fs) (f.righe || []).forEach(r => {
+    if (!daConfermare(r) || (UI.f.cf_cat && r.categoria !== UI.f.cf_cat)) return;
+    const k = [f.tipo, r.categoria, f.controparte].join('\u0001');
+    if (!gruppi.has(k)) gruppi.set(k, { tipo: f.tipo, cat: r.categoria, cp: f.controparte || '', desc: new Map(), n: 0 });
+    const g = gruppi.get(k); g.n++;
+    const u = g.desc.get(r.descrizione) || { d: r.descrizione, n: 0, come: r.catAuto }; u.n++; g.desc.set(r.descrizione, u);
+  });
+  if (!gruppi.size) return `<div class="empty slim">Nessuna riga da confermare${UI.f.cf_anni === 'tutti' ? '' : ' in quest\'anno (prova "Tutti gli anni")'}.</div>`;
+  const lista = [...gruppi.values()].sort((a, b) => a.tipo.localeCompare(b.tipo) || a.cat.localeCompare(b.cat, 'it') || b.n - a.n);
+  const LIM = UI.f.cf_tutte ? 1e9 : 40;
+  let html = '', cat = null;
+  lista.slice(0, LIM).forEach((g, gi) => {
+    if (g.cat + g.tipo !== cat) { if (cat !== null) html += '</tbody></table></div>'; cat = g.cat + g.tipo; html += `<h3 class="sheet-h" style="margin:18px 0 6px">${esc(g.cat)} <span class="muted small">${g.tipo === 'Vendita' ? 'vendite' : 'acquisti'}</span></h3><div class="tablewrap etab blk"><table><thead><tr><th class="t">Controparte</th><th class="t">Descrizione</th><th class="n">Righe</th><th class="t">Come è stata scelta</th><th class="t">Categoria</th><th class="t"></th></tr></thead><tbody>`; }
+    const ds = [...g.desc.values()].sort((a, b) => b.n - a.n);
+    const dati = `data-tipo="${esc(g.tipo)}" data-cp="${esc(g.cp)}"`;
+    ds.forEach((u, k) => {
+      html += `<tr class="b${gi % 2}${k === ds.length - 1 ? ' end' : ''}">${k === 0 ? `<td class="h" rowspan="${ds.length}">${esc(g.cp)}<small>${g.n === 1 ? '1 riga' : g.n + ' righe'}</small><button class="btn sm" style="margin-top:6px" data-act="c-confGruppo" ${dati} data-cat="${esc(g.cat)}">${ic('check')}Conferma tutte</button></td>` : ''}<td class="t">${esc(u.d)}</td><td class="n">${u.n}</td><td class="t"><span class="muted small">${esc(COME[u.come] || u.come)}</span></td><td class="t"><input class="cell-in cell-cat" list="dlcat-${g.tipo}" value="${esc(g.cat)}" data-act="c-catDesc" ${dati} data-desc="${esc(u.d)}" aria-label="Categoria"></td><td class="t"><button class="iconbtn sm" data-act="c-confDesc" ${dati} data-desc="${esc(u.d)}" title="Conferma: è giusta" aria-label="Conferma la categoria">${ic('check')}</button></td></tr>`;
+    });
+  });
+  html += '</tbody></table></div>';
+  const tot = lista.reduce((t, g) => t + g.n, 0);
+  return `<p class="muted small" style="margin:0 0 4px">${nf(tot)} righe classificate in automatico da controllare. Se la categoria è giusta premi ${ic('check')} (o "Conferma tutte" per il fornitore); se è sbagliata scrivi quella giusta: in tutti e due i casi la riga diventa un tuo esempio e l'IA impara.</p>${html}${lista.length > LIM ? `<button class="more-btn" data-act="chip" data-f="cf_tutte" data-v="1">Mostra tutti i ${lista.length} gruppi</button>` : ''}`;
+}
+
 /* ---------------- fatture ---------------- */
 function filtra() {
   const t = tipoF(), q = (UI.f.cf_q || '').toLowerCase().trim(), cp = UI.f.cf_cp || '', st = UI.f.cf_stato || '', cat = UI.f.cf_cat || '', m = +(UI.f.cf_mese || 0);
@@ -32,6 +64,7 @@ function filtra() {
   if (q) fs = fs.filter(f => [f.controparte, f.numero, f.piva, f.file].some(x => String(x || '').toLowerCase().includes(q)) || (f.righe || []).some(r => String(r.descrizione || '').toLowerCase().includes(q) || String(r.codice || '').toLowerCase().includes(q)));
   if (st === 'verifica') fs = fs.filter(f => !ok(f));
   if (st === 'daclass') fs = fs.filter(f => (f.righe || []).some(r => r.categoria === DA_CLASSIFICARE));
+  if (st === 'daconf') fs = fs.filter(f => (f.righe || []).some(daConfermare));
   if (cat) fs = fs.filter(f => (f.righe || []).some(r => r.categoria === cat));
   if (st === 'nonpagate') fs = fs.filter(f => ['da pagare', 'scaduta', 'in parte'].includes(statoPagamento(f).stato));
   if (st === 'pagate') fs = fs.filter(f => ['pagata', 'in parte'].includes(statoPagamento(f).stato));
@@ -44,15 +77,17 @@ export function vFatture() {
   const cats = [...new Set(righe().filter(r => !tipoF() || r.tipo === tipoF()).map(r => r.categoria))].sort((a, b) => a.localeCompare(b, 'it'));
   const tot = k => r2(fs.reduce((t, f) => t + N(f[k]), 0));
   const daVer = fatture().filter(f => !ok(f)).length, daCl = fatture().filter(f => (f.righe || []).some(r => r.categoria === DA_CLASSIFICARE)).length;
+  const daConf = S.fatture.reduce((t, f) => t + (f.righe || []).filter(daConfermare).length, 0);
   const filtri = `<div class="toolbar">${miniTabs('cf_tipo', [['', 'Tutte'], ['Acquisto', 'Acquisti'], ['Vendita', 'Vendite']], tipoF())}
     <div class="search">${ic('search')}<input class="inp" id="cfq" data-filter="cf_q" placeholder="Controparte, numero, prodotto" value="${esc(UI.f.cf_q || '')}" autocomplete="off"></div>
     <select class="inp" data-filter="cf_cp" aria-label="Controparte"><option value="">Tutte le controparti</option>${cps.map(c => `<option${c === UI.f.cf_cp ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>
     <select class="inp" data-filter="cf_cat" aria-label="Categoria"><option value="">Tutte le categorie</option>${cats.map(c => `<option${c === UI.f.cf_cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>
     <select class="inp" data-filter="cf_mese" aria-label="Mese"><option value="">Tutti i mesi</option>${MESI_L.map((m, i) => `<option value="${i + 1}"${+UI.f.cf_mese === i + 1 ? ' selected' : ''}>${m}</option>`).join('')}</select></div>
-  <div class="chipbar"><button data-act="chip" data-f="cf_anni" data-v="${UI.f.cf_anni === 'tutti' ? '' : 'tutti'}" aria-pressed="${UI.f.cf_anni === 'tutti'}">Tutti gli anni</button><button data-act="chip" data-f="cf_stato" data-v="" aria-pressed="${!UI.f.cf_stato}">Tutte</button><button data-act="chip" data-f="cf_stato" data-v="verifica" aria-pressed="${UI.f.cf_stato === 'verifica'}">Da verificare<span class="n">${daVer}</span></button><button data-act="chip" data-f="cf_stato" data-v="daclass" aria-pressed="${UI.f.cf_stato === 'daclass'}">Righe da classificare<span class="n">${daCl}</span></button>${S.fatture.some(f => (f.pagamentiBanca || []).length) ? `<button data-act="chip" data-f="cf_stato" data-v="pagate" aria-pressed="${UI.f.cf_stato === 'pagate'}">${tipoF() === 'Vendita' ? 'Incassate' : 'Pagate'} in banca</button><button data-act="chip" data-f="cf_stato" data-v="nonpagate" aria-pressed="${UI.f.cf_stato === 'nonpagate'}">Senza ${tipoF() === 'Vendita' ? 'incasso' : 'pagamento'} in banca</button>` : ''}${UI.f.cf_cp || UI.f.cf_cat || UI.f.cf_q || UI.f.cf_mese ? `<button data-act="c-cfreset">${ic('x')}Togli i filtri</button>` : ''}</div>`;
+  <div class="chipbar"><button data-act="chip" data-f="cf_anni" data-v="${UI.f.cf_anni === 'tutti' ? '' : 'tutti'}" aria-pressed="${UI.f.cf_anni === 'tutti'}">Tutti gli anni</button><button data-act="chip" data-f="cf_stato" data-v="" aria-pressed="${!UI.f.cf_stato}">Tutte</button><button data-act="chip" data-f="cf_stato" data-v="verifica" aria-pressed="${UI.f.cf_stato === 'verifica'}">Da verificare<span class="n">${daVer}</span></button><button data-act="chip" data-f="cf_stato" data-v="daclass" aria-pressed="${UI.f.cf_stato === 'daclass'}">Righe da classificare<span class="n">${daCl}</span></button>${daConf || UI.f.cf_stato === 'daconf' ? `<button data-act="chip" data-f="cf_stato" data-v="daconf" aria-pressed="${UI.f.cf_stato === 'daconf'}">Da confermare<span class="n">${nf(daConf)}</span></button>` : ''}${S.fatture.some(f => (f.pagamentiBanca || []).length) ? `<button data-act="chip" data-f="cf_stato" data-v="pagate" aria-pressed="${UI.f.cf_stato === 'pagate'}">${tipoF() === 'Vendita' ? 'Incassate' : 'Pagate'} in banca</button><button data-act="chip" data-f="cf_stato" data-v="nonpagate" aria-pressed="${UI.f.cf_stato === 'nonpagate'}">Senza ${tipoF() === 'Vendita' ? 'incasso' : 'pagamento'} in banca</button>` : ''}${UI.f.cf_cp || UI.f.cf_cat || UI.f.cf_q || UI.f.cf_mese ? `<button data-act="c-cfreset">${ic('x')}Togli i filtri</button>` : ''}</div>`;
   const kp = `<div class="kpis"><div class="kpi static"><span class="k-l">Fatture</span><span class="k-v sm">${nf(fs.length)}</span><span class="k-s">${UI.f.cf_anni === 'tutti' ? 'tutti gli anni' : UI.anno}</span></div><div class="kpi static"><span class="k-l">Imponibile</span><span class="k-v sm">${fmtVal(tot('imponibile'), 'eur')}</span><span class="k-s">IVA esclusa</span></div><div class="kpi static"><span class="k-l">IVA</span><span class="k-v sm">${fmtVal(tot('iva'), 'eur')}</span><span class="k-s">&nbsp;</span></div><div class="kpi static"><span class="k-l">Totale documenti</span><span class="k-v sm">${fmtVal(tot('totale'), 'eur')}</span><span class="k-s">IVA compresa</span></div></div>`;
   let corpo;
-  if (vista === 'righe') corpo = registroRighe(fs);
+  if (UI.f.cf_stato === 'daconf') corpo = vistaConferma(fs);
+  else if (vista === 'righe') corpo = registroRighe(fs);
   else {
     const LIM = UI.f.cf_lim || 200;
     corpo = tabella('fatt', {
@@ -95,7 +130,7 @@ function registroRighe(fs) {
       const last = i === rs.length - 1; const cls = `b${b % 2}${last ? ' end' : fineDdt.has(i) ? ' dend' : ''}`;
       const head = i === 0 ? `<td class="h" rowspan="${rs.length}">${fd(f.data)}</td><td class="h" rowspan="${rs.length}">${esc(f.controparte)}<small>${esc(f.tipo)} · ${esc(f.piva || '')}</small></td><td class="h" rowspan="${rs.length}">${esc(f.numero)}<small>${esc(f.tipoDoc || '')}</small></td>` : '';
       const g = inizioDdt.get(i); const ddt = g ? `<td class="h rd" rowspan="${g.n}">${esc(g.ddt) || '<span class="muted">—</span>'}</td>` : '';
-      const catCell = r.rett ? `<td class="t rett">${esc(r.categoria)}</td>` : `<td class="t"><input class="cell-in cell-cat" list="dlcat-${r.tipo}" value="${esc(r.categoria)}" data-act="c-cat" data-fid="${r.fid}" data-i="${r.i}" aria-label="Categoria"></td>`;
+      const catCell = r.rett ? `<td class="t rett">${esc(r.categoria)}</td>` : `<td class="t"><span style="display:flex;gap:4px;align-items:center"><input class="cell-in cell-cat" list="dlcat-${r.tipo}" value="${esc(r.categoria)}" data-act="c-cat" data-fid="${r.fid}" data-i="${r.i}" aria-label="Categoria"${daConfermare(r) ? ` title="${esc(COME[r.catAuto] || '')}: da confermare"` : ''}>${daConfermare(r) ? bottoneConferma(r.fid, r.i) : ''}</span></td>`;
       html += `<tr class="${cls}">${head}${ddt}<td class="t">${esc(r.codice || '')}</td><td class="t${r.rett ? ' rett' : ''}">${esc(r.descrizione)}</td>${catCell}<td class="n">${fmtVal(r.quantita, 'qta')}</td><td class="t">${esc(r.um || '')}</td><td class="n">${fmtVal(r.prezzo, 'eur4')}</td><td class="t">${esc(r.sconto || '')}</td><td class="n">${r.aliquota !== '' && r.aliquota != null ? esc(String(r.aliquota)) : ''}</td><td class="n${r.importo < 0 ? ' neg' : ''}">${fmtVal(r.importo, 'eur2')}</td><td class="n">${fmtVal(r.quantita ? r.importo / r.quantita : null, 'eur4')}</td></tr>`;
     });
     b++;
@@ -112,11 +147,11 @@ export function schedaFattura(id) {
   const fact = (l, v) => `<div><dt>${esc(l)}</dt><dd>${v}</dd></div>`;
   openSheet(`${f.tipo === 'Vendita' ? 'Fattura di vendita' : 'Fattura di acquisto'} n. ${f.numero}`, `
   <dl class="inv-head">${fact(f.tipo === 'Vendita' ? 'Cliente' : 'Fornitore', esc(f.controparte))}${fact('P.IVA', esc(f.piva || '—'))}${fact('Data', fd(f.data))}${fact('Tipo documento', esc(f.tipoDoc || '—'))}${fact('Imponibile', fmtVal(f.imponibile, 'eur2'))}${fact('IVA', fmtVal(f.iva, 'eur2'))}${fact('Totale', fmtVal(f.totale, 'eur2'))}${f.ritenuta ? fact("Ritenuta d'acconto", fmtVal(f.ritenuta, 'eur2')) : ''}${fact('Pagamento', esc(f.pagamento || '—'))}${fact('Scadenza', fd(f.scadenza))}${fact('Controllo', ok(f) ? `<span class="esito ok">${ic('circle-check')}OK</span>` : `<span class="esito ko">${esc(f.controllo)}</span>`)}${fact('File', esc(f.file || '—'))}${fact('Letta da', esc(f.fonte === 'xml' ? 'XML fattura elettronica' : f.fonte === 'pdf' ? 'PDF' : f.fonte === 'excel' ? 'file Excel' : '—'))}</dl>
-  <div class="tablewrap etab blk"><table><thead><tr><th class="t">DDT</th><th class="t">Codice</th><th class="t">Descrizione</th><th class="t">Categoria</th><th class="n">Quantità</th><th class="t">UM</th><th class="n">Prezzo</th><th class="t">Sconto</th><th class="n">% IVA</th><th class="n">Importo</th></tr></thead><tbody>${rs.map(r => `<tr><td class="t">${esc(r.ddt || '')}</td><td class="t">${esc(r.codice || '')}</td><td class="t${r.rett ? ' rett' : ''}">${esc(r.descrizione)}</td><td class="t">${r.rett ? esc(r.categoria) : `<input class="cell-in cell-cat" list="dlcat-${f.tipo}" value="${esc(r.categoria)}" data-act="c-cat" data-fid="${f.id}" data-i="${r.i}" data-sheet="1" aria-label="Categoria">`}</td><td class="n">${fmtVal(r.quantita, 'qta')}</td><td class="t">${esc(r.um || '')}</td><td class="n">${fmtVal(r.prezzo, 'eur4')}</td><td class="t">${esc(r.sconto || '')}</td><td class="n">${esc(String(r.aliquota ?? ''))}</td><td class="n">${fmtVal(r.importo, 'eur2')}</td></tr>`).join('')}</tbody></table></div>
+  <div class="tablewrap etab blk"><table><thead><tr><th class="t">DDT</th><th class="t">Codice</th><th class="t">Descrizione</th><th class="t">Categoria</th><th class="n">Quantità</th><th class="t">UM</th><th class="n">Prezzo</th><th class="t">Sconto</th><th class="n">% IVA</th><th class="n">Importo</th></tr></thead><tbody>${rs.map(r => `<tr><td class="t">${esc(r.ddt || '')}</td><td class="t">${esc(r.codice || '')}</td><td class="t${r.rett ? ' rett' : ''}">${esc(r.descrizione)}</td><td class="t">${r.rett ? esc(r.categoria) : `<span style="display:flex;gap:4px;align-items:center"><input class="cell-in cell-cat" list="dlcat-${f.tipo}" value="${esc(r.categoria)}" data-act="c-cat" data-fid="${f.id}" data-i="${r.i}" data-sheet="1" aria-label="Categoria">${daConfermare(r) ? bottoneConferma(f.id, r.i) : ''}</span>${daConfermare(r) ? `<small class="muted">${esc(COME[r.catAuto] || '')}</small>` : ''}`}</td><td class="n">${fmtVal(r.quantita, 'qta')}</td><td class="t">${esc(r.um || '')}</td><td class="n">${fmtVal(r.prezzo, 'eur4')}</td><td class="t">${esc(r.sconto || '')}</td><td class="n">${esc(String(r.aliquota ?? ''))}</td><td class="n">${fmtVal(r.importo, 'eur2')}</td></tr>`).join('')}</tbody></table></div>
   ${(f.pagamentiBanca || []).length ? `<h3 class="sheet-h">${f.tipo === 'Vendita' ? 'Incassi' : 'Pagamenti'} dall'estratto conto</h3><div class="list flat">${f.pagamentiBanca.map(p => `<div class="row"><span class="r-icon">${ic('landmark')}</span><span class="r-main"><b>${fd(p.data)} · ${fmtVal(p.importo, 'eur2')}</b><span>${esc(p.descrizione || '')}</span></span><button class="btn sm ghost" data-act="c-fpTogli" data-id="${f.id}" data-mov="${esc(p.mov)}">${ic('x')}Togli</button></div>`).join('')}</div><p class="muted small">${(s => s.stato === 'pagata' ? (f.tipo === 'Vendita' ? 'Incassata' : 'Pagata') + ' per intero.' : 'Restano ' + fmtVal(s.residuo, 'eur2') + '.')(statoPagamento(f))}</p>` : ''}
   <div id="catHint"></div>${datalistCat()}
   <p class="muted small">La categoria che scegli qui resta anche se rileggi la fattura. Per correggere tutte le righe simili usa le <button class="linkbtn" data-act="sub" data-tab="conti" data-sec="conti" data-sub="regole">regole delle categorie</button>.</p>
-  <div class="factions"><button class="btn ghost danger" data-act="c-delfatt" data-id="${f.id}">${ic('trash-2')}Elimina fattura</button><span class="sp"></span><button class="btn" data-act="close">Chiudi</button></div>`, { wide: true });
+  <div class="factions"><button class="btn ghost danger" data-act="c-delfatt" data-id="${f.id}">${ic('trash-2')}Elimina fattura</button><span class="sp"></span>${(f.righe || []).some(daConfermare) ? `<button class="btn primary" data-act="c-confFatt" data-fid="${f.id}">${ic('check')}${(n => n === 1 ? 'Conferma la riga automatica' : `Conferma le ${n} righe automatiche`)((f.righe || []).filter(daConfermare).length)}</button>` : ''}<button class="btn" data-act="close">Chiudi</button></div>`, { wide: true });
 }
 
 function statoHtml(f) {

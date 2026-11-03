@@ -9,7 +9,7 @@ import { fatture, righe, regole, cfg, pivaPropria, anniFatture, anniBilancio, ca
 import { REGOLE_PREDEFINITE } from '../conti/regole.js';
 import { tabella, ordina, esporta, fmtVal } from '../conti/tabelle.js';
 import { colonne, linee, barre, torta, PALETTE, COL } from '../conti/grafici.js';
-import { vFatture, vControparti, vProdotti, vCategorie, vMensile, vLatte, schedaFattura, schedaProdotto, mensili, MESI, ok, miniTabs, datalistCat, IA } from './conti-fatture.js';
+import { vFatture, vControparti, vProdotti, vCategorie, vMensile, vLatte, schedaFattura, schedaProdotto, mensili, MESI, ok, miniTabs, datalistCat, IA, daConfermare } from './conti-fatture.js';
 import { vCE, vSP, vCespiti, vIndici, vAnalisi, vIva, vControlli } from './conti-bilancio.js';
 import { vPersonale, vDipendenti, vCedolini, vPagamenti, vVerifica, vPrestiti, personaleAct, personaleChange, tabellaMovimenti, modificaRiga } from './conti-personale.js';
 import { anomalie as anomaliePaghe } from '../conti/paghe.js';
@@ -217,6 +217,31 @@ async function salvaCategoria(fid, i, cat, el) {
   const box = $('#catHint');
   if (box && simili) box.innerHTML = `<div class="note-box">${ic('sparkles')}<span>Ci sono altre ${simili} righe con la stessa descrizione. <button class="linkbtn" data-act="c-catAll" data-desc="${esc(r.descrizione)}" data-cat="${esc(cat)}" data-tipo="${f.tipo}">Applica "${esc(cat)}" anche a loro</button> · <button class="linkbtn" data-act="c-catRule" data-desc="${esc(r.descrizione)}" data-cat="${esc(cat)}" data-tipo="${f.tipo}">Crea una regola</button></span></div>`;
 }
+/** Conferma le righe classificate in automatico che passano il test: diventano scelte tue (esempi per l'IA, mai più cambiate). */
+async function confermaRighe(test) {
+  const rows = []; let n = 0;
+  for (const f of S.fatture) {
+    let c = false;
+    const rr = (f.righe || []).map((r, i) => { if (!daConfermare(r) || !test(f, r, i)) return r; c = true; n++; return Object.assign({}, r, { catManuale: true, catConfermata: true }); });
+    if (c) { const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { righe: rr }) }); }
+  }
+  if (rows.length) await store.bulkPut(rows);
+  return n;
+}
+/** Nuova categoria a tutte le righe con questa descrizione e questa controparte (dalla vista "Da confermare"). */
+async function catDesc(tipo, cp, desc, cat) {
+  const rows = []; let n = 0;
+  for (const f of S.fatture) {
+    if (f.tipo !== tipo || (f.controparte || '') !== cp) continue; let c = false;
+    const rr = (f.righe || []).map(r => { if (r.descrizione !== desc || (r.catManuale && r.categoria === cat)) return r; c = true; n++; return Object.assign({}, r, { categoria: cat, catManuale: true }); });
+    if (c) { const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { righe: rr }) }); }
+  }
+  if (rows.length) await store.bulkPut(rows);
+  const { propagaCorrezione } = await import('../conti/importa.js'); const prop = await propagaCorrezione(tipo, desc, cat);
+  toast((n === 1 ? 'Corretta 1 riga' : `Corrette ${n} righe`) + (prop ? ` e ${prop === 1 ? '1 riga simile' : prop + ' righe simili'}` : '') + (n === 1 && !prop ? ': ora è un tuo esempio' : ': ora sono tuoi esempi'));
+}
+const msgConf = n => toast(n ? `${n === 1 ? 'Confermata 1 riga' : `Confermate ${n} righe`}: l'IA le userà come esempi` : 'Niente da confermare');
+
 /** Esito della prova di precisione, con lo storico delle prove e gli errori del modello. */
 function schedaProva(es) {
   const pc = v => es.provate ? Math.round(v / es.provate * 100) + '%' : '—';
@@ -260,6 +285,10 @@ export async function onAct(a, b, d) {
     case 'c-regMove': { const r = leggiRegoleConVuote(); const i = +d.i, j = i + +d.d; if (j < 0 || j >= r.length) return; [r[i], r[j]] = [r[j], r[i]]; await salvaCfg({ regole: r }); return; }
     case 'c-regSave': await salvaCfg({ regole: leggiRegole() }); return toast('Regole salvate');
     case 'c-autoCat': { b.disabled = true; try { const { riapplicaRegole } = await import('../conti/importa.js'); const n = await riapplicaRegole(); const resto = righe().filter(r => r.categoria === DA_CLASSIFICARE).length; toast(n ? (n === 1 ? 'Classificata 1 riga' : `Classificate ${n} righe`) + (resto ? (resto === 1 ? ': ne resta 1' : `: ne restano ${resto}`) : '') : 'Nessuna riga in più riconosciuta dalle regole o dalle categorie già date'); } finally { b.disabled = false; } return; }
+    case 'c-confRiga': { const n = await confermaRighe((f, r, i) => f.id === d.fid && i === +d.i); msgConf(n); if (b.closest('#sheet')) schedaFattura(d.fid); return; }
+    case 'c-confFatt': { const n = await confermaRighe(f => f.id === d.fid); msgConf(n); return schedaFattura(d.fid); }
+    case 'c-confGruppo': return msgConf(await confermaRighe((f, r) => f.tipo === d.tipo && (f.controparte || '') === d.cp && r.categoria === d.cat));
+    case 'c-confDesc': return msgConf(await confermaRighe((f, r) => f.tipo === d.tipo && (f.controparte || '') === d.cp && r.descrizione === d.desc));
     case 'c-iaCat': case 'c-iaRiguarda': case 'c-iaProva': {
       if (IA.attiva) return;
       const motore = d.motore === 'locale' ? 'locale' : 'claude'; const chi = motore === 'locale' ? 'Il modello sul PC' : 'Claude';
@@ -293,6 +322,7 @@ export async function onChange(t) {
   if ((a === 'c-pMovSel' || a === 'c-pMovSet') && t.dataset.k != null) { const x = IMP.ris[+t.dataset.k]; if (x && x.righe) modificaRiga(x.righe, t); return rerender(); }
   if (/^c-p[A-Z]/.test(a || '')) return personaleChange(t, rerender);
   if (a === 'c-cat') return salvaCategoria(t.dataset.fid, +t.dataset.i, t.value.trim(), t);
+  if (a === 'c-catDesc') { const v = t.value.trim(); if (v) return catDesc(t.dataset.tipo, t.dataset.cp, t.dataset.desc, v); return; }
   if (a === 'c-impAnno') { const x = IMP.ris[+t.dataset.k]; if (x) x.anno = +t.value || null; return; }
   if (a === 'c-conto') { const cu = Object.assign({}, cfg().contiUtente || {}); cu[t.dataset.conto] = +t.value; await salvaCfg({ contiUtente: cu }); const { riabbinaBilancino } = await import('../conti/importa.js'); for (const y of anniBilancio()) await riabbinaBilancino(y); return toast('Abbinamento salvato e applicato ai bilancini'); }
   if (a === 'c-val') {
