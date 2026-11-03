@@ -21,6 +21,11 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.16: fatture mancanti e reddito lordo standard
+
+- **Conti → Fatture mancanti**: carichi il file Excel con l'elenco di tutte le fatture dell'anno (per esempio `passive_2025.xlsx` per quelle ricevute; va bene anche quello delle emesse) e l'app lo confronta con le fatture che hai caricato. Ti dice quali **mancano**, quali hanno un **totale o una data diversi** e quali hai caricato ma **non sono nell'elenco**. Le fatture si abbinano per partita IVA e numero: spazi, barre e trattini non contano ("1257 /FT-A" = "1257/FT-A"). Le fatture mancanti compaiono anche in Panoramica, tra le cose da sistemare. L'elenco serve solo al controllo: non aggiunge fatture all'archivio.
+- **Conti → Bilancio → RLS e spese varie**: il calcolo del corso "Gestione economica dell'azienda agraria". **PLV** = vendite senza IVA e senza PAC (fatture emesse + corrispettivi); **reddito lordo standard** = PLV − spese varie − affitti dei terreni − salari pagati; **spese varie / PLV** con la media del 25% e l'allarme oltre il 40%; RLS con e senza PAC; ROI se scrivi il capitale investito. Per ogni categoria di fattura scegli se è spesa varia, investimento (escluso), affitto o se non conta.
+
 ## Novità della versione 1.15: app Android vera
 
 Campo e Stalla esiste anche come **app Android** da installare (file APK), con l'icona nuova della Frisona.

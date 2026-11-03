@@ -15,6 +15,7 @@ import { classifica, REGOLE_PREDEFINITE, RETTIFICA } from './regole.js';
 import { cfg, regole, pivaPropria, bilancio } from './dati.js';
 import { CE, SP, CESPITI } from './schema.js';
 import { DATI } from './analisi.js';
+import { trovaElenco } from './elenco.js';
 
 const r2 = v => Math.round(v * 100) / 100;
 export function idFattura(chiave) { let h = 0x811c9dc5; for (let i = 0; i < chiave.length; i++) { h ^= chiave.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return 'f' + h.toString(36) + chiave.length.toString(36); }
@@ -26,7 +27,12 @@ export async function leggiDocumento(nome, bytes, out = []) {
   const low = nome.toLowerCase(); const testa = lat1(bytes);
   try {
     if (testa.startsWith('PK')) {
-      if (/\.xlsx$|\.xlsm$/.test(low)) { out.push(Object.assign({ tipo: 'excel', nome }, await leggiExcel(bytes))); return out; }
+      if (/\.xlsx$|\.xlsm$/.test(low)) {
+        // elenco annuale delle fatture (es. passive_2025.xlsx) oppure vecchio modello del conto economico
+        const W = await leggiXlsx(bytes); const el = trovaElenco(W, nome);
+        if (el) { out.push(Object.assign({ tipo: 'elenco', nome }, el)); return out; }
+        out.push(Object.assign({ tipo: 'excel', nome }, await leggiExcel(bytes, W))); return out;
+      }
       const z = await unzip(bytes);
       for (const [n, b] of z) if (b && !n.startsWith('__MACOSX') && /\.(xml|p7m|pdf|txt|iva)$/i.test(n)) await leggiDocumento(n.split('/').pop(), b, out);
       return out;
@@ -194,8 +200,8 @@ export async function salvaIva(res, anno) {
 /* ---------------- vecchio file Excel ---------------- */
 const IVA_RIGHE = { 7: 've_imp', 8: 've_iva', 9: 've_agr', 10: 've_esenti', 11: 've50', 13: 'vf_imp', 14: 'vf_amm', 15: 'vf_esenti', 16: 'vf_iva', 18: 'vl1', 19: 'vl2', 21: 'vl8', 22: 'vx1', 23: 'vx5' };
 const numero = v => (typeof v === 'number' && isFinite(v) ? v : null);
-async function leggiExcel(bytes) {
-  const W = await leggiXlsx(bytes);
+async function leggiExcel(bytes, W0) {
+  const W = W0 || await leggiXlsx(bytes);
   if (!W.CE || !W.Anagrafica) throw new Error('Il file Excel non è il modello di conto economico e stato patrimoniale (mancano i fogli CE e Anagrafica).');
   const A = W.Anagrafica; const y0 = numero(A.C20) || 2023; const anni = [y0, y0 + 1, y0 + 2]; const colAnno = ['D', 'E', 'F'];
   const azienda = {}; const campiAz = { 5: 'nome', 6: 'forma', 7: 'titolare', 8: 'iva', 9: 'cf', 10: 'ateco', 11: 'indirizzo', 12: 'citta', 13: 'telefono', 14: 'email', 15: 'regimeIva', 16: 'regimeContabile', 17: 'commercialista' };
