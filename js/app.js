@@ -2,7 +2,7 @@
 import { S, UI, D, bus, get, azienda, COLS } from './state.js';
 import { $, $$, esc, N, nf, fd, today, addDays, yearOf, byDate, byName, lsSet, debounce, sum } from './util.js';
 import { ic } from './icons.js';
-import { derive, razioneInfo, allAlerts, campoHa, cropOf, capoI } from './domain.js';
+import { derive, razioneInfo, allAlerts, campoHa, cropOf, capoI, kgUnita } from './domain.js';
 import * as store from './store.js';
 import { sync, onSync } from './store.js';
 import { openSheet, closeSheet, sheetOpen, toast, arm, addLine, formDelete } from './ui.js';
@@ -301,7 +301,7 @@ async function ndviField(id, btn) {
 }
 async function razScarico(id) {
   const r = get('razioni', id); if (!r) return; const i = razioneInfo(r);
-  for (const x of i.ing) if (x.p && x.kgTot > 0) await store.put('movimenti', null, { data: today(), prodottoId: x.p.id, tipo: 'Scarico', quantita: Math.round(x.kgTot * 100) / 100, note: 'Razione ' + r.nome, razioneId: r.id });
+  for (const x of i.ing) if (x.p && x.kgTot > 0) await store.put('movimenti', null, { data: today(), prodottoId: x.p.id, tipo: 'Scarico', quantita: Math.round(x.kgTot / kgUnita(x.p) * 1000) / 1000, note: 'Razione ' + r.nome, razioneId: r.id });
   toast('Scarico della razione registrato');
 }
 async function restore(file) {

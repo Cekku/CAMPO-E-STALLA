@@ -23,10 +23,10 @@ export const DATI = [
 // Parametri: [sezione, [[chiave, etichetta, funzione(c), formato, nota]]]; c = { ce, sp, I (indici), d (dati tecnici), F (fatture) }
 export const PARAMETRI = [
   ['Produzione e prezzo del latte', [
-    ['l_vacca', "Litri per vacca all'anno", c => div(c.d.latte, c.d.vacche), 'n', 'Produttività della mandria. Frisona in Italia: in media 9.500–10.500 litri/anno nelle stalle con controlli funzionali.'],
-    ['l_vacca_g', 'Litri per vacca al giorno', c => div(c.d.latte, c.d.vacche * 365), 'n1', "Media sull'intero anno (vacche presenti, comprese le asciutte)."],
-    ['l_latt_g', 'Litri per vacca in lattazione al giorno', c => div(c.d.latte, c.d.vacche_latt * 365), 'n1', ''],
-    ['prezzo_ce', 'Prezzo medio del latte da contabilità (€/l)', c => div(c.ce[8], c.d.latte_ven), 'eur4', 'Vendita di latte del conto economico / litri venduti.'],
+    ['l_vacca', "Litri per vacca all'anno", c => div(c.d.latte * c.d.ann, c.d.vacche), 'n', 'Produttività della mandria. Frisona in Italia: in media 9.500–10.500 litri/anno nelle stalle con controlli funzionali. Anno in corso: riportato a 12 mesi.'],
+    ['l_vacca_g', 'Litri per vacca al giorno', c => div(c.d.latte, c.d.vacche * c.d.gg), 'n1', "Media sull'intero anno (vacche presenti, comprese le asciutte)."],
+    ['l_latt_g', 'Litri per vacca in lattazione al giorno', c => div(c.d.latte, c.d.vacche_latt * c.d.gg), 'n1', ''],
+    ['prezzo_ce', 'Prezzo medio del latte da contabilità (€/l)', c => div(c.ce[8], c.d.lv), 'eur4', 'Vendita di latte del conto economico / litri venduti (se mancano, litri prodotti).'],
     ['prezzo_ft', 'Prezzo medio del latte dalle fatture, premi inclusi (€/l)', c => div(c.F.latteEuro, c.F.latteLitri), 'eur4', 'Controllo incrociato: se è molto diverso dal precedente mancano fatture o il latte è in un\'altra voce.'],
     ['ric_latte_v', 'Ricavo dal latte per vacca (€)', c => div(c.ce[8], c.d.vacche), 'eur', ''],
     ['inc_latte', 'Incidenza del latte sul valore della produzione', c => div(c.ce[8], c.ce[26]), 'pct', 'Grado di specializzazione della stalla.'],
@@ -34,14 +34,16 @@ export const PARAMETRI = [
     ['vitelli_v', 'Vitelli venduti per vacca', c => div(c.d.vitelli, c.d.vacche), 'n2', 'Indicatore indiretto di fertilità e rimonta.'],
   ]],
   ['Alimentazione e margine sul costo alimentare (IOFC)', [
-    ['alim_l', 'Costo alimentare per litro (€/l)', c => div(c.ce[30], c.d.latte), 'eur4', 'Mangimi e foraggi acquistati: di solito la voce di costo più importante.'],
-    ['alim_v', "Costo alimentare per vacca all'anno (€)", c => div(c.ce[30], c.d.vacche), 'eur', ''],
-    ['alim_vg', 'Costo alimentare per vacca al giorno (€)', c => div(c.ce[30], c.d.vacche * 365), 'eur2', ''],
-    ['alim_inc', 'Incidenza del costo alimentare sul ricavo del latte', c => div(c.ce[30], c.ce[8]), 'pct', 'Quanto del ricavo del latte se ne va in alimenti acquistati.'],
-    ['iofc', 'Margine sul costo alimentare – IOFC (€)', c => c.ce[8] - c.ce[30], 'eur', 'Ricavo del latte − alimenti acquistati (Income Over Feed Cost).'],
-    ['iofc_l', 'IOFC per litro (€/l)', c => div(c.ce[8] - c.ce[30], c.d.latte), 'eur4', ''],
-    ['iofc_vg', 'IOFC per vacca al giorno (€)', c => div(c.ce[8] - c.ce[30], c.d.vacche * 365), 'eur2', "L'indicatore più usato per confrontare la gestione alimentare tra stalle e tra anni."],
-    ['alim_tot_l', 'Costo alimentare allargato per litro (€/l)', c => div(c.ce[30] + c.ce[31] + c.ce[32] + c.ce[33] + c.ce[40], c.d.latte), 'eur4', 'Alimenti acquistati + sementi, concimi, fitofarmaci e contoterzisti dei foraggi.'],
+    ['alim_l', 'Costo degli alimenti acquistati per litro (€/l)', c => div(c.ce[30], c.d.latte), 'eur4', 'Mangimi e foraggi comprati, per tutta la mandria (anche manze e asciutte): di solito la voce di costo più importante.'],
+    ['alim_v', "Alimenti acquistati per vacca all'anno (€)", c => div(c.ce[30] * c.d.ann, c.d.vacche), 'eur', ''],
+    ['alim_vg', 'Alimenti acquistati per vacca al giorno (€)', c => div(c.ce[30], c.d.vacche * c.d.gg), 'eur2', ''],
+    ['alim_inc', 'Incidenza degli alimenti acquistati sul ricavo del latte', c => div(c.ce[30], c.ce[8]), 'pct', 'Quanto del ricavo del latte se ne va in alimenti comprati.'],
+    ['alim_tot_l', 'Costo alimentare allargato per litro (€/l)', c => div(c.P.alim_tot, c.d.latte), 'eur4', 'Alimenti acquistati + sementi, concimi, fitofarmaci e contoterzisti: comprende il costo dei foraggi fatti in azienda.'],
+    ['iofc', 'Margine del latte sugli alimenti acquistati (€)', c => c.ce[8] - c.ce[30], 'eur', 'Ricavo del latte − alimenti acquistati.'],
+    ['iofc_l', 'Margine sugli alimenti acquistati per litro (€/l)', c => div(c.ce[8] - c.ce[30], c.d.latte), 'eur4', ''],
+    ['iofc_vg', 'Margine sugli alimenti acquistati per vacca al giorno (€)', c => div(c.ce[8] - c.ce[30], c.d.vacche * c.d.gg), 'eur2', "Non è l'IOFC della razione: qui pesano anche manze e asciutte e mancano i foraggi aziendali. Utile per confrontare gli anni."],
+    ['iofc_tot_vg', 'IOFC allargato per vacca al giorno (€)', c => div(c.ce[8] - c.P.alim_tot, c.d.vacche * c.d.gg), 'eur2', 'Ricavo del latte − costo alimentare allargato (anche i foraggi aziendali), per vacca presente al giorno.'],
+    ['iofc_latt_vg', 'IOFC allargato per vacca in lattazione al giorno (€)', c => div(c.ce[8] - c.P.alim_tot, c.d.vacche_latt * c.d.gg), 'eur2', "Stessa misura riferita alle sole vacche in lattazione, come negli indici IOFC pubblicati: è un'approssimazione per eccesso del costo, perché comprende anche gli alimenti di manze e asciutte."],
   ]],
   ['Altri costi della stalla', [
     ['san', 'Sanità e riproduzione per vacca (€)', c => div(c.ce[39] + c.ce[46], c.d.vacche), 'eur', 'Veterinario, medicinali, fecondazione, controlli funzionali.'],
@@ -57,11 +59,23 @@ export const PARAMETRI = [
     ['costi_tot', 'Costi totali (costi della produzione + oneri finanziari) (€)', c => c.ce[78] + c.ce[86], 'eur', 'Totale B) + interessi e oneri finanziari.'],
     ['altri_ric', 'Ricavi diversi dal latte (€)', c => c.ce[26] - c.ce[8] - c.ce[20] - c.ce[21], 'eur', 'Valore della produzione − latte − contributi PAC e PSR.'],
     ['costo_netto', 'Costo netto del latte (€)', c => c.ce[78] + c.ce[86] - (c.ce[26] - c.ce[8] - c.ce[20] - c.ce[21]), 'eur', 'Costi totali meno i ricavi delle altre produzioni: il costo che deve coprire il latte.'],
-    ['costo_l', 'Costo di produzione per litro (€/l)', c => div(c.P.costo_netto, c.d.latte_ven), 'eur4', '= prezzo del latte di pareggio senza contributi.'],
-    ['pareggio_contr', 'Prezzo di pareggio con i contributi PAC/PSR (€/l)', c => div(c.P.costo_netto - c.ce[20] - c.ce[21], c.d.latte_ven), 'eur4', 'Prezzo minimo del latte che, con i contributi, copre tutti i costi contabili.'],
+    ['costo_l', 'Costo di produzione per litro (€/l)', c => div(c.P.costo_netto, c.d.lv), 'eur4', '= prezzo del latte di pareggio senza contributi.'],
+    ['pareggio_contr', 'Prezzo di pareggio con i contributi PAC/PSR (€/l)', c => div(c.P.costo_netto - c.ce[20] - c.ce[21], c.d.lv), 'eur4', 'Prezzo minimo del latte che, con i contributi, copre tutti i costi contabili.'],
     ['margine_l', 'Margine per litro: prezzo − costo di produzione (€/l)', c => (c.P.prezzo_ce == null || c.P.costo_l == null ? null : c.P.prezzo_ce - c.P.costo_l), 'eur4', 'Positivo: il prezzo copre i costi anche senza contributi.'],
-    ['costo_pieno', 'Costo pieno per litro, con lavoro e capitale propri (€/l)', c => div(c.P.costo_netto + N(c.d.lav_fam) + N(c.d.tasso_cap) * c.sp[51], c.d.latte_ven), 'eur4', "Aggiunge il compenso figurativo dei soci e la remunerazione del capitale proprio: misura se l'azienda remunera davvero lavoro e capitale della famiglia."],
-    ['margine_pieno', 'Margine per litro sul costo pieno, contributi inclusi (€/l)', c => (c.P.prezzo_ce == null || c.P.costo_pieno == null ? null : c.P.prezzo_ce - c.P.costo_pieno + (div(c.ce[20] + c.ce[21], c.d.latte_ven) || 0)), 'eur4', ''],
+    ['costo_pieno', 'Costo pieno per litro, con lavoro e capitale propri (€/l)', c => div(c.P.costo_netto + N(c.d.lav_fam) + (N(c.d.tasso_cap) ? N(c.d.tasso_cap) * c.sp[51] : 0), c.d.lv), 'eur4', "Aggiunge il compenso figurativo dei soci e la remunerazione del capitale proprio: misura se l'azienda remunera davvero lavoro e capitale della famiglia."],
+    ['margine_pieno', 'Margine per litro sul costo pieno, contributi inclusi (€/l)', c => (c.P.prezzo_ce == null || c.P.costo_pieno == null ? null : c.P.prezzo_ce - c.P.costo_pieno + (div(c.ce[20] + c.ce[21], c.d.lv) || 0)), 'eur4', ''],
+  ]],
+  ["Dall'IOFC al reddito netto, per vacca in lattazione al giorno (metodo Lari, Boldrin, Riuzzi)", [
+    ['rn_iofc', 'IOFC allargato (€/vacca in lattazione/giorno)', c => c.P.iofc_latt_vg, 'eur2', 'Ricavo del latte − costo alimentare allargato, diviso le vacche munte e i giorni.'],
+    ['rn_man', 'Manodopera, con il lavoro dei soci (€/vacca in lattazione/giorno)', c => div(c.ce[56] + N(c.d.lav_fam), c.d.vl_gg), 'eur2', 'Dipendenti + costo figurativo del lavoro familiare (se inserito nei dati tecnici).'],
+    ['rn_amm', 'Ammortamenti (€/vacca in lattazione/giorno)', c => div(c.ce[62], c.d.vl_gg), 'eur2', ''],
+    ['rn_en', 'Energia elettrica, acqua e gas (€/vacca in lattazione/giorno)', c => div(c.ce[42], c.d.vl_gg), 'eur2', 'Nel metodo comprende anche il gasolio della stalla (carro unifeed), non quello dei campi.'],
+    ['rn_san', 'Veterinario e medicinali (€/vacca in lattazione/giorno)', c => div(c.ce[39], c.d.vl_gg), 'eur2', ''],
+    ['rn_manut', 'Manutenzioni (€/vacca in lattazione/giorno)', c => div(c.ce[41], c.d.vl_gg), 'eur2', 'Nel conto economico ci sono anche quelle dei mezzi di campagna.'],
+    ['rn_fin', 'Oneri finanziari e assicurazioni (€/vacca in lattazione/giorno)', c => div(c.ce[86] + c.ce[43], c.d.vl_gg), 'eur2', ''],
+    ['rn_entr', 'Entrate non dal latte (€/vacca in lattazione/giorno)', c => div(c.ce[26] - c.ce[8], c.d.vl_gg), 'eur2', 'Vitelli e vacche vendute, contributi PAC e PSR, altre vendite e variazioni delle scorte.'],
+    ['rn', 'Reddito netto (€/vacca in lattazione/giorno)', c => div(c.ce[105] - N(c.d.lav_fam), c.d.vl_gg), 'eur2', 'Utile meno il lavoro dei soci: quanto resta per vacca munta al giorno.'],
+    ['rn_nfc', 'Costi non alimentari totali – NFC (€/vacca in lattazione/giorno)', c => (c.P.rn_iofc == null || c.P.rn == null ? null : c.P.rn_iofc + c.P.rn_entr - c.P.rn), 'eur2', 'Ricavato da: reddito netto = IOFC − NFC + entrate non dal latte. Comprende tutti gli altri costi, anche quelli dei campi.'],
   ]],
   ['Redditività per unità produttiva', [
     ['mol_l', 'EBITDA per litro (€/l)', c => div(c.I.ebitda, c.d.latte), 'eur4', 'Margine operativo lordo dagli indici.'],
@@ -91,11 +105,14 @@ export const PARAMETRI = [
 
 /** Calcola i parametri. d = dati tecnici effettivi (già scelti tra automatici e inseriti). */
 export function calcolaParametri(calc, I, d, F) {
-  const dd = Object.assign({}, d); dd.latte = d.latte_prod || d.latte_ven || null;
+  const dd = Object.assign({}, d); dd.latte = d.latte_prod || d.latte_ven || null; dd.lv = d.latte_ven || d.latte_prod || null;
+  // giorni del periodo: l'anno in corso arriva fino a oggi, quindi le medie al giorno non si dividono per 365
+  dd.gg = d.giorni || 365; dd.ann = dd.gg < 365 ? 365 / dd.gg : 1; dd.vl_gg = d.vacche_latt ? d.vacche_latt * dd.gg : null;
   // senza conto economico (o stato patrimoniale) i parametri che li usano restano vuoti
   const vuoto = new Proxy({}, { get: () => NaN });
   const Iv = calc.has.ce ? I : new Proxy({}, { get: (o, k) => (['pfn', 'pn', 'attivo'].includes(k) && calc.has.sp ? I[k] : NaN) });
   const c = { ce: calc.has.ce ? calc.ce : vuoto, sp: calc.has.sp ? calc.sp : vuoto, I: Iv, d: dd, F: F || {}, P: {} };
+  c.P.alim_tot = c.ce[30] + c.ce[31] + c.ce[32] + c.ce[33] + c.ce[40]; // alimenti acquistati + colture (anche i foraggi aziendali)
   for (const [, voci] of PARAMETRI) for (const [k, , f] of voci) { let v; try { v = f(c); } catch (e) { v = null; } c.P[k] = typeof v === 'number' && isFinite(v) ? Math.round(v * 1e6) / 1e6 : null; }
   return c.P;
 }

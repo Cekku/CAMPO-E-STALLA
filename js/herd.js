@@ -1,7 +1,7 @@
 // Stalle, box, silos, misure dai sistemi di stalla (Alpro, MooMonitor, SCR…) e indici della mandria
 import { S, D, get } from './state.js';
 import { N, okD, diff, today, addDays, sum, byDate } from './util.js';
-import { capoI, giac, razioneInfo, extraAlerts } from './domain.js';
+import { capoI, giac, razioneInfo, extraAlerts, kgUnita } from './domain.js';
 
 export const FASI_BOX = ['Lattazione', 'Fresche', 'Asciutta', 'Preparto', 'Box parto', 'Infermeria', 'Manze', 'Vitelle', 'Vitelli', 'Ingrasso', 'Altro'];
 export const boxKey = (s, b) => s.id + '|' + b.nome;
@@ -40,9 +40,9 @@ export function benessere(c) {
 export function consumoGiorno(prodottoId) { return sum(S.razioni, r => { const i = razioneInfo(r); const x = i.ing.find(g => g.p && g.p.id === prodottoId); return x ? x.kgTot : 0; }); }
 export function siloInfo(s) {
   const p = get('prodotti', s.prodottoId);
-  const kg = p ? Math.max(0, giac(p)) * (p.unita === 't' ? 1000 : p.unita === 'q' ? 100 : 1) : N(s.carico) * 1000;
+  const kg = p ? Math.max(0, giac(p)) * kgUnita(p) : N(s.carico) * 1000;
   const cap = N(s.capacita) * 1000; const pct = cap > 0 ? Math.min(100, kg / cap * 100) : null;
-  const cons = p ? consumoGiorno(p.id) * (p.unita === 't' ? 1000 : p.unita === 'q' ? 100 : 1) : 0;
+  const cons = p ? consumoGiorno(p.id) : 0; // già in kg
   return { p, kg, cap, pct, cons, giorni: cons > 0 ? kg / cons : null };
 }
 
@@ -58,18 +58,19 @@ export function indici(capi = S.capi) {
   att.forEach(c => { const p = (D.evBy[c.id] || []).filter(e => e.tipo === 'Parto' && okD(e.data)); for (let k = 1; k < p.length; k++) ipp.push(diff(p[k - 1].data, p[k].data)); if (p.length && okD(c.nascita) && !N(c.lattazioniPrecedenti)) ep.push(diff(c.nascita, p[0].data) / 30.44); });
   const ipc = grav.map(c => capoI(c).nFec).filter(x => x > 0);
   const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
-  const L = D.latte; const ul = L[L.length - 1];
-  const vac = ul && N(ul.vacche) ? N(ul.vacche) : latt.length;
-  const lCapo = ul && vac ? N(ul.litri) / vac : null;
+  // latte per vacca munta: media degli ultimi 7 giorni registrati (un giorno solo oscilla troppo)
+  const L = D.latte; const ult = L.slice(-7).filter(l => N(l.litri) > 0);
+  const perVacca = k => { const v = ult.map(l => { const n = N(l.vacche) || latt.length; return n ? N(k === 'conferiti' && N(l.conferiti) ? l.conferiti : l.litri) / n : null; }).filter(x => x !== null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const lCapo = perVacca('litri'), lVend = perVacca('conferiti');
   // costo alimentare medio delle vacche in lattazione dalle razioni dei gruppi di produzione
   const rz = S.razioni.map(razioneInfo).filter((i, k) => /produzione|fresch|lattaz/i.test(S.razioni[k].gruppo || '') && i.capi > 0);
   const feed = rz.length ? sum(rz, i => i.costoGiorno) / sum(rz, i => i.capi) : null;
-  const prezzo = ul ? N(ul.prezzo) : 0;
+  const prezzo = N(([...L].reverse().find(l => N(l.prezzo) > 0) || {}).prezzo); // ultimo prezzo inserito
   const rimonta = att.filter(c => ['Manza', 'Vitella'].includes(capoI(c).stato)).length;
   return {
     capi: att.length, vacche: vacche.length, latt: latt.length, asciutte: vacche.length - latt.length, rimonta, rimontaPct: vacche.length ? rimonta / vacche.length * 100 : null,
     dim: avg(dim), gravPct: vacche.length ? grav.length / vacche.length * 100 : null, giorniAperti: avg(aperti), interparto: avg(ipp), etaPrimoParto: avg(ep), insPerConc: avg(ipc),
-    lCapo, feed, iofc: lCapo !== null && feed !== null && prezzo ? lCapo * prezzo - feed : null, prezzo,
+    lCapo, feed, iofc: lVend !== null && feed !== null && prezzo ? lVend * prezzo - feed : null, prezzo, alimInc: lVend && feed !== null && prezzo ? feed / (lVend * prezzo) : null,
     benessere: att.reduce((t, c) => t + benessere(c).filter(a => a.lv !== 'info').length, 0),
   };
 }

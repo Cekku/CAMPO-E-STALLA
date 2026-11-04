@@ -76,6 +76,7 @@ function stalla(y) {
   }
   const latte = S.latte.filter(l => yearOf(l.data) === y);
   return {
+    giorni: gA, giorni_latte: new Set(latte.filter(l => N(l.litri) > 0).map(l => l.data)).size,
     vacche: vacche ? Math.round(vacche / gA * 10) / 10 : null, vacche_latt: latt ? Math.round(latt / gA * 10) / 10 : null, capi: capi ? Math.round(capi / gA * 10) / 10 : null,
     latte_prod: latte.length ? Math.round(latte.reduce((t, l) => t + N(l.litri), 0)) : null,
     latte_conf: latte.some(l => N(l.conferiti)) ? Math.round(latte.reduce((t, l) => t + N(l.conferiti), 0)) : null,
@@ -88,11 +89,13 @@ function campi(y) {
   const fo = S.campi.filter(c => FORAGGERE.test(cropOf(c, y) || '')).reduce((t, c) => t + campoHa(c), 0);
   return { sau: Math.round(sau * 100) / 100, sup_for: fo ? Math.round(fo * 100) / 100 : null };
 }
+/** Litri di una riga di latte: il caseificio può fatturare in litri, kg, ettolitri o quintali (1 litro = 1,032 kg). */
+export const litriRiga = r => { const q = N(r.quantita), u = String(r.um || '').trim().toLowerCase(); return /^(kg|chil)/.test(u) ? q / 1.032 : /^(hl|ett)/.test(u) ? q * 100 : /^(q|ql|qli|quint)\b/.test(u) ? q * 100 / 1.032 : q; };
 /** Riepilogo delle vendite di latte, vitelli e bovini dalle fatture. */
 export function fattureStalla(y) {
   const rs = righe().filter(r => r.anno === y && r.tipo === 'Vendita');
   const s = (cat, campo) => rs.filter(r => r.categoria === cat).reduce((t, r) => t + N(r[campo]), 0);
-  const lit = s(CAT_LATTE, 'quantita');
+  const lit = Math.round(rs.filter(r => r.categoria === CAT_LATTE).reduce((t, r) => t + litriRiga(r), 0));
   return { latteLitri: lit || null, latteEuro: s(CAT_LATTE, 'importo') + s(CAT_PREMI, 'importo'), vitelli: s('Vitelli', 'quantita') || null, bovini: s('Bovini', 'quantita') || null };
 }
 /** Dati tecnici di un anno: { auto, man, val, src } per ogni voce. */
@@ -108,6 +111,8 @@ export function datiTecnici(y) {
       else if (auto[k] != null) { val[k] = auto[k]; da[k] = src[k] || 'automatico'; }
       else { val[k] = null; da[k] = ''; }
     }
+    // giorni del periodo (l'anno in corso arriva fino a oggi) e giorni con il latte registrato
+    val.giorni = st.giorni; val.giorni_latte = st.giorni_latte;
     return { auto, man, val, da, F: fa };
   });
 }

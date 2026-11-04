@@ -146,9 +146,11 @@ export function campoInfo(c, anno = UI.anno) {
   return { ops, plan, ...t, carenza, last };
 }
 export const gruppoCapi = g => S.capi.filter(c => c.gruppo === g && capoI(c).stato !== 'Uscita').length;
+// kg contenuti in un'unità del prodotto: le razioni sono in kg, il magazzino e i prezzi anche in quintali o tonnellate
+export const kgUnita = p => (p && p.unita === 't' ? 1000 : p && p.unita === 'q' ? 100 : 1);
 export function razioneInfo(r) {
   const capi = N(r.capi) > 0 ? N(r.capi) : gruppoCapi(r.gruppo);
-  const ing = (r.ingredienti || []).map(i => { const p = get('prodotti', i.prodottoId); const kgTot = N(i.kg) * capi; const g = p ? giac(p) : 0; return { p, kg: N(i.kg), kgTot, costo: p ? N(i.kg) * N(p.prezzo) : 0, autonomia: kgTot > 0 && p ? g / kgTot : null }; });
+  const ing = (r.ingredienti || []).map(i => { const p = get('prodotti', i.prodottoId); const kgTot = N(i.kg) * capi; const u = kgUnita(p); const g = p ? giac(p) * u : 0; return { p, kg: N(i.kg), kgTot, costo: p ? N(i.kg) * N(p.prezzo) / u : 0, autonomia: kgTot > 0 && p ? g / kgTot : null }; });
   const costoCapo = sum(ing, i => i.costo); const auto = ing.filter(i => i.autonomia !== null).map(i => i.autonomia);
   return { capi, ing, costoCapo, costoGiorno: costoCapo * capi, kgCapo: sum(ing, i => i.kg), autonomia: auto.length ? Math.min(...auto) : null };
 }
