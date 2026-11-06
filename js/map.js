@@ -17,12 +17,14 @@ import { CatastoVettoriale, ZOOM_PARTICELLE } from './catastomappa.js';
 
 const CAT_URL = 'https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php';
 let map = null, fieldsGroup = null, base = {}, overlays = {}, mode = 'view', selected = null, editLayer = null, editId = null, drawFor = null, gpsMarker = null, gpsCircle = null, clickMarker = null;
-const prefs = Object.assign({ base: 'fvg', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura', intensita: 40 }, lsGet('ces.map', {}));
+const prefs = Object.assign({ base: 'fvg', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura', intensita: 15 }, lsGet('ces.map', {}));
 if (!prefs.v2) { prefs.v2 = 1; prefs.base = 'sat2'; prefs.lum = 100; prefs.con = 100; prefs.sat = 100; prefs.cal = 0; delete prefs.satFx; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
 // campi meno coprenti (si vede la foto sotto): il vecchio valore predefinito 70 passa a 40
 if (!prefs.v3) { prefs.v3 = 1; if (!prefs.intensita || prefs.intensita === 70) prefs.intensita = 40; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
 // 1.13: sfondi solo Ortofoto FVG, Stradale e Rilievo (tolti Satellite, Satellite 2 e Google) e niente più regolazione dei colori a mano
 if (!prefs.v4) { prefs.v4 = 1; if (!['fvg', 'osm', 'topo'].includes(prefs.base)) prefs.base = 'fvg'; ['lum', 'con', 'sat', 'cal'].forEach(k => delete prefs[k]); try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
+// 1.23: riempimento leggero come su xFarm; chi aveva il vecchio valore predefinito 40 passa a 15, una scelta diversa resta
+if (!prefs.v5) { prefs.v5 = 1; if (!prefs.intensita || prefs.intensita === 40) prefs.intensita = 15; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
 // Colori dell'ortofoto della Regione portati verso quelli di Google Maps (confronto sugli stessi campi di Povoletto, 27/10/2026):
 // medie sugli stessi pixel: luminosità 0,522 contro 0,450 di Google, saturazione 0,224 contro 0,265 (contrasto quasi uguale).
 // Con il filtro: 0,456 e 0,286. Il filtro si applica una volta sola a ogni tessera, quando la si disegna.
@@ -163,6 +165,8 @@ function updateCatHint() { const h = $('#catHint'); if (!h || !map) return; h.hi
 let ultimoAvviso = 0;
 function avvisoCatasto(e) { if (Date.now() - ultimoAvviso < 60000) return; ultimoAvviso = Date.now(); toast('Catasto: ' + (e && e.message ? e.message : 'il servizio non risponde') + ' Riprovo quando sposti la mappa.', 'err'); }
 
+// Come su xFarm: i campi senza coltura dell'annata sono quasi neri
+const SENZA_COLTURA = '#14171A';
 const COND = { 'Proprietà': '#22C55E', 'Affitto': '#FB923C', 'Comodato': '#3B82F6' };
 // Colori per gruppo e comune: tavolozza fissa, assegnata in ordine di superficie (il più grande prende il primo colore)
 const TAV = ['#3B82F6', '#F59E0B', '#22C55E', '#EF4444', '#A855F7', '#14B8A6', '#EC4899', '#84CC16', '#F97316', '#06B6D4', '#EAB308', '#8B5CF6'];
@@ -177,20 +181,21 @@ function colorFor(c) {
   if (prefs.colorBy === 'attivita') { const a = lastAge(c); return a === null ? '#A9B4AE' : a <= 7 ? '#22C55E' : a <= 30 ? '#FACC15' : '#EF4444'; }
   if (prefs.colorBy === 'nessuno') return '#FFFFFF';
   if (prefs.colorBy === 'gruppo' || prefs.colorBy === 'comune') return coloriPer(prefs.colorBy).get(chiaveDi(c, prefs.colorBy)) || '#A9B4AE';
-  return cropColor(c);
+  return cropOf(c) ? cropColor(c) : SENZA_COLTURA;
 }
 function legendItems() {
   const items = new Map(); const fs = S.campi.filter(c => c.geom);
   if (prefs.colorBy === 'conduzione') fs.forEach(c => { const k = c.conduzione || 'Non indicata'; items.set(k, { col: COND[c.conduzione] || '#8A958F', ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
   else if (prefs.colorBy === 'attivita') fs.forEach(c => { const a = lastAge(c); const k = a === null ? 'Nessuna attività' : a <= 7 ? 'Ultima settimana' : a <= 30 ? 'Ultimo mese' : 'Oltre un mese'; items.set(k, { col: colorFor(c), ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
   else if (prefs.colorBy === 'gruppo' || prefs.colorBy === 'comune') { const col = coloriPer(prefs.colorBy); fs.forEach(c => { const k = chiaveDi(c, prefs.colorBy) || (prefs.colorBy === 'gruppo' ? 'Senza gruppo' : 'Comune non indicato'); items.set(k, { col: col.get(chiaveDi(c, prefs.colorBy)) || '#A9B4AE', ha: (items.get(k)?.ha || 0) + campoHa(c) }); }); }
-  else fs.forEach(c => { const k = cropOf(c) || 'Senza coltura'; items.set(k, { col: cropColor(c), ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
+  else fs.forEach(c => { const k = cropOf(c) || 'Senza coltura'; items.set(k, { col: colorFor(c), ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
   return [...items.entries()].sort((a, b) => b[1].ha - a[1].ha);
 }
 function styleFor(c, sel) {
-  const col = colorFor(c); const op = prefs.ndvi ? 0.04 : Math.max(.1, Math.min(.95, (prefs.intensita || 40) / 100));
+  const col = colorFor(c); const op = prefs.ndvi ? 0.04 : Math.max(.1, Math.min(.95, (prefs.intensita || 15) / 100));
+  // Confini come su xFarm: bordo pieno del colore della coltura e riempimento leggero, così la foto resta leggibile
   return sel ? { color: '#FFFFFF', weight: 4, opacity: 1, fillColor: col, fillOpacity: Math.min(.9, op + .15), dashArray: null }
-    : { color: col, weight: 2.6, opacity: 1, fillColor: col, fillOpacity: op };
+    : { color: col, weight: 3, opacity: 1, fillColor: col, fillOpacity: op };
 }
 function drawFields() {
   if (!map) return;
@@ -439,7 +444,7 @@ export function layersPanel() {
     <h3>Sfondo</h3><div class="lm-bases">${bases.map(([k, l]) => `<label><input type="radio" name="base" value="${k}"${prefs.base === k ? ' checked' : ''}><span class="lm-prev ${k}"></span>${l}</label>`).join('')}</div>
     <h3>Colora campi per</h3>${radio('coltura', 'Colture')}${radio('conduzione', 'Conduzione')}${radio('gruppo', 'Gruppi')}${radio('comune', 'Comuni')}${radio('attivita', 'Ultime attività')}${radio('nessuno', 'Nessun colore')}
     <h3>Colori dei campi</h3>
-    <label class="lp-row slider"><span>Intensità dei colori<small>Più alta = campi più pieni, meno foto visibile</small></span><input type="range" name="intensita" min="20" max="90" step="5" value="${prefs.intensita || 40}"></label>
+    <label class="lp-row slider"><span>Intensità dei colori<small>Più alta = campi più pieni, meno foto visibile</small></span><input type="range" name="intensita" min="10" max="90" step="5" value="${prefs.intensita || 15}"></label>
     <h3>Visualizza</h3>${sw('etichette', 'Nomi dei campi')}${sw('note', 'Note')}${sw('nomi', 'Strade e luoghi', 'Solo sull\'ortofoto')}
     <h3>Mostra livelli su mappa</h3>${sw('ndvi', 'Vigore vegetativo (NDVI)', 'Satellite Sentinel-2, scegli la data in basso')}${sw('particelle', 'Catasto: particelle', 'Agenzia delle Entrate, visibili da vicino')}${sw('fogli', 'Catasto: fogli di mappa')}
     <button type="button" class="btn ok wide" data-act="mapApply">Applica</button></form>`);
@@ -459,7 +464,7 @@ export function applyPanel() {
   const f = $('#lpForm'); if (!f) return;
   prefs.base = (f.querySelector('input[name=base]:checked') || {}).value || 'fvg';
   prefs.colorBy = (f.querySelector('input[name=colorBy]:checked') || {}).value || 'coltura';
-  prefs.intensita = +(f.querySelector('input[name=intensita]') || {}).value || 40;
+  prefs.intensita = +(f.querySelector('input[name=intensita]') || {}).value || 15;
   ['etichette', 'note', 'nomi', 'particelle', 'fogli', 'ndvi'].forEach(k => { prefs[k] = !!f.querySelector(`input[name=${k}]`).checked; });
   savePrefs(); closeSheet(); applyLayers(); drawFields();
 }

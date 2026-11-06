@@ -18,8 +18,9 @@ export const GEST = 283;
 
 // Colori delle colture sulla mappa e nelle miniature
 const CROP = [
-  [/mais/i, '#F5B700'], [/frumento|grano/i, '#E89A2C'], [/orzo|triticale|avena|segale/i, '#F2D35B'],
-  [/medica|trifoglio/i, '#2DBE4E'], [/prato|loiessa|erba/i, '#8CD43F'], [/soia/i, '#B9CC1E'],
+  // Stessi colori di xFarm per le colture dell'azienda (legenda letta il 06/11/2026). Miscuglio prima di frumento: il nome può contenere entrambi.
+  [/miscuglio/i, '#DEB969'], [/mais|granturco/i, '#F0B43F'], [/frumento|grano/i, '#D30B4D'], [/orzo|triticale|avena|segale/i, '#F1CB99'],
+  [/medica|trifoglio/i, '#3B63A8'], [/prato|loiessa|erba/i, '#8CD43F'], [/soia/i, '#B9CC1E'],
   [/sorgo/i, '#E8662A'], [/girasole/i, '#FFD400'], [/colza/i, '#F7EC2E'], [/vite|vigneto/i, '#B03A9A'],
   [/barbabietola/i, '#E2366B'], [/pomodoro/i, '#F2452E'], [/riposo/i, '#C3CCC7'],
 ];
