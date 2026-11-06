@@ -44,6 +44,7 @@ export const SPEC = {
       { k: 'comune', l: 'Comune', half: 1 },
       { k: 'catasto', l: 'Foglio e particelle', half: 1, ph: 'Fg. 12 mapp. 45, 46' },
       { k: 'conduzione', l: 'Conduzione', t: 'seg', opts: ['Proprietà', 'Affitto', 'Comodato'] },
+      { k: 'gruppo', l: 'Gruppo', ph: 'Es. Campi della stalla' },
       { k: 'note', l: 'Note', t: 'textarea' }],
     defaults: () => ({ irriguo: 'No', conduzione: 'Proprietà' }),
     canDel: c => S.operazioni.some(o => o.campoId === c.id) ? 'Il campo ha operazioni registrate: eliminale prima dal quaderno.' : null,

@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.21.1** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.22.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -18,6 +18,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 - Aree: **Campagna** (campi, mappa, attività, magazzino, mezzi, meteo, note), **Stalla** (capi, eventi, latte, razioni, box/silos), **Conti** (riservata al titolare).
 - Mappa: `js/map.js` (Leaflet + Geoman, sfondi Ortofoto FVG / Stradale / Rilievo, catasto AdE WMS, NDVI Sentinel-2), `js/geo.js` (aree, centroidi, import KML/GeoJSON/shapefile).
 - Importazione confini (`importFile` in `map.js`, dalla 1.21.1): niente doppioni. Un campo già presente (stesso `xfarmId` oppure stesso confine: superficie ±1% e centro a meno di 3 m, `stessoConfine`) non si crea di nuovo: si completano solo comune, catasto e `xfarmId` mancanti. Un campo con lo stesso nome ma senza confine riceve il confine. Proprietà lette: nome, comune, catasto, conduzione (affitto/comodato), coltura, `xfarm_id`. I dati veri (es. export xFarm) si importano dall'app, mai nel repository pubblico.
+- Elenco campi (1.22.0, idee prese dalla pagina campi di xFarm guardata il 06/11/2026): ricerca (`UI.f.cq`: nome, comune, gruppo, catasto, coltura), Raggruppa per (`cgrp`: conduzione, gruppo, comune, coltura, nessuno; `RAGG` in `views/campi.js`), Ordina per (`cord`: nome, più grandi/piccoli prima), viste Griglia / Lista / **Tabella** (`tabellaCampi`, con `tabella()` e `bottoniExport` di `conti/tabelle.js`: ordinabile, Excel/CSV/PDF). Nuovo campo `gruppo` del campo (modulo e import). Mappa: "Colora campi per" anche Gruppi e Comuni (`coloriPer`, tavolozza `TAV` in ordine di superficie). xFarm non scrive nomi sui campi in mappa: le nostre etichette da zoom 14 restano.
 - Blocco con codice: `js/lock.js` (PIN con PBKDF2 in localStorage `ces.lock`).
 - Librerie in `vendor/`: leaflet, geoman, supabase-js 2.117.3 (build UMD da npm), **pdf.js 4.10.38 legacy** (`vendor/pdfjs`), **Tesseract.js 6** con lingua italiana (`vendor/tesseract`, lettura ottica in locale), **three.js r128** (`vendor/three`, con GLTFLoader, OrbitControls e RoomEnvironment: solo per il 3D del libretto dei trattori).
 

@@ -164,17 +164,26 @@ let ultimoAvviso = 0;
 function avvisoCatasto(e) { if (Date.now() - ultimoAvviso < 60000) return; ultimoAvviso = Date.now(); toast('Catasto: ' + (e && e.message ? e.message : 'il servizio non risponde') + ' Riprovo quando sposti la mappa.', 'err'); }
 
 const COND = { 'Proprietà': '#22C55E', 'Affitto': '#FB923C', 'Comodato': '#3B82F6' };
+// Colori per gruppo e comune: tavolozza fissa, assegnata in ordine di superficie (il più grande prende il primo colore)
+const TAV = ['#3B82F6', '#F59E0B', '#22C55E', '#EF4444', '#A855F7', '#14B8A6', '#EC4899', '#84CC16', '#F97316', '#06B6D4', '#EAB308', '#8B5CF6'];
+const chiaveDi = (c, by) => by === 'gruppo' ? (c.gruppo || '').trim() : by === 'comune' ? (c.comune || '').trim() : '';
+function coloriPer(by) {
+  const ha = new Map(); S.campi.forEach(c => { const k = chiaveDi(c, by); if (k) ha.set(k, (ha.get(k) || 0) + campoHa(c)); });
+  return new Map([...ha.entries()].sort((a, b) => b[1] - a[1]).map(([k], i) => [k, TAV[i % TAV.length]]));
+}
 function lastAge(c) { let last = null; S.operazioni.forEach(o => { if (o.campoId === c.id && o.stato !== 'Pianificata' && (!last || o.data > last)) last = o.data; }); return last ? diff(last, today()) : null; }
 function colorFor(c) {
   if (prefs.colorBy === 'conduzione') return COND[c.conduzione] || '#A9B4AE';
   if (prefs.colorBy === 'attivita') { const a = lastAge(c); return a === null ? '#A9B4AE' : a <= 7 ? '#22C55E' : a <= 30 ? '#FACC15' : '#EF4444'; }
   if (prefs.colorBy === 'nessuno') return '#FFFFFF';
+  if (prefs.colorBy === 'gruppo' || prefs.colorBy === 'comune') return coloriPer(prefs.colorBy).get(chiaveDi(c, prefs.colorBy)) || '#A9B4AE';
   return cropColor(c);
 }
 function legendItems() {
   const items = new Map(); const fs = S.campi.filter(c => c.geom);
   if (prefs.colorBy === 'conduzione') fs.forEach(c => { const k = c.conduzione || 'Non indicata'; items.set(k, { col: COND[c.conduzione] || '#8A958F', ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
   else if (prefs.colorBy === 'attivita') fs.forEach(c => { const a = lastAge(c); const k = a === null ? 'Nessuna attività' : a <= 7 ? 'Ultima settimana' : a <= 30 ? 'Ultimo mese' : 'Oltre un mese'; items.set(k, { col: colorFor(c), ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
+  else if (prefs.colorBy === 'gruppo' || prefs.colorBy === 'comune') { const col = coloriPer(prefs.colorBy); fs.forEach(c => { const k = chiaveDi(c, prefs.colorBy) || (prefs.colorBy === 'gruppo' ? 'Senza gruppo' : 'Comune non indicato'); items.set(k, { col: col.get(chiaveDi(c, prefs.colorBy)) || '#A9B4AE', ha: (items.get(k)?.ha || 0) + campoHa(c) }); }); }
   else fs.forEach(c => { const k = cropOf(c) || 'Senza coltura'; items.set(k, { col: cropColor(c), ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
   return [...items.entries()].sort((a, b) => b[1].ha - a[1].ha);
 }
@@ -219,7 +228,7 @@ export function mapUpdate() { if (map) { drawFields(); if (selected) renderCard(
 let legendOpen = false;
 function renderLegend() {
   const el = $('#mapLegend'); if (!el) return;
-  const it = legendItems(); const t = { coltura: 'Colture ' + UI.anno, conduzione: 'Conduzione', attivita: 'Ultima attività', nessuno: 'Campi' }[prefs.colorBy];
+  const it = legendItems(); const t = { coltura: 'Colture ' + UI.anno, conduzione: 'Conduzione', gruppo: 'Gruppi', comune: 'Comuni', attivita: 'Ultima attività', nessuno: 'Campi' }[prefs.colorBy];
   el.innerHTML = `<b>${t}</b>` + it.map(([k, v]) => `<span><i style="background:${v.col}"></i>${esc(k)} <em>${nf(v.ha, 1)} ha</em></span>`).join('');
   el.hidden = !legendOpen || !it.length;
   const btn = document.querySelector('.legend-btn'); if (btn) btn.classList.toggle('open', legendOpen);
@@ -239,7 +248,7 @@ function renderCard() {
   if (!c) { card.hidden = true; card.innerHTML = ''; return; }
   const i = campoInfo(c); const ct = centroid(c.geom); const h = campoHa(c); const st = storicoColture(c).slice(0, 4);
   card.hidden = false;
-  card.innerHTML = `<div class="grab" aria-hidden="true"></div><div class="mc-head">${ic('map-pin')}<div class="mc-title"><b>${esc(c.nome)}</b><span>${nf(h, 2)} ha${c.conduzione ? ' · ' + esc(c.conduzione) : ''}${c.catasto ? ' · ' + esc(c.catasto) : ''}</span></div><button class="iconbtn ghost" data-act="mapDeselect" aria-label="Chiudi">${ic('x')}</button></div>
+  card.innerHTML = `<div class="grab" aria-hidden="true"></div><div class="mc-head">${ic('map-pin')}<div class="mc-title"><b>${esc(c.nome)}</b><span>${nf(h, 2)} ha${c.comune ? ' · ' + esc(c.comune) : ''}${c.conduzione ? ' · ' + esc(c.conduzione) : ''}${c.gruppo ? ' · ' + esc(c.gruppo) : ''}${c.catasto ? ' · ' + esc(c.catasto) : ''}</span></div><button class="iconbtn ghost" data-act="mapDeselect" aria-label="Chiudi">${ic('x')}</button></div>
   <div class="mc-hist">${st.length ? st.map(e => `<button data-act="coltura" data-id="${c.id}" data-anno="${e.anno}">${ic('sprout')}<span><b>${e.anno}</b> ${esc(e.coltura)}</span><em class="chip ok num">${nf(h, 2)} ha</em></button>`).join('') : `<button data-act="coltura" data-id="${c.id}" data-anno="${UI.anno}">${ic('plus')}<span>Aggiungi la coltura ${UI.anno}</span></button>`}</div>
   ${(v => v ? `<div class="mc-last">${ic('satellite')}<span>NDVI <b style="color:${ndviColor(v.mean)}">${d2(v.mean)}</b> · ${ndviLabel(v.mean)} · ${fd(v.data)}</span></div>` : '')(campoNdviCached(c).pop())}
   <div class="mc-last">${ic('notebook-pen')}<span>${i.last ? esc(i.last.tipo || 'Attività') + ' il ' + fd(i.last.data) : 'Nessuna attività registrata'}${i.plan.length ? ' · ' + i.plan.length + ' da fare' : ''}${i.carenza ? ' · carenza fino al ' + fd(i.carenza.fine) : ''}</span></div>
@@ -428,7 +437,7 @@ export function layersPanel() {
   const sw = (k, l, s) => `<label class="lp-row"><span>${l}${s ? `<small>${s}</small>` : ''}</span><input type="checkbox" class="switch" name="${k}"${prefs[k] ? ' checked' : ''}></label>`;
   openSheet('Livelli mappa', `<form id="lpForm" class="lp">
     <h3>Sfondo</h3><div class="lm-bases">${bases.map(([k, l]) => `<label><input type="radio" name="base" value="${k}"${prefs.base === k ? ' checked' : ''}><span class="lm-prev ${k}"></span>${l}</label>`).join('')}</div>
-    <h3>Colora campi per</h3>${radio('coltura', 'Colture')}${radio('conduzione', 'Conduzione')}${radio('attivita', 'Ultime attività')}${radio('nessuno', 'Nessun colore')}
+    <h3>Colora campi per</h3>${radio('coltura', 'Colture')}${radio('conduzione', 'Conduzione')}${radio('gruppo', 'Gruppi')}${radio('comune', 'Comuni')}${radio('attivita', 'Ultime attività')}${radio('nessuno', 'Nessun colore')}
     <h3>Colori dei campi</h3>
     <label class="lp-row slider"><span>Intensità dei colori<small>Più alta = campi più pieni, meno foto visibile</small></span><input type="range" name="intensita" min="20" max="90" step="5" value="${prefs.intensita || 40}"></label>
     <h3>Visualizza</h3>${sw('etichette', 'Nomi dei campi')}${sw('note', 'Note')}${sw('nomi', 'Strade e luoghi', 'Solo sull\'ortofoto')}
@@ -500,17 +509,17 @@ export async function importFile(file) {
     for (const it of items) {
       n++; const nome = it.nome || ('Campo importato ' + n);
       const p = it.props || {}; const extId = String(p.xfarm_id || p.xfarmId || '').trim();
-      const comune = String(p.comune || p.COMUNE || '').trim(), catasto = p.catasto || p.particella || p.PARTICELLA || '';
+      const comune = String(p.comune || p.COMUNE || '').trim(), gruppo = String(p.gruppo || p.GRUPPO || '').trim(), catasto = p.catasto || p.particella || p.PARTICELLA || '';
       // Già presente: stesso codice xFarm o stesso confine (anche con un altro nome). Non si duplica: si completano solo i dati mancanti.
       const doppio = S.campi.find(c => (extId && c.xfarmId === extId) || (c.geom && stessoConfine(c.geom, it.geom)));
       if (doppio) {
-        const agg = {}; if (!doppio.comune && comune) agg.comune = comune; if (!doppio.catasto && catasto) agg.catasto = catasto; if (!doppio.xfarmId && extId) agg.xfarmId = extId;
+        const agg = {}; if (!doppio.comune && comune) agg.comune = comune; if (!doppio.catasto && catasto) agg.catasto = catasto; if (!doppio.gruppo && gruppo) agg.gruppo = gruppo; if (!doppio.xfarmId && extId) agg.xfarmId = extId;
         if (Object.keys(agg).length) await store.put('campi', doppio.id, Object.assign({}, doppio, agg));
         gia++; continue;
       }
       const senza = S.campi.find(c => !c.geom && (c.nome || '').toLowerCase() === nome.toLowerCase());
-      if (senza) { await store.put('campi', senza.id, Object.assign({}, senza, { geom: it.geom, superficie: N(senza.superficie) || Math.round(areaHa(it.geom) * 10000) / 10000, comune: senza.comune || comune, catasto: senza.catasto || catasto }, extId ? { xfarmId: extId } : {})); conf++; continue; }
-      await store.put('campi', null, Object.assign({ nome, geom: it.geom, superficie: Math.round(areaHa(it.geom) * 10000) / 10000, coltura: p.coltura || p.COLTURA || p.crop || '', irriguo: 'No', conduzione: /affitt/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Affitto' : /comodat/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Comodato' : 'Proprietà', comune, catasto }, extId ? { xfarmId: extId } : {}));
+      if (senza) { await store.put('campi', senza.id, Object.assign({}, senza, { geom: it.geom, superficie: N(senza.superficie) || Math.round(areaHa(it.geom) * 10000) / 10000, comune: senza.comune || comune, gruppo: senza.gruppo || gruppo, catasto: senza.catasto || catasto }, extId ? { xfarmId: extId } : {})); conf++; continue; }
+      await store.put('campi', null, Object.assign({ nome, geom: it.geom, superficie: Math.round(areaHa(it.geom) * 10000) / 10000, coltura: p.coltura || p.COLTURA || p.crop || '', irriguo: 'No', conduzione: /affitt/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Affitto' : /comodat/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Comodato' : 'Proprietà', comune, gruppo, catasto }, extId ? { xfarmId: extId } : {}));
       nuovi++;
     }
     toast([`Importati ${nuovi} campi`, conf && `${conf} confini aggiunti a campi esistenti`, gia && `${gia} già presenti, non duplicati`].filter(Boolean).join(', '));

@@ -687,7 +687,18 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 /* campi */
 .fields-head { padding-bottom: 14px; }
 .fh-top { display: flex; align-items: flex-end; gap: 12px; padding: 16px 18px 12px; flex-wrap: wrap; } .fh-top > div:first-child { flex: 1; }
-.view-toggle { max-width: 320px; }
+.view-toggle { max-width: 380px; }
+.fl-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; }
+.fl-tools .search { flex: 1 1 260px; max-width: 420px; }
+.fl-tools .view-toggle { flex: 1 1 300px; margin-left: auto; }
+.fl-sel { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.fl-sel > span { font-family: var(--f-mono, monospace); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.fl-sel select { min-width: 170px; }
+.fl-found { margin: -2px 2px 0; }
+.fl-exp { padding-top: 10px; padding-bottom: 12px; }
+tr.clk { cursor: pointer; } tr.clk:hover td { background: var(--hover, rgba(0,0,0,.035)); }
+.etab .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: 0; }
+@media (max-width: 560px) { .fl-sel { flex: 1 1 45%; } .fl-sel select { min-width: 0; width: 100%; } .fl-tools .view-toggle { flex-basis: 100%; max-width: none; } }
 .seg span .ic { width: 16px; height: 16px; vertical-align: -3px; margin-right: 5px; }
 .fgroup { display: flex; flex-direction: column; gap: 10px; }
 .fg-h { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 6px 2px; text-align: left; color: var(--ink); }

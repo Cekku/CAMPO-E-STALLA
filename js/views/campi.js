@@ -8,6 +8,7 @@ import { tabs, empty, newBtn, fact, chip, exChip } from '../ui.js';
 import { stackBar, spark } from './charts.js';
 import { campoNdviCached, ndviLabel, ndviColor } from '../ndvi.js';
 import { opRow, noteCard } from './oggi.js';
+import { tabella, bottoniExport } from '../conti/tabelle.js';
 
 const d2 = v => Number(v).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export function render() {
@@ -22,21 +23,57 @@ function card(c) {
   if (UI.view === 'lista') return `<div class="row fl" data-act="open" data-type="campo" data-id="${c.id}" role="button" tabindex="0"><span class="op-thumb" style="color:${col}">${thumb(c.geom, 40, col)}</span><span class="r-main"><b>${esc(c.nome)}${exChip(c)}</b><span class="op-crop"><i class="dot" style="background:${col}"></i>${esc(crop || 'Nessuna coltura')}${i.carenza ? ' · carenza al ' + fd(i.carenza.fine) : ''}</span></span><span class="r-side"><span class="chip ha num">${nf(h, 2)} ha</span><span class="small muted">${plural(i.ops.length, 'attività', 'attività')}</span></span></div>`;
   return `<article class="fcard"><button class="fc-img" data-act="open" data-type="campo" data-id="${c.id}" style="--c:${col}" aria-label="Apri ${esc(c.nome)}">${c.geom ? satSvg([{ geom: c.geom, color: col }], 256, 192, { fill: .22, stroke: 2.4 }) : thumb(c.geom, 120, col)}<span class="fc-crop-tag">${esc(crop || 'Nessuna coltura')}</span><span class="fc-ha num">${nf(h, 2)} ha</span>${i.carenza ? `<span class="fc-flag" title="Carenza fino al ${fd(i.carenza.fine)}">${ic('shield-check')}</span>` : ''}</button>
   <div class="fc-txt"><b>${esc(c.nome)}</b>${exChip(c)}<small>${i.last ? 'Ultima: ' + esc(i.last.tipo || '') + ' ' + fd(i.last.data) : 'Nessuna attività'}${i.plan.length ? ' · ' + i.plan.length + ' da fare' : ''}</small></div>
-  <div class="fc-acts"><button class="btn xs action" data-act="new" data-form="operazioni" data-campo="${c.id}">${ic('notebook-pen')}Attività</button><button class="btn xs ok" data-act="coltura" data-id="${c.id}" data-anno="${UI.anno}">${ic('sprout')}${colturaOf(c) ? 'Coltura' : 'Aggiungi coltura'}</button></div></article>`;
+  <div class="fc-acts"><button class="btn xs action" data-act="new" data-form="operazioni" data-campo="${c.id}">${ic('notebook-pen')}Attività</button><button class="btn xs ok" data-act="coltura" data-id="${c.id}" data-anno="${UI.anno}">${ic(colturaOf(c) ? 'sprout' : 'plus')}Coltura</button></div></article>`;
 }
 
+// Raggruppamenti dell'elenco: chiave del gruppo e ordine dei gruppi
+const RAGG = {
+  conduzione: { l: 'Conduzione', k: c => c.conduzione || 'Conduzione non indicata', ord: ['Proprietà', 'Affitto', 'Comodato'] },
+  gruppo: { l: 'Gruppo', k: c => (c.gruppo || '').trim() || 'Senza gruppo' },
+  comune: { l: 'Comune', k: c => (c.comune || '').trim() || 'Comune non indicato' },
+  coltura: { l: 'Coltura', k: c => cropOf(c) || 'Senza coltura' },
+  nessuno: { l: 'Nessuno', k: () => 'Tutti i campi' },
+};
+const ORD = { nome: ['Nome', byName], ha_d: ['Più grandi prima', (a, b) => campoHa(b) - campoHa(a)], ha_c: ['Più piccoli prima', (a, b) => campoHa(a) - campoHa(b)] };
+const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const cerca = (c, q) => [c.nome, c.comune, c.gruppo, c.catasto, cropOf(c), c.conduzione].some(v => norm(v).includes(q));
+
 function elenco() {
-  const list = [...S.campi].sort(byName);
-  if (!list.length) return `<section class="card">${empty('map', 'Nessun campo', 'Disegna i campi sulla mappa satellitare con il catasto, oppure importa un file KML del fascicolo aziendale.', `<div class="btns center"><button class="btn action" data-act="nav" data-tab="mappa">${ic('map')}Disegna sulla mappa</button><button class="btn" data-act="catSearch">${ic('grid-2x2')}Cerca per foglio e mappale</button>${newBtn('campi', 'Inserisci senza mappa', '', '')}</div>`)}</section>`;
-  const ha = sum(list, campoHa); const tot = N(azienda().ettari);
-  const crops = new Map(); list.forEach(c => { const k = cropOf(c) || 'Senza coltura'; crops.set(k, (crops.get(k) || 0) + campoHa(c)); });
+  const all = [...S.campi].sort(byName);
+  if (!all.length) return `<section class="card">${empty('map', 'Nessun campo', 'Disegna i campi sulla mappa satellitare con il catasto, oppure importa un file KML del fascicolo aziendale.', `<div class="btns center"><button class="btn action" data-act="nav" data-tab="mappa">${ic('map')}Disegna sulla mappa</button><button class="btn" data-act="catSearch">${ic('grid-2x2')}Cerca per foglio e mappale</button>${newBtn('campi', 'Inserisci senza mappa', '', '')}</div>`)}</section>`;
+  const ha = sum(all, campoHa); const tot = N(azienda().ettari);
+  const crops = new Map(); all.forEach(c => { const k = cropOf(c) || 'Senza coltura'; crops.set(k, (crops.get(k) || 0) + campoHa(c)); });
   const parts = [...crops.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ label: k, v, color: cropColorName(k === 'Senza coltura' ? '' : k) }));
-  const groups = {}; list.forEach(c => { const g = c.conduzione || 'Conduzione non indicata'; (groups[g] = groups[g] || []).push(c); });
-  const order = ['Proprietà', 'Affitto', 'Comodato'];
-  const keys = Object.keys(groups).sort((a, b) => (order.indexOf(a) + 1 || 9) - (order.indexOf(b) + 1 || 9));
-  return `<section class="card fields-head"><div class="fh-top"><div><span class="eyebrow">${plural(list.length, 'campo', 'campi')} · annata ${UI.anno}</span><div class="big-num">${nf(ha, 2)}<small>ha registrati${tot ? ' su ' + nf(tot, 2) + ' ha (' + nf(ha / tot * 100, 0) + '%)' : ''}</small></div></div><div class="btns"><button class="btn sm" data-act="nav" data-tab="mappa">${ic('map')}Mappa</button><button class="btn sm" data-act="catSearch">${ic('grid-2x2')}Cerca particella</button><label class="btn sm" title="Shapefile .zip del piano colturale grafico, KML o GeoJSON">${ic('file-up')}Importa piano colturale<input type="file" accept=".zip,.shp,.kml,.geojson,.json,application/zip" data-act="mapImport" hidden></label>${newBtn('campi', 'Campo', '', '')}</div></div>${stackBar(parts)}<div class="crop-legend">${parts.map(p => `<span><i style="background:${p.color}"></i>${esc(p.label)} <em>${nf(p.v, 2)} ha</em></span>`).join('')}</div></section>
-  <div class="seg view-toggle"><label><input type="radio" name="vt" data-act="view" data-v="griglia"${UI.view !== 'lista' ? ' checked' : ''}><span>${ic('grid-2x2')}Griglia</span></label><label><input type="radio" name="vt" data-act="view" data-v="lista"${UI.view === 'lista' ? ' checked' : ''}><span>${ic('list')}Lista</span></label></div>
-  ${keys.map(k => { const closed = UI.f['c_' + k]; const arr = groups[k]; return `<section class="fgroup"><button class="fg-h" data-act="collapse" data-k="${esc(k)}" aria-expanded="${!closed}">${ic('map-pin')}<b>${esc(k.toUpperCase())}</b><span class="muted small">${plural(arr.length, 'campo', 'campi')} · ${nf(sum(arr, campoHa), 2)} ha</span><span class="sp"></span>${ic('chevron-left', closed ? 'rot-d' : 'rot-u')}</button>${closed ? '' : UI.view === 'lista' ? `<div class="card"><div class="list">${arr.map(card).join('')}</div></div>` : `<div class="fgrid-cards">${arr.map(card).join('')}</div>`}</section>`; }).join('')}`;
+  const q = norm(UI.f.cq || '').trim();
+  const rg = RAGG[UI.f.cgrp] ? UI.f.cgrp : 'conduzione'; const R = RAGG[rg];
+  const od = ORD[UI.f.cord] ? UI.f.cord : 'nome';
+  const list = (q ? all.filter(c => cerca(c, q)) : all).sort(ORD[od][1]);
+  const view = ['lista', 'tabella'].includes(UI.view) ? UI.view : 'griglia';
+  const head = `<section class="card fields-head"><div class="fh-top"><div><span class="eyebrow">${plural(all.length, 'campo', 'campi')} · annata ${UI.anno}</span><div class="big-num">${nf(ha, 2)}<small>ha registrati${tot ? ' su ' + nf(tot, 2) + ' ha (' + nf(ha / tot * 100, 0) + '%)' : ''}</small></div></div><div class="btns"><button class="btn sm" data-act="nav" data-tab="mappa">${ic('map')}Mappa</button><button class="btn sm" data-act="catSearch">${ic('grid-2x2')}Cerca particella</button><label class="btn sm" title="Shapefile .zip del piano colturale grafico, KML o GeoJSON">${ic('file-up')}Importa confini<input type="file" accept=".zip,.shp,.kml,.geojson,.json,application/zip" data-act="mapImport" hidden></label>${newBtn('campi', 'Campo', '', '')}</div></div>${stackBar(parts)}<div class="crop-legend">${parts.map(p => `<span><i style="background:${p.color}"></i>${esc(p.label)} <em>${nf(p.v, 2)} ha</em></span>`).join('')}</div></section>`;
+  const sel = (f, opts, cur, lab) => `<label class="fl-sel"><span>${lab}</span><select class="inp sm" data-filter="${f}">${opts.map(([k, l]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
+  const tools = `<div class="fl-tools"><div class="search">${ic('search')}<input class="inp" id="campiq" data-filter="cq" placeholder="Cerca nome, comune, gruppo o particella" value="${esc(UI.f.cq || '')}" autocomplete="off"></div>
+    ${view !== 'tabella' ? sel('cgrp', Object.entries(RAGG).map(([k, v]) => [k, v.l]), rg, 'Raggruppa per') : ''}${view !== 'tabella' ? sel('cord', Object.entries(ORD).map(([k, v]) => [k, v[0]]), od, 'Ordina per') : ''}
+    <div class="seg view-toggle"><label><input type="radio" name="vt" data-act="view" data-v="griglia"${view === 'griglia' ? ' checked' : ''}><span>${ic('grid-2x2')}Griglia</span></label><label><input type="radio" name="vt" data-act="view" data-v="lista"${view === 'lista' ? ' checked' : ''}><span>${ic('list')}Lista</span></label><label><input type="radio" name="vt" data-act="view" data-v="tabella"${view === 'tabella' ? ' checked' : ''}><span>${ic('table-2')}Tabella</span></label></div></div>
+    ${q ? `<p class="fl-found muted small">${list.length ? `${plural(list.length, 'campo trovato', 'campi trovati')} · ${nf(sum(list, campoHa), 2)} ha` : 'Nessun campo corrisponde alla ricerca.'}</p>` : ''}`;
+  if (view === 'tabella') return head + tools + tabellaCampi(list);
+  const groups = new Map(); list.forEach(c => { const g = R.k(c); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(c); });
+  const ultimo = k => /^(senza|comune non|conduzione non)/i.test(k);
+  const keys = [...groups.keys()].sort((a, b) => R.ord ? ((R.ord.indexOf(a) + 1 || 9) - (R.ord.indexOf(b) + 1 || 9)) : (ultimo(a) - ultimo(b)) || a.localeCompare(b, 'it'));
+  const one = keys.length === 1 && rg === 'nessuno';
+  return head + tools + keys.map(k => { const ck = rg + ':' + k; const closed = UI.f['c_' + ck]; const arr = groups.get(k); const body = UI.view === 'lista' ? `<div class="card"><div class="list">${arr.map(card).join('')}</div></div>` : `<div class="fgrid-cards">${arr.map(card).join('')}</div>`;
+    return `<section class="fgroup">${one ? '' : `<button class="fg-h" data-act="collapse" data-k="${esc(ck)}" aria-expanded="${!closed}">${ic('map-pin')}<b>${esc(k.toUpperCase())}</b><span class="muted small">${plural(arr.length, 'campo', 'campi')} · ${nf(sum(arr, campoHa), 2)} ha</span><span class="sp"></span>${ic('chevron-left', closed ? 'rot-d' : 'rot-u')}</button>`}${closed && !one ? '' : body}</section>`; }).join('');
+}
+
+// Tabella di tutti i campi (ordinabile ed esportabile), come il "Dettaglio" di altri gestionali
+function tabellaCampi(list) {
+  const rows = list.map(c => { const i = campoInfo(c); return { id: c.id, nome: c.nome || '', comune: c.comune || '', gruppo: c.gruppo || '', conduzione: c.conduzione || '', catasto: c.catasto || '', coltura: cropOf(c) || '', ha: campoHa(c), ultima: i.last ? i.last.data : '', nOp: i.ops.length }; });
+  const html = tabella('campi', { cols: [
+    { k: 'nome', h: 'Campo', html: r => `<b>${esc(r.nome)}</b>` }, { k: 'comune', h: 'Comune' }, { k: 'gruppo', h: 'Gruppo' }, { k: 'conduzione', h: 'Conduzione' },
+    { k: 'catasto', h: 'Catasto' }, { k: 'coltura', h: 'Coltura ' + UI.anno, html: r => r.coltura ? `<i class="dot" style="background:${cropColorName(r.coltura)}"></i> ${esc(r.coltura)}` : '<span class="muted">—</span>' },
+    { k: 'ha', h: 'Superficie ha', fmt: 'num2' }, { k: 'ultima', h: 'Ultima attività', fmt: 'date' }, { k: 'nOp', h: 'Attività', fmt: 'num' }],
+    rows, tot: { nome: 'Totale: ' + plural(rows.length, 'campo', 'campi'), ha: sum(rows, r => r.ha), nOp: sum(rows, r => r.nOp) },
+    rowAttr: r => `data-act="open" data-type="campo" data-id="${r.id}" class="clk"` });
+  return `<section class="card flush">${html}<div class="pad-x fl-exp">${bottoniExport(['campi'], 'campi-' + UI.anno)}</div></section>`;
 }
 
 function costi() {
