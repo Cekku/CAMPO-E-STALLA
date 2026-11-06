@@ -474,6 +474,13 @@ export function focusCampo(id) {
 }
 
 /* ---------- importazione file ---------- */
+// Due confini sono lo stesso campo se hanno la stessa superficie (±1%) e il centro a meno di 3 m
+function stessoConfine(g1, g2) {
+  const a1 = areaHa(g1), a2 = areaHa(g2); if (!a1 || !a2 || Math.abs(a1 - a2) > Math.max(a1, a2) * 0.01) return false;
+  const c1 = centroid(g1), c2 = centroid(g2); if (!c1 || !c2) return false;
+  const dy = (c1[1] - c2[1]) * 111320, dx = (c1[0] - c2[0]) * 111320 * Math.cos(c1[1] * Math.PI / 180);
+  return Math.hypot(dx, dy) < 3;
+}
 function loadScript(src) { return new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('Lettore shapefile non disponibile offline')); document.head.appendChild(el); }); }
 export async function importFile(file) {
   try {
@@ -489,15 +496,24 @@ export async function importFile(file) {
     const first = items[0].geom.type === 'Polygon' ? items[0].geom.coordinates[0][0] : items[0].geom.coordinates[0][0][0];
     if (Math.abs(first[0]) > 180 || Math.abs(first[1]) > 90) { toast('Il file usa coordinate in metri senza indicare il sistema: nello zip dello shapefile includi anche il file .prj.', 'err'); return; }
     if (items.some(it => isPCG(it.props))) { pcgImport(items); return; }
-    const exist = new Set(S.campi.map(c => (c.nome || '').toLowerCase()));
-    let n = 0, dup = 0;
+    let n = 0, nuovi = 0, conf = 0, gia = 0;
     for (const it of items) {
       n++; const nome = it.nome || ('Campo importato ' + n);
-      if (exist.has(nome.toLowerCase())) { const c = S.campi.find(x => (x.nome || '').toLowerCase() === nome.toLowerCase()); if (c && !c.geom) { await store.put('campi', c.id, Object.assign({}, c, { geom: it.geom, superficie: N(c.superficie) || Math.round(areaHa(it.geom) * 10000) / 10000 })); dup++; continue; } }
-      const p = it.props || {};
-      await store.put('campi', null, { nome, geom: it.geom, superficie: Math.round(areaHa(it.geom) * 10000) / 10000, coltura: p.coltura || p.COLTURA || p.crop || '', irriguo: 'No', conduzione: /affitt/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Affitto' : /comodat/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Comodato' : 'Proprietà', comune: String(p.comune || p.COMUNE || '').trim(), catasto: p.catasto || p.particella || p.PARTICELLA || '' });
+      const p = it.props || {}; const extId = String(p.xfarm_id || p.xfarmId || '').trim();
+      const comune = String(p.comune || p.COMUNE || '').trim(), catasto = p.catasto || p.particella || p.PARTICELLA || '';
+      // Già presente: stesso codice xFarm o stesso confine (anche con un altro nome). Non si duplica: si completano solo i dati mancanti.
+      const doppio = S.campi.find(c => (extId && c.xfarmId === extId) || (c.geom && stessoConfine(c.geom, it.geom)));
+      if (doppio) {
+        const agg = {}; if (!doppio.comune && comune) agg.comune = comune; if (!doppio.catasto && catasto) agg.catasto = catasto; if (!doppio.xfarmId && extId) agg.xfarmId = extId;
+        if (Object.keys(agg).length) await store.put('campi', doppio.id, Object.assign({}, doppio, agg));
+        gia++; continue;
+      }
+      const senza = S.campi.find(c => !c.geom && (c.nome || '').toLowerCase() === nome.toLowerCase());
+      if (senza) { await store.put('campi', senza.id, Object.assign({}, senza, { geom: it.geom, superficie: N(senza.superficie) || Math.round(areaHa(it.geom) * 10000) / 10000, comune: senza.comune || comune, catasto: senza.catasto || catasto }, extId ? { xfarmId: extId } : {})); conf++; continue; }
+      await store.put('campi', null, Object.assign({ nome, geom: it.geom, superficie: Math.round(areaHa(it.geom) * 10000) / 10000, coltura: p.coltura || p.COLTURA || p.crop || '', irriguo: 'No', conduzione: /affitt/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Affitto' : /comodat/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Comodato' : 'Proprietà', comune, catasto }, extId ? { xfarmId: extId } : {}));
+      nuovi++;
     }
-    toast(`Importati ${n - dup} campi${dup ? ', ' + dup + ' confini aggiunti a campi esistenti' : ''}`);
+    toast([`Importati ${nuovi} campi`, conf && `${conf} confini aggiunti a campi esistenti`, gia && `${gia} già presenti, non duplicati`].filter(Boolean).join(', '));
     closeSheet(); setTimeout(() => { if (map) fitAll(); }, 150);
   } catch (e) { console.warn(e); toast(e.message || 'File non leggibile', 'err'); }
 }
