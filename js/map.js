@@ -17,7 +17,7 @@ import { CatastoVettoriale, ZOOM_PARTICELLE } from './catastomappa.js';
 
 const CAT_URL = 'https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php';
 let map = null, fieldsGroup = null, base = {}, overlays = {}, mode = 'view', selected = null, editLayer = null, editId = null, drawFor = null, gpsMarker = null, gpsCircle = null, clickMarker = null;
-const prefs = Object.assign({ base: 'fvg', particelle: false, fogli: false, nomi: true, etichette: true, note: true, colorBy: 'coltura', intensita: 15 }, lsGet('ces.map', {}));
+const prefs = Object.assign({ base: 'fvg', particelle: false, fogli: false, nomi: true, etichette: false, note: true, colorBy: 'coltura', intensita: 15 }, lsGet('ces.map', {}));
 if (!prefs.v2) { prefs.v2 = 1; prefs.base = 'sat2'; prefs.lum = 100; prefs.con = 100; prefs.sat = 100; prefs.cal = 0; delete prefs.satFx; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
 // campi meno coprenti (si vede la foto sotto): il vecchio valore predefinito 70 passa a 40
 if (!prefs.v3) { prefs.v3 = 1; if (!prefs.intensita || prefs.intensita === 70) prefs.intensita = 40; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
@@ -25,6 +25,8 @@ if (!prefs.v3) { prefs.v3 = 1; if (!prefs.intensita || prefs.intensita === 70) p
 if (!prefs.v4) { prefs.v4 = 1; if (!['fvg', 'osm', 'topo'].includes(prefs.base)) prefs.base = 'fvg'; ['lum', 'con', 'sat', 'cal'].forEach(k => delete prefs[k]); try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
 // 1.23: riempimento leggero come su xFarm; chi aveva il vecchio valore predefinito 40 passa a 15, una scelta diversa resta
 if (!prefs.v5) { prefs.v5 = 1; if (!prefs.intensita || prefs.intensita === 40) prefs.intensita = 15; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
+// 1.23.1: niente nomi sui campi, come su xFarm (si rimettono da Livelli mappa → Nomi dei campi)
+if (!prefs.v6) { prefs.v6 = 1; prefs.etichette = false; try { localStorage.setItem('ces.map', JSON.stringify(prefs)); } catch (e) { } }
 // Colori dell'ortofoto della Regione portati verso quelli di Google Maps (confronto sugli stessi campi di Povoletto, 27/10/2026):
 // medie sugli stessi pixel: luminosità 0,522 contro 0,450 di Google, saturazione 0,224 contro 0,265 (contrasto quasi uguale).
 // Con il filtro: 0,456 e 0,286. Il filtro si applica una volta sola a ogni tessera, quando la si disegna.
