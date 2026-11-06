@@ -500,6 +500,14 @@ function stessoConfine(g1, g2) {
   return Math.hypot(dx, dy) < 3;
 }
 function loadScript(src) { return new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('Lettore shapefile non disponibile offline')); document.head.appendChild(el); }); }
+// Coltura letta da un file di confini: si aggiunge solo se per quell'annata il campo non ne ha già una
+function colturaDaFile(c, p) {
+  const coltura = String(p.coltura || p.COLTURA || p.crop || '').trim(); if (!coltura) return {};
+  const y = new Date().getFullYear(); const anno = +p.anno || +p.ANNO || y; const st = Array.isArray(c.colture) ? c.colture : [];
+  if (st.some(e => +e.anno === anno) || (anno === y && c.coltura)) return {};
+  const varieta = String(p.varieta || p.VARIETA || '').trim();
+  return Object.assign({ colture: [...st, { anno, coltura, varieta }].sort((a, b) => b.anno - a.anno) }, anno === y ? { coltura, varieta } : {});
+}
 export async function importFile(file) {
   try {
     let items;
@@ -514,7 +522,7 @@ export async function importFile(file) {
     const first = items[0].geom.type === 'Polygon' ? items[0].geom.coordinates[0][0] : items[0].geom.coordinates[0][0][0];
     if (Math.abs(first[0]) > 180 || Math.abs(first[1]) > 90) { toast('Il file usa coordinate in metri senza indicare il sistema: nello zip dello shapefile includi anche il file .prj.', 'err'); return; }
     if (items.some(it => isPCG(it.props))) { pcgImport(items); return; }
-    let n = 0, nuovi = 0, conf = 0, gia = 0;
+    let n = 0, nuovi = 0, conf = 0, gia = 0, colt = 0;
     for (const it of items) {
       n++; const nome = it.nome || ('Campo importato ' + n);
       const p = it.props || {}; const extId = String(p.xfarm_id || p.xfarmId || '').trim();
@@ -523,15 +531,16 @@ export async function importFile(file) {
       const doppio = S.campi.find(c => (extId && c.xfarmId === extId) || (c.geom && stessoConfine(c.geom, it.geom)));
       if (doppio) {
         const agg = {}; if (!doppio.comune && comune) agg.comune = comune; if (!doppio.catasto && catasto) agg.catasto = catasto; if (!doppio.gruppo && gruppo) agg.gruppo = gruppo; if (!doppio.xfarmId && extId) agg.xfarmId = extId;
+        const nuovaColt = colturaDaFile(doppio, p); if (nuovaColt.colture) { Object.assign(agg, nuovaColt); colt++; }
         if (Object.keys(agg).length) await store.put('campi', doppio.id, Object.assign({}, doppio, agg));
         gia++; continue;
       }
       const senza = S.campi.find(c => !c.geom && (c.nome || '').toLowerCase() === nome.toLowerCase());
-      if (senza) { await store.put('campi', senza.id, Object.assign({}, senza, { geom: it.geom, superficie: N(senza.superficie) || Math.round(areaHa(it.geom) * 10000) / 10000, comune: senza.comune || comune, gruppo: senza.gruppo || gruppo, catasto: senza.catasto || catasto }, extId ? { xfarmId: extId } : {})); conf++; continue; }
-      await store.put('campi', null, Object.assign({ nome, geom: it.geom, superficie: Math.round(areaHa(it.geom) * 10000) / 10000, coltura: p.coltura || p.COLTURA || p.crop || '', irriguo: 'No', conduzione: /affitt/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Affitto' : /comodat/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Comodato' : 'Proprietà', comune, gruppo, catasto }, extId ? { xfarmId: extId } : {}));
+      if (senza) { await store.put('campi', senza.id, Object.assign({}, senza, { geom: it.geom, superficie: N(senza.superficie) || Math.round(areaHa(it.geom) * 10000) / 10000, comune: senza.comune || comune, gruppo: senza.gruppo || gruppo, catasto: senza.catasto || catasto }, colturaDaFile(senza, p), extId ? { xfarmId: extId } : {})); conf++; continue; }
+      await store.put('campi', null, Object.assign({ nome, geom: it.geom, superficie: Math.round(areaHa(it.geom) * 10000) / 10000, coltura: '', irriguo: 'No', conduzione: /affitt/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Affitto' : /comodat/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Comodato' : 'Proprietà', comune, gruppo, catasto }, colturaDaFile({}, p), extId ? { xfarmId: extId } : {}));
       nuovi++;
     }
-    toast([`Importati ${nuovi} campi`, conf && `${conf} confini aggiunti a campi esistenti`, gia && `${gia} già presenti, non duplicati`].filter(Boolean).join(', '));
+    toast([`Importati ${nuovi} campi`, conf && `${conf} confini aggiunti a campi esistenti`, gia && `${gia} già presenti, non duplicati`, colt && `${colt} colture aggiunte`].filter(Boolean).join(', '));
     closeSheet(); setTimeout(() => { if (map) fitAll(); }, 150);
   } catch (e) { console.warn(e); toast(e.message || 'File non leggibile', 'err'); }
 }
