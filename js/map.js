@@ -495,7 +495,7 @@ export async function importFile(file) {
       n++; const nome = it.nome || ('Campo importato ' + n);
       if (exist.has(nome.toLowerCase())) { const c = S.campi.find(x => (x.nome || '').toLowerCase() === nome.toLowerCase()); if (c && !c.geom) { await store.put('campi', c.id, Object.assign({}, c, { geom: it.geom, superficie: N(c.superficie) || Math.round(areaHa(it.geom) * 10000) / 10000 })); dup++; continue; } }
       const p = it.props || {};
-      await store.put('campi', null, { nome, geom: it.geom, superficie: Math.round(areaHa(it.geom) * 10000) / 10000, coltura: p.coltura || p.COLTURA || p.crop || '', irriguo: 'No', conduzione: /affitt/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Affitto' : 'Proprietà', catasto: p.catasto || p.particella || p.PARTICELLA || '' });
+      await store.put('campi', null, { nome, geom: it.geom, superficie: Math.round(areaHa(it.geom) * 10000) / 10000, coltura: p.coltura || p.COLTURA || p.crop || '', irriguo: 'No', conduzione: /affitt/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Affitto' : /comodat/i.test(p.conduzione || p.CONDUZIONE || '') ? 'Comodato' : 'Proprietà', comune: String(p.comune || p.COMUNE || '').trim(), catasto: p.catasto || p.particella || p.PARTICELLA || '' });
     }
     toast(`Importati ${n - dup} campi${dup ? ', ' + dup + ' confini aggiunti a campi esistenti' : ''}`);
     closeSheet(); setTimeout(() => { if (map) fitAll(); }, 150);
