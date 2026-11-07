@@ -21,6 +21,14 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.25: la vacca si riconosce dal numero
+
+- **Prima il numero**: in Stalla ogni vacca si chiama con il suo numero aziendale (lo stesso dei collari e della sala di mungitura), in elenco, nella scheda, nel modulo degli eventi e nei promemoria. La mandria è ordinata per numero e scrivendo solo il numero nella ricerca compare quella vacca.
+- **Tabella della mandria**: in Mandria il pulsante **Tabella** mostra una riga per vacca con stato, lattazioni, giorni in latte, ultimo parto e ultima fecondazione, gravidanza, parto previsto, ruminazione, attività, alimentazione, riposo, ultimo calore e cose da fare. Si ordina toccando le colonne e si esporta in Excel, CSV o PDF.
+- **MooMonitor nella scheda**: quando il programma ponte carica i dati dei collari, la scheda mostra ruminazione, attività, alimentazione, riposo e ultimo calore, e avvisa se MooMonitor non è d'accordo con l'app (per esempio una vacca gravida che MooMonitor non segna gravida).
+- **Parto con i vitelli**: si indica se sono gemelli e, per ogni vitello, sesso, vivo o morto e matricola. Si crea la scheda di ogni vitello nato vivo.
+- **Invia anche a MooMonitor e Si@lleva** (in prova): nel modulo di fecondazione, diagnosi, asciutta e parto si può spuntare dove mandare l'evento. Lo manda il programma ponte, acceso sul computer dell'ufficio; in **Stalla → Invii** si vede cosa è partito e cosa va controllato. Se un invio non va, si corregge l'evento e si salva di nuovo. Per ora il ponte lavora solo su servizi di prova.
+
 ## Novità della versione 1.16: fatture mancanti e reddito lordo standard
 
 - **Conti → Fatture mancanti**: carichi il file Excel con l'elenco di tutte le fatture dell'anno (per esempio `passive_2025.xlsx` per quelle ricevute; va bene anche quello delle emesse) e l'app lo confronta con le fatture che hai caricato. Ti dice quali **mancano**, quali hanno un **totale o una data diversi** e quali hai caricato ma **non sono nell'elenco**. Le fatture si abbinano per partita IVA e numero: spazi, barre e trattini non contano ("1257 /FT-A" = "1257/FT-A"). Le fatture mancanti compaiono anche in Panoramica, tra le cose da sistemare. L'elenco serve solo al controllo: non aggiunge fatture all'archivio.

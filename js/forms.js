@@ -3,7 +3,7 @@ import { S, D, get } from './state.js';
 import { N, nf, fd, today, byName } from './util.js';
 import * as store from './store.js';
 import { openForm, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
-import { COLTURE, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa } from './domain.js';
+import { COLTURE, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo } from './domain.js';
 import { areaHa } from './geo.js';
 import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
 import { fitoLookup, fitoSearch, fitoMeta } from './fitodb.js';
@@ -15,7 +15,9 @@ import { boxAllegati, salvaAllegati } from './views/libretto.js';
 const oCampi = () => [...S.campi].sort(byName).map(c => [c.id, `${c.nome} · ${nf(campoHa(c), 2)} ha`]);
 const oProd = cats => () => [...S.prodotti].filter(p => !cats || cats.includes(p.categoria)).sort(byName).map(p => [p.id, `${p.nome} — ${nf(giac(p), 1)} ${p.unita || ''}`]);
 const oMezzi = () => [...S.mezzi].sort(byName).map(m => [m.id, m.nome]);
-const oCapi = () => [...S.capi].filter(c => capoI(c).stato !== 'Uscita').sort((a, b) => (a.matricola || '').localeCompare(b.matricola || '')).map(c => [c.id, `${c.matricola}${c.nome ? ' · ' + c.nome : ''}`]);
+// Prima i capi con il numero aziendale, in ordine di numero; poi gli altri per matricola
+const nInt = c => { const n = parseInt(numCapo(c), 10); return isNaN(n) ? Infinity : n; };
+const oCapi = () => [...S.capi].filter(c => capoI(c).stato !== 'Uscita').sort((a, b) => nInt(a) - nInt(b) || (a.matricola || '').localeCompare(b.matricola || '')).map(c => [c.id, [nomeCapoLungo(c), c.matricola && numCapo(c) ? c.matricola.slice(-6) : ''].filter(Boolean).join(' · ')]);
 const isT = (...t) => v => t.includes(v.tipo);
 const isTr = isT('Trattamento sanitario', 'Vaccinazione');
 const oOperatori = () => S.operatori.map(o => o.nome).filter(Boolean).sort();
@@ -29,6 +31,21 @@ export function runChecks(v, campi, opId) {
   const now = document.getElementById('chkForce'); if (now && keep) now.checked = true;
   if (FORM) FORM.checks = list;
   return list;
+}
+
+// Coda degli invii: il ponte (programma sul PC) manda l'evento a MooMonitor e Si@lleva e scrive l'esito.
+// Non si rimette in coda un evento gia' inviato con gli stessi dati.
+async function mettiInCoda(eventoId, v) {
+  const dest = Array.isArray(v.invia) ? v.invia.filter(d => d === 'moomonitor' || d === 'sialleva') : [];
+  if (!dest.length) return;
+  const prima = S.invii.filter(x => x.eventoId === eventoId);
+  const uguale = x => x.tipo === v.tipo && x.data === v.data && x.capoId === v.capoId && dest.every(d => (x.destinazioni || []).includes(d));
+  if (prima.some(x => x.stato !== 'in attesa' && x.stato !== 'errore' && uguale(x))) return;
+  // un invio ancora in coda o andato in errore si rimette in coda (dopo aver corretto l'evento); le destinazioni gia' riuscite restano tali
+  const aperto = prima.find(x => x.stato === 'in attesa') || prima.find(x => x.stato === 'errore');
+  const esiti = aperto && aperto.tipo === v.tipo && aperto.data === v.data ? Object.fromEntries(Object.entries(aperto.esiti || {}).filter(([d, e]) => dest.includes(d) && e && (e.stato === 'inviato' || e.stato === "gia' presente"))) : {};
+  await store.put('invii', aperto ? aperto.id : null, { eventoId, capoId: v.capoId, tipo: v.tipo, data: v.data, destinazioni: dest, stato: 'in attesa', esiti, creato: aperto ? aperto.creato : new Date().toISOString(), rimesso: aperto ? new Date().toISOString() : undefined });
+  if (FORM) FORM.done = 'Evento salvato e messo in coda per ' + dest.map(d => d === 'moomonitor' ? 'MooMonitor' : 'Si@lleva').join(' e ');
 }
 
 export const SPEC = {
@@ -247,8 +264,13 @@ export const SPEC = {
       { k: 'capoId', l: 'Capo', t: 'select', opts: () => { const a = oCapi(); const cur = FORM && FORM.values && FORM.values.capoId; if (cur && !a.some(x => x[0] === cur)) { const c = get('capi', cur); if (c) a.unshift([c.id, c.matricola + ' (uscito)']); } return a; }, req: 1, half: 1, blank: 'Scegli il capo' },
       { k: 'data', l: 'Data', t: 'date', req: 1, half: 1 },
       { k: 'facilita', l: 'Andamento del parto', t: 'seg', opts: ['Normale', 'Assistito', 'Difficile', 'Cesareo'], show: isT('Parto') },
-      { k: 'vitelloSesso', l: 'Vitello', t: 'seg', opts: ['F', 'M', 'Gemelli', 'Nato morto'], show: isT('Parto') },
+      { k: 'nVitelli', l: 'Vitelli', t: 'seg', opts: [['1', 'Uno'], ['2', 'Gemelli']], show: isT('Parto') },
+      { k: 'vitelloSesso', l: 'Vitello', t: 'seg', opts: [['F', 'Femmina'], ['M', 'Maschio']], half: 1, show: isT('Parto') },
+      { k: 'vitelloEsito', l: 'Nato', t: 'seg', opts: ['Vivo', 'Morto'], half: 1, show: isT('Parto') },
       { k: 'vitelloMatricola', l: 'Matricola del vitello', show: isT('Parto'), hint: 'Se la indichi, la scheda del vitello si crea da sola' },
+      { k: 'vitello2Sesso', l: 'Secondo vitello', t: 'seg', opts: [['F', 'Femmina'], ['M', 'Maschio']], half: 1, show: v => isT('Parto')(v) && v.nVitelli === '2' },
+      { k: 'vitello2Esito', l: 'Nato', t: 'seg', opts: ['Vivo', 'Morto'], half: 1, show: v => isT('Parto')(v) && v.nVitelli === '2' },
+      { k: 'vitello2Matricola', l: 'Matricola del secondo vitello', show: v => isT('Parto')(v) && v.nVitelli === '2' },
       { k: 'metodoFec', l: 'Metodo', t: 'seg', opts: [['Inseminazione artificiale', 'IA'], ['Monta naturale', 'Monta'], ['Embryo transfer', 'ET']], show: isT('Fecondazione') },
       { k: 'toro', l: 'Toro o seme', half: 1, show: isT('Fecondazione') },
       { k: 'esito', l: 'Esito', t: 'seg', opts: ['Positiva', 'Negativa'], req: 1, half: 1, show: isT('Diagnosi gravidanza') },
@@ -268,18 +290,24 @@ export const SPEC = {
       { k: 'motivoUscita', l: 'Motivo', t: 'seg', opts: ['Vendita', 'Macellazione', 'Morte', 'Altro'], req: 1, show: isT('Uscita') },
       { k: 'destinatario', l: 'Destinatario', show: isT('Uscita') },
       { k: 'operatore', l: 'Operatore', half: 1, show: isT('Fecondazione', 'Calore', 'Messa in asciutta', 'Parto') },
+      { k: 'invia', l: 'Invia anche a', t: 'checks', opts: [['', [['moomonitor', 'MooMonitor'], ['sialleva', 'Si@lleva']]]], show: isT('Fecondazione', 'Diagnosi gravidanza', 'Messa in asciutta', 'Parto') },
       { k: 'note', l: 'Note', t: 'textarea' }],
     defaults: () => ({ data: today() }),
     onChange(ch, v) { if (ch === 'prodottoId') { const p = get('prodotti', v.prodottoId); if (p) { if (!FORM.dirty.has('sospLatte') && N(p.sospLatte)) setVal('sospLatte', p.sospLatte); if (!FORM.dirty.has('sospCarne') && N(p.sospCarne)) setVal('sospCarne', p.sospCarne); setHint('quantita', 'In ' + (p.unita || '') + ', si scarica dal magazzino'); } } },
     async save(id, v) {
       const nid = await store.put('eventi', id, v);
+      await mettiInCoda(nid, v);
       const mov = S.movimenti.find(m => m.evId === nid); const c = get('capi', v.capoId);
       if (v.prodottoId && N(v.quantita) > 0) await store.put('movimenti', mov ? mov.id : null, { data: v.data, prodottoId: v.prodottoId, tipo: 'Scarico', quantita: N(v.quantita), note: (v.tipo || '') + ' · ' + (c ? c.matricola : ''), evId: nid });
       else if (mov) await store.remove('movimenti', mov.id);
-      if (!id && v.tipo === 'Parto' && v.vitelloMatricola && (v.vitelloSesso === 'F' || v.vitelloSesso === 'M') && !S.capi.some(x => x.matricola === v.vitelloMatricola)) {
-        const info = D.capi.get(v.capoId); const fec = info && info.fec;
-        await store.put('capi', null, { matricola: v.vitelloMatricola, sesso: v.vitelloSesso, nascita: v.data, madre: c ? c.matricola : '', padre: (fec && fec.toro) || '', razza: c ? c.razza || '' : '', gruppo: v.vitelloSesso === 'F' ? 'Vitelle' : 'Vitelli', ingresso: v.data });
-        if (FORM) FORM.done = 'Parto registrato e scheda del vitello creata';
+      // schede dei vitelli nati vivi con la matricola (anche i gemelli)
+      if (!id && v.tipo === 'Parto') {
+        const info = D.capi.get(v.capoId); const fec = info && info.fec; let n = 0;
+        for (const [m, s, e] of [[v.vitelloMatricola, v.vitelloSesso, v.vitelloEsito], [v.nVitelli === '2' ? v.vitello2Matricola : '', v.vitello2Sesso, v.vitello2Esito]]) {
+          if (!m || (s !== 'F' && s !== 'M') || e === 'Morto' || S.capi.some(x => x.matricola === m)) continue;
+          await store.put('capi', null, { matricola: m, sesso: s, nascita: v.data, madre: c ? c.matricola : '', padre: (fec && fec.toro) || '', razza: c ? c.razza || '' : '', gruppo: s === 'F' ? 'Vitelle' : 'Vitelli', ingresso: v.data }); n++;
+        }
+        if (n && FORM) FORM.done = (n > 1 ? 'Parto registrato e schede dei vitelli create' : 'Parto registrato e scheda del vitello creata') + (FORM.done ? ' · ' + FORM.done.replace('Evento salvato e messo', 'messo') : '');
       }
     },
     async remove(e) { const mov = S.movimenti.find(m => m.evId === e.id); if (mov) await store.remove('movimenti', mov.id); await store.remove('eventi', e.id); },

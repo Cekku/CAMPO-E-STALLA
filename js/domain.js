@@ -51,6 +51,17 @@ export function rotazione(c, anno) {
 }
 export const campoHa = c => N(c.superficie) || (c.geom ? Math.round(areaHa(c.geom) * 10000) / 10000 : 0);
 
+// Il numero aziendale (lo stesso di collari e sala di mungitura) identifica la vacca: viene prima di tutto
+export const numCapo = c => { const n = String((c && c.numero) || '').trim(); return n === '0' ? '' : n; };
+export function nomeCapo(c) {
+  if (!c) return '';
+  if (numCapo(c)) return 'N. ' + numCapo(c);
+  if (c.nome || c.matricola) return c.nome || c.matricola;
+  return (c.sesso === 'M' ? 'Maschio' : 'Femmina') + (okD(c.nascita) ? (c.sesso === 'M' ? ' nato il ' : ' nata il ') + fd(c.nascita) : ' senza numero');
+}
+// Numero e nome insieme, per elenchi e promemoria: "N. 296 · VITARA"
+export const nomeCapoLungo = c => nomeCapo(c) + (numCapo(c) && c.nome ? ' · ' + c.nome : '');
+
 export function capoInfo(c, ev) {
   const T = today();
   const last = (t, after) => { for (let i = ev.length - 1; i >= 0; i--) { const e = ev[i]; if (e.tipo === t && (!after || e.data > after)) return e; } return null; };

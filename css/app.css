@@ -357,6 +357,8 @@ select.inp { padding-right: 28px; }
 .dh-body h1 { font-size: 30px; font-weight: 800; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .dh-body .btns { margin-top: 8px; }
 .dh-body .chips { justify-content: flex-start; margin-top: 4px; }
+.avatar.numa { width: auto; min-width: 42px; padding: 0 6px; border-radius: 12px; font-size: 15px; font-variant-numeric: tabular-nums; }
+.big-avatar.numa { width: auto; min-width: 84px; padding: 0 14px; border-radius: 22px; font-size: 34px; font-variant-numeric: tabular-nums; }
 .big-avatar { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; font-family: var(--f-display); font-size: 36px; font-weight: 800; background: var(--sunk); color: var(--ink-2); flex: none; }
 .big-avatar.ok { background: var(--ok-soft); color: var(--ok); } .big-avatar.hay { background: var(--hay-soft); color: var(--hay); } .big-avatar.info { background: var(--info-soft); color: var(--info); }
 .big-icon { width: 84px; height: 84px; border-radius: 8px; display: grid; place-items: center; background: var(--brand-soft); color: var(--accent); flex: none; }

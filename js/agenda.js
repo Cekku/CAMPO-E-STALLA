@@ -2,7 +2,7 @@
 import { S, get } from './state.js';
 import { esc, fd, fdShort, weekday, today, addDays, diff, okD, N, nf, yearOf } from './util.js';
 import { ic } from './icons.js';
-import { capoI, giac, campoInfo, cropOf } from './domain.js';
+import { capoI, giac, campoInfo, cropOf, nomeCapoLungo } from './domain.js';
 import { righeTrattamenti } from './registro.js';
 import { isTrattore, compDi, stato } from './trattori.js';
 
@@ -23,7 +23,7 @@ export function agenda(giorni = 14, area = 'tutte') {
   // stalla: parti, asciutte, fine delle sospensioni
   S.capi.forEach(c => {
     const i = capoI(c); if (!i || i.stato === 'Uscita') return;
-    const nome = c.nome || c.matricola || 'Capo';
+    const nome = nomeCapoLungo(c);
     if (i.gravida && okD(i.prevParto)) {
       if (dentro(i.prevParto)) add(i.prevParto, 'stalla', 'baby', 'Parto previsto · ' + nome, (c.razza || '') + (i.nLatt ? ' · ' + (i.nLatt + 1) + 'ª lattazione' : ' · primo parto'), { type: 'capo', id: c.id });
       const asc = addDays(i.prevParto, -60);
