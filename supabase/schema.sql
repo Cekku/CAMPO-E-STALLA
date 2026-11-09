@@ -18,10 +18,19 @@ create table if not exists public.farm_members (
   farm_id   uuid not null references public.farms(id) on delete cascade,
   user_id   uuid not null references auth.users(id) on delete cascade,
   email     text,
-  role      text not null default 'membro' check (role in ('titolare', 'membro')),
+  role      text not null default 'membro' check (role in ('titolare', 'membro', 'lettore')),
+  allegati  boolean not null default true,   -- il collaboratore vede gli allegati (lo decide il titolare)
   joined_at timestamptz not null default now(),
   primary key (farm_id, user_id)
 );
+-- Per i database creati prima della 1.26.0: colonna degli allegati e ruolo "lettore" (solo lettura)
+alter table public.farm_members add column if not exists allegati boolean not null default true;
+do $$ declare c text; begin
+  for c in select conname from pg_constraint where conrelid = 'public.farm_members'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%role%' loop
+    execute format('alter table public.farm_members drop constraint %I', c);
+  end loop;
+end $$;
+alter table public.farm_members add constraint farm_members_role_check check (role in ('titolare', 'membro', 'lettore'));
 
 -- Registrazioni (campi, operazioni, capi, eventi, latte, magazzino, ...) ----
 create table if not exists public.records (
@@ -46,6 +55,14 @@ create or replace function public.is_owner(f uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from farm_members where farm_id = f and user_id = auth.uid() and role = 'titolare');
 $$;
+
+-- Può registrare: il titolare e i collaboratori, non chi è in sola lettura (dalla 1.26.0)
+create or replace function public.can_write(f uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from farm_members where farm_id = f and user_id = auth.uid() and role in ('titolare', 'membro'));
+$$;
+revoke all on function public.can_write(uuid) from public, anon;
+grant execute on function public.can_write(uuid) to authenticated;
 
 -- L'orario di modifica lo decide il server: è la base della sincronizzazione
 create or replace function public.touch_record() returns trigger
@@ -96,15 +113,27 @@ begin
   return c;
 end $$;
 
-revoke all on function public.create_farm(text), public.join_farm(text), public.new_join_code(uuid) from public, anon;
-grant execute on function public.create_farm(text), public.join_farm(text), public.new_join_code(uuid) to authenticated;
+-- Permessi di una persona (solo il titolare, dalla 1.26.0): 'membro' = collaboratore (con o senza allegati), 'lettore' = solo lettura
+create or replace function public.set_member_role(f uuid, u uuid, ruolo text, con_allegati boolean default true) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_owner(f) then raise exception 'Solo il titolare può cambiare i permessi'; end if;
+  if ruolo not in ('membro', 'lettore') then raise exception 'Permesso non valido'; end if;
+  update farm_members set role = ruolo, allegati = (ruolo = 'membro' and coalesce(con_allegati, true))
+    where farm_id = f and user_id = u and role <> 'titolare';
+  if not found then raise exception 'Persona non trovata nell''azienda'; end if;
+end $$;
 
--- Versione dello schema (l'app la controlla per sapere se i conti sono protetti)
-create or replace function public.ces_schema_version() returns int language sql immutable as $$ select 4 $$;
+revoke all on function public.create_farm(text), public.join_farm(text), public.new_join_code(uuid), public.set_member_role(uuid, uuid, text, boolean) from public, anon;
+grant execute on function public.create_farm(text), public.join_farm(text), public.new_join_code(uuid), public.set_member_role(uuid, uuid, text, boolean) to authenticated;
+
+-- Versione dello schema (l'app la controlla per sapere se i conti sono protetti; 5 = permessi delle persone)
+create or replace function public.ces_schema_version() returns int language sql immutable as $$ select 5 $$;
 grant execute on function public.ces_schema_version() to authenticated;
 
 -- Regole di accesso -------------------------------------------------------
 -- I dati economici (fatture, bilanci, configurazione dei conti) sono visibili solo al titolare.
+-- Chi è in sola lettura (lettore) legge il resto ma non scrive niente e non vede gli allegati.
 alter table public.farms        enable row level security;
 alter table public.farm_members enable row level security;
 alter table public.records      enable row level security;
@@ -113,19 +142,32 @@ drop policy if exists farms_select on public.farms;
 create policy farms_select on public.farms for select to authenticated using (is_member(id));
 drop policy if exists farms_update on public.farms;
 create policy farms_update on public.farms for update to authenticated using (is_owner(id)) with check (is_owner(id));
+-- Il codice di invito lo legge solo il titolare (dalla 1.26.0): gli altri vedono dell'azienda solo id e nome.
+-- Senza questo, chi è in sola lettura potrebbe rientrare con un secondo account come collaboratore.
+revoke select on public.farms from anon, authenticated;
+grant select (id, name, created_by, created_at) on public.farms to authenticated;
+revoke update on public.farms from anon, authenticated;
+grant update (name) on public.farms to authenticated;   -- il titolare cambia solo il nome; il codice solo con new_join_code
+create or replace function public.get_join_code(f uuid) returns text
+language sql stable security definer set search_path = public as $$
+  select join_code from farms where id = f and is_owner(f);
+$$;
+revoke all on function public.get_join_code(uuid) from public, anon;
+grant execute on function public.get_join_code(uuid) to authenticated;
 
 drop policy if exists members_select on public.farm_members;
 create policy members_select on public.farm_members for select to authenticated using (is_member(farm_id));
 drop policy if exists members_delete on public.farm_members;
 create policy members_delete on public.farm_members for delete to authenticated
-  using ((is_owner(farm_id) and role <> 'titolare') or user_id = auth.uid());
+  using ((is_owner(farm_id) and role <> 'titolare') or (user_id = auth.uid() and (role = 'titolare' or (role = 'membro' and allegati))));
+-- chi ha permessi ridotti non può togliersi da solo: rientrando con il codice tornerebbe collaboratore. Lo toglie il titolare.
 
 drop policy if exists records_select on public.records;
 create policy records_select on public.records for select to authenticated using (is_member(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti') or is_owner(farm_id)));
 drop policy if exists records_insert on public.records;
-create policy records_insert on public.records for insert to authenticated with check (is_member(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti') or is_owner(farm_id)));
+create policy records_insert on public.records for insert to authenticated with check (can_write(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti') or is_owner(farm_id)));
 drop policy if exists records_update on public.records;
-create policy records_update on public.records for update to authenticated using (is_member(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti') or is_owner(farm_id))) with check (is_member(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti') or is_owner(farm_id)));
+create policy records_update on public.records for update to authenticated using (can_write(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti') or is_owner(farm_id))) with check (can_write(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti') or is_owner(farm_id)));
 
 -- Aggiornamenti in tempo reale tra telefono e computer
 do $$ begin
@@ -142,11 +184,20 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.is_member_path(text) from public, anon;
 grant execute on function public.is_member_path(text) to authenticated;
+-- Allegati (dalla 1.26.0): il titolare sempre, i collaboratori se il titolare non li ha esclusi, chi è in sola lettura mai
+alter table public.farm_members add column if not exists allegati boolean not null default true;
+create or replace function public.can_files_path(p text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from farm_members where farm_id::text = split_part(p, '/', 1) and user_id = auth.uid()
+    and (role = 'titolare' or (role = 'membro' and allegati)));
+$$;
+revoke all on function public.can_files_path(text) from public, anon;
+grant execute on function public.can_files_path(text) to authenticated;
 drop policy if exists allegati_select on storage.objects;
-create policy allegati_select on storage.objects for select to authenticated using (bucket_id = 'allegati' and public.is_member_path(name));
+create policy allegati_select on storage.objects for select to authenticated using (bucket_id = 'allegati' and public.can_files_path(name));
 drop policy if exists allegati_insert on storage.objects;
-create policy allegati_insert on storage.objects for insert to authenticated with check (bucket_id = 'allegati' and public.is_member_path(name));
+create policy allegati_insert on storage.objects for insert to authenticated with check (bucket_id = 'allegati' and public.can_files_path(name));
 drop policy if exists allegati_update on storage.objects;
-create policy allegati_update on storage.objects for update to authenticated using (bucket_id = 'allegati' and public.is_member_path(name)) with check (bucket_id = 'allegati' and public.is_member_path(name));
+create policy allegati_update on storage.objects for update to authenticated using (bucket_id = 'allegati' and public.can_files_path(name)) with check (bucket_id = 'allegati' and public.can_files_path(name));
 drop policy if exists allegati_delete on storage.objects;
-create policy allegati_delete on storage.objects for delete to authenticated using (bucket_id = 'allegati' and public.is_member_path(name));
+create policy allegati_delete on storage.objects for delete to authenticated using (bucket_id = 'allegati' and public.can_files_path(name));

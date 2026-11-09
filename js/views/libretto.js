@@ -68,7 +68,7 @@ function libretto(m, ore) {
 
 function interventi(m, man) {
   if (store.sync.farm && ALL.stato.archivio === null) ALL.prova().then(v => { if (v === false) bus.render(); }).catch(() => { });
-  const avviso = store.sync.farm && ALL.stato.archivio === false ? `<section class="card note lib-avvio">${ic('triangle-alert')}<div><b>Archivio online delle fatture da attivare.</b> Le fatture restano su questo dispositivo finché non attivi l'archivio, una volta sola: in Supabase apri <b>SQL Editor → New query</b>, incolla il codice e premi <b>Run</b>.<div class="btns" style="margin-top:8px"><button class="btn sm" data-act="lib-sql">${ic('copy')}Copia il codice</button></div></div></section>` : '';
+  const avviso = store.sync.farm && !store.puoAllegati() ? `<section class="card note lib-avvio">${ic('shield-check')}<div>${ALL.NO_ALLEGATI}</div></section>` : store.sync.farm && ALL.stato.archivio === false ? `<section class="card note lib-avvio">${ic('triangle-alert')}<div><b>Archivio online delle fatture da attivare.</b> Le fatture restano su questo dispositivo finché non attivi l'archivio, una volta sola: in Supabase apri <b>SQL Editor → New query</b>, incolla il codice e premi <b>Run</b>.<div class="btns" style="margin-top:8px"><button class="btn sm" data-act="lib-sql">${ic('copy')}Copia il codice</button></div></div></section>` : '';
   const pend = store.sync.farm && ALL.daInviare() ? `<p class="muted small lib-pad">${ALL.daInviare()} file in attesa di essere caricati online.</p>` : '';
   return avviso + interventiLista(m, man, pend);
 }
@@ -203,6 +203,7 @@ export function boxAllegati() {
   const box = document.getElementById('box_allegati'); if (!box || !FORM) return;
   if (!FORM.allegati) FORM.allegati = ((FORM.values || {}).allegati || []).slice();
   const draw = () => {
+    if (!store.puoAllegati()) { const n = FORM.allegati.length; box.innerHTML = `<span class="flabel">Fattura e foto</span><p class="muted small">${n ? n + (n === 1 ? ' allegato. ' : ' allegati. ') : ''}${ALL.NO_ALLEGATI}</p>`; return; }
     const att = lsGet('ces.scan', null), attesa = att && Date.now() - att.t < 3 * 3600e3;
     box.innerHTML = `<span class="flabel">Fattura e foto</span>${FORM.allegati.length ? `<div class="all-list">${FORM.allegati.map(a => `<div class="all-it"><button type="button" class="all-open" data-all="apri" data-id="${a.id}">${ic(/pdf/.test(a.tipo) ? 'file-text' : 'camera')}<span><b>${esc(a.nome)}</b><small>${kb(a.kb || 0)}</small></span></button><button type="button" class="iconbtn" data-all="via" data-id="${a.id}" aria-label="Togli ${esc(a.nome)}">${ic('x')}</button></div>`).join('')}</div>` : ''}
     <div class="btns"><label class="btn sm">${ic('camera')}Fotografa<input type="file" accept="image/*" capture="environment" hidden data-all="file"></label><label class="btn sm">${ic('paperclip')}Scegli file<input type="file" accept="image/*,application/pdf,.pdf" multiple hidden data-all="file"></label><button type="button" class="btn sm ghost" data-all="scan">${ic('sparkles')}Leggi con Claude</button>${attesa ? `<button type="button" class="btn sm primary" data-all="incolla">${ic('clipboard-paste')}Incolla i dati letti</button>` : ''}</div><div class="all-view" hidden></div>`;

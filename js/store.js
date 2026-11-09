@@ -12,7 +12,13 @@ export const onSync = fn => { listeners.add(fn); return () => listeners.delete(f
 
 // found: aziende di cui l'utente è già membro, cercate dopo l'accesso quando il dispositivo non ne ha una collegata
 // (null = non ancora cercate, 'cerco' = ricerca in corso); locali = registrazioni del dispositivo che non sono esempi né impostazioni
-export const sync = { mode: 'local', status: 'idle', pending: 0, lastSync: null, user: null, farm: null, members: [], error: '', found: null, locali: 0 };
+export const sync = { mode: 'local', status: 'idle', pending: 0, lastSync: null, user: null, farm: null, members: [], error: '', found: null, locali: 0, perm: null };
+// Permessi di chi usa il dispositivo nell'azienda collegata (dalla 1.26.0), decisi dal titolare: { role: 'titolare'|'membro'|'lettore', allegati }
+// Si ricordano sul dispositivo per quando si è offline; le regole vere sono nel database (supabase/aggiornamento-ruoli.sql).
+const permKey = () => 'ces.perm.' + (sync.farm && sync.farm.id);
+export const soloLettura = () => !!(sync.farm && sync.perm && sync.perm.role === 'lettore');
+export const puoAllegati = () => !sync.farm || !sync.perm || sync.perm.role === 'titolare' || (sync.perm.role === 'membro' && sync.perm.allegati !== false);
+const NO_SCRITTURA = "Sei in sola lettura: puoi guardare i dati dell'azienda ma non registrare. Se ti serve, chiedi al titolare.";
 const emitSync = () => listeners.forEach(f => { try { f(sync); } catch (e) { } });
 
 function openIDB() {
@@ -41,13 +47,14 @@ export async function initStore() {
     recs.forEach(r => { if (!r.deleted && mem[r.col]) mem[r.col].set(r.id, Object.assign({}, r.data, { id: r.id })); });
     sync.pending = (await getAll('outbox')).length;
     sync.lastSync = await metaGet('lastSync') || null;
-    const farm = await metaGet('farm'); if (farm) sync.farm = farm;
+    const farm = await metaGet('farm'); if (farm) { sync.farm = farm; sync.perm = lsGet(permKey(), null); }
   }
   rebuild(); UI.loaded = true; schedule();
   initCloud();
 }
 
 async function writeLocal(col, id, data, deleted) {
+  if (soloLettura()) throw new Error(NO_SCRITTURA);
   const k = col + '/' + id; const rec = { k, col, id, data, deleted, ts: Date.now() };
   if (deleted) mem[col].delete(id); else mem[col].set(id, Object.assign({}, data, { id }));
   rebuild([col]); schedule();
@@ -61,6 +68,7 @@ export async function remove(col, id) { await writeLocal(col, id, {}, true); }
 
 // Importazione in blocco (backup o dati di esempio)
 export async function bulkPut(rows) {
+  if (soloLettura()) throw new Error(NO_SCRITTURA);
   rows.forEach(({ col, id, data }) => mem[col].set(id, Object.assign({}, data, { id })));
   rebuild(); schedule();
   if (!idb) return;
@@ -97,18 +105,41 @@ async function initCloud() {
 async function afterLogin() {
   if (!sync.farm) { await findFarms(); return; }
   try {
-    const { data, error } = await sb.from('farms').select('id,name,join_code').eq('id', sync.farm.id).maybeSingle();
+    const { data, error } = await sb.from('farms').select('id,name').eq('id', sync.farm.id).maybeSingle();
     if (error) throw error;
     if (!data) { sync.error = 'Non fai più parte dell\'azienda collegata.'; emitSync(); return; }
-    sync.farm = data; await metaSet('farm', data);
+    sync.farm = Object.assign({}, data, sync.farm.join_code ? { join_code: sync.farm.join_code } : {}); await metaSet('farm', sync.farm);
     loadMembers();
   } catch (e) { /* offline: si usa la copia locale */ }
   startRealtime(); syncNow();
 }
 export async function loadMembers() {
   if (!sb || !sync.farm) return;
-  const { data } = await sb.from('farm_members').select('user_id,email,role,joined_at').eq('farm_id', sync.farm.id).order('joined_at');
-  sync.members = data || []; emitSync();
+  let { data, error } = await sb.from('farm_members').select('user_id,email,role,allegati,joined_at').eq('farm_id', sync.farm.id).order('joined_at');
+  if (error) ({ data } = await sb.from('farm_members').select('user_id,email,role,joined_at').eq('farm_id', sync.farm.id).order('joined_at'));   // database senza aggiornamento-ruoli.sql
+  sync.members = data || [];
+  const me = sync.user && sync.members.find(m => m.user_id === sync.user.id);
+  if (me) {
+    sync.perm = { role: me.role, allegati: me.allegati !== false }; lsSet(permKey(), sync.perm);
+    if (me.role === 'titolare') await caricaCodice();
+    else if (sync.farm.join_code) { delete sync.farm.join_code; await metaSet('farm', sync.farm); }
+    // tolti gli allegati: via anche le copie già scaricate su questo dispositivo
+    if (!puoAllegati()) { try { await caches.delete('ces-allegati-1'); localStorage.removeItem('ces.allegatiDaInviare'); } catch (e) { } }
+  }
+  emitSync();
+}
+// Il codice di invito lo legge solo il titolare: dalla 1.26.0 il database non lo dà agli altri (get_join_code)
+async function caricaCodice() {
+  let { data: code, error } = await sb.rpc('get_join_code', { f: sync.farm.id });
+  if (error) { const r = await sb.from('farms').select('join_code').eq('id', sync.farm.id).maybeSingle(); code = r.data && r.data.join_code; }   // database senza aggiornamento-ruoli.sql
+  if (code && code !== sync.farm.join_code) { sync.farm.join_code = code; await metaSet('farm', sync.farm); }
+}
+// Il titolare sceglie i permessi di una persona: 'collaboratore', 'senzaAllegati' oppure 'lettore'
+export async function setMemberRole(userId, scelta) {
+  const ruolo = scelta === 'lettore' ? 'lettore' : 'membro';
+  const { error } = await sb.rpc('set_member_role', { f: sync.farm.id, u: userId, ruolo, con_allegati: scelta === 'collaboratore' });
+  if (error) { loadMembers(); throw /set_member_role|function/i.test(error.message || '') && !/titolare|valido|trovata/i.test(error.message || '') ? new Error('Prima va aggiornato il database: esegui supabase/aggiornamento-ruoli.sql in Supabase → SQL Editor.') : error; }
+  await loadMembers();
 }
 export async function signIn(email, password) { const { error } = await sb.auth.signInWithPassword({ email, password }); if (error) throw error; }
 export async function signUp(email, password) { const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: indirizzoPubblico() } }); if (error) throw error; return data; }
@@ -137,7 +168,7 @@ export async function findFarms() {
     if (error) throw error;
     let farms = [];
     if (mem.length) {
-      const { data, error: e2 } = await sb.from('farms').select('id,name,join_code,created_at').in('id', mem.map(m => m.farm_id));
+      const { data, error: e2 } = await sb.from('farms').select('id,name,created_at').in('id', mem.map(m => m.farm_id));
       if (e2) throw e2;
       farms = data.map(f => Object.assign(f, { role: (mem.find(m => m.farm_id === f.id) || {}).role })).sort((a, b) => (a.role === 'titolare' ? 0 : 1) - (b.role === 'titolare' ? 0 : 1) || String(a.created_at).localeCompare(b.created_at));
     }
@@ -151,8 +182,8 @@ export async function findFarms() {
 export async function attachExisting(farmId, modo) { await attachFarm(farmId, modo === 'unisci' ? datoVero : false); }
 
 async function attachFarm(farmId, uploadLocal) {
-  const { data } = await sb.from('farms').select('id,name,join_code').eq('id', farmId).single();
-  sync.farm = data; sync.lastSync = null; sync.found = null; sync.locali = 0;
+  const { data } = await sb.from('farms').select('id,name').eq('id', farmId).single();
+  sync.farm = data; sync.lastSync = null; sync.found = null; sync.locali = 0; sync.perm = lsGet(permKey(), null);
   await metaSet('farm', data); await metaSet('lastSync', null);
   if (uploadLocal) {
     // true = tutto (azienda appena creata); una funzione = solo le registrazioni che la soddisfano
@@ -171,7 +202,7 @@ async function attachFarm(farmId, uploadLocal) {
 export async function leaveFarm() {
   if (sb && sync.farm && sync.user) await sb.from('farm_members').delete().eq('farm_id', sync.farm.id).eq('user_id', sync.user.id);
   stopRealtime();
-  sync.farm = null; sync.members = []; await metaSet('farm', null); await metaSet('lastSync', null);
+  sync.farm = null; sync.members = []; sync.perm = null; await metaSet('farm', null); await metaSet('lastSync', null);
   await tx(['outbox'], 'readwrite', t => t.objectStore('outbox').clear()); sync.pending = 0; emitSync();
 }
 export async function removeMember(userId) { const { error } = await sb.from('farm_members').delete().eq('farm_id', sync.farm.id).eq('user_id', userId); if (error) throw error; loadMembers(); }
@@ -199,6 +230,8 @@ export async function syncNow() {
 }
 async function push() {
   const items = await getAll('outbox'); if (!items.length) return;
+  // In sola lettura non si invia niente (il database lo rifiuterebbe): la coda rimasta da prima si svuota e si avvisa in Impostazioni
+  if (soloLettura()) { sync.scartate = (sync.scartate || 0) + items.length; await tx(['outbox'], 'readwrite', t => t.objectStore('outbox').clear()); return; }
   for (let i = 0; i < items.length; i += 300) {
     const chunk = items.slice(i, i + 300);
     const rows = chunk.map(r => ({ farm_id: sync.farm.id, col: r.col, id: r.id, data: r.data, deleted: !!r.deleted }));

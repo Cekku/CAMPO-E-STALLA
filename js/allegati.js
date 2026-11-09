@@ -2,12 +2,13 @@
 // copia online nello spazio file di Supabase (bucket privato 'allegati', cartella = id dell'azienda, regole in supabase/aggiornamento-allegati.sql).
 // Nelle registrazioni resta solo { id, nome, tipo, kb }: i file si scaricano quando si aprono, non a ogni sincronizzazione.
 import { uid, lsGet, lsSet } from './util.js';
-import { sync, cloudClient } from './store.js';
+import { sync, cloudClient, puoAllegati } from './store.js';
 
 const CACHE = 'ces-allegati-1', BUCKET = 'allegati', CODA = 'ces.allegatiDaInviare';
 export const MAX_MB = 12;
 const chiave = id => new URL('./allegati/' + id, location.href).href;
 const percorso = id => sync.farm.id + '/' + id;
+export const NO_ALLEGATI = 'Il titolare non ti ha dato il permesso di vedere gli allegati (fattura e foto degli interventi).';
 export const stato = { archivio: null }; // null = non provato, true = attivo, false = manca il bucket (SQL da eseguire)
 
 async function salvaLocale(id, blob, tipo) {
@@ -30,6 +31,7 @@ async function riduci(file) {
 
 // Aggiunge un file: copia locale subito, invio online appena possibile. Restituisce i dati da tenere nella registrazione.
 export async function aggiungi(file, nome) {
+  if (!puoAllegati()) throw new Error(NO_ALLEGATI);
   if (file.size > MAX_MB * 1e6 && !/^image\//.test(file.type)) throw new Error(`Il file supera ${MAX_MB} MB: riducilo o fotografa le pagine.`);
   const blob = await riduci(file), id = uid();
   const tipo = blob.type || file.type || 'application/octet-stream';
@@ -42,7 +44,7 @@ export async function aggiungi(file, nome) {
 export const daInviare = () => lsGet(CODA, []).length;
 // Controlla una volta se l'archivio online esiste (il bucket si crea con supabase/aggiornamento-allegati.sql)
 export async function prova() {
-  const sb = cloudClient(); if (!sb || !sync.user || !sync.farm || stato.archivio !== null) return stato.archivio;
+  const sb = cloudClient(); if (!sb || !sync.user || !sync.farm || stato.archivio !== null || !puoAllegati()) return stato.archivio;
   const { error } = await sb.storage.from(BUCKET).list(sync.farm.id, { limit: 1 });
   stato.archivio = error ? (/not found/i.test(error.message || '') ? false : null) : true;
   return stato.archivio;
@@ -53,7 +55,7 @@ export function inviaInSospeso() {
   if (invio) return invio;
   invio = (async () => {
     const sb = cloudClient();
-    if (!sb || !sync.user || !sync.farm || !navigator.onLine) return;
+    if (!sb || !sync.user || !sync.farm || !navigator.onLine || !puoAllegati()) return;
     for (const id of lsGet(CODA, [])) {
       const blob = await leggiLocale(id);
       if (blob) {
@@ -70,6 +72,7 @@ window.addEventListener('online', () => inviaInSospeso());
 
 // Il file: dalla copia locale, altrimenti dall'archivio online (e da quel momento resta anche sul dispositivo)
 export async function apri(a) {
+  if (!puoAllegati()) throw new Error(NO_ALLEGATI);
   let blob = await leggiLocale(a.id);
   if (!blob) {
     const sb = cloudClient();

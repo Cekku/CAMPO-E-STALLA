@@ -91,8 +91,17 @@ Senza questo passaggio l'app funziona lo stesso, ma i dati restano sul singolo d
 6. Crea il tuo account, conferma la mail, poi **Crea la tua azienda**: i dati già inseriti vengono caricati online. Fallo sul dispositivo dove hai i dati.
 7. **Sugli altri tuoi dispositivi** (telefono, secondo computer) inserisci gli stessi due valori e accedi con lo **stesso account**: l'app trova da sola la tua azienda e la collega, senza codice (dalla 1.11.1). Se su quel dispositivo ci sono dati non ancora online, chiede se **unirli** all'azienda o **usare solo i dati dell'azienda**. I dati di esempio e le impostazioni del dispositivo non contano: vincono quelle dell'azienda. Se il tuo account fa parte di più aziende, scegli tu quale collegare.
 8. Per i collaboratori: installano l'app, creano il **loro** account e inseriscono il **codice di invito** che trovi in Impostazioni.
+9. **Permessi delle persone** (dalla 1.26.0): in **Impostazioni → Persone**, accanto a ogni persona scegli tu (solo il titolare) cosa può fare:
+   - **Collaboratore**: registra campagna e stalla e vede fattura e foto degli interventi sui mezzi (come prima);
+   - **Collaboratore senza allegati**: registra, ma non vede fattura e foto degli interventi;
+   - **Solo lettura**: guarda campagna e stalla e non registra niente (per esempio un programma che legge i dati per te).
+   I conti li vede sempre solo il titolare. Chi entra con il codice parte come Collaboratore. Il codice di invito lo vedi solo tu. Chi ha permessi ridotti non può togliersi da solo dall'azienda: lo togli tu, poi crea un **nuovo codice di invito**.
 
 La chiave *anon* è pensata per stare nelle app: i dati sono protetti dalle regole di accesso del database, per cui ogni utente vede solo le aziende di cui fa parte.
+
+### Aggiornamento per i permessi delle persone (database creati prima della versione 1.26)
+
+Per poter scegliere i permessi (Collaboratore, senza allegati, Solo lettura) apri **SQL Editor → New query**, incolla il contenuto di [`supabase/aggiornamento-ruoli.sql`](supabase/aggiornamento-ruoli.sql) e premi **Run** (una volta sola), poi in Impostazioni crea un **nuovo codice di invito**. Finché non lo fai, cambiando un permesso l'app ti avvisa che il database va aggiornato. Prima aggiorna l'app su tutti i dispositivi (Ctrl+Shift+R sul computer, chiudi e riapri sul telefono): le versioni prima della 1.26.0 non funzionano più con il database aggiornato.
 
 ### Aggiornamento per i Conti (database creati prima della versione 1.5)
 

@@ -441,6 +441,7 @@ document.addEventListener('change', e => {
   if (t.dataset.act === 'misureImport' && t.files[0]) { const f = t.files[0]; t.value = ''; misureImport(f).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'fitoImport' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Lettura della banca dati…'); importFito(f).then(n => toast('Banca dati caricata: ' + n + ' prodotti')).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'authTab') { authUI.tab = t.value; return render(); }
+  if (t.dataset.act === 'memberRole') { store.setMemberRole(t.dataset.id, t.value).then(() => toast('Permessi aggiornati')).catch(err => toast(traduci(err), 'err')).finally(() => render()); return; }
   if (t.dataset.act === 'view') { UI.view = t.dataset.v; saveUI(); return render(); }
   if (t.dataset.act && t.dataset.act.startsWith('c-')) { contiChange(t).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); return; }
 });
