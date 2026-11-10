@@ -1,0 +1,11 @@
+{
+  "_nota": "Esempio. Le impostazioni vere vanno in %USERPROFILE%\\ArchivioAzienda\\config.json (fuori dal repository).",
+  "sorgenti": [
+    { "nome": "Desktop", "percorso": "C:\\Users\\NOME\\Desktop" },
+    { "nome": "Downloads", "percorso": "C:\\Users\\NOME\\Downloads" }
+  ],
+  "archivio_principale": "C:\\Users\\NOME\\Desktop\\AZIENDA",
+  "escludi_percorsi": [
+    "C:\\Users\\NOME\\Desktop\\PROGETTO CAMPO E STALLA"
+  ]
+}

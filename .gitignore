@@ -4,3 +4,10 @@ shots/
 *.jks
 *.keystore
 chiave.properties
+
+# archivio documenti: catalogo e impostazioni vere stanno fuori dal repository (%USERPROFILE%\ArchivioAzienda)
+*.db
+*.db-wal
+*.db-shm
+strumenti/archivio/config.json
+__pycache__/

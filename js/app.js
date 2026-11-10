@@ -28,9 +28,10 @@ import { moveSheet, misureImport } from './views/stalle.js';
 import { render as vImp, authUI } from './views/impostazioni.js';
 import { avviaBlocco, blocca, salvaBloccoDaForm, disattivaDaForm } from './lock.js';
 import { render as vConti, onAct as contiAct, onChange as contiChange, onDrop as contiDrop, setRerender, contiVisibili, esportaTutto } from './views/conti.js';
+import { render as vArchivio, arAct, arInput, arChange } from './views/archivio.js';
 
-const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, impostazioni: vImp, conti: vConti };
-const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', impostazioni: 'La mia azienda', conti: 'Conti' };
+const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, impostazioni: vImp, conti: vConti, archivio: vArchivio };
+const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio' };
 const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'stalla', 'magazzino', 'mezzi', 'conti']);
 // Voci del menu: [tab, sub, icona, etichetta]
 const MENU = {
@@ -50,6 +51,11 @@ const MENU = {
     ['Bilancio', [['conti', 'ce', 'scale', 'Conto economico'], ['conti', 'sp', 'landmark', 'Stato patrimoniale'], ['conti', 'indici', 'gauge', 'Indici di bilancio'], ['conti', 'rls', 'gauge', 'Reddito lordo standard'], ['conti', 'analisi', 'cow', 'Analisi della stalla'], ['conti', 'iva', 'percent', 'Dichiarazioni IVA'], ['conti', 'cespiti', 'tractor', 'Cespiti'], ['conti', 'controlli', 'shield-check', 'Controlli']]],
     ['Personale', [['conti', 'personale', 'users', 'Riepilogo del personale'], ['conti', 'dipendenti', 'id-card', 'Dipendenti'], ['conti', 'cedolini', 'file-text', 'Cedolini e bilancini paghe'], ['conti', 'pagamenti', 'banknote', 'Pagamenti'], ['conti', 'prestiti', 'hand-coins', 'Anticipi e prestiti'], ['conti', 'verifica', 'shield-check', 'Verifica pagamenti']]],
     ['Gestione', [['conti', 'regole', 'list-checks', 'Regole delle categorie'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
+  ],
+  // Archivio documenti: catalogo dei file sul PC, letto dal ponte locale (js/views/archivio.js)
+  archivio: [
+    ['Principale', [['archivio', 'scaffale', 'book-open', 'Scaffale'], ['archivio', 'raccoglitore', 'box', 'Raccoglitori'], ['archivio', 'cerca', 'search', 'Cerca'], ['archivio', 'rivedere', 'list-checks', 'Da rivedere']]],
+    ['Gestione', [['archivio', 'ponte', 'smartphone', 'Collegamento al PC'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
   ],
 };
 const TAB_OF = { campo: 'campi', capo: 'stalla', prodotto: 'magazzino', mezzo: 'mezzi', struttura: 'stalla' };
@@ -81,8 +87,8 @@ const isVoce = (t, s) => isCur(t, s) && !(t === 'magazzino' && !s);
 function drawerHTML() {
   const a = azienda(); const ha = sum(S.campi, campoHa); const si = syncInfo();
   const nAl = allAlerts().filter(x => UI.area === 'stalla' ? ['stalla', 'latte', 'magazzino'].includes(x.area) : x.area !== 'stalla' && x.area !== 'latte').length;
-  const aree = [['campagna', 'sprout', 'Campagna'], ['stalla', 'cow', 'Stalla'], ...(contiVisibili() ? [['conti', 'wallet', 'Conti']] : [])];
-  const sottotitolo = UI.area === 'stalla' ? S.capi.filter(c => capoI(c).stato !== 'Uscita').length + ' capi · Stalla' : UI.area === 'conti' ? S.fatture.length + ' fatture · Conti' : nf(ha, 2) + ' ha · Campagna';
+  const aree = [['campagna', 'sprout', 'Campagna'], ['stalla', 'cow', 'Stalla'], ...(contiVisibili() ? [['conti', 'wallet', 'Conti'], ['archivio', 'book-open', 'Archivio']] : [])];
+  const sottotitolo = UI.area === 'stalla' ? S.capi.filter(c => capoI(c).stato !== 'Uscita').length + ' capi · Stalla' : UI.area === 'conti' ? S.fatture.length + ' fatture · Conti' : UI.area === 'archivio' ? 'Documenti sul PC · Archivio' : nf(ha, 2) + ' ha · Campagna';
   return `<div class="dr-head"><img src="icons/icon-192.png" alt="" width="44" height="44"><div><b>${esc(a.nome || (sync.farm && sync.farm.name) || 'La tua azienda')}</b><span>${sottotitolo}</span></div></div>
   <button class="dr-user" data-act="nav" data-tab="impostazioni"><span class="dr-av">${ic(sync.user ? 'user' : si.icn)}</span><span><b>${esc(sync.user ? sync.user.email : 'Nessun account')}</b><small class="${si.cls}">${esc(si.t)}</small></span>${ic('chevron-right', 'chev')}</button>
   <div class="dr-tiles"><button data-act="syncTile">${ic('refresh-cw')}<span>Sincronizza</span></button><button data-act="nav" data-tab="oggi">${ic('triangle-alert')}<span>Avvisi</span>${nAl ? `<i class="badge">${nAl}</i>` : ''}</button><button data-act="exportSheet">${ic('download')}<span>Esporta</span></button></div>
@@ -96,13 +102,14 @@ const BNAV = {
   campagna: [['oggi', null, 'house', 'Home'], ['mappa', null, 'map', 'Mappa'], null, ['attivita', null, 'notebook-pen', 'Attività'], ['campi', 'elenco', 'sprout', 'Campi']],
   stalla: [['oggi', null, 'house', 'Home'], ['stalla', 'mandria', 'cow', 'Mandria'], null, ['stalla', 'latte', 'milk', 'Latte'], ['stalla', 'stalle', 'layout-grid', 'Stalle']],
   conti: [['conti', 'panoramica', 'layout-dashboard', 'Home'], ['conti', 'fatture', 'receipt', 'Fatture'], null, ['conti', 'ce', 'scale', 'Bilancio'], ['conti', 'analisi', 'gauge', 'Analisi']],
+  archivio: [['archivio', 'scaffale', 'book-open', 'Scaffale'], ['archivio', 'cerca', 'search', 'Cerca'], null, ['archivio', 'rivedere', 'list-checks', 'Rivedere'], ['archivio', 'ponte', 'smartphone', 'PC']],
 };
 function bnavHTML() {
   return BNAV[UI.area].map(x => x ? `<button data-act="nav" data-tab="${x[0]}"${x[1] ? ` data-sub="${x[1]}"` : ''} aria-current="${!UI.detail && isCur(x[0], x[1]) ? 'page' : 'false'}">${ic(x[2])}<span>${x[3]}</span></button>` : `<button class="bn-plus" data-act="quick" aria-label="Registra"><span>${ic('plus')}</span></button>`).join('');
 }
 // Menu in alto sul computer: le voci della prima sezione in vista, le altre sezioni a tendina
 function topnavHTML() {
-  const aree = [['campagna', 'Campagna'], ['stalla', 'Stalla'], ...(contiVisibili() ? [['conti', 'Conti']] : [])];
+  const aree = [['campagna', 'Campagna'], ['stalla', 'Stalla'], ...(contiVisibili() ? [['conti', 'Conti'], ['archivio', 'Archivio']] : [])];
   const attr = ([t, s]) => `data-act="nav" data-tab="${t}"${s ? ` data-sub="${s}"` : ''} aria-current="${isVoce(t, s) ? 'page' : 'false'}"`;
   const [[, prime], ...altre] = MENU[UI.area];
   return `<div class="tn-areas" role="group" aria-label="Area">${aree.map(([k, l]) => `<button data-act="area" data-area="${k}" aria-pressed="${UI.area === k}">${l}</button>`).join('')}</div>
@@ -119,7 +126,9 @@ if (window.ResizeObserver) new ResizeObserver(([e]) => document.documentElement.
 function render() {
   derive();
   if (UI.area === 'conti' && (!contiVisibili() || !['conti', 'impostazioni'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'conti'; }
+  if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'impostazioni'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
   if (UI.area !== 'conti' && UI.tab === 'conti') UI.area = 'conti';
+  if (UI.area !== 'archivio' && UI.tab === 'archivio') UI.area = 'archivio';
   document.body.dataset.area = UI.area;
   $('#drawer').innerHTML = drawerHTML();
   $('#bnav').innerHTML = bnavHTML();
@@ -137,7 +146,7 @@ function render() {
   let r;
   if (!UI.loaded) r = { title: '', html: '<div class="loading"><span class="spinner"></span>Carico i dati…</div>' };
   else r = (VIEWS[UI.tab] || vOggi)();
-  const t = UI.detail || UI.tab === 'conti' ? r.title : (UI.tab === 'oggi' && UI.area === 'stalla' ? 'Stalla' : TITLES[UI.tab] || r.title);
+  const t = UI.detail || UI.tab === 'conti' || UI.tab === 'archivio' ? r.title : (UI.tab === 'oggi' && UI.area === 'stalla' ? 'Stalla' : TITLES[UI.tab] || r.title);
   $('#abTitle').textContent = t;
   document.title = (t ? t + ' · ' : '') + 'Campo e Stalla';
   $('#view').innerHTML = r.html;
@@ -236,7 +245,7 @@ const AZIONI = [
 const norm = x => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 function comandi() {
   const pag = []; const seen = new Set();
-  Object.entries(MENU).forEach(([area, secs]) => { if (area === 'conti' && !contiVisibili()) return; secs.forEach(([, items]) => items.forEach(([t, sb, i, l]) => { const k = area + t + sb; if (seen.has(k)) return; seen.add(k); pag.push({ kind: 'pag', area, t, sb, i, l }); })); });
+  Object.entries(MENU).forEach(([area, secs]) => { if ((area === 'conti' || area === 'archivio') && !contiVisibili()) return; secs.forEach(([, items]) => items.forEach(([t, sb, i, l]) => { const k = area + t + sb; if (seen.has(k)) return; seen.add(k); pag.push({ kind: 'pag', area, t, sb, i, l }); })); });
   return [...AZIONI.map(([k, i, l, area]) => ({ kind: 'az', k, i, l, area })), ...pag];
 }
 const AREA_L = { campagna: 'Campagna', stalla: 'Stalla', conti: 'Conti', tutte: '' };
@@ -342,7 +351,7 @@ document.addEventListener('click', async e => {
       case 'drawerClose': return drawer(false);
       case 'tnMenu': { const dd = b.parentElement, open = !dd.classList.contains('open'); closeTn(); dd.classList.toggle('open', open); b.setAttribute('aria-expanded', open); return; }
       case 'nav': case 'tab': return setTab(d.tab, d.sub);
-      case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'conti' ? 'conti' : 'oggi');
+      case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'conti' ? 'conti' : d.area === 'archivio' ? 'archivio' : 'oggi');
       case 'sub': if (d.tab && UI.tab !== d.tab) { UI.tab = d.tab; UI.detail = null; UI.hist = []; } UI.sub[d.sec] = d.sub; saveUI(); render(); return window.scrollTo(0, 0);
       case 'open': if (sheetOpen()) closeSheet(); return openDetail(d.type, d.id);
       case 'go': { const g = JSON.parse(d.go); if (g.tab) return setTab(g.tab, g.sub); if (g.form) return openEdit(g.form); if (g.edit) return openEdit(g.edit, g.id); return openDetail(g.type, g.id); }
@@ -425,7 +434,8 @@ document.addEventListener('click', async e => {
       case 'lockNow': return blocca();
       case 'lockOff': try { toast(await disattivaDaForm($)); } catch (err) { toast(err.message, 'err'); } return render();
       case 'c-expAll': drawer(false); closeSheet(); b.disabled = true; try { await esportaTutto(UI.anno); } finally { b.disabled = false; } return;
-      default: if (a.startsWith('lib-')) return import('./views/libretto.js').then(x => x.libAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+      default: if (a.startsWith('ar-')) return arAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+        if (a.startsWith('lib-')) return import('./views/libretto.js').then(x => x.libAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a === 'tsort' || a === 'texp' || a.startsWith('c-')) return contiAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
     }
   } catch (err) { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); }
@@ -443,6 +453,7 @@ document.addEventListener('change', e => {
   if (t.dataset.act === 'authTab') { authUI.tab = t.value; return render(); }
   if (t.dataset.act === 'memberRole') { store.setMemberRole(t.dataset.id, t.value).then(() => toast('Permessi aggiornati')).catch(err => toast(traduci(err), 'err')).finally(() => render()); return; }
   if (t.dataset.act === 'view') { UI.view = t.dataset.v; saveUI(); return render(); }
+  if (t.dataset.act && t.dataset.act.startsWith('ar-')) return arChange(t);
   if (t.dataset.act && t.dataset.act.startsWith('c-')) { contiChange(t).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); return; }
 });
 ['dragover', 'dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => { if (ev === 'dragleave') { const z = e.target.closest && e.target.closest('#dropzone'); if (z) z.classList.remove('over'); return; } contiDrop(e); }));
@@ -451,6 +462,7 @@ document.addEventListener('input', e => {
   if (t.dataset.filter && t.tagName === 'INPUT') { UI.f[t.dataset.filter] = t.value; render(); }
   if (t.id === 'mapSearch') searchSoon(t.value);
   if (t.id === 'gq') searchRun(t.value);
+  if (t.dataset.act && t.dataset.act.startsWith('ar-')) arInput(t);
 });
 const searchSoon = debounce(q => MAP.searchPlace(q), 450);
 document.addEventListener('keydown', e => {

@@ -1,0 +1,95 @@
+{
+  "_nota": "Struttura delle aree dell'archivio (generica, senza dati veri). 'anno': true = sotto la sottoarea c'è una cartella per anno. La mappa delle cartelle vere sta in %USERPROFILE%\\ArchivioAzienda\\mappa-cartelle.json.",
+  "nomi_file": "AAAA-MM-GG_Tipo_Controparte_Descrizione",
+  "aree": [
+    { "codice": "01", "nome": "Società e soci", "sotto": [
+      { "nome": "Visura e atti societari" },
+      { "nome": "Documenti dei soci" },
+      { "nome": "Deleghe e mandati" },
+      { "nome": "DURC, antimafia e dichiarazioni" },
+      { "nome": "Camera di commercio e PEC" } ] },
+    { "codice": "02", "nome": "Fisco e contabilità", "sotto": [
+      { "nome": "Dichiarazioni dei redditi", "anno": true },
+      { "nome": "IVA", "anno": true },
+      { "nome": "F24 e F23", "anno": true },
+      { "nome": "CU", "anno": true },
+      { "nome": "Bilanci e bilancini", "anno": true },
+      { "nome": "Cassetto fiscale e avvisi", "anno": true },
+      { "nome": "Tributi e imposte locali", "anno": true },
+      { "nome": "Parcelle dei professionisti", "anno": true } ] },
+    { "codice": "03", "nome": "Fatture", "sotto": [
+      { "nome": "Acquisti", "anno": true },
+      { "nome": "Vendite", "anno": true },
+      { "nome": "DDT e proforma", "anno": true } ] },
+    { "codice": "04", "nome": "Banche e finanziamenti", "sotto": [
+      { "nome": "Estratti conto", "anno": true },
+      { "nome": "Bonifici e contabili", "anno": true },
+      { "nome": "Finanziamenti e mutui" } ] },
+    { "codice": "05", "nome": "Personale", "sotto": [
+      { "nome": "Dipendenti", "per_persona": true },
+      { "nome": "Buste paga e bilancini paghe", "anno": true },
+      { "nome": "Contributi e F24 del personale", "anno": true },
+      { "nome": "Ispettorato, LUL e comunicazioni", "anno": true },
+      { "nome": "Sicurezza e visite mediche" },
+      { "nome": "Stage" },
+      { "nome": "Alloggi" } ] },
+    { "codice": "06", "nome": "Contratti, fornitori e utenze", "sotto": [
+      { "nome": "Contratti di fornitura e servizi" },
+      { "nome": "Utenze", "anno": true },
+      { "nome": "Preventivi", "anno": true } ] },
+    { "codice": "07", "nome": "Assicurazioni e sinistri", "sotto": [
+      { "nome": "Polizze", "anno": true },
+      { "nome": "Sinistri e danni" } ] },
+    { "codice": "08", "nome": "Contributi e bandi", "sotto": [
+      { "nome": "PAC e fascicolo AGEA", "anno": true },
+      { "nome": "PSR" },
+      { "nome": "ISI INAIL" },
+      { "nome": "ISMEA" },
+      { "nome": "Transizione 4.0" },
+      { "nome": "Gasolio agricolo (UMA)", "anno": true },
+      { "nome": "Altri contributi e statistiche" } ] },
+    { "codice": "09", "nome": "Terreni e fabbricati", "sotto": [
+      { "nome": "Compravendite" },
+      { "nome": "Contratti di affitto" },
+      { "nome": "Visure e catasto" },
+      { "nome": "Demanio e concessioni" },
+      { "nome": "Progetti, permessi e lavori" } ] },
+    { "codice": "10", "nome": "Energia", "sotto": [
+      { "nome": "Fotovoltaico" },
+      { "nome": "Agrivoltaico" },
+      { "nome": "Biometano" },
+      { "nome": "Allacciamenti Enel" } ] },
+    { "codice": "11", "nome": "Stalla e animali", "sotto": [
+      { "nome": "Anagrafe, registro e passaporti" },
+      { "nome": "Controlli AIA e Si@lleva", "anno": true },
+      { "nome": "Veterinario e ASUFC" },
+      { "nome": "Latte e Parmalat", "anno": true },
+      { "nome": "Alimentazione e materie prime" },
+      { "nome": "Benessere e ClassyFarm" },
+      { "nome": "Movimentazione animali (UVAC)" } ] },
+    { "codice": "12", "nome": "Campagna", "sotto": [
+      { "nome": "Quaderno di campagna", "anno": true },
+      { "nome": "Fitofarmaci e concimi" },
+      { "nome": "Analisi" },
+      { "nome": "Mappe e xFarm" } ] },
+    { "codice": "13", "nome": "Mezzi e attrezzature", "sotto": [
+      { "nome": "Trattori" },
+      { "nome": "Auto e veicoli" },
+      { "nome": "Revisioni e verifiche periodiche" },
+      { "nome": "Manutenzioni e rapportini" },
+      { "nome": "Telepass e multe" } ] },
+    { "codice": "14", "nome": "Ambiente, sicurezza e controlli", "sotto": [
+      { "nome": "AUA e PUA" },
+      { "nome": "Rifiuti (FIR e RENTRI)", "anno": true },
+      { "nome": "Sicurezza sul lavoro" },
+      { "nome": "Certificazioni" },
+      { "nome": "Verbali e ispezioni" },
+      { "nome": "Autorizzazioni varie" } ] },
+    { "codice": "15", "nome": "Corsi e formazione", "sotto": [] },
+    { "codice": "16", "nome": "Privato soci", "sotto": [] },
+    { "codice": "99", "nome": "Varie e da smistare", "sotto": [
+      { "nome": "Da verificare" },
+      { "nome": "Foto non documenti" },
+      { "nome": "Manuali e programmi" } ] }
+  ]
+}
