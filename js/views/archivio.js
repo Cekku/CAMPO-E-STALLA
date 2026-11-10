@@ -14,6 +14,9 @@ const DA = { cartella: 'dalla cartella', regole: 'dalle regole', claude: 'da Cla
 const f = UI.f;
 const stretto = () => window.matchMedia('(max-width: 1099px)').matches;
 const dataDoc = d => (d.data && d.data.length === 10 ? fd(d.data) : d.data && d.data.length === 7 ? d.data.slice(5) + '/' + d.data.slice(0, 4) : d.anno || '—');
+// i nomi del catalogo usano i trattini al posto degli spazi (servono per i nomi dei file): a video si leggono con gli spazi
+const leggibile = s => (s ? String(s).replace(/(\d)EUR\b/g, '$1 €').replace(/(?<!\d)-|-(?!\d)/g, ' ').replace(/\s+/g, ' ').trim() : s);
+const vedi = d => Object.assign({}, d, { tipo: leggibile(d.tipo), controparte: leggibile(d.controparte), persona: leggibile(d.persona), descrizione: leggibile(d.descrizione) });
 const evid = s => esc(s || '').replace(/\[([^[\]]*)\]/g, '<mark>$1</mark>');
 const chipStato = st => STATI[st] ? `<span class="chip ${STATI[st][0] === 'wa' ? 'warn' : STATI[st][0]}">${STATI[st][1]}</span>` : '';
 const nomeArea = d => [d.area, d.sotto].filter(Boolean).join(' › ') + (d.anno && d.codice && d.codice.includes('.') ? ' › ' + d.anno : '');
@@ -75,6 +78,7 @@ function errore(e) { return e && !e.spento ? `<div class="note-box bad">${ic('tr
 /* proposta da confermare: riquadro della coda (Scaffale) o riga della pagina Da rivedere */
 function proposta(d, { salta = false } = {}) {
   if (f.ar_edit === String(d.id)) return modulo(d);
+  d = vedi(d);
   return `<div class="ar-prop" id="arp-${d.id}"><div class="ar-prop-b"><span class="eyebrow">${esc(d.nome_file)}</span>
   <dl class="ar-dl"><div><dt>Area</dt><dd>${esc(nomeArea(d)) || '<i class="muted">nessuna</i>'}</dd></div><div><dt>Tipo e data</dt><dd>${esc(d.tipo || '—')} · ${esc(dataDoc(d))}</dd></div><div><dt>Controparte</dt><dd>${esc(d.controparte || '—')}${d.persona ? ` · <span class="muted">${esc(d.persona)}</span>` : ''}</dd></div><div><dt>Nome nuovo</dt><dd class="mono ar-nome">${esc(d.nome_proposto || '—')}</dd></div></dl></div>
   <div class="btns"><button class="btn sm ar-ok" data-act="ar-ok" data-id="${d.id}">${ic('check')}Giusto</button><button class="btn sm" data-act="ar-edit" data-id="${d.id}">${ic('pencil')}Correggi</button>${salta ? `<button class="btn sm ghost" data-act="ar-salta">Salta</button>` : ''}<span class="sp"></span><button class="btn sm ghost" data-act="ar-doc" data-id="${d.id}">${ic('file-text')}Scheda</button><button class="btn sm ghost" data-act="ar-open" data-id="${d.id}">${ic('external-link')}Apri</button></div></div>`;
@@ -134,6 +138,7 @@ function raccoglitore() {
   return `<div class="ar-sched"><aside class="card ar-tree"><div class="card-h flat"><h2>Cartelle</h2></div>${albero}</aside>${elenco}${scheda}</div>`;
 }
 function riga(d) {
+  d = vedi(d);
   return `<button class="ar-row${String(d.id) === String(f.ar_doc) ? ' on' : ''}" data-act="ar-doc" data-id="${d.id}"><span class="mono ar-dt">${esc(dataDoc(d))}</span><span class="ar-rm"><b>${esc(d.controparte || d.persona || d.nome_file)}</b><span>${esc(d.descrizione || d.nome_file)} · ${esc((d.estensione || '').slice(1).toUpperCase())}</span>${d.estratto ? `<span class="ar-estr">${evid(d.estratto)}</span>` : ''}</span><span class="ar-rs">${d.copie > 1 ? `<span class="chip info">${d.copie} copie</span>` : ''}${d.stato === 'da_rivedere' ? '<span class="chip warn">da rivedere</span>' : d.stato === 'riservato' ? '<span class="chip bad">riservato</span>' : ''}${d.tipo ? `<span class="chip">${esc(d.tipo)}</span>` : ''}</span></button>`;
 }
 
@@ -146,6 +151,7 @@ function schedaCol(id) {
 }
 const PER_CONTI = /fattur|cedolin|busta|bonific|contabil|estratto|f24|bilancin|iva/i;
 function schedaHTML(d, chiudi) {
+  const raw = d; d = vedi(d);
   const ed = f.ar_edit === String(d.id);
   const copie = (d.copie_elenco || []).filter(c => c.presente);
   const t = d.testo || {};
@@ -155,7 +161,7 @@ function schedaHTML(d, chiudi) {
   const coll = [PER_CONTI.test((d.tipo || '') + ' ' + (d.area || '')) ? 'Manda ai Conti' : '', d.codice && d.codice.startsWith('13') ? 'Al libretto del trattore' : '', d.codice && /^(09|12)/.test(d.codice) ? 'A un campo' : '', 'All\'agenda'].filter(Boolean);
   return `<div class="ar-sh"><div><span class="eyebrow">${esc(d.tipo || 'Documento')} · ${esc(dataDoc(d))}</span><h2>${esc(d.controparte || d.persona || d.nome_file)}</h2>${d.descrizione ? `<p class="ar-desc">${esc(d.descrizione)}</p>` : ''}</div>${chiudi ? `<button class="iconbtn" data-act="ar-doc" data-id="" aria-label="Chiudi la scheda">${ic('x')}</button>` : ''}</div>
   <div class="btns ar-sbtn"><button class="btn primary sm" data-act="ar-open" data-id="${d.id}">${ic('external-link')}Apri il file</button><button class="btn sm" data-act="ar-open" data-id="${d.id}" data-cartella="1">Apri la cartella</button>${d.stato !== 'confermato' && d.stato !== 'riservato' && !ed ? `<button class="btn sm ar-ok" data-act="ar-ok" data-id="${d.id}">${ic('check')}Giusto</button>` : ''}${ed ? '' : `<button class="btn sm ghost" data-act="ar-edit" data-id="${d.id}">${ic('pencil')}Correggi</button>`}</div>
-  ${ed ? modulo(d) : `<dl class="ar-dl">
+  ${ed ? modulo(raw) : `<dl class="ar-dl">
   <div><dt>Nome ora</dt><dd class="mono">${esc(d.nome_file)}</dd></div>
   <div><dt>Nome proposto</dt><dd class="mono ar-nome">${esc(d.nome_proposto || '—')}<button class="iconbtn sm" data-act="copy" data-txt="${esc(d.nome_proposto || '')}" aria-label="Copia il nome proposto">${ic('copy')}</button></dd></div>
   <div><dt>Area</dt><dd>${esc(nomeArea(d)) || '—'}</dd></div>
@@ -175,14 +181,14 @@ function cerca() {
   const q = f.ar_sq || '';
   const sel = (k, l, arr, fmt = x => x) => `<label class="ar-sel"><span>${l}</span><select data-act="ar-filtro" data-f="${k}"><option value="">Tutti</option>${(arr || []).map(x => `<option value="${esc(x.v)}"${String(x.v) === String(f[k] || '') ? ' selected' : ''}>${esc(fmt(x.v))} (${nf(x.n)})</option>`).join('')}</select></label>`;
   const selArea = `<label class="ar-sel"><span>Area</span><select data-act="ar-filtro" data-f="ar_sa"><option value="">Tutte</option>${V ? V.codici.map(c => `<option value="${c.codice}"${c.codice === f.ar_sa ? ' selected' : ''}>${esc(c.sotto ? '  ' + c.codice + ' ' + c.sotto : c.area)}</option>`).join('') : ''}</select></label>`;
-  const filtri = V ? `<div class="ar-filtri">${selArea}${sel('ar_st', 'Tipo', V.tipi)}${sel('ar_sy', 'Anno', V.anni)}${sel('ar_sc', 'Controparte', V.controparti)}${V.persone.length ? sel('ar_sp', 'Persona', V.persone) : ''}${sel('ar_ss', 'Stato', V.stati, v => (STATI[v] || [, v])[1])}${['ar_sa', 'ar_st', 'ar_sy', 'ar_sc', 'ar_sp', 'ar_ss'].some(k => f[k]) ? `<button class="btn sm ghost" data-act="ar-pulisci">${ic('x')}Togli i filtri</button>` : ''}</div>` : '';
+  const filtri = V ? `<div class="ar-filtri">${selArea}${sel('ar_st', 'Tipo', V.tipi, leggibile)}${sel('ar_sy', 'Anno', V.anni)}${sel('ar_sc', 'Controparte', V.controparti, leggibile)}${V.persone.length ? sel('ar_sp', 'Persona', V.persone, leggibile) : ''}${sel('ar_ss', 'Stato', V.stati, v => (STATI[v] || [, v])[1])}${['ar_sa', 'ar_st', 'ar_sy', 'ar_sc', 'ar_sp', 'ar_ss'].some(k => f[k]) ? `<button class="btn sm ghost" data-act="ar-pulisci">${ic('x')}Togli i filtri</button>` : ''}</div>` : '';
   const par = { q, area: f.ar_sa, tipo: f.ar_st, anno: f.ar_sy, controparte: f.ar_sc, persona: f.ar_sp, stato: f.ar_ss, limite: 200 };
   const el = P.leggi('/documenti' + P.qs(par));
   let corpo = attesa, n = '';
   if (el.err) corpo = errore(el.err) || '';
   else if (!el.carico) {
     const D = el.dati; n = `${nf(D.totale)} documenti`;
-    const rows = D.documenti.map(d => Object.assign({ _cls: 'click', areaT: d.codice ? d.codice + ' ' + (d.sotto || (d.area || '').slice(3)) : '—', statoT: (STATI[d.stato] || [, d.stato])[1] }, d));
+    const rows = D.documenti.map(d => Object.assign({ _cls: 'click', areaT: d.codice ? d.codice + ' ' + (d.sotto || (d.area || '').slice(3)) : '—', statoT: (STATI[d.stato] || [, d.stato])[1] }, vedi(d)));
     corpo = tabella('archivio', {
       title: q ? `Archivio: «${q}»` : 'Archivio documenti', sheet: 'Archivio', sub: [q ? 'ricerca: ' + q : '', f.ar_sa, f.ar_st, f.ar_sy, f.ar_sc].filter(Boolean).join(' · '),
       cols: [

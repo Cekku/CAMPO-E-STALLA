@@ -571,6 +571,8 @@ def classifica_tutto(solo=None):
                     'regole', quando, r['impronta']))
         k = (c['fonte'] or 'nessuna').split('-')[0], c['confidenza']
         conta[k] = conta.get(k, 0) + 1; n += 1
+    import nomi                                  # nomi dal contenuto e numerazione dei nomi uguali
+    nomi.rifai_nomi(db, cfg, persone, solo=set(solo) if solo is not None else None)
     registra(db, 'classificazione', chi='regole', contenuti=n)
     db.commit()
     print(f'Classificati: {n}   (persone riconosciute dalle cartelle: {len(persone)})')
@@ -957,14 +959,15 @@ def classifica_llm(solo=None, cfg=None):
 
     esempi = esempi_llm(db)
     sistema = sistema_llm(nomi_az)
-    quando = adesso(); fatti = errori = 0; t0 = time.time()
+    quando = adesso(); fatti = errori = 0; t0 = time.time(); fatte = set()
     url = c['indirizzo'].rstrip('/') + '/v1/chat/completions'
     usa_schema = True
     for i, r in enumerate(righe, 1):
         nome = os.path.basename(r['percorso_scelto'] or '')
         cartella = os.path.basename(os.path.dirname(r['percorso_scelto'] or ''))
         msg = messaggi_llm(r, esempi, sistema, inv, int(c['esempi']))
-        dati = {'model': modello, 'messages': msg, 'temperature': 0.1, 'max_tokens': 300, 'stream': False}
+        dati = {'model': modello, 'messages': msg, 'temperature': 0.1, 'max_tokens': 300, 'stream': False,
+                'reasoning_effort': 'none'}     # senza: i modelli che "ragionano" finiscono i token prima della risposta
         if usa_schema:
             dati['response_format'] = {'type': 'json_schema', 'json_schema': {'name': 'classificazione', 'strict': True, 'schema': SCHEMA_LLM}}
         try:
@@ -989,9 +992,13 @@ def classifica_llm(solo=None, cfg=None):
         applica_correzioni(db, {r['id']: corr}, 'llm', motivo=modello)
         if not sicuro:
             db.execute("UPDATE contenuti SET confidenza='bassa' WHERE rowid=?", (r['id'],))
-        db.commit(); fatti += 1
+        db.commit(); fatti += 1; fatte.add(r['impronta'])
         print(f'  [{i}/{len(righe)}] #{r["id"]} {nome} -> {corr.get("a")} {corr.get("t", "")} {corr.get("d", "")}'
               f' {"" if sicuro else "(incerto)"}  {time.time() - t0:.0f} s')
+    if fatte:                                    # nomi dal contenuto e numerazione dei nomi uguali (come classifica_tutto)
+        import nomi
+        _, persone = carica_mappa(conf_az)
+        nomi.rifai_nomi(db, conf_az, persone, solo=fatte)
     registra(db, 'classificazione llm', chi='llm', modello=modello, contenuti=fatti, errori=errori, secondi=round(time.time() - t0))
     db.commit(); db.close()
     print(f'Fatto: {fatti} classificati dal modello, {errori} non riusciti, {time.time() - t0:.0f} s')
@@ -1144,28 +1151,20 @@ def correzioni_excel():
 
 
 def rinomina():
-    """Ricalcola i nomi proposti dai campi salvati (dopo aver ripulito le descrizioni)."""
+    """Ricalcola descrizioni e nomi proposti dal contenuto dei documenti (nomi.py); --prova non scrive.
+    Solo nel catalogo: nessun file viene rinominato sul disco. I corretti a mano non si toccano."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from classifica import nome_proposto, pulisci_descrizione, pulisci_nome
-    import datetime as _dt
-    db = apri_db(); n = 0
-    for r in db.execute("SELECT rowid id, * FROM contenuti WHERE area IS NOT NULL AND stato != 'riservato'").fetchall():
-        descr = pulisci_descrizione(r['descrizione'])
-        d = None
-        if r['data_doc'] and len(r['data_doc']) == 10:
-            try:
-                d = _dt.date.fromisoformat(r['data_doc'])
-            except ValueError:
-                pass
-        est = os.path.splitext(r['percorso_scelto'] or '')[1].lower()
-        contro = r['persona'] if (r['area'] or '').startswith('05') and r['persona'] else r['controparte']
-        nome = nome_proposto(d, r['anno'] if not d else None, r['tipo'], contro, descr, est)
-        if nome and r['data_doc'] and len(r['data_doc']) == 7 and r['anno']:
-            nome = r['data_doc'] + nome[4:] if nome.startswith(str(r['anno'])) else nome
-        if nome != r['nome_proposto'] or descr != r['descrizione']:
-            db.execute('UPDATE contenuti SET descrizione=?, nome_proposto=? WHERE rowid=?', (descr, nome, r['id'])); n += 1
-    db.commit(); db.close()
-    print(f'Nomi ricalcolati: {n}')
+    import nomi
+    cfg = carica_config()
+    _, persone = carica_mappa(cfg)
+    db = apri_db(); aggiorna_schema(db)
+    prova = '--prova' in sys.argv
+    n, elenco = nomi.rifai_nomi(db, cfg, persone, prova=prova)
+    if not prova:
+        registra(db, 'nomi dal contenuto', chi='regole', contenuti=n)
+        db.commit()
+    db.close()
+    print(f'Nomi ricalcolati: {n}' + (' (prova: niente salvato)' if prova else ''))
 
 
 def esporta():

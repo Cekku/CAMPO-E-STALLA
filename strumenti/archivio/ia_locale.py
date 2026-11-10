@@ -289,7 +289,9 @@ class Modello:
         self.c, self.nome, self.schema_ok = c, nome, True
 
     def chiedi(self, messaggi, schema=None, temperatura=0):
-        corpo = {'model': self.nome, 'temperature': temperatura, 'max_tokens': 300, 'stream': False, 'messages': messaggi}
+        # reasoning_effort none: senza, Gemma 4 e Qwen 3.5 "ragionano" 250 token (70 s sul processore) e restano senza risposta
+        corpo = {'model': self.nome, 'temperature': temperatura, 'max_tokens': 300, 'stream': False, 'messages': messaggi,
+                 'reasoning_effort': 'none'}
         if schema and self.schema_ok:
             corpo['response_format'] = schema
         t0 = time.time()
