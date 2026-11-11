@@ -1,5 +1,5 @@
 // Definizione dei moduli di inserimento e delle loro regole
-import { S, D, get } from './state.js';
+import { S, D, UI, get } from './state.js';
 import { N, nf, fd, today, byName } from './util.js';
 import * as store from './store.js';
 import { openForm, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
@@ -419,4 +419,78 @@ function dbBox(v) {
   res.onclick = e => { const b = e.target.closest('[data-reg]'); if (!b) return; const x = fitoLookup(b.dataset.reg); if (!x) return;
     setVal('nome', x.nome); setVal('nReg', x.nReg); if (x.sostanze) setVal('sostanze', x.sostanze); if (x.scadenza) setVal('scadenzaAut', x.scadenza); if (x.impresa) setVal('impresa', x.impresa);
     ['nome', 'nReg', 'sostanze', 'scadenzaAut', 'impresa'].forEach(k => FORM && FORM.dirty.add(k)); q.value = ''; res.innerHTML = ''; dbBox(Object.assign({}, v, { nReg: x.nReg })); };
+}
+
+// Coltura di un'annata su più campi insieme (scelti sulla mappa). Ogni campo riceve la stessa riga dell'annata;
+// se un campo ne aveva già una per quell'anno viene sostituita (come nel modulo del singolo campo).
+export function openColturaGruppo(ids, anno) {
+  const campi = ids.map(id => get('campi', id)).filter(Boolean); if (!campi.length) return;
+  const y = +(anno || UI.anno || new Date().getFullYear()); const oggi = new Date().getFullYear();
+  const anni = []; for (let a = oggi + 1; a >= oggi - 8; a--) anni.push(String(a));
+  const ha = campi.reduce((t, c) => t + campoHa(c), 0);
+  const giaDi = a => campi.filter(c => (c.colture || []).some(x => +x.anno === +a) || (+a === oggi && c.coltura));
+  // se hanno tutti la stessa coltura per l'annata, il modulo parte da quella
+  const righe = campi.map(c => (c.colture || []).find(x => +x.anno === y) || (y === oggi && c.coltura ? { coltura: c.coltura, varieta: c.varieta } : null));
+  const uguale = righe.every(r => r && r.coltura === (righe[0] && righe[0].coltura)) ? righe[0] : null;
+  const avviso = a => { const g = giaDi(a); return g.length ? `${g.length} ${g.length === 1 ? 'campo ha' : 'campi hanno'} già una coltura nel ${a}: verrà sostituita` : `Nessuno dei campi ha già una coltura nel ${a}`; };
+  openForm({
+    title: 'Coltura su ' + campi.length + (campi.length === 1 ? ' campo' : ' campi'), sub: nf(ha, 2) + ' ha · ' + campi.map(c => c.nome).slice(0, 4).join(', ') + (campi.length > 4 ? ' e altri ' + (campi.length - 4) : ''),
+    fields: [
+      { k: 'anno', l: 'Annata', t: 'select', opts: anni, req: 1, half: 1, blank: false, hint: avviso(y) },
+      { k: 'coltura', l: 'Coltura', req: 1, half: 1, list: COLTURE },
+      { k: 'varieta', l: 'Varietà o ibrido', half: 1 },
+      { k: 'semina', l: 'Data di semina o trapianto', t: 'date', half: 1 },
+      { k: 'resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha' },
+      { k: 'destinazione', l: 'Destinazione', half: 1, ph: 'Es. trinciato aziendale' }],
+    values: Object.assign({}, uguale || {}, { anno: String(y) }),
+    saveLabel: 'Salva su ' + campi.length + (campi.length === 1 ? ' campo' : ' campi'),
+    onChange(ch, v) { if (ch === 'anno') setHint('anno', avviso(v.anno)); },
+    onSave: async v => {
+      const a = +v.anno; const riga = Object.assign({}, v, { anno: a });
+      const rows = campi.map(c => {
+        const list = (Array.isArray(c.colture) ? c.colture : []).filter(x => +x.anno !== a); list.push(Object.assign({}, riga));
+        const upd = Object.assign({}, c, { colture: list.sort((p, q) => q.anno - p.anno) });
+        if (a === oggi) { upd.coltura = v.coltura; upd.varieta = v.varieta; }
+        return { col: 'campi', id: c.id, data: upd };
+      });
+      await store.bulkPut(rows);
+      if (FORM) FORM.done = `${v.coltura} ${a} su ${campi.length} ${campi.length === 1 ? 'campo' : 'campi'} (${nf(ha, 2)} ha)`;
+    },
+    onDelete: giaDi(y).length ? async () => {
+      const a = +(readForm().anno || y);
+      const rows = giaDi(a).map(c => { const upd = Object.assign({}, c, { colture: (c.colture || []).filter(x => +x.anno !== a) }); if (a === oggi) { upd.coltura = ''; upd.varieta = ''; } return { col: 'campi', id: c.id, data: upd }; });
+      if (rows.length) await store.bulkPut(rows);
+      toast('Coltura ' + a + ' tolta da ' + rows.length + (rows.length === 1 ? ' campo' : ' campi'));
+      return true;
+    } : null,
+  });
+}
+
+// Gruppo, conduzione, comune e irriguo su più campi: si cambia solo quello che si compila
+export function openDatiGruppo(ids) {
+  const campi = ids.map(id => get('campi', id)).filter(Boolean); if (!campi.length) return;
+  const gruppi = [...new Set(S.campi.map(c => (c.gruppo || '').trim()).filter(Boolean))].sort();
+  const comuni = [...new Set(S.campi.map(c => (c.comune || '').trim()).filter(Boolean))].sort();
+  const stesso = k => { const s = new Set(campi.map(c => c[k] || '')); return s.size === 1 ? [...s][0] : ''; };
+  const ha = campi.reduce((t, c) => t + campoHa(c), 0);
+  openForm({
+    title: 'Dati di ' + campi.length + (campi.length === 1 ? ' campo' : ' campi'), sub: nf(ha, 2) + ' ha · lascia vuoto quello che non vuoi cambiare',
+    fields: [
+      { k: 'gruppo', l: 'Gruppo', list: gruppi, ph: stesso('gruppo') ? '' : 'Diversi: lascia vuoto per non cambiarli', hint: 'Scrivi "-" per togliere il gruppo' },
+      { k: 'conduzione', l: 'Conduzione', t: 'seg', opts: [['', 'Non cambiare'], 'Proprietà', 'Affitto', 'Comodato'] },
+      { k: 'comune', l: 'Comune', half: 1, list: comuni, ph: stesso('comune') ? '' : 'Diversi' },
+      { k: 'irriguo', l: 'Irriguo', t: 'seg', half: 1, opts: [['', 'Non cambiare'], 'Sì', 'No'] }],
+    values: { gruppo: stesso('gruppo'), comune: stesso('comune'), conduzione: '', irriguo: '' },
+    saveLabel: 'Salva su ' + campi.length + (campi.length === 1 ? ' campo' : ' campi'),
+    onSave: async v => {
+      const cambi = {};
+      const g = (v.gruppo || '').trim(); if (g === '-') cambi.gruppo = ''; else if (g) cambi.gruppo = g;
+      const co = (v.comune || '').trim(); if (co) cambi.comune = co;
+      if (v.conduzione) cambi.conduzione = v.conduzione;
+      if (v.irriguo) cambi.irriguo = v.irriguo;
+      if (!Object.keys(cambi).length) { if (FORM) FORM.done = 'Nessuna modifica'; return; }
+      await store.bulkPut(campi.map(c => ({ col: 'campi', id: c.id, data: Object.assign({}, c, cambi) })));
+      if (FORM) FORM.done = 'Aggiornati ' + campi.length + (campi.length === 1 ? ' campo' : ' campi');
+    },
+  });
 }

@@ -1274,6 +1274,15 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 .lib3d-info > div { pointer-events: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; box-shadow: var(--shadow-1); max-width: 340px; }
 .lib3d-info b { display: block; }
 .lib3d-info small { color: var(--muted); }
+/* Progetto stalla 3D (js/stalla3d.js) */
+.s3d { height: min(76vh, 720px); background: linear-gradient(#dfe5ea, #eef0ec); }
+.s3d-bar { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; box-shadow: var(--shadow-1); }
+.s3d-viste { display: flex; gap: 6px; flex-wrap: wrap; }
+.s3d-viste .btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.s3d-gruppi { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.s3d-gruppi::-webkit-scrollbar { display: none; }
+.s3d-chip { flex: none; font: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--sunk); color: var(--muted); cursor: pointer; text-decoration: line-through; }
+.s3d-chip[aria-pressed="true"] { background: var(--surface); color: var(--ink); border-color: var(--accent); text-decoration: none; }
 .lib3d-credit { position: absolute; right: 12px; bottom: 64px; font-size: 11px; color: var(--muted); }
 /* caselle a scelta multipla nei moduli */
 .fld.checks { gap: 10px; }
@@ -1468,3 +1477,24 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
   .ar-lk { flex-wrap: wrap; }
   .ar-lk .r-side.btns { width: 100%; justify-content: flex-end; }
 }
+/* Campi sulla mappa (map.js, drawFields): tinta fusa con l'ortofoto da vicino (cambia il colore, restano luce e trama
+   del terreno), riempimento normale da lontano e sugli sfondi chiari; alone scuro sotto i bordi sottili */
+.leaflet-campiTinta-pane { opacity: var(--tinta, .5); }
+#map.tinta-foto .leaflet-campiTinta-pane { mix-blend-mode: color; }
+#map.campi-lontani .leaflet-campiTinta-pane { opacity: var(--tinta-lontano, .75); }
+#map.campi-lontani .leaflet-campiAlone-pane { opacity: .7; }
+#map.senza-tinta .leaflet-campiTinta-pane { display: none; }
+#map .leaflet-overlay-pane path.leaflet-interactive { transition: stroke-width .12s, stroke-opacity .12s; }
+.leaflet-zoom-anim #map .leaflet-overlay-pane path, #map.leaflet-zoom-anim .leaflet-overlay-pane path { transition: none; }
+/* selezione di più campi */
+.map-bar.multi-bar { border-color: var(--accent); gap: 10px; max-height: 60%; overflow-y: auto; }
+.multi-bar .mb-voci { flex-basis: 100%; min-width: 0; display: flex; gap: 6px; align-items: center; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+.multi-bar .mb-voci > span { flex: none; font-size: 12.5px; color: var(--muted); }
+.multi-bar .mb-voci button { flex: none; display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--sunk); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.multi-bar .mb-voci button i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.multi-bar .mb-voci button em { font-style: normal; font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); }
+.multi-bar .mb-voci button.on { border-color: var(--accent); background: var(--surface); box-shadow: inset 0 0 0 1px var(--accent); }
+.multi-bar .mb-go { flex-basis: 100%; display: flex; gap: 8px; flex-wrap: wrap; }
+.multi-bar .mb-go .btn { flex: 1 1 auto; }
+.multi-bar .mb-go .btn[disabled] { opacity: .45; pointer-events: none; }
+@media (max-width: 560px) { .multi-bar .mb-actions { width: 100%; } .multi-bar .mb-actions .btn { flex: 1; } .multi-bar .mb-text { min-width: 0; } }

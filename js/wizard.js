@@ -14,10 +14,12 @@ const TIPI = [
   ['Trattamento fitosanitario', 'shield-check', 'Difesa da malattie e insetti'], ['Diserbo', 'leaf', 'Controllo delle infestanti'], ['Irrigazione', 'droplets', 'Turni e volumi d\'acqua'],
   ['Sfalcio', 'wheat', 'Fienagione e foraggi'], ['Raccolta', 'wheat', 'Trebbiatura, trinciatura'], ['Altro', 'clipboard-list', 'Qualsiasi altra operazione'],
 ];
-const W = { tipo: null, campi: new Set(), q: '', stato: 'Fatto', pre: {} };
+const W = { tipo: null, campi: new Set(), q: '', stato: 'Fatto', pre: {}, scelti: false, primi: new Set() };
 
 export function startWizard(pre = {}) {
   W.tipo = pre.tipo || null; W.campi = new Set(pre.campi || (pre.campoId ? [pre.campoId] : [])); W.q = ''; W.stato = pre.stato || 'Fatto'; W.pre = pre.values || {};
+  // campi già scelti (dalla scheda del campo o dalla mappa): dopo il tipo di lavoro si va dritti ai dettagli, con "Cambia campi"
+  W.scelti = W.campi.size > 0;
   if (!S.campi.length) { toast('Prima aggiungi almeno un campo.', 'err'); return; }
   if (W.tipo && W.campi.size) return step3(); if (W.tipo) return step2();
   step1();
@@ -28,16 +30,18 @@ function step1() {
   const b = openSheet('Nuova attività', `${bar(1)}<p class="wz-q">Che lavoro hai fatto o devi fare?</p>
   <div class="seg wide"><label><input type="radio" name="wzStato" value="Fatto"${W.stato === 'Fatto' ? ' checked' : ''}><span>Fatta</span></label><label><input type="radio" name="wzStato" value="Pianificata"${W.stato === 'Pianificata' ? ' checked' : ''}><span>Da pianificare</span></label></div>
   <div class="wz-types">${TIPI.map(([t, i, s]) => `<button data-wz="tipo" data-v="${esc(t)}"><span class="q-ic">${ic(i)}</span><b>${esc(t)}</b><span>${esc(s)}</span></button>`).join('')}</div>`);
-  b.onclick = e => { const x = e.target.closest('[data-wz=tipo]'); if (x) { W.tipo = x.dataset.v; step2(); } };
+  b.onclick = e => { const x = e.target.closest('[data-wz=tipo]'); if (x) { W.tipo = x.dataset.v; if (W.scelti && W.campi.size) step3(); else step2(); } };
   b.onchange = e => { if (e.target.name === 'wzStato') W.stato = e.target.value; };
 }
 
 function campiList() {
   const q = W.q.toLowerCase();
-  const list = [...S.campi].filter(c => !q || (c.nome + ' ' + cropOf(c)).toLowerCase().includes(q)).sort(byName);
+  // in cima quelli che erano già scelti quando si è aperto l'elenco (l'ordine non cambia mentre si spuntano)
+  const list = [...S.campi].filter(c => !q || (c.nome + ' ' + cropOf(c)).toLowerCase().includes(q)).sort((a, b) => (W.primi.has(b.id) - W.primi.has(a.id)) || byName(a, b));
   return list.map(c => { const col = cropColor(c); return `<label class="wz-field${W.campi.has(c.id) ? ' on' : ''}"><span class="fc-thumb sm" style="color:${col}">${thumb(c.geom, 44, col)}</span><span class="r-main"><b>${esc(c.nome)}</b><span><i class="dot" style="background:${col}"></i>${esc(cropOf(c) || 'Nessuna coltura')}</span></span><span class="chip ok num">${nf(campoHa(c), 2)} ha</span><input type="checkbox" value="${c.id}"${W.campi.has(c.id) ? ' checked' : ''}></label>`; }).join('') || '<div class="empty slim">Nessun campo trovato.</div>';
 }
 function step2() {
+  W.primi = new Set(W.campi);
   const b = openSheet(W.tipo, `${bar(2)}<p class="wz-q">Su quali campi?</p>
   <div class="wz-tools"><div class="search">${ic('search')}<input class="inp" id="wzq" placeholder="Cerca campo o coltura" autocomplete="off"></div><label class="wz-all"><span>Tutti</span><input type="checkbox" id="wzAll"></label></div>
   <div class="wz-list" id="wzList">${campiList()}</div>

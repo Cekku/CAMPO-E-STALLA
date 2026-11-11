@@ -3,9 +3,11 @@
 Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul computer.
 
 - **Mappa**: campi disegnati sul satellite, superficie calcolata dal confine, particelle e fogli del catasto dell'Agenzia delle Entrate, foglio e particella al tocco, importazione KML/GeoJSON, GPS.
+- **Più campi insieme sulla mappa**: tocca il pulsante con la spunta (o "Seleziona più campi" nella scheda di un campo, o Ctrl + clic sul computer), tocca i campi che ti servono oppure "Prendi tutti" una coltura, poi registra un'attività, metti la coltura dell'annata o cambia gruppo e conduzione a tutti in una volta.
 - **Campi**: quaderno di campagna con scarico automatico dei prodotti, tempi di carenza, costi e margini per ettaro.
 - **Stalla**: mandria, eventi (parti, fecondazioni, diagnosi, asciutte, trattamenti, controlli), calendario dei parti, latte giornaliero, razioni, registro trattamenti con sospensioni.
 - **Magazzino e mezzi**: giacenze, scorte minime, scadenze, ore motore, tagliandi, revisioni.
+- **Progetto della stalla in 3D** (Stalla → Progetto 3D): il render del progetto da girare con il dito o il mouse, con le viste Insieme, Dall'alto e Nuova stalla, i gruppi da accendere e spegnere (tetti, fotovoltaico, cuccette, cancelli…) e il nome del gruppo toccando un pezzo. Il modello (`stalla-progetto-3d.glb`) si carica una volta con "Carica il modello" e resta privato, come gli allegati.
 - **Libretto dei trattori**: per ogni trattore lo stato di ogni pezzo in ore e mesi, gli interventi con le fatture allegate (lette anche da Claude), il catalogo ricambi con le tavole esplose e un modello 3D esploso.
 - **Meteo** a 7 giorni sui campi, con i giorni adatti ai trattamenti e l'**avviso di stress da caldo** per le vacche (THI).
 - **Controlli automatici sui trattamenti**: coltura autorizzata in etichetta, dose massima, numero di interventi, intervallo, carenza rispetto alla raccolta, giacenza, patentino dell'operatore, controllo funzionale dell'irroratrice, vento e pioggia previsti.

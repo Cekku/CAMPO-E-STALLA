@@ -8,6 +8,7 @@ import { tabs, empty, newBtn, fact, chip, exChip } from '../ui.js';
 import { latteChart, spark } from './charts.js';
 import { stalle, strutturaDetail, indiciView, capoMisure } from './stalle.js';
 import { capoAia } from './aia-view.js';
+import { progettoView, sospendi3d } from './progetto3d.js';
 import { boxOf, benessere } from '../herd.js';
 import { tabella, bottoniExport } from '../conti/tabelle.js';
 
@@ -29,8 +30,9 @@ export function render() {
   const coda = S.invii.filter(x => x.stato === 'in attesa' || x.stato === 'errore').length;
   const repro = S.capi.filter(c => capoI(c).alerts.some(a => ['fec', 'diag', 'asc', 'parto'].includes(a.k))).length;
   const ben = S.capi.filter(c => benessere(c).some(a => a.lv !== 'info')).length;
-  const t = tabs('stalla', [['mandria', 'Mandria'], ['stalle', 'Stalle e silos'], ['indici', 'Indici e benessere', ben || undefined], ['riproduzione', 'Riproduzione', repro || undefined], ['latte', 'Latte'], ['razioni', 'Razioni'], ['sanitario', 'Sanitario', sosp || undefined], ...(S.invii.length ? [['invii', 'Invii', coda || undefined]] : [])], sub);
-  const body = { mandria, riproduzione, latte, razioni, sanitario, stalle, indici: indiciView, invii: inviiView }[sub] || mandria;
+  if (sub !== 'progetto') sospendi3d();
+  const t = tabs('stalla', [['mandria', 'Mandria'], ['stalle', 'Stalle e silos'], ['progetto', 'Progetto 3D'],['indici', 'Indici e benessere', ben || undefined], ['riproduzione', 'Riproduzione', repro || undefined], ['latte', 'Latte'], ['razioni', 'Razioni'], ['sanitario', 'Sanitario', sosp || undefined], ...(S.invii.length ? [['invii', 'Invii', coda || undefined]] : [])], sub);
+  const body = { mandria, riproduzione, latte, razioni, sanitario, stalle, progetto: progettoView, indici: indiciView, invii: inviiView }[sub] || mandria;
   return { title: 'Stalla', html: `<header class="pagehead"><h1>Stalla</h1><div class="btns">${newBtn('eventi', 'Evento')}</div></header>` + t + body() };
 }
 

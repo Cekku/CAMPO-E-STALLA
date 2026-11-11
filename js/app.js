@@ -6,7 +6,7 @@ import { derive, razioneInfo, allAlerts, campoHa, cropOf, capoI, kgUnita } from 
 import * as store from './store.js';
 import { sync, onSync } from './store.js';
 import { openSheet, closeSheet, sheetOpen, toast, arm, addLine, formDelete } from './ui.js';
-import { openEdit, openColtura } from './forms.js';
+import { openEdit, openColtura, openColturaGruppo, openDatiGruppo } from './forms.js';
 import { startWizard } from './wizard.js';
 import * as MAP from './map.js';
 import { promptInstall, canInstall } from './install.js';
@@ -41,7 +41,7 @@ const MENU = {
     ['Gestione', [['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
   ],
   stalla: [
-    ['Principale', [['oggi', null, 'house', 'Dashboard'], ['stalla', 'mandria', 'cow', 'Mandria'], ['stalla', 'stalle', 'layout-grid', 'Stalle e silos'], ['stalla', 'indici', 'gauge', 'Indici e benessere'], ['stalla', 'riproduzione', 'heart-pulse', 'Riproduzione'], ['stalla', 'latte', 'milk', 'Latte']]],
+    ['Principale', [['oggi', null, 'house', 'Dashboard'], ['stalla', 'mandria', 'cow', 'Mandria'], ['stalla', 'stalle', 'layout-grid', 'Stalle e silos'], ['stalla', 'indici', 'gauge', 'Indici e benessere'], ['stalla', 'riproduzione', 'heart-pulse', 'Riproduzione'], ['stalla', 'latte', 'milk', 'Latte'], ['stalla', 'progetto', 'warehouse', 'Progetto stalla 3D']]],
     ['Alimentazione e salute', [['stalla', 'razioni', 'wheat', 'Razioni'], ['stalla', 'sanitario', 'syringe', 'Sanitario'], ['meteo', null, 'thermometer', 'Meteo e caldo'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino']]],
     ['Gestione', [['note', null, 'pencil', 'Note'], ['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
   ],
@@ -410,6 +410,14 @@ document.addEventListener('click', async e => {
       case 'mapCancel': return MAP.endMode();
       case 'mapUndo': return MAP.undoPoint();
       case 'mapDeselect': return MAP.select(null);
+      // selezione di più campi sulla mappa
+      case 'mapMulti': return MAP.startMulti(d.id ? [d.id] : null);
+      case 'mapMultiVoce': return MAP.multiVoce(d.k);
+      case 'mapMultiVisibili': return MAP.multiVisibili();
+      case 'mapMultiSvuota': return MAP.multiSvuota();
+      case 'mapMultiAtt': { const ids = MAP.multiScelti(); if (ids.length) startWizard({ campi: ids }); return; }
+      case 'mapMultiColtura': { const ids = MAP.multiScelti(); if (ids.length) openColturaGruppo(ids, UI.anno); return; }
+      case 'mapMultiDati': { const ids = MAP.multiScelti(); if (ids.length) openDatiGruppo(ids); return; }
       case 'mapLayers': return MAP.layersPanel();
       case 'mapApply': return MAP.applyPanel();
       case 'mapLegend': return MAP.toggleLegend();
@@ -437,6 +445,7 @@ document.addEventListener('click', async e => {
       case 'lockOff': try { toast(await disattivaDaForm($)); } catch (err) { toast(err.message, 'err'); } return render();
       case 'c-expAll': drawer(false); closeSheet(); b.disabled = true; try { await esportaTutto(UI.anno); } finally { b.disabled = false; } return;
       default: if (a.startsWith('ar-')) return arAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+        if (a.startsWith('p3d') && a !== 'p3dFile') return import('./views/progetto3d.js').then(x => x.p3dAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('lib-')) return import('./views/libretto.js').then(x => x.libAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a === 'tsort' || a === 'texp' || a.startsWith('c-')) return contiAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
     }
@@ -450,6 +459,7 @@ document.addEventListener('change', e => {
   if (t.dataset.act === 'mapImport' && t.files[0]) { MAP.importFile(t.files[0]); t.value = ''; return; }
   if (t.dataset.act === 'restore' && t.files[0]) { restore(t.files[0]); t.value = ''; return; }
   if (t.dataset.act === 'aiaImport' && t.files.length) { const fs = [...t.files]; t.value = ''; import('./views/aia-view.js').then(m => m.aiaImport(fs)).catch(err => toast(err.message || 'File non valido', 'err')); return; }
+  if (t.dataset.act === 'p3dFile' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Carico il modello…'); import('./views/progetto3d.js').then(m => m.caricaModello(f)).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'misureImport' && t.files[0]) { const f = t.files[0]; t.value = ''; misureImport(f).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'fitoImport' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Lettura della banca dati…'); importFito(f).then(n => toast('Banca dati caricata: ' + n + ' prodotti')).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'authTab') { authUI.tab = t.value; return render(); }
@@ -525,7 +535,7 @@ setRerender(() => render());
   $('#mapControls').innerHTML = `
     <div class="mapsearch">${ic('search')}<input id="mapSearch" placeholder="Cerca comune, località o coordinate" autocomplete="off" enterkeyhint="search"><div id="mapResults" class="map-results" hidden></div></div>
     <div id="mapWeather" class="map-weather" hidden></div>
-    <div class="map-tools"><button class="mtool" data-act="mapDraw" aria-label="Disegna un campo" title="Disegna un campo">${ic('pentagon')}</button><button class="mtool" data-act="mapLayers" aria-label="Livelli mappa" title="Livelli mappa">${ic('layers')}</button><button class="mtool" data-act="catSearch" aria-label="Cerca particella catastale" title="Cerca particella (foglio e mappale)">${ic('grid-2x2')}</button><button class="mtool" data-act="mapLocate" aria-label="La mia posizione" title="La mia posizione">${ic('navigation')}</button><button class="mtool" data-act="mapFit" aria-label="Mostra tutti i campi" title="Mostra tutti i campi">${ic('scan-search')}</button><label class="mtool" aria-label="Importa KML o GeoJSON" title="Importa confini da KML, GeoJSON o shapefile">${ic('file-up')}<input type="file" accept=".kml,.geojson,.json,.zip,.shp,application/vnd.google-earth.kml+xml,application/geo+json,application/zip" data-act="mapImport" hidden></label></div>
+    <div class="map-tools"><button class="mtool" data-act="mapDraw" aria-label="Disegna un campo" title="Disegna un campo">${ic('pentagon')}</button><button class="mtool" data-act="mapMulti" aria-label="Seleziona più campi" title="Seleziona più campi (anche Ctrl + clic)">${ic('square-check')}</button><button class="mtool" data-act="mapLayers" aria-label="Livelli mappa" title="Livelli mappa">${ic('layers')}</button><button class="mtool" data-act="catSearch" aria-label="Cerca particella catastale" title="Cerca particella (foglio e mappale)">${ic('grid-2x2')}</button><button class="mtool" data-act="mapLocate" aria-label="La mia posizione" title="La mia posizione">${ic('navigation')}</button><button class="mtool" data-act="mapFit" aria-label="Mostra tutti i campi" title="Mostra tutti i campi">${ic('scan-search')}</button><label class="mtool" aria-label="Importa KML o GeoJSON" title="Importa confini da KML, GeoJSON o shapefile">${ic('file-up')}<input type="file" accept=".kml,.geojson,.json,.zip,.shp,application/vnd.google-earth.kml+xml,application/geo+json,application/zip" data-act="mapImport" hidden></label></div>
     <div id="catHint" class="cat-hint" hidden>${ic('grid-2x2')}Avvicinati per vedere le particelle</div>
     <button class="legend-btn" data-act="mapLegend">Legenda ${ic('chevron-left', 'rot')}</button>
     <div id="mapLegend" class="map-legend" hidden></div>

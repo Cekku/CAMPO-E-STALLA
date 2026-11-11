@@ -107,6 +107,9 @@ function buildMap() {
   map.createPane('catasto').style.zIndex = 350;
   map.createPane('labels').style.zIndex = 360; map.getPane('labels').style.pointerEvents = 'none';
   map.createPane('catSel').style.zIndex = 390; map.getPane('catSel').style.pointerEvents = 'none';
+  // campi: tinta (395) e alone scuro dei bordi (398) sotto ai bordi (overlayPane, 400)
+  map.createPane('campiTinta').style.zIndex = 395; map.getPane('campiTinta').style.pointerEvents = 'none';
+  map.createPane('campiAlone').style.zIndex = 398; map.getPane('campiAlone').style.pointerEvents = 'none';
   base.osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21, updateWhenZooming: false, keepBuffer: 4, attribution: '© OpenStreetMap' });
   base.topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { subdomains: 'abc', maxNativeZoom: 17, maxZoom: 21, updateWhenZooming: false, keepBuffer: 4, attribution: '© OpenStreetMap, SRTM · OpenTopoMap' });
   // Ortofoto della Regione FVG (true ortofoto 2017-2020, alta risoluzione), sopra al satellite Esri fuori regione
@@ -134,7 +137,8 @@ function buildMap() {
   if (v) map.setView([v.lat, v.lng], v.z); else fitAll(true);
   esriSeServe(); map.on('moveend', esriSeServe);
   map.on('moveend', debounce(() => { const c = map.getCenter(); lsSet('ces.mapview', { lat: c.lat, lng: c.lng, z: map.getZoom() }); }, 400));
-  map.on('zoomend', () => { $('#map').classList.toggle('show-labels', map.getZoom() >= 14 && prefs.etichette); updateCatHint(); });
+  let eraLontano = null;
+  map.on('zoomend', () => { $('#map').classList.toggle('show-labels', map.getZoom() >= 14 && prefs.etichette); updateCatHint(); if (lontano() !== eraLontano) { eraLontano = lontano(); restyle(); } });
   map.on('click', e => { if (mode !== 'view') return; if (selected) select(null); if (prefs.particelle && map.getZoom() >= 15) queryParcel(e.latlng); });
   map.on('locationfound', e => {
     if (!gpsMarker) { gpsMarker = L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 3, fillColor: '#2D7FF9', fillOpacity: 1, pane: 'markerPane' }).addTo(map); gpsCircle = L.circle(e.latlng, { radius: e.accuracy, color: '#2D7FF9', weight: 1, fillOpacity: .08, interactive: false }).addTo(map); }
@@ -187,33 +191,92 @@ function colorFor(c) {
   if (prefs.colorBy === 'gruppo' || prefs.colorBy === 'comune') return coloriPer(prefs.colorBy).get(chiaveDi(c, prefs.colorBy)) || '#A9B4AE';
   return cropOf(c) ? cropColor(c) : SENZA_COLTURA;
 }
+// voce della legenda di un campo (la stessa chiave serve a selezionare tutti i campi di una voce)
+function voceDi(c) {
+  if (prefs.colorBy === 'conduzione') return [c.conduzione || 'Non indicata', COND[c.conduzione] || '#8A958F'];
+  if (prefs.colorBy === 'attivita') { const a = lastAge(c); return [a === null ? 'Nessuna attività' : a <= 7 ? 'Ultima settimana' : a <= 30 ? 'Ultimo mese' : 'Oltre un mese', colorFor(c)]; }
+  if (prefs.colorBy === 'gruppo' || prefs.colorBy === 'comune') return [chiaveDi(c, prefs.colorBy) || (prefs.colorBy === 'gruppo' ? 'Senza gruppo' : 'Comune non indicato'), colorFor(c)];
+  return [cropOf(c) || 'Senza coltura', colorFor(c)];
+}
 function legendItems() {
-  const items = new Map(); const fs = S.campi.filter(c => c.geom);
-  if (prefs.colorBy === 'conduzione') fs.forEach(c => { const k = c.conduzione || 'Non indicata'; items.set(k, { col: COND[c.conduzione] || '#8A958F', ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
-  else if (prefs.colorBy === 'attivita') fs.forEach(c => { const a = lastAge(c); const k = a === null ? 'Nessuna attività' : a <= 7 ? 'Ultima settimana' : a <= 30 ? 'Ultimo mese' : 'Oltre un mese'; items.set(k, { col: colorFor(c), ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
-  else if (prefs.colorBy === 'gruppo' || prefs.colorBy === 'comune') { const col = coloriPer(prefs.colorBy); fs.forEach(c => { const k = chiaveDi(c, prefs.colorBy) || (prefs.colorBy === 'gruppo' ? 'Senza gruppo' : 'Comune non indicato'); items.set(k, { col: col.get(chiaveDi(c, prefs.colorBy)) || '#A9B4AE', ha: (items.get(k)?.ha || 0) + campoHa(c) }); }); }
-  else fs.forEach(c => { const k = cropOf(c) || 'Senza coltura'; items.set(k, { col: colorFor(c), ha: (items.get(k)?.ha || 0) + campoHa(c) }); });
+  const items = new Map();
+  S.campi.filter(c => c.geom).forEach(c => { const [k, col] = voceDi(c); const v = items.get(k) || { col, ha: 0, ids: [] }; v.ha += campoHa(c); v.ids.push(c.id); items.set(k, v); });
   return [...items.entries()].sort((a, b) => b[1].ha - a[1].ha);
 }
-function styleFor(c, sel) {
-  const col = colorFor(c); const op = prefs.ndvi ? 0.04 : Math.max(.1, Math.min(.95, (prefs.intensita || 30) / 100));
-  // Confini come su xFarm: bordo e riempimento dello stesso colore. Google disegna il suo bordo 3 largo circa 3,3 px, Leaflet 2,7: qui serve 3,5 per lo stesso risultato
-  return sel ? { color: '#FFFFFF', weight: 4, opacity: 1, fillColor: col, fillOpacity: Math.min(.9, op + .15), dashArray: null }
-    : { color: col, weight: 3.5, opacity: 1, fillColor: col, fillOpacity: op };
+// Aspetto dei campi (novembre 2026). Tre strati per campo:
+//  - tinta (riquadro "campiTinta"): solo il riempimento. Da vicino sull'ortofoto si fonde con la foto (mix-blend-mode: color):
+//    cambia la tonalità e lascia luce e trama del terreno, così si vedono ancora righe di semina, tracce e fossi;
+//    da lontano (e sugli sfondi chiari) è un riempimento normale, altrimenti i campi piccoli sparivano.
+//  - alone (riquadro "campiAlone"): tratto scuro sottile sotto il bordo, per leggerlo su qualsiasi sfondo
+//  - linea (overlayPane): bordo sottile del colore della coltura, angoli arrotondati; riceve tocchi e clic
+// La forza della tinta si regola con "Intensità dei colori" (CSS --tinta e --tinta-lontano sul contenitore della mappa).
+const VICINO = 14;
+const lontano = () => map.getZoom() < VICINO;
+let vis = new Map(), multi = null, sopra = null;
+function statoDi(id) {
+  if (multi) return multi.has(id) ? 'sel' : multi.size ? 'dim' : '';
+  return selected ? (selected === id ? 'sel' : 'dim') : '';
+}
+function stili(c, st) {
+  const col = colorFor(c), far = lontano(), hov = sopra === c.id && st !== 'sel';
+  // senza colore (o senza coltura) il bordo è chiaro: un grigio scuro sulla foto non si vedeva
+  const bianco = prefs.colorBy === 'nessuno' || col === SENZA_COLTURA;
+  const w = st === 'sel' ? (far ? 2.5 : 3) : (far ? 1.25 : 2) + (hov ? 1 : 0);
+  return {
+    tinta: { stroke: false, fill: true, fillColor: col, fillOpacity: st === 'sel' ? 1 : st === 'dim' ? .45 : .85 },
+    alone: { stroke: true, fill: false, color: '#0B1210', weight: w + (st === 'sel' ? 3 : 2.5), opacity: st === 'dim' ? .25 : st === 'sel' ? .55 : .4, lineJoin: 'round', lineCap: 'round' },
+    linea: { stroke: true, color: st === 'sel' ? '#FFFFFF' : bianco ? '#E6E2D6' : col, weight: w, opacity: st === 'dim' ? .6 : 1, fill: true, fillColor: col, fillOpacity: 0, lineJoin: 'round', lineCap: 'round', dashArray: null },
+  };
+}
+function restyle() {
+  if (!map) return;
+  vis.forEach((v, id) => {
+    const c = get('campi', id); if (!c) return; const st = statoDi(id); const s = stili(c, st);
+    v.tinta.setStyle(s.tinta); v.alone.setStyle(s.alone); v.linea.setStyle(s.linea);
+    if (st === 'sel') { v.alone.bringToFront(); v.linea.bringToFront(); }
+  });
+  aspettoMappa();
+}
+// classi e variabili del contenitore: tinta fusa con la foto solo da vicino sull'ortofoto
+function aspettoMappa() {
+  const el = $('#map'); if (!el || !map) return;
+  const i = Math.max(.1, Math.min(.9, (prefs.intensita || 30) / 100));
+  const foto = prefs.base === 'fvg';
+  el.classList.toggle('campi-lontani', lontano());
+  el.classList.toggle('tinta-foto', foto && !lontano());
+  el.classList.toggle('senza-tinta', !!prefs.ndvi || prefs.colorBy === 'nessuno');
+  el.style.setProperty('--tinta', String(foto ? Math.min(1, i * 1.6) : Math.min(.8, i + .1)));
+  el.style.setProperty('--tinta-lontano', String(Math.min(.95, .45 + i)));
 }
 function drawFields() {
   if (!map) return;
-  fieldsGroup.clearLayers();
+  fieldsGroup.clearLayers(); vis = new Map();
+  if (multi) multi.forEach(id => { if (!get('campi', id)) multi.delete(id); });
   S.campi.filter(c => c.geom).forEach(c => {
     if (editId === c.id) return;
-    const lyr = L.geoJSON(c.geom, { style: () => styleFor(c, selected === c.id), pmIgnore: true });
-    lyr.campoId = c.id;
-    lyr.on('click', e => { L.DomEvent.stopPropagation(e); if (mode === 'view') select(c.id); });
+    const st = statoDi(c.id), s = stili(c, st);
+    const tinta = L.geoJSON(c.geom, { style: () => s.tinta, pane: 'campiTinta', interactive: false, pmIgnore: true });
+    const alone = L.geoJSON(c.geom, { style: () => s.alone, pane: 'campiAlone', interactive: false, pmIgnore: true });
+    const linea = L.geoJSON(c.geom, { style: () => s.linea, pmIgnore: true });
+    linea.on('click', e => {
+      L.DomEvent.stopPropagation(e);
+      const oe = e.originalEvent || {};
+      if (mode === 'multi') toggleMulti(c.id);
+      else if (mode === 'view' && (oe.ctrlKey || oe.metaKey || oe.shiftKey)) startMulti(selected && selected !== c.id ? [selected, c.id] : [c.id]);
+      else if (mode === 'view') select(c.id);
+    });
+    linea.on('mouseover', () => { if (mode !== 'view' && mode !== 'multi') return; sopra = c.id; const v = vis.get(c.id); if (v) { const s2 = stili(c, statoDi(c.id)); v.linea.setStyle(s2.linea); v.alone.setStyle(s2.alone); } });
+    linea.on('mouseout', () => { if (sopra !== c.id) return; sopra = null; const v = vis.get(c.id); if (v) { const s2 = stili(c, statoDi(c.id)); v.linea.setStyle(s2.linea); v.alone.setStyle(s2.alone); } });
     const ct = centroid(c.geom);
-    if (ct) L.marker([ct[1], ct[0]], { icon: L.divIcon({ className: 'field-label', html: `<b>${esc(c.nome)}</b><span>${nf(campoHa(c), 2)} ha</span>`, iconSize: null }), interactive: false, pmIgnore: true }).addTo(lyr);
-    lyr.addTo(fieldsGroup);
+    if (ct) L.marker([ct[1], ct[0]], { icon: L.divIcon({ className: 'field-label', html: `<b>${esc(c.nome)}</b><span>${nf(campoHa(c), 2)} ha</span>`, iconSize: null }), interactive: false, pmIgnore: true }).addTo(linea);
+    tinta.addTo(fieldsGroup); alone.addTo(fieldsGroup); linea.addTo(fieldsGroup);
+    vis.set(c.id, { tinta, alone, linea });
   });
+  // il selezionato sopra agli altri (il bordo bianco non resta coperto dai vicini)
+  vis.forEach((v, id) => { if (statoDi(id) === 'sel') { v.alone.bringToFront(); v.linea.bringToFront(); } });
+  aspettoMappa();
   drawNotes(); renderLegend(); renderWeather();
+  if (mode === 'multi') barraMulti();
 }
 function drawNotes() {
   if (!notesGroup) return; notesGroup.clearLayers(); if (!prefs.note) return;
@@ -246,8 +309,55 @@ export function toggleLegend() { legendOpen = !legendOpen; renderLegend(); }
 
 export function select(id) {
   selected = id;
-  fieldsGroup.eachLayer(l => { const c = get('campi', l.campoId); if (c) l.setStyle(styleFor(c, l.campoId === id)); if (l.campoId === id) l.bringToFront(); });
+  restyle();
   renderCard();
+}
+
+/* ---------- selezione di più campi ---------- */
+// Si entra dal pulsante della mappa, dalla scheda del campo ("Seleziona più campi") o con Ctrl/Maiusc + clic sul computer.
+// Ogni tocco aggiunge o toglie un campo; la legenda permette di prendere tutti i campi di una coltura (o gruppo, comune…).
+export function startMulti(ids) {
+  if (!map) return; closeSheet();
+  if (mode !== 'view' && mode !== 'multi') endMode();
+  closeCat();
+  const pre = ids || (selected ? [selected] : []);
+  selected = null; $('#mapCard').hidden = true; $('#mapView').classList.remove('has-card');
+  mode = 'multi'; multi = new Set(pre.filter(id => get('campi', id)));
+  $('#mapView').classList.add('multi');
+  restyle(); barraMulti();
+}
+function aggiornaMulti() { restyle(); barraMulti(); }
+export function toggleMulti(id) {
+  if (!multi) return;
+  if (multi.has(id)) multi.delete(id); else multi.add(id);
+  aggiornaMulti();
+}
+export function multiVoce(k) {
+  if (!multi) return;
+  const v = legendItems().find(([x]) => x === k); if (!v) return;
+  const ids = v[1].ids; const tutti = ids.every(id => multi.has(id));
+  ids.forEach(id => tutti ? multi.delete(id) : multi.add(id));
+  aggiornaMulti();
+}
+export function multiVisibili() {
+  if (!multi) return;
+  const b = map.getBounds();
+  vis.forEach((v, id) => { const c = get('campi', id); const ct = c && centroid(c.geom); if (ct && b.contains([ct[1], ct[0]])) multi.add(id); });
+  aggiornaMulti();
+}
+export function multiSvuota() { if (!multi) return; multi.clear(); aggiornaMulti(); }
+export const multiScelti = () => multi ? [...multi].filter(id => get('campi', id)) : [];
+function barraMulti() {
+  if (mode !== 'multi' || !multi) return;
+  const ids = multiScelti(); const ha = ids.reduce((t, id) => t + campoHa(get('campi', id)), 0); const n = ids.length;
+  const no = n ? '' : ' disabled';
+  const vv = $('#mapBar .mb-voci'); const sx = vv ? vv.scrollLeft : 0;
+  modeBar(`<div class="mb-text"><b>${n ? `${n} ${n === 1 ? 'campo scelto' : 'campi scelti'} · ${nf(ha, 2)} ha` : 'Scegli i campi'}</b><span>Tocca i campi sulla mappa per aggiungerli o toglierli.</span></div>
+    <div class="mb-actions"><button class="btn sm ghost" data-act="mapMultiVisibili" title="Aggiungi tutti i campi che si vedono ora sulla mappa">${ic('scan-search')}Visibili</button>${n ? `<button class="btn sm ghost" data-act="mapMultiSvuota">Svuota</button>` : ''}<button class="btn sm" data-act="mapCancel">Fine</button></div>
+    ${(it => it.length > 1 ? `<div class="mb-voci" aria-label="Prendi tutti i campi di una voce"><span>Prendi tutti:</span>${it.map(([k, v]) => `<button type="button" data-act="mapMultiVoce" data-k="${esc(k)}" class="${v.ids.every(id => multi.has(id)) ? 'on' : ''}"><i style="background:${v.col}"></i>${esc(k)}<em>${nf(v.ha, 1)} ha</em></button>`).join('')}</div>` : '')(legendItems())}
+    <div class="mb-go"><button class="btn action sm" data-act="mapMultiAtt"${no}>${ic('notebook-pen')}Registra attività</button><button class="btn sm primary" data-act="mapMultiColtura"${no}>${ic('sprout')}Coltura</button><button class="btn sm" data-act="mapMultiDati"${no}>${ic('pencil')}Gruppo e conduzione</button></div>`);
+  $('#mapBar').classList.add('multi-bar');
+  const nv = $('#mapBar .mb-voci'); if (nv) nv.scrollLeft = sx;
 }
 function renderCard() {
   const card = $('#mapCard');
@@ -263,7 +373,8 @@ function renderCard() {
   <div class="mc-last">${ic('notebook-pen')}<span>${i.last ? esc(i.last.tipo || 'Attività') + ' il ' + fd(i.last.data) : 'Nessuna attività registrata'}${i.plan.length ? ' · ' + i.plan.length + ' da fare' : ''}${i.carenza ? ' · carenza fino al ' + fd(i.carenza.fine) : ''}</span></div>
   <div class="mc-actions two"><button class="btn sm" data-act="open" data-type="campo" data-id="${c.id}">${ic('list')}Dettagli</button>${ct ? `<a class="btn sm" href="https://www.google.com/maps/dir/?api=1&destination=${ct[1].toFixed(6)},${ct[0].toFixed(6)}" target="_blank" rel="noopener">${ic('navigation')}Indicazioni</a>` : '<span></span>'}</div>
   <button class="btn action wide" data-act="new" data-form="operazioni" data-campo="${c.id}">${ic('plus')}Registra attività</button>
-  <div class="mc-actions two"><button class="btn ok sm" data-act="mapNote" data-id="${c.id}">${ic('pencil')}Nuova nota</button><button class="btn sm ghost" data-act="mapEdit" data-id="${c.id}">${ic('pentagon')}Modifica confine</button></div>`;
+  <div class="mc-actions two"><button class="btn ok sm" data-act="mapNote" data-id="${c.id}">${ic('pencil')}Nuova nota</button><button class="btn sm ghost" data-act="mapEdit" data-id="${c.id}">${ic('pentagon')}Modifica confine</button></div>
+  <button class="btn sm ghost wide" data-act="mapMulti" data-id="${c.id}">${ic('square-check')}Seleziona più campi insieme a questo</button>`;
 }
 
 /* ---------- disegno ---------- */
@@ -287,7 +398,7 @@ function liveArea(layer) {
   const g = { type: 'Polygon', coordinates: [[...pts, pts[0]]] };
   el.textContent = nf(areaHa(g), 2) + ' ha · ' + pts.length + ' punti';
 }
-function modeBar(html) { const b = $('#mapBar'); b.innerHTML = html; b.hidden = !html; $('#mapCard').hidden = !!html || !selected; $('#map').classList.toggle('drawing', !!html); $('#mapView').classList.toggle('has-bar', !!html); }
+function modeBar(html) { const b = $('#mapBar'); b.innerHTML = html; b.hidden = !html; b.classList.remove('multi-bar'); $('#mapCard').hidden = !!html || !selected; $('#map').classList.toggle('drawing', !!html && mode !== 'multi'); $('#mapView').classList.toggle('has-bar', !!html); }
 export function startDraw(forId = null) {
   if (!map) return; closeSheet();
   endMode(); select(null); mode = 'draw'; drawFor = forId;
@@ -298,7 +409,7 @@ export function startDraw(forId = null) {
 export function startEdit(id) {
   const c = get('campi', id); if (!c || !c.geom) { startDraw(id); return; }
   endMode(); mode = 'edit'; editId = id; drawFields();
-  editLayer = L.geoJSON(c.geom, { style: { color: '#FFFFFF', weight: 3, fillColor: colorFor(c), fillOpacity: .45 } }).getLayers()[0];
+  editLayer = L.geoJSON(c.geom, { style: { color: '#FFFFFF', weight: 2.5, fillColor: colorFor(c), fillOpacity: .3, lineJoin: 'round' } }).getLayers()[0];
   editLayer.addTo(map); editLayer.pm.enable({ allowSelfIntersection: false, snappable: true });
   const upd = () => { const g = editLayer.toGeoJSON().geometry; const el = $('#drawArea'); if (el) el.textContent = nf(areaHa(g), 2) + ' ha'; };
   editLayer.on('pm:edit pm:markerdrag pm:vertexadded pm:vertexremoved', upd);
@@ -317,8 +428,9 @@ export function endMode() {
   if (!map) return;
   map.pm.disableDraw();
   if (editLayer) { editLayer.pm.disable(); map.removeLayer(editLayer); editLayer = null; }
-  const had = editId; editId = null; drawFor = null; mode = 'view'; modeBar('');
-  if (had) drawFields();
+  const had = editId, eraMulti = !!multi; editId = null; drawFor = null; mode = 'view'; multi = null; modeBar('');
+  $('#mapView').classList.remove('multi');
+  if (had) drawFields(); else if (eraMulti) restyle();
 }
 
 /* ---------- catasto: particella toccata o cercata per foglio e mappale ---------- */
