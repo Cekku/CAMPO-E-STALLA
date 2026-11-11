@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.29.1** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.30.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -82,6 +82,17 @@ Con il cloud la riservatezza è garantita dalle regole RLS in `supabase/schema.s
 - `importa.js`: "Carica documenti" riconosce da solo il tipo di file (fatture, IVA, bilancini, cedolini, bilancini paghe, contabili di bonifico, estratti conto).
 - `tabelle.js`: tabelle ordinabili con esportazione **Excel / CSV / stampa-PDF**; `xlsx.js`, `zip.js` scritti a mano.
 - Fatture mancanti (`elenco.js`, vista `views/conti-verifiche.js`) e reddito lordo standard (`rls.js`): vedi `.claude/rules/conti-controllo-rls.md`.
+
+### Centri di costo (dalla 1.30.0) — `conti/centri.js`, `views/conti-centri.js`
+
+- Chiesto da Marco l'11/11/2026: spese delle fatture divise tra campagna e stalla, più la parte bancaria e finanziaria. Pagina Conti → Bilancio → Centri di costo (`sub` `centri`).
+- Centri finali `FINALI`: stalla, campagna, generali (Spese generali), finanza (Banca e finanza). Scelte per categoria o riga (`SCELTE`): anche `comuni` (si divide tra stalla e campagna), `segue` (come le altre righe della stessa fattura, in proporzione: spese accessorie e la riga di rettifica), `inv` (investimento, fuori) e `no`.
+- Centro di una riga: `riga.cdc` scelto a mano (salvato nella fattura) → `cfg.cdcCat['<tipo>|<categoria>']` → `centroPredefinito` (espressioni sul nome della categoria, `R_ACQ`/`R_VEN`; attenzione: `fitofarm` contiene `farmac`). Per le righe `comuni` senza scelta a mano, `suggerimento()` legge la descrizione (carro, mungitura, cuccette → stalla; seminatrice, aratro, pressa → campagna). "Da classificare" = comuni.
+- Quote della stalla per l'anno in `bilanci[anno].cdc` (`qComuni`, `qPers` in frazione, `trasf` = foraggi aziendali passati alla stalla, ricavo campagna e costo stalla, non cambia il totale), scritte con l'azione generica `c-val` `data-col="cdc"`. Vuote = quota dei costi diretti della stalla su stalla + campagna.
+- Fuori dalle fatture: personale `calc(y).ce[56]` (anche dalle paghe) diviso con `qPers`; solo con il CE: ammortamenti 64/65 comuni, 66 stalla, 63/67/68 generali, IMU 73 generali, PAC 20+21 ricavo campagna; affitti senza fattura di `bilanci[anno].rls.affitti` alla campagna.
+- Banca e finanza: commissioni (CE 48) e interessi (CE 86) e proventi (82+83) dal conto economico se ci sono, altrimenti dai movimenti della banca. Movimenti salvati in `econfig` id `bk-<id movimento>` (`{tipo: 'banca', voce, data, importo positivo, entrata, descrizione, fonte}`, `VOCI_BANCA`: commissioni, bollo, interessi, attivi, rata, leasing). Nell'importazione dell'estratto conto il tipo `banca` di `TIPI_MOV` è proposto da `pareBanca` (spese bancarie, rata, mutuo, finanziamento, leasing, competenze, interessi) con la voce da `voceBanca`; `salvaRighe` li scrive e alla seconda importazione risultano già registrati. Le rate restano fuori dai costi (solo il loro totale in vista), il leasing va nelle spese comuni.
+- Vista: KPI per centro, riepilogo esportabile con costo stalla €/l (anche con la sua parte di generali e banca), €/vacca, campagna €/ha; percentuali; voci per centro; banca e movimenti (voce `c-bkVoce`, togli `c-bkDel`); categorie (`c-cdcCat`); righe comuni una per una (`c-cdcRiga`, le 150 più grandi); confronto anni.
+- Provato nel browser (origine di prova vuota, fatture finte poi cancellate): conti a mano uguali per quote automatiche e scritte, scelta per riga e per categoria, CE con personale/ammortamenti/interessi, estratto conto finto (4 movimenti banca, bonifico ignorato, seconda volta "già registrato"), telefono 375 px senza scorrimento di lato.
 
 ### Personale (paghe) — `paghe-parse.js`, `paghe.js`, `views/conti-personale.js`
 

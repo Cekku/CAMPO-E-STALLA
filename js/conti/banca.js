@@ -177,16 +177,17 @@ export async function togliPagamentoFattura(fid, mov) {
 export const idMovimento = m => { const k = [m.data, r2(m.importo), String(m.descrizione || '').replace(/\s/g, '').slice(0, 60)].join('|'); let h = 0x811c9dc5; for (let i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return 'm' + h.toString(36); };
 
 /* ---------------- righe da rivedere prima di salvare ---------------- */
-export const TIPI_MOV = { stipendio: 'Stipendio', anticipo: 'Anticipo sullo stipendio', prestito: 'Prestito al dipendente', rimborso: 'Restituzione di prestito', f24: 'F24 (ritenute)', contributi: 'Contributi INPS agricoli', fondo: 'Fondo pensione', fattura: 'Fattura', ignora: 'Non registrare' };
+export const TIPI_MOV = { stipendio: 'Stipendio', anticipo: 'Anticipo sullo stipendio', prestito: 'Prestito al dipendente', rimborso: 'Restituzione di prestito', f24: 'F24 (ritenute)', contributi: 'Contributi INPS agricoli', fondo: 'Fondo pensione', fattura: 'Fattura', banca: 'Banca e finanza (spese, interessi, rate)', ignora: 'Non registrare' };
 /** Dai movimenti dell'estratto conto: righe con il tipo proposto (stipendio di un dipendente, F24, fattura…). */
 export async function righeEstratto(movs, file) { const P0 = await import('./paghe.js'); return P0.segnaDoppi(await righeEstratto0(movs, file)); }
 async function righeEstratto0(movs, file) {
-  const P = await import('./paghe.js'); const { competenzaDaCausale } = await import('./bonifici-parse.js');
-  const usati = new Set([...S.pagamenti.map(p => p.id), ...S.fatture.flatMap(f => (f.pagamentiBanca || []).map(p => p.mov))]);
+  const P = await import('./paghe.js'); const { competenzaDaCausale } = await import('./bonifici-parse.js'); const CD = await import('./centri.js');
+  const usati = new Set([...S.pagamenti.map(p => p.id), ...S.econfig.filter(x => x.tipo === 'banca').map(x => x.id.slice(3)), ...S.fatture.flatMap(f => (f.pagamentiBanca || []).map(p => p.mov))]);
   const gia = new Map(); const dips = P.dipendenti(); const visti = new Set();
   return movs.map(m => {
     let id = idMovimento(m); while (visti.has(id)) id += 'x'; visti.add(id); m.id = id;
     const base = { id, data: m.data, importo: Math.abs(m.importo), entrata: m.importo > 0, descrizione: m.descrizione, beneficiario: m.beneficiario, iban: m.iban, causale: m.causale, fonte: file, gia: usati.has(id), modalita: m.tipoOp === 'assegno' ? 'assegno' : m.tipoOp === 'POS' ? 'carta' : 'bonifico', comp: competenzaDaCausale(m.causale, m.data) || competenzaDaCausale(m.descrizione, m.data, true), fatt: [], proposte: [], motivo: '' };
+    if (CD.pareBanca(m)) return Object.assign(base, { tipo: 'banca', voce: CD.voceBanca(m), sel: !base.gia });
     let r = null;
     if (m.importo < 0 && m.tipoOp !== 'spese bancarie') r = P.riconosci({ descrizione: m.descrizione, beneficiario: m.beneficiario, iban: m.iban }, dips);
     if (r && r.tipo === 'stipendio' && !r.dip && !r.ambigui) r = m.beneficiario ? { tipo: 'stipendio', dip: P.chiaveDip({ nome: m.beneficiario }), nuovo: true } : null;
@@ -204,9 +205,11 @@ async function righeEstratto0(movs, file) {
 export async function salvaRighe(sel, fonte) {
   const P = await import('./paghe.js'); let nP = 0, nF = 0;
   sel = sel.filter(r => !r.stessoGiorno);
-  const pag = sel.filter(r => r.tipo !== 'fattura' && r.tipo !== 'ignora' && !r.entrata);
+  const pag = sel.filter(r => r.tipo !== 'fattura' && r.tipo !== 'ignora' && r.tipo !== 'banca' && !r.entrata);
+  const ban = sel.filter(r => r.tipo === 'banca');
+  if (ban.length) { const CD = await import('./centri.js'); await store.bulkPut(ban.map(r => ({ col: 'econfig', id: 'bk-' + r.id, data: CD.datiBanca(Object.assign({ fonte }, r)) }))); }
   if (pag.length) { await store.bulkPut(pag.map(r => ({ col: 'pagamenti', id: r.id, data: P.datiPagamento(Object.assign({ fonte }, r)) }))); nP = pag.length; await P.imparaNomi(pag); }
   for (const r of sel.filter(r => r.tipo === 'fattura' && r.fatt && r.fatt.length)) { await registraSuFatture({ id: r.id, data: r.data, importo: r.entrata ? r.importo : -r.importo, descrizione: r.descrizione }, r.fatt, r.fonte || fonte); nF++; }
   const nD = await P.eliminaDoppi();
-  return { nP, nF, nD };
+  return { nP, nF, nD, nB: ban.length };
 }

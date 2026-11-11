@@ -14,9 +14,10 @@ import { vCE, vSP, vCespiti, vIndici, vAnalisi, vIva, vControlli } from './conti
 import { vPersonale, vDipendenti, vCedolini, vPagamenti, vVerifica, vPrestiti, personaleAct, personaleChange, tabellaMovimenti, modificaRiga } from './conti-personale.js';
 import { anomalie as anomaliePaghe } from '../conti/paghe.js';
 import { vMancanti, vRls, mancantiAnno } from './conti-verifiche.js';
+import { vCentri } from './conti-centri.js';
 
-export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', mancanti: 'Fatture mancanti', rls: 'Reddito lordo standard', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Cespiti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', prestiti: 'Anticipi e prestiti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie' };
-const GRUPPI = [['fatture', 'mancanti', 'fornitori', 'clienti', 'prodotti', 'categorie', 'mensile', 'latte'], ['ce', 'sp', 'indici', 'rls', 'analisi', 'iva', 'cespiti', 'controlli'], ['personale', 'dipendenti', 'cedolini', 'pagamenti', 'prestiti', 'verifica']];
+export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', mancanti: 'Fatture mancanti', rls: 'Reddito lordo standard', centri: 'Centri di costo', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Cespiti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', prestiti: 'Anticipi e prestiti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie' };
+const GRUPPI = [['fatture', 'mancanti', 'fornitori', 'clienti', 'prodotti', 'categorie', 'mensile', 'latte'], ['ce', 'sp', 'indici', 'centri', 'rls', 'analisi', 'iva', 'cespiti', 'controlli'], ['personale', 'dipendenti', 'cedolini', 'pagamenti', 'prestiti', 'verifica']];
 const TAB_NOMI = { rls: 'RLS e spese varie', personale: 'Riepilogo', cedolini: 'Cedolini', prestiti: 'Anticipi e prestiti', verifica: 'Verifica' };
 
 /** Chi può vedere i conti: in locale sempre; con il cloud solo il titolare dell'azienda. */
@@ -33,7 +34,7 @@ export function render() {
   if (!PULIZIA.controlli && S.fatture.length && contiVisibili()) { PULIZIA.controlli = true; import('../conti/importa.js').then(m => m.aggiornaControlli()).then(n => { if (n) toast(n === 1 ? '1 fattura con ritenuta d\'acconto ora risulta corretta' : `${n} fatture con ritenuta d'acconto ora risultano corrette`); }).catch(e => console.warn(e)); }
   const sub = SUBS[UI.sub.conti] ? UI.sub.conti : 'panoramica';
   if (!contiVisibili()) return { title: 'Conti', html: `<section class="card lock">${ic('shield-check', 'huge')}<h2>Area riservata al titolare</h2><p class="muted">Fatture, bilancio e margini sono visibili solo a chi ha creato l'azienda. Chiedi al titolare se ti servono questi dati.</p></section>` };
-  const V = { panoramica, fatture: vFatture, mancanti: vMancanti, rls: vRls, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, controlli: vControlli, personale: vPersonale, dipendenti: vDipendenti, cedolini: vCedolini, pagamenti: vPagamenti, prestiti: vPrestiti, verifica: vVerifica, regole: vRegole };
+  const V = { panoramica, fatture: vFatture, mancanti: vMancanti, rls: vRls, centri: vCentri, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, controlli: vControlli, personale: vPersonale, dipendenti: vDipendenti, cedolini: vCedolini, pagamenti: vPagamenti, prestiti: vPrestiti, verifica: vVerifica, regole: vRegole };
   const gruppo = GRUPPI.find(g => g.includes(sub)) || null;
   const t = gruppo ? tabs('conti', gruppo.map(k => [k, TAB_NOMI[k] || SUBS[k]]), sub) : '';
   const azioni = sub === 'importa' ? '' : `<div class="btns"><button class="btn sm" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">${ic('file-up')}Carica documenti</button></div>`;
@@ -144,7 +145,7 @@ async function salvaImport() {
   const PG = await import('../conti/paghe.js');
   if (bonSel.some(y => PG.CON_DIP.has(y.tipo) && !y.dip)) throw new Error('Per ogni stipendio, anticipo o prestito scegli il dipendente (o togli la spunta).');
   if (bonSel.some(y => y.tipo === 'fattura' && !(y.fatt || []).length)) throw new Error('Scegli la fattura per ogni pagamento di fattura (o togli la spunta).');
-  if (bonSel.length) { const BK = await import('../conti/banca.js'); const o = await BK.salvaRighe(bonSel, ''); if (o.nP) msg.push(o.nP === 1 ? '1 pagamento del personale' : o.nP + ' pagamenti del personale'); if (o.nF) msg.push(o.nF === 1 ? '1 pagamento di fattura' : o.nF + ' pagamenti di fatture'); if (o.nD) msg.push(o.nD === 1 ? '1 doppio eliminato' : o.nD + ' doppi eliminati'); }
+  if (bonSel.length) { const BK = await import('../conti/banca.js'); const o = await BK.salvaRighe(bonSel, ''); if (o.nP) msg.push(o.nP === 1 ? '1 pagamento del personale' : o.nP + ' pagamenti del personale'); if (o.nF) msg.push(o.nF === 1 ? '1 pagamento di fattura' : o.nF + ' pagamenti di fatture'); if (o.nB) msg.push(o.nB === 1 ? '1 movimento di banca e finanza' : o.nB + ' movimenti di banca e finanza'); if (o.nD) msg.push(o.nD === 1 ? '1 doppio eliminato' : o.nD + ' doppi eliminati'); }
   const nonLetti = r.filter(x => x.tipo === 'errore').length;
   IMP.ris = []; toast('Salvato: ' + msg.join(' · ') + (nonLetti ? ` · ${nonLetti} file non letti (non salvati)` : ''));
   const paghe = r.filter(x => x.tipo === 'cedolini' || x.tipo === 'bilpaghe');
@@ -309,6 +310,7 @@ export async function onAct(a, b, d) {
     }
     case 'c-iaStop': { const { FERMA_IA } = await import('../conti/importa.js'); FERMA_IA.si = true; return toast('Mi fermo dopo il blocco in corso: il lavoro fatto è già salvato'); }
     case 'c-regApply': { await salvaCfg({ regole: leggiRegole() }); const { riapplicaRegole } = await import('../conti/importa.js'); const n = await riapplicaRegole(); return toast(`Regole riapplicate: ${n} righe cambiate (le categorie scelte a mano restano)`); }
+    case 'c-bkDel': return arm(b, 'Conferma: togli', async () => { await store.remove('econfig', d.id); toast('Movimento della banca tolto'); });
     case 'c-regReset': return arm(b, 'Conferma: torna alle predefinite', async () => { await salvaCfg({ regole: REGOLE_PREDEFINITE.map(r => [...r]) }); toast('Regole predefinite ripristinate'); });
   }
 }
@@ -318,6 +320,9 @@ export async function onChange(t) {
   const a = t.dataset.act;
   if (a === 'c-files' && t.files.length) { const fs = [...t.files]; t.value = ''; return leggiFiles(fs); }
   if (a === 'c-elFile' && t.files.length) { const f = t.files[0]; t.value = ''; return caricaElenco(f); }
+  if (a === 'c-cdcCat') { const m = Object.assign({}, cfg().cdcCat || {}); m[t.dataset.k] = t.value; await salvaCfg({ cdcCat: m }); return toast('Centro della categoria salvato'); }
+  if (a === 'c-cdcRiga') { const f = S.fatture.find(x => x.id === t.dataset.fid); const i = +t.dataset.i; if (!f || !(f.righe || [])[i]) return; const rr = f.righe.map((r, k) => { if (k !== i) return r; const o = Object.assign({}, r); if (t.value) o.cdc = t.value; else delete o.cdc; return o; }); const { id, ...data } = f; await store.put('fatture', f.id, Object.assign(data, { righe: rr })); return; }
+  if (a === 'c-bkVoce') { const m = S.econfig.find(x => x.id === t.dataset.id); if (!m) return; const { id, ...data } = m; await store.put('econfig', id, Object.assign(data, { voce: t.value })); return; }
   if (a === 'c-rlsCat') { const m = Object.assign({}, cfg().rlsCat || {}); m[t.dataset.k] = t.value; await salvaCfg({ rlsCat: m }); return; }
   if ((a === 'c-pMovSel' || a === 'c-pMovSet') && t.dataset.k != null) { const x = IMP.ris[+t.dataset.k]; if (x && x.righe) modificaRiga(x.righe, t); return rerender(); }
   if (/^c-p[A-Z]/.test(a || '')) return personaleChange(t, rerender);
