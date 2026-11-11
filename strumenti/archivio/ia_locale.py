@@ -125,7 +125,19 @@ def accendi(c):
                            capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=600)
         if r.returncode != 0:
             print('  non riesco a caricarlo:', (r.stderr or r.stdout).strip()[-300:])
+        else:
+            CARICATI.append(nome)
     return nome
+
+
+CARICATI = []          # modelli caricati da questo programma: nuovi() li toglie dalla memoria alla fine
+
+
+def scarica_caricati():
+    for nome in CARICATI:
+        subprocess.run([LMS, 'unload', nome], capture_output=True, timeout=120)
+        print(f'LM Studio: {nome} tolto dalla memoria')
+    CARICATI.clear()
 
 
 # --- La domanda al modello ---------------------------------------------------------------------------
@@ -557,15 +569,14 @@ def comando_prova():
 # --- File nuovi --------------------------------------------------------------------------------------
 
 def nuovi():
-    """archivio.py aggiorna, ma prima accende LM Studio e carica il modello scelto (per l'avvio a orario).
-    --log: tutto in ArchivioAzienda\\aggiorna-log.txt (serve con pythonw, che non ha finestra)."""
+    """archivio.py aggiorna per l'avvio a orario: il modello si carica solo se ci sono documenti incerti
+    (in classifica_llm) e alla fine si toglie dalla memoria.
+    --log: tutto in ArchivioAzienda\aggiorna-log.txt (serve con pythonw, che non ha finestra)."""
     if '--log' in sys.argv:
         os.makedirs(A.DATI, exist_ok=True)
         sys.stdout = sys.stderr = open(os.path.join(A.DATI, 'aggiorna-log.txt'), 'a', encoding='utf-8', buffering=1)
         sys.argv.remove('--log')
-    if '--senza-llm' not in sys.argv:
-        try:
-            accendi(impostazioni())
-        except Exception as e:          # se LM Studio non va, l'aggiornamento senza modello si fa lo stesso
-            print(f'LM Studio: {e}')
-    A.aggiorna()
+    try:
+        A.aggiorna()
+    finally:
+        scarica_caricati()

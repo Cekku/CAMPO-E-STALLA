@@ -18,7 +18,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from classifica import pulisci_nome, nome_proposto, pulisci_descrizione, R  # noqa: E402
+from classifica import pulisci_nome, nome_proposto, pulisci_descrizione, descrizione_da_nome, R  # noqa: E402
 
 MAX_NOME = 100
 MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre',
@@ -423,6 +423,62 @@ def titolo(t, nostri, parole_az=()):
     return None
 
 
+
+# ---------------------------------------------------------------- nome scritto a mano (cartella principale)
+SIGLE_SOC = {'srl', 'spa', 'sas', 'snc', 'soc', 'coop', 's.r.l', 's.p.a'}
+STAMPI = R(r'^(bonificosct|listadettagliodisposizioni|gestionaledistinte|delegaf24)')     # nomi con data e ora del programma
+
+
+def _parole(s):
+    return [w for w in re.split(r'[^a-zà-ÿ]+', (s or '').lower()) if len(w) >= 3]
+
+
+def _simile(w, altre):
+    return any(w == x or (len(w) >= 5 and len(x) >= 5 and w[:5] == x[:5]) for x in altre)
+
+
+FATTURE = ('Fattura-elettronica', 'Fattura', 'Nota-di-credito', 'Nota-di-addebito', 'Proforma')
+# fatture salvate come "Marzo 31 - Ditta srl" o "08. Ditta": il nome dice solo data e ditta
+SOLO_DITTA = R(r'^((' + RX_MESI + r')\s*\d{0,2}|\d{1,3}(-\d{1,3})?)\s*[-.]\s+')
+
+
+def parlante(nome_file, r, parole_az=()):
+    """Descrizione dal nome scritto a mano, se dice qualcosa oltre a data, ditta, persona e tipo; altrimenti None."""
+    if (r['tipo'] or '') in FATTURE and SOLO_DITTA.match(os.path.splitext(nome_file)[0]):
+        return None
+    dn = descrizione_da_nome(nome_file, list(parole_az), r['tipo'])
+    if not dn:
+        return None
+    mesi = set(MESI) | {m[:3] for m in MESI}
+    chi = set(_parole(r['controparte'])) | set(_parole(r['persona'])) | {w.lower() for w in parole_az}
+    vuote = mesi | chi | SIGLE_SOC | set(_parole((r['tipo'] or '').replace('-', ' ')))
+    pezzi = [p for p in re.split(r'[\s_\-]+', dn) if p]
+    vere = [p for p in pezzi if re.search(r'[A-Za-zÀ-ÿ]{4,}', p) and not _simile(p.lower(), vuote) and not DEBOLI.match(p.lower())]
+    if not vere:
+        return None
+    d = '-'.join(p for p in pezzi if p.lower() not in mesi and p.lower() not in chi)
+    return None if debole(d) else d
+
+
+def unisci_nome(marco, dal_testo):
+    """Le parole di Marco, più dal testo solo i pezzi con cifre (numero, importo, anno) che mancano."""
+    if not dal_testo:
+        return marco
+    m = marco.lower()
+    agg = [p for p in dal_testo.split('-') if p and re.search(r'\d', p) and p.lower() not in m and p.lower() != 'n']
+    return unisci(marco, *agg, n=90) if agg else marco
+
+
+def anno_dal_nome(nome_file):
+    """Un solo anno 20xx scritto nel nome (non nei nomi con data e ora dei programmi della banca)."""
+    base = os.path.splitext(nome_file)[0]
+    if STAMPI.match(base):
+        return None
+    if re.search(r'(?<!\d)\d{1,2}[-_. ]\d{1,2}[-_. ](20\d{2})(?!\d)|(?<!\d)20\d{2}[-_.]\d{1,2}[-_.]\d{1,2}', base):
+        return None                                  # c'è una data intera: non è un anno di riferimento
+    anni = set(re.findall(r'(?<!\d)(20[0-3]\d)(?!\d)', base))
+    return int(anni.pop()) if len(anni) == 1 else None
+
 # ---------------------------------------------------------------- decisione per un documento
 
 def debole(d):
@@ -432,8 +488,9 @@ def debole(d):
     return DEBOLI.match(d) is not None or all(DEBOLI.match(p) for p in parti)
 
 
-def migliora(r, testo, nostri, persone=(), parole_az=()):
-    """r: riga di contenuti. Ritorna i campi da cambiare (descrizione, controparte, data_doc, tipo, persona)."""
+def migliora(r, testo, nostri, persone=(), parole_az=(), a_mano=False):
+    """r: riga di contenuti. Ritorna i campi da cambiare (descrizione, controparte, data_doc, tipo, persona, stato).
+    a_mano: il file è nella cartella principale, dove i nomi li ha scritti Marco: se il nome dice qualcosa si tiene."""
     t = testo or ''
     nome_file = os.path.basename(r['percorso_scelto'] or '')
     nf = nome_file.lower()
@@ -478,6 +535,9 @@ def migliora(r, testo, nostri, persone=(), parole_az=()):
     # se la descrizione vecchia (dal nome del file) diceva qualcosa e quella nuova è solo un importo, tienile tutte e due
     if descr and attuale and not debole(attuale) and descr != attuale and re.fullmatch(r'[\d.,]+EUR', descr):
         descr = attuale if attuale.endswith(descr) else unisci(attuale, descr)     # rifatto due volte dà lo stesso
+    marco = parlante(nome_file, r, parole_az) if a_mano else None
+    if marco:                       # il nome scritto a mano vince: dal testo solo numero, importo, anno che mancano
+        descr = unisci_nome(marco, info.get('descrizione'))
     if descr != attuale:
         cambi['descrizione'] = descr
 
@@ -515,6 +575,15 @@ def migliora(r, testo, nostri, persone=(), parole_az=()):
     d_nuova = info.get('data') or info.get('data_mese')
     if d_nuova and (libero or not r['data_doc']) and d_nuova != r['data_doc']:
         cambi['data_doc'] = d_nuova
+    # anno scritto nel nome a mano diverso da quello letto: vince il nome, da rivedere
+    a_nome = anno_dal_nome(nome_file) if a_mano else None
+    d_ora = cambi.get('data_doc', r['data_doc'])
+    if a_nome and d_ora and int(d_ora[:4]) != a_nome:
+        cambi['data_doc'] = str(a_nome)
+        if r['stato'] != 'da_rivedere':
+            cambi['stato'] = 'da_rivedere'
+    if marco and info.get('controparte') == 'Agenzia-Entrate' and cambi.get('controparte') == 'Agenzia-Entrate':
+        del cambi['controparte']
     if info.get('tipo') and (libero and (not r['tipo'] or r['tipo'] in ('Bonifico', 'Anagrafe-bovina', 'Movimentazione-animali'))
                              or not r['tipo'] or (r['tipo'] == 'Bonifico' and info['tipo'] == 'Distinta-bonifici')):
         if info['tipo'] != r['tipo']:
@@ -574,6 +643,8 @@ def rifai_nomi(db, cfg, persone=(), solo=None, prova=False):
         return any(n.replace("'", '') in s or (len(s) > 12 and s in n) for n in nomi_az)
 
     parole_az = {w for n in cfg.get('nomi_azienda', []) for w in re.split(r'\W+', n.upper()) if len(w) >= 4}
+    princ = os.path.normcase(os.path.normpath(cfg.get('archivio_principale') or '')) if cfg.get('archivio_principale') else None
+    dentro = lambda p: bool(princ and p and os.path.normcase(os.path.normpath(p)).startswith(princ + os.sep))
     righe = db.execute("SELECT c.rowid id, c.*, t.testo, t.metodo, t.pagine FROM contenuti c LEFT JOIN testi t USING(impronta) "
                        "WHERE c.area IS NOT NULL").fetchall()
     nuovi, campi = {}, {}
@@ -581,8 +652,8 @@ def rifai_nomi(db, cfg, persone=(), solo=None, prova=False):
         est = os.path.splitext(r['percorso_scelto'] or '')[1].lower()
         fisso = r['classificato_da'] == 'utente' or r['stato'] == 'riservato'
         tocca = not fisso and (solo is None or r['impronta'] in solo)
-        cambi = migliora(r, r['testo'], nostri, persone, parole_az) if tocca else {}
-        v = {k: r[k] for k in ('descrizione', 'controparte', 'data_doc', 'tipo', 'persona', 'anno')}
+        cambi = migliora(r, r['testo'], nostri, persone, parole_az, dentro(r['percorso_scelto'])) if tocca else {}
+        v = {k: r[k] for k in ('descrizione', 'controparte', 'data_doc', 'tipo', 'persona', 'anno', 'stato')}
         v.update(cambi)
         if 'data_doc' in cambi and cambi['data_doc']:
             v['anno'] = int(cambi['data_doc'][:4])
@@ -598,7 +669,7 @@ def rifai_nomi(db, cfg, persone=(), solo=None, prova=False):
     cambiati, elenco = 0, []
     for i, nome in finali.items():
         r, v, tocca = campi[i]
-        diff = {k: v[k] for k in ('descrizione', 'controparte', 'data_doc', 'tipo', 'persona', 'anno') if v[k] != r[k]}
+        diff = {k: v[k] for k in ('descrizione', 'controparte', 'data_doc', 'tipo', 'persona', 'anno', 'stato') if v[k] != r[k]}
         if nome != r['nome_proposto']:
             diff['nome_proposto'] = nome
         if not diff:

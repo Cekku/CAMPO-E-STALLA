@@ -932,10 +932,6 @@ def classifica_llm(solo=None, cfg=None):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from testo import riservato
     c = llm_config(cfg)
-    modello = llm_modello(c)
-    if not modello:
-        print(f'Modello sul PC non raggiungibile ({c["indirizzo"]}): apri LM Studio, carica un modello e accendi il server.')
-        return 0
     try:
         conf_az = cfg if cfg is not None else json.load(open(CONFIG, encoding='utf-8'))
     except (OSError, ValueError):
@@ -953,9 +949,19 @@ def classifica_llm(solo=None, cfg=None):
     righe = [r for r in righe if (solo is None or r['impronta'] in solo) and not riservato(r['testo'] or '')]
     lim = int(sys.argv[sys.argv.index('--prova') + 1]) if '--prova' in sys.argv else int(c['massimo'])
     righe = righe[:lim]
-    print(f'Modello: {modello}   documenti da classificare: {len(righe)}')
     if not righe:
+        print('Modello sul PC: nessun documento da classificare.')
         db.close(); return 0
+    try:                                         # accende LM Studio e carica il modello solo se c'è lavoro
+        import ia_locale
+        ia_locale.accendi(ia_locale.impostazioni())
+    except Exception as e:
+        print(f'LM Studio: {e}')
+    modello = llm_modello(c)
+    if not modello:
+        print(f'Modello sul PC non raggiungibile ({c["indirizzo"]}): apri LM Studio, carica un modello e accendi il server.')
+        db.close(); return 0
+    print(f'Modello: {modello}   documenti da classificare: {len(righe)}')
 
     esempi = esempi_llm(db)
     sistema = sistema_llm(nomi_az)
