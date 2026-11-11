@@ -3,7 +3,7 @@
 Il progetto della stalla è arrivato come render già compilato con Unreal Engine 5.7 (scena Twinmotion, cartella `RENDER PROGETTO APRILE 2026`, 1,3 GB).
 Un `.exe` non gira in una pagina web, quindi da lì si estrae la scena in un file `.glb`, che l'app mostra in **Stalla → Progetto 3D** (`js/stalla3d.js`, `js/views/progetto3d.js`).
 
-Il file `.glb` **non va nel repository**, che è pubblico: si carica dall'app e diventa un allegato privato dell'azienda (`js/allegati.js`, bucket Supabase `allegati`).
+Il file pronto è `modelli/stalla-progetto-3d.glb` (pubblicato con l'app dalla 1.29.1, per scelta di Marco). Un modello nuovo si può anche caricare dall'app come allegato privato, senza metterlo nel repository.
 
 ## Strumenti (sul PC, fuori dal repository)
 
@@ -26,4 +26,4 @@ Il file `.glb` **non va nel repository**, che è pubblico: si carica dall'app e 
    - Assi: Unreal (X avanti, Y destra, Z su, centimetri) → glTF (X, Z, Y in metri). Lo scambio di Y e Z corregge anche il verso.
 4. **Compressione**: `gltfpack -i stalla-grezza.glb -o stalla.glb -kn -km` porta il file da 11 MB a 3,5 MB (posizioni intere, `KHR_mesh_quantization`).
    - **Non usare `-si`**: la semplificazione fa sparire i pannelli fotovoltaici e alcuni pezzi del terreno.
-5. **Nell'app**: Stalla → Progetto 3D → Carica il modello.
+5. **Nell'app**: copiare il file in `modelli/stalla-progetto-3d.glb` e pubblicare, oppure Stalla → Progetto 3D → Carica un altro modello (resta privato).

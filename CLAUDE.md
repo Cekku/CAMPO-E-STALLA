@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.29.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.29.1** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -49,8 +49,8 @@ Guida completa e di passaggio: **`LIBRETTO-TRATTORI.md`**. In breve:
 
 ## Progetto della stalla in 3D (dalla 1.29.0, 11/11/2026)
 
-- Origine: render Unreal Engine 5.7 già compilato (scena Twinmotion `CECUTTITOTALE`, da Revit/AutoCAD), senza file sorgenti. Estratto con lo strumento in `strumenti/render-stalla` (passi in `LEGGIMI.md`: mappatura `.usmap` con UE4SS su una copia del render, CUE4Parse, gltfpack `-kn -km` senza `-si`). Programmi e copia del render sul PC in `%USERPROFILE%\Strumenti`; il modello pronto è `Documenti\stalla-progetto-3d.glb` (3,5 MB, 1.607 pezzi, ~390.000 triangoli).
-- Il `.glb` **non sta nel repository** (pubblico): Stalla → Progetto 3D → Carica il modello lo salva come allegato privato (`js/allegati.js`). Il riferimento è nella registrazione `config` id `progetto3d` (`{file: {id, nome, tipo, kb}, titolo, caricato}`). Lo vede chi ha il permesso sugli allegati (`puoAllegati`).
+- Origine: render Unreal Engine 5.7 già compilato (scena Twinmotion `CECUTTITOTALE`, da Revit/AutoCAD), senza file sorgenti. Estratto con lo strumento in `strumenti/render-stalla` (passi in `LEGGIMI.md`: mappatura `.usmap` con UE4SS su una copia del render, CUE4Parse, gltfpack `-kn -km` senza `-si`). Programmi e copia del render sul PC in `%USERPROFILE%\Strumenti`; il modello pronto è `modelli/stalla-progetto-3d.glb` (3,5 MB, 1.607 pezzi, ~390.000 triangoli).
+- Il modello sta nel repository, in `modelli/stalla-progetto-3d.glb` (dalla 1.29.1: Marco ha scelto di pubblicarlo l'11/11/2026, sapendo che il repository è pubblico). La pagina lo apre da sola. Con "Carica un altro modello" se ne può usare un altro: diventa un allegato privato (`js/allegati.js`), registrato in `config` id `progetto3d` (`{file: {id, nome, tipo, kb}, titolo, caricato}`) e visibile a chi ha `puoAllegati`. "Torna al modello del progetto" lo toglie.
 - `js/stalla3d.js`: three.js r128. Le posizioni intere di gltfpack sono **non normalizzate**: la scala sta nel nodo, quindi non vanno divise. Poi tutto passa in coordinate della scena e si unisce per gruppo e materiale: da 1.613 disegni a 28.
   - `GRUPPI`: nuova stalla, cuccette, portoni e cancelli, stalle esistenti, concimaia e vasche, tetti, fotovoltaico, fondazioni (spente all'apertura), terreno. Tetti e fotovoltaico si riconoscono dal materiale (`Roof_covering`, vetro, `AutoCAD_5`/`Matt_chrome_2`), gli altri dal nome del gruppo del disegno.
   - `VISTE`: Insieme, Dall'alto, Nuova stalla (inquadra cuccette, cancelli e fondazioni).
