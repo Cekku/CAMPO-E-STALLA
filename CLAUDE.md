@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.30.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.31.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -36,6 +36,10 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - `js/agenda.js`: `agenda(giorni, area)` raccoglie le scadenze dei prossimi giorni (attività pianificate e in ritardo, parti, asciutte a −60 gg dal parto, fine sospensione latte, fine carenza, revisione/assicurazione/controllo funzionale, patentini, prodotti in scadenza); `agendaCard()` la mostra divisa per giorno. `statoRegistro(y)`/`registroCard(y)`: completezza del registro trattamenti (Reg. UE 2023/564, digitale obbligatorio dal 1/1/2027) sulle righe di `righeTrattamenti`.
 - `views/oggi.js`: saluto, KPI di campagna (superficie, attività, costi €/ha, avvisi), avanzamento colture a barre. Sotto 1080 px `.grid-2.dash` diventa una colonna sola con ordine `o1…o7` (agenda, avvisi, registro, attività…).
+- **Ritocchi della 1.31.0** (idee da Dribbble provate prima in `prova-cruscotto.html`, pagina fuori dal repository):
+  - Numeri con il confronto (`confronto`, `annoPrima`, `colonneMesi` in `views/oggi.js`): attività e costi contro l'anno prima alla stessa data (annata passata = anno intero), verde se va meglio e rosso se peggio (per i costi salire è male); colonne per mese sotto le attività (mese in corso blu, futuri tratteggiati); costi a zero → casella `.kpi.zero` "Ancora niente" con il dato dell'anno prima; Avvisi mostra il primo urgente; latte: media degli ultimi 7 giorni contro i 7 prima (solo se ci sono registrazioni recenti).
+  - Agenda come elenco di cose da fare (`agendaCard`): vuota = una riga (`.ag-slim`, Pianifica / Evento); piena = gruppi Oggi, Domani, Questa settimana, Settimana prossima, Più avanti (`gruppo`), in ritardo in cima, attività di campagna fatte oggi barrate, pallino che segna fatta un'attività pianificata (`data-act="done"`), etichetta dell'area; al massimo 10 righe.
+  - Riquadro Mezzi in dashboard Campagna (`mezziCard`, `scadenzeMezzo`): solo i mezzi con qualcosa in scadenza o scaduto (pezzi del libretto bad/warn, tagliando, revisione, assicurazione, controllo funzionale, scadenze del mezzo), con cosa, fra quanto e una barra; gli altri "in regola" in una riga. Ordine `o2` sul telefono, dopo gli Avvisi.
 - Ricerca = palette di comandi (`AZIONI` + voci di `MENU` in `app.js`): Ctrl/⌘+K o `/` aprono, `N` apre Registra, Invio apre il primo risultato.
 - Righe con `.r-side.chips` sotto 560 px: le etichette vanno a capo sotto il testo.
 

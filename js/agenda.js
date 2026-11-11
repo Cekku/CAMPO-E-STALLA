@@ -51,17 +51,40 @@ export function agenda(giorni = 14, area = 'tutte') {
   return out.filter(f).sort((a, b) => a.data.localeCompare(b.data) || (b.late - a.late));
 }
 
-const giornoLabel = d => { const T = today(); const n = diff(T, d); if (n === 0) return 'Oggi'; if (n === 1) return 'Domani'; const w = weekday(d); return w[0].toUpperCase() + w.slice(1) + ' ' + fdShort(d); };
-const COL = { campi: 'ok', stalla: 'info', mezzi: 'hay', magazzino: 'warn', archivio: 'info' };
+const AREA_N = { campi: ['Campagna', 'ok'], stalla: ['Stalla', 'info'], mezzi: ['Mezzi', 'hay'], magazzino: ['Magazzino', 'warn'], archivio: ['Archivio', ''] };
+const breve = d => weekday(d).slice(0, 3) + ' ' + Number(d.slice(8));
+// gruppi dell'elenco: Oggi, Domani, poi per settimana (la settimana finisce la domenica)
+function gruppo(d, T) {
+  const n = diff(T, d); if (n <= 0) return 'Oggi'; if (n === 1) return 'Domani';
+  const dom = addDays(T, (7 - new Date(Date.parse(T)).getUTCDay()) % 7);
+  return d <= dom ? 'Questa settimana' : d <= addDays(dom, 7) ? 'Settimana prossima' : 'Più avanti';
+}
+const MAX_RIGHE = 10;
 
+// Agenda come elenco di cose da fare: in ritardo in cima, fatte di oggi barrate, una riga sola quando è vuota
 export function agendaCard(area, giorni = 14) {
+  const T = today();
   const items = agenda(giorni, area);
-  const byDay = new Map(); items.forEach(x => { if (!byDay.has(x.data)) byDay.set(x.data, []); byDay.get(x.data).push(x); });
-  const days = [...byDay.entries()].slice(0, 7);
-  const tot = items.length;
-  return `<section class="card agenda-card"><div class="card-h"><h2>${ic('calendar-range')}Prossimi ${giorni} giorni</h2><span class="count">${tot}</span></div>
-  ${tot ? `<div class="agenda">${days.map(([d, xs]) => `<div class="ag-day${d === today() ? ' today' : ''}"><div class="ag-date"><b>${esc(giornoLabel(d))}</b>${d !== today() && diff(today(), d) > 1 ? `<span>tra ${diff(today(), d)} giorni</span>` : ''}</div><div class="ag-items">${xs.slice(0, 6).map(x => `<button class="ag-i ${COL[x.area] || ''}${x.late ? ' late' : ''}" data-act="go" data-go='${esc(JSON.stringify(x.go))}'><span class="ag-ic">${ic(x.icn)}</span><span class="ag-tx"><b>${esc(x.t)}</b><small>${esc(x.s)}</small></span></button>`).join('')}${xs.length > 6 ? `<span class="ag-more">e altri ${xs.length - 6}</span>` : ''}</div></div>`).join('')}${byDay.size > 7 ? `<p class="more">e altri ${byDay.size - 7} giorni con impegni</p>` : ''}</div>`
-    : `<div class="allgood">${ic('calendar', 'big')}<b>Niente in programma</b><span>Pianifica un'attività o registra fecondazioni e scadenze: compariranno qui.</span></div>`}</section>`;
+  // attività di campagna fatte oggi: restano visibili, barrate, fino a sera
+  const fatte = area === 'stalla' ? [] : S.operazioni.filter(o => o.stato !== 'Pianificata' && o.data === T).map(o => { const c = get('campi', o.campoId); return { data: T, area: 'campi', icn: 'notebook-pen', t: (o.tipo || 'Attività') + (c ? ' · ' + c.nome : ''), s: 'Fatta oggi', go: { edit: 'operazioni', id: o.id }, fatta: true }; });
+  if (!items.length && !fatte.length) {
+    const btn = area === 'stalla' ? `<button class="btn sm" data-act="new" data-form="eventi">${ic('plus')}Evento</button>` : `<button class="btn sm" data-act="new" data-form="operazioni" data-stato="Pianificata">${ic('plus')}Pianifica</button>`;
+    return `<section class="card agenda-card"><div class="ag-slim">${ic('circle-check')}<b>Niente in programma</b><span>nei prossimi ${giorni} giorni</span>${btn}</div></section>`;
+  }
+  const tutte = [...items.filter(x => x.late), ...items.filter(x => !x.late && x.data <= T), ...fatte, ...items.filter(x => !x.late && x.data > T)];
+  const vis = tutte.slice(0, MAX_RIGHE);
+  let g0 = '';
+  const righe = vis.map(x => {
+    const g = gruppo(x.data, T); const head = g !== g0 ? `<div class="ag-g${g === 'Oggi' ? ' today' : ''}"><b>${g}</b>${g === 'Oggi' || g === 'Domani' ? `<span>${esc(weekday(x.data))} ${Number(x.data.slice(8))}</span>` : ''}</div>` : ''; g0 = g;
+    const op = x.go && x.go.edit === 'operazioni' && !x.fatta;
+    const st = x.fatta ? `<span class="ag-st done" title="Fatta">${ic('check')}</span>` : op ? `<button class="ag-st${x.late ? ' late' : ''}" data-act="done" data-id="${esc(x.go.id)}" title="Segna come fatta" aria-label="Segna come fatta"></button>` : `<span class="ag-st${x.late ? ' late' : ''}"></span>`;
+    const [an, ac] = AREA_N[x.area] || ['', ''];
+    const quando = g === 'Oggi' || g === 'Domani' ? '' : breve(x.data);
+    return head + `<div class="ag-r${x.late ? ' late' : ''}${x.fatta ? ' done' : ''}" data-act="go" data-go='${esc(JSON.stringify(x.go))}' role="button" tabindex="0"><span class="ag-q">${quando ? esc(quando) : ic(x.icn)}</span>${st}<span class="ag-tx"><b>${esc(x.t)}</b><small>${esc(x.s)}</small></span>${area === 'stalla' && x.area === 'stalla' && !x.late ? '' : `<span class="chip ${x.late ? 'bad' : ac}">${x.late ? 'In ritardo' : an}</span>`}</div>`;
+  }).join('');
+  const resto = tutte.length - vis.length;
+  return `<section class="card agenda-card"><div class="card-h"><h2>${ic('calendar-range')}Prossimi ${giorni} giorni</h2><span class="count">${items.length}</span></div>
+  <div class="agenda">${righe}${resto > 0 ? `<p class="more">e altre ${resto} cose in programma</p>` : ''}</div></section>`;
 }
 
 /* ---------- registro dei trattamenti: dati obbligatori ---------- */
