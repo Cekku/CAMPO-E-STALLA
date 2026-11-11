@@ -1,5 +1,6 @@
 // Stalla: mandria, riproduzione, latte, razioni, sanitario, scheda del capo
 import { S, D, UI, get } from '../state.js';
+import { docsCard } from '../archivio-link.js';
 import { esc, nf, eur, fd, fdShort, sum, byDate, byName, yearOf, N, diff, today, eta, okD, plural, addDays } from '../util.js';
 import { ic } from '../icons.js';
 import { GEST, capoI, razioneInfo, giac, numCapo, nomeCapo, nomeCapoLungo } from '../domain.js';
@@ -175,6 +176,7 @@ function detail(c) {
   ${capoInvii(c)}
   ${ctrls.length >= 2 ? `<section class="card"><div class="card-h"><h2>Controlli funzionali</h2></div><div class="ctrl-spark">${spark(ctrls.map(e => N(e.kg)), 300, 56)}<span class="muted small">${nf(ctrls[0].kg, 1)} → <b>${nf(ctrls[ctrls.length - 1].kg, 1)} kg/giorno</b></span></div></section>` : ''}
   ${c.note ? `<section class="card note">${esc(c.note)}</section>` : ''}
+  ${docsCard('capi', c.id)}
   <section class="card"><div class="card-h"><h2>Storia</h2><span class="count">${i.ev.length}</span></div><div class="timeline">${i.ev.length ? [...i.ev].reverse().map(e => evRow(e, false)).join('') : '<div class="empty slim">Nessun evento registrato.</div>'}</div></section>
   ${figli.length ? `<section class="card"><div class="card-h"><h2>Figli in azienda</h2></div><div class="list">${figli.map(capoRow).join('')}</div></section>` : ''}` };
 }

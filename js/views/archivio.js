@@ -1,12 +1,13 @@
 // Archivio documenti (area riservata al titolare): Scaffale con i raccoglitori e la coda da rivedere, Schedario
 // (cartelle, elenco, scheda), Cerca (registro con filtri, esportabile), Da rivedere e Collegamento al PC.
 // I dati arrivano dal ponte sul PC (archivio-dati.js); i file restano dove sono e si aprono con il loro programma.
-import { UI, bus } from '../state.js';
-import { esc, nf, fd, debounce } from '../util.js';
+import { UI, S, bus } from '../state.js';
+import { esc, nf, fd, debounce, today } from '../util.js';
 import { ic } from '../icons.js';
 import { toast, arm, openSheet, sheetOpen } from '../ui.js';
 import { tabella, bottoniExport } from '../conti/tabelle.js';
 import * as P from './archivio-dati.js';
+import * as L from '../archivio-link.js';
 
 export const SUBS = { scaffale: 'Scaffale', raccoglitore: 'Raccoglitore', cerca: 'Cerca nei documenti', rivedere: 'Da rivedere', ponte: 'Collegamento al PC' };
 const STATI = { da_rivedere: ['wa', 'Da rivedere'], proposto: ['info', 'Proposta automatica'], confermato: ['ok', 'Confermato'], riservato: ['bad', 'Riservato'] };
@@ -158,7 +159,6 @@ function schedaHTML(d, chiudi) {
   const testo = t.riservato || t.esito === 'riservato' ? `<p class="muted small">${ic('shield-check')} Documento con password o codici: il testo non si mostra e non si manda a nessun modello.</p>`
     : t.inizio ? `<div class="ar-testo">${esc(t.inizio.slice(0, 1500))}${t.inizio.length > 1500 ? '…' : ''}</div><p class="muted small">${esc([t.metodo === 'ocr' ? 'letto con OCR' : 'testo del file', t.pagine ? nf(t.pagine) + (t.pagine === 1 ? ' pagina' : ' pagine') : '', t.caratteri ? nf(t.caratteri) + ' caratteri' : ''].filter(Boolean).join(' · '))}</p>`
     : `<p class="muted small">Testo non ancora letto${t.esito ? ' (' + esc(t.esito) + ')' : ''}.</p>`;
-  const coll = [PER_CONTI.test((d.tipo || '') + ' ' + (d.area || '')) ? 'Manda ai Conti' : '', d.codice && d.codice.startsWith('13') ? 'Al libretto del trattore' : '', d.codice && /^(09|12)/.test(d.codice) ? 'A un campo' : '', 'All\'agenda'].filter(Boolean);
   return `<div class="ar-sh"><div><span class="eyebrow">${esc(d.tipo || 'Documento')} · ${esc(dataDoc(d))}</span><h2>${esc(d.controparte || d.persona || d.nome_file)}</h2>${d.descrizione ? `<p class="ar-desc">${esc(d.descrizione)}</p>` : ''}</div>${chiudi ? `<button class="iconbtn" data-act="ar-doc" data-id="" aria-label="Chiudi la scheda">${ic('x')}</button>` : ''}</div>
   <div class="btns ar-sbtn"><button class="btn primary sm" data-act="ar-open" data-id="${d.id}">${ic('external-link')}Apri il file</button><button class="btn sm" data-act="ar-open" data-id="${d.id}" data-cartella="1">Apri la cartella</button>${d.stato !== 'confermato' && d.stato !== 'riservato' && !ed ? `<button class="btn sm ar-ok" data-act="ar-ok" data-id="${d.id}">${ic('check')}Giusto</button>` : ''}${ed ? '' : `<button class="btn sm ghost" data-act="ar-edit" data-id="${d.id}">${ic('pencil')}Correggi</button>`}</div>
   ${ed ? modulo(raw) : `<dl class="ar-dl">
@@ -170,8 +170,85 @@ function schedaHTML(d, chiudi) {
   <div><dt>Classificato</dt><dd>${chipStato(d.stato)} <span class="muted small">${esc(DA[d.classificato_da] || d.classificato_da || '')}</span></dd></div></dl>`}
   <div class="ar-sec"><span class="eyebrow">${copie.length === 1 ? 'Dove sta' : nf(copie.length) + ' copie uguali'}</span>${copie.map(c => `<div class="ar-copia"><span><b>${esc(c.cartella)}</b>${c.nome !== d.nome_file ? `<small class="mono">${esc(c.nome)}</small>` : ''}</span>${c.in_archivio ? '<span class="chip ok">in AZIENDA</span>' : ''}${copie.length > 1 ? `<button class="btn sm ghost" data-act="ar-open" data-id="${d.id}" data-percorso="${esc(c.percorso)}">Apri</button>` : ''}</div>`).join('') || '<p class="muted small">Nessuna copia trovata: rifai la scansione.</p>'}</div>
   <div class="ar-sec"><span class="eyebrow">Testo</span>${testo}</div>
-  <div class="ar-sec"><span class="eyebrow">Collega (in arrivo)</span><div class="btns">${coll.map(c => `<button class="btn sm" disabled title="Arriverà con i collegamenti alle altre sezioni">${esc(c)}</button>`).join('')}</div></div>
+  ${collegaSez(raw)}
   ${(d.registro || []).length ? `<details class="ar-sec"><summary class="eyebrow">Registro (${d.registro.length})</summary>${d.registro.slice(0, 12).map(r => `<div class="ar-reg"><span class="mono">${esc((r.quando || '').slice(0, 16).replace('T', ' '))}</span><span>${esc(r.azione)}${r.chi ? ' · ' + esc(r.chi) : ''}</span></div>`).join('')}</details>` : ''}`;
+}
+
+/* ---------------- collegamenti del documento con le schede dell'app (archivio-link.js) ---------------- */
+// prima i pulsanti più probabili per il tipo di documento
+function ordineTipi(d) {
+  const c = d.codice || '', t = (d.tipo || '') + ' ' + (d.area || '');
+  const pri = [PER_CONTI.test(t) || c.startsWith('03') ? 'fatture' : '', c.startsWith('13') ? 'mezzi' : '', /^(09|12)/.test(c) ? 'campi' : '', c.startsWith('11') ? 'capi' : ''].filter(Boolean);
+  return [...new Set([...pri, 'fatture', 'mezzi', 'campi', 'capi'])].filter(k => k !== 'fatture' || S.fatture.length);
+}
+function collegaSez(d) {
+  if (!d.impronta) return '';
+  const r = L.recDi(d.impronta) || {}; const aperto = f.ar_coll || '';
+  const legati = (r.link || []).map(l => { const b = L.bersaglio(l.col, l.id); return `<div class="row ar-lk"><span class="r-icon">${ic(L.TIPI[l.col] ? L.TIPI[l.col].icn : 'paperclip')}</span>${b ? `<button class="r-main linkrow" ${b.act}><b>${esc(b.t)}</b><span>${esc(b.s)}</span></button>` : `<span class="r-main"><b>${esc((L.TIPI[l.col] || {}).l || l.col)} non più presente</b><span>è stato cancellato dall'app</span></span>`}<button class="iconbtn sm" data-act="ar-scollega" data-imp="${esc(d.impronta)}" data-col="${l.col}" data-tid="${esc(l.id)}" aria-label="Togli il collegamento">${ic('x')}</button></div>`; }).join('');
+  const scad = (r.scad || []).map((s, i) => `<div class="row ar-lk"><span class="r-icon">${ic('calendar')}</span><span class="r-main"><b>${esc(s.testo || 'Scadenza')}</b><span>${s.data < today() ? 'era il ' : 'in agenda il '}${fd(s.data)}</span></span><button class="iconbtn sm" data-act="ar-scadTogli" data-imp="${esc(d.impronta)}" data-i="${i}" aria-label="Togli la scadenza">${ic('x')}</button></div>`).join('');
+  const bott = ordineTipi(d).map(k => `<button class="btn sm${aperto === k ? ' primary' : ''}" data-act="ar-coll" data-v="${k}" aria-pressed="${aperto === k}">${ic(L.TIPI[k].icn)}${L.TIPI[k].bott}</button>`).join('') + `<button class="btn sm${aperto === 'scad' ? ' primary' : ''}" data-act="ar-coll" data-v="scad" aria-pressed="${aperto === 'scad'}">${ic('calendar')}Scadenza in agenda</button>`;
+  let pannello = '';
+  if (L.TIPI[aperto]) {
+    pannello = `<div class="ar-cpan"><label class="ar-search">${ic('search')}<input id="ar_cq" data-act="ar-cq" data-f="ar_cq" value="${esc(f.ar_cq || '')}" placeholder="${aperto === 'fatture' ? 'Ditta o numero della fattura' : aperto === 'capi' ? 'Numero, nome o matricola' : 'Nome'}" autocomplete="off"></label><div id="arcl-list" class="list flat">${listaScelte(d, aperto, f.ar_cq || '')}</div></div>`;
+  } else if (aperto === 'scad') {
+    const dd = d.data && d.data.length === 10 && d.data >= today() ? d.data : '';
+    pannello = `<div class="ar-cpan ar-form"><label><span>Giorno</span><input type="date" id="ar_sd" value="${dd}"></label><label class="ar-f2"><span>Cosa c'è da fare</span><input id="ar_st" value="${esc(['Scadenza', L.leggibile(d.tipo), L.leggibile(d.controparte)].filter(Boolean).join(' · '))}"></label><div class="btns ar-f2"><button type="button" class="btn sm primary" data-act="ar-scadSalva" data-doc="${esc(String(d.id))}">${ic('check')}Metti in agenda</button><span class="muted small">Compare nell'agenda dei prossimi giorni, solo a te.</span></div></div>`;
+  }
+  return `<div class="ar-sec"><span class="eyebrow">Collegato a</span>${legati || scad ? `<div class="list flat">${legati}${scad}</div>` : '<p class="muted small">Ancora a niente. Collegalo a una fattura, a un mezzo, a un campo o a un capo: lo ritrovi dalla loro scheda.</p>'}<div class="btns ar-cbtn">${bott}</div>${pannello}</div>`;
+}
+function listaScelte(d, col, q) {
+  const L2 = L.scelte(col, d, q);
+  if (!L2.length) return `<div class="empty slim">${q ? 'Niente con queste parole.' : col === 'fatture' ? 'Nessuna fattura somiglia a questo documento: cerca per ditta o numero.' : col === 'capi' ? 'Nessun capo citato nel documento: cerca per numero o matricola.' : 'Niente da proporre.'}</div>`;
+  return L2.map(x => `<button class="row" data-act="ar-collega" data-doc="${esc(String(d.id))}" data-col="${col}" data-tid="${esc(x.id)}"><span class="r-icon">${ic(L.TIPI[col].icn)}</span><span class="r-main"><b>${esc(x.t)}</b><span>${esc(x.s)}</span></span>${x.p >= 3 ? '<span class="chip ok">somiglia</span>' : ''}${ic('plus', 'chev')}</button>`).join('');
+}
+
+/* ricerca nell'archivio partendo da una scheda dell'app (fattura, mezzo, campo, capo) */
+const visti = new Map(); // documenti mostrati nei risultati, per collegarli senza rileggerli
+let perScheda = null;
+function cercaPerHTML() {
+  const { col, tid } = perScheda; const b = L.bersaglio(col, tid);
+  return `<p class="muted">${b ? `${esc(L.TIPI[col].l)}: <b>${esc(b.t)}</b>${b.s ? ' · ' + esc(b.s) : ''}` : ''}</p>
+  <label class="ar-big">${ic('search')}<input id="ar_pq" data-act="ar-pq" data-f="ar_pq" value="${esc(perScheda.q)}" placeholder="Parole, ditta, numero, targa, matricola…" autocomplete="off" enterkeyhint="search"></label>
+  <div id="arpq-list" class="list flat">${attesa}</div>
+  <div class="factions"><span class="sp"></span>${col === 'fatture' ? `<button class="btn" data-act="c-fatt" data-id="${esc(tid)}">Torna alla fattura</button>` : '<button class="btn" data-act="close">Fatto</button>'}</div>`;
+}
+async function cercaPerLista() {
+  const el = document.getElementById('arpq-list'); if (!el || !perScheda) return;
+  const { col, tid, q } = perScheda; const io = perScheda;
+  if (!q.trim()) { el.innerHTML = '<div class="empty slim">Scrivi qualche parola da cercare nel testo dei documenti.</div>'; return; }
+  try {
+    const D = await P.aspetta('/documenti' + P.qs({ q, limite: 25 }));
+    if (perScheda !== io || !el.isConnected) return;
+    const gia = new Set(L.collegatiA(col, tid).map(r => r.impronta));
+    const docs = D.documenti.filter(x => !gia.has(x.impronta));
+    docs.forEach(x => visti.set(String(x.id), x));
+    el.innerHTML = docs.length ? docs.map(x => { const v = vedi(x); return `<div class="row ar-lk"><span class="r-icon">${ic('file-text')}</span><span class="r-main"><b>${esc(v.controparte || v.persona || v.nome_file)}</b><span>${esc([dataDoc(v), v.tipo, v.descrizione].filter(Boolean).join(' · '))}</span>${x.estratto ? `<span class="ar-estr">${evid(x.estratto)}</span>` : ''}</span><span class="r-side btns"><button class="btn sm ghost" data-act="ar-open" data-id="${x.id}">${ic('external-link')}Apri</button><button class="btn sm primary" data-act="ar-collega" data-doc="${x.id}" data-col="${col}" data-tid="${esc(tid)}">${ic('plus')}Collega</button></span></div>`; }).join('') + (D.totale > D.documenti.length ? `<p class="muted small">Sono i primi ${nf(D.documenti.length)} di ${nf(D.totale)}: aggiungi parole per restringere.</p>` : '')
+      : '<div class="empty slim">Nessun documento trovato (oppure sono già tutti collegati).</div>';
+  } catch (e) {
+    if (el.isConnected) el.innerHTML = `<div class="note-box bad">${ic('wifi-off')}<span>${e.spento ? "Il ponte dell'archivio sul PC non risponde: accendilo con «Archivio - ponte.bat» oppure prova con i dati di prova in Archivio → Collegamento al PC." : esc(e.message)}</span></div>`;
+  }
+}
+function apriCercaPer(col, tid) {
+  perScheda = { col, tid, q: L.ricercaPer(col, tid) };
+  openSheet("Cerca nell'archivio", cercaPerHTML(), { wide: true, onClose: () => { perScheda = null; } });
+  cercaPerLista();
+}
+const cercaPerPresto = debounce(() => cercaPerLista(), 300);
+
+/** apre la scheda di un documento dell'archivio partendo dall'impronta (dalle altre sezioni o dall'agenda) */
+export function vediDoc(imp, codice) {
+  f.ar_doc = String(imp); f.ar_edit = ''; f.ar_coll = '';
+  if (codice) { if (f.ar_area !== codice) { f.ar_anno = ''; f.ar_lim = ''; f.ar_rq = ''; } f.ar_area = codice; }
+  UI.area = 'archivio'; UI.sub.archivio = 'raccoglitore';
+  return stretto();
+}
+/** dopo un collegamento: ridisegna la pagina e il foglio aperto (scheda del documento, ricerca, fattura) */
+async function dopoCollegamento(col, tid) {
+  rerender();
+  if (!sheetOpen()) return;
+  if (perScheda) { cercaPerLista(); return; }
+  if (document.querySelector('#sheetBody .inv-head') && col === 'fatture') { const m = await import('./conti-fatture.js'); m.schedaFattura(tid); return; }
+  ridisegnaFoglioSubito();
 }
 
 /* ---------------- Cerca (registro con filtri) ---------------- */
@@ -247,6 +324,7 @@ const rerender = () => { if (bus.render) bus.render(); };
 
 async function scheda(id) {
   if (!id) { f.ar_doc = ''; f.ar_edit = ''; return rerender(); }
+  if (String(id) !== f.ar_doc) { f.ar_coll = ''; f.ar_cq = ''; }
   if (!stretto()) { f.ar_doc = String(id); f.ar_edit = ''; return rerender(); }
   const body = openSheet('Documento', attesa, { wide: true });
   try { const d = await P.aspetta('/documenti/' + id); f.ar_doc = String(id); if (sheetOpen() && body.isConnected) { body.innerHTML = schedaHTML(d, false); } }
@@ -274,11 +352,27 @@ export async function arAct(a, b, d) {
     case 'ar-edit': f.ar_edit = d.id ? String(d.id) : ''; rerender(); return ridisegnaFoglioSubito(d.id);
     case 'ar-open': {
       b.disabled = true;
-      try { const r = await P.apri(+d.id, d.percorso, d.cartella === '1'); toast(r.prova ? 'Con i dati di prova non si apre niente: sul PC si aprirebbe il file' : d.cartella === '1' ? 'Cartella aperta sul PC' : 'File aperto sul PC'); }
+      try { const r = await P.apri(/^\d+$/.test(d.id) ? +d.id : d.id, d.percorso, d.cartella === '1'); toast(r.prova ? 'Con i dati di prova non si apre niente: sul PC si aprirebbe il file' : d.cartella === '1' ? 'Cartella aperta sul PC' : 'File aperto sul PC'); }
       catch (e) { toast(e.spento ? 'Il ponte del PC non risponde: il file si apre solo dal PC con il ponte acceso' : e.message, 'err'); }
       finally { if (b.isConnected) b.disabled = false; }
       return;
     }
+    case 'ar-coll': f.ar_coll = f.ar_coll === d.v ? '' : d.v; f.ar_cq = ''; rerender(); ridisegnaFoglioSubito(); { const i = document.getElementById(d.v === 'scad' ? 'ar_sd' : 'ar_cq'); if (i && !stretto()) i.focus(); } return;
+    case 'ar-collega': {
+      const doc = docPer(d.doc); if (!doc) return toast('Documento non trovato: riapri la scheda', 'err');
+      await L.collega(doc, d.col, d.tid); f.ar_coll = ''; f.ar_cq = '';
+      toast('Collegato: ' + ((L.bersaglio(d.col, d.tid) || {}).t || L.TIPI[d.col].l));
+      return dopoCollegamento(d.col, d.tid);
+    }
+    case 'ar-scollega': await L.scollega(d.imp, d.col, d.tid); toast('Collegamento tolto'); return dopoCollegamento(d.col, d.tid);
+    case 'ar-scadSalva': {
+      const doc = docPer(d.doc); const g = (document.getElementById('ar_sd') || {}).value || ''; const t = ((document.getElementById('ar_st') || {}).value || '').trim();
+      if (!doc) return toast('Documento non trovato: riapri la scheda', 'err');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(g)) return toast('Scegli il giorno della scadenza', 'err');
+      await L.aggiungiScadenza(doc, g, t); f.ar_coll = ''; toast('In agenda il ' + fd(g)); return dopoCollegamento();
+    }
+    case 'ar-scadTogli': await L.togliScadenza(d.imp, +d.i); toast('Scadenza tolta'); return dopoCollegamento();
+    case 'ar-cercaPer': return apriCercaPer(d.col, d.tid);
     case 'ar-ok': return salva({ [d.id]: {} }, b, 'Confermato');
     case 'ar-okTutti': return arm(b, `Conferma: ${d.ids.split(',').length} documenti giusti`, () => salva(Object.fromEntries(d.ids.split(',').map(i => [i, {}])), b, 'Confermati'));
     case 'ar-save': {
@@ -297,6 +391,7 @@ function ridisegnaFoglioSubito(id) {
   if (doc && bd) bd.innerHTML = schedaHTML(doc, false);
 }
 /* il documento già letto (scheda o elenchi in memoria), per confrontare la correzione con i valori di prima */
+function docPer(id) { return visti.get(String(id)) || trovaDoc(id) || (f.ar_doc ? trovaDoc(f.ar_doc) : null); }
 function trovaDoc(id) {
   const e = P.leggi('/documenti/' + id); if (isLetto(e)) return e.dati;
   return null;
@@ -314,5 +409,8 @@ async function salva(corr, b, msg) {
 }
 
 const cercaPresto = debounce(() => rerender(), 300);
-export function arInput(t) { if (t.dataset.f) { f[t.dataset.f] = t.value; if (t.dataset.f === 'ar_rq') f.ar_lim = ''; cercaPresto(); } }
+export function arInput(t) {
+  if (t.dataset.f === 'ar_cq') { f.ar_cq = t.value; const el = document.getElementById('arcl-list'); const doc = docPer(f.ar_doc); if (el && doc && L.TIPI[f.ar_coll]) el.innerHTML = listaScelte(doc, f.ar_coll, t.value); return; }
+  if (t.dataset.f === 'ar_pq') { if (perScheda) { perScheda.q = t.value; cercaPerPresto(); } return; }
+  if (t.dataset.f) { f[t.dataset.f] = t.value; if (t.dataset.f === 'ar_rq') f.ar_lim = ''; cercaPresto(); } }
 export function arChange(t) { if (t.dataset.act === 'ar-filtro') { f[t.dataset.f] = t.value; if (t.dataset.f === 'ar_sa') { f.ar_st = f.ar_sc = f.ar_sp = ''; } rerender(); } }

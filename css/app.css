@@ -1451,3 +1451,20 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
   .ar-sel { flex: 1 1 45%; }
   .ar-sel select { max-width: none; width: 100%; }
 }
+
+/* Collegamenti fra documenti dell'archivio e schede dell'app (archivio-link.js, dalla 1.28.0) */
+.ar-lk { padding: 8px 6px; }
+.ar-lk:hover { background: none; }
+.linkrow { border: 0; background: none; padding: 0; text-align: left; color: inherit; font: inherit; cursor: pointer; border-radius: 4px; }
+.linkrow:hover > b { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.ar-lk .r-side.btns { flex-direction: row; align-items: center; gap: 6px; max-width: none; }
+.ar-cbtn { margin-top: 8px; flex-wrap: wrap; }
+.ar-cpan { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.ar-cpan.ar-form { display: grid; }
+.ar-cpan .ar-search { width: 100%; }
+.ar-cpan .list { max-height: 320px; overflow-y: auto; }
+.ar-docs .card-h .btn { margin-left: auto; }
+@media (max-width: 559px) {
+  .ar-lk { flex-wrap: wrap; }
+  .ar-lk .r-side.btns { width: 100%; justify-content: flex-end; }
+}

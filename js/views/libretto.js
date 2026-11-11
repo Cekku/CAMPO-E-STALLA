@@ -1,5 +1,6 @@
 // Libretto del trattore: stato dei pezzi in ore e mesi, interventi con fatture, scadenze, catalogo ricambi, modello 3D esploso
 import { S, UI, get, bus } from '../state.js';
+import { docsCard } from '../archivio-link.js';
 import { esc, nf, eur, fd, sum, byDate, byName, yearOf, N, today, okD, lsGet, lsSet, diff, uid } from '../util.js';
 import { ic } from '../icons.js';
 import { mezzoOre } from '../domain.js';
@@ -44,7 +45,7 @@ export function detail(m) {
   else body = libretto(m, ore);
   if (sub !== '3d') import('../trattore3d.js').then(x => x.sospendi()).catch(() => { });
   setTimeout(() => { const b = document.querySelector('.lib-sel [aria-current="true"]'); if (b) b.scrollIntoView({ block: 'nearest', inline: 'center' }); }, 0);
-  return { title: m.nome, html: selettore + hero + t + `<div class="lib-body">${body}</div>` };
+  return { title: m.nome, html: selettore + hero + t + `<div class="lib-body">${body}</div>` + (sub === '3d' ? '' : docsCard('mezzi', m.id)) };
 }
 function scadChips(m) {
   let s = '';

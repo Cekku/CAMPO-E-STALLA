@@ -28,7 +28,7 @@ import { moveSheet, misureImport } from './views/stalle.js';
 import { render as vImp, authUI } from './views/impostazioni.js';
 import { avviaBlocco, blocca, salvaBloccoDaForm, disattivaDaForm } from './lock.js';
 import { render as vConti, onAct as contiAct, onChange as contiChange, onDrop as contiDrop, setRerender, contiVisibili, esportaTutto } from './views/conti.js';
-import { render as vArchivio, arAct, arInput, arChange } from './views/archivio.js';
+import { render as vArchivio, arAct, arInput, arChange, vediDoc } from './views/archivio.js';
 
 const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, impostazioni: vImp, conti: vConti, archivio: vArchivio };
 const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio' };
@@ -163,6 +163,8 @@ function setTab(t, sub) {
 }
 function openDetail(type, id) {
   UI.hist.push({ tab: UI.tab, detail: UI.detail });
+  // da Conti o Archivio (collegamenti, agenda) la scheda si apre nella sua area
+  if (UI.area === 'conti' || UI.area === 'archivio') UI.area = type === 'capo' || type === 'struttura' ? 'stalla' : 'campagna';
   UI.tab = TAB_OF[type]; UI.detail = { type, id };
   try { history.pushState({ d: 1 }, '', '#' + UI.tab); } catch (e) { }
   render(); window.scrollTo(0, 0);
@@ -354,7 +356,7 @@ document.addEventListener('click', async e => {
       case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'conti' ? 'conti' : d.area === 'archivio' ? 'archivio' : 'oggi');
       case 'sub': if (d.tab && UI.tab !== d.tab) { UI.tab = d.tab; UI.detail = null; UI.hist = []; } UI.sub[d.sec] = d.sub; saveUI(); render(); return window.scrollTo(0, 0);
       case 'open': if (sheetOpen()) closeSheet(); return openDetail(d.type, d.id);
-      case 'go': { const g = JSON.parse(d.go); if (g.tab) return setTab(g.tab, g.sub); if (g.form) return openEdit(g.form); if (g.edit) return openEdit(g.edit, g.id); return openDetail(g.type, g.id); }
+      case 'go': { const g = JSON.parse(d.go); if (g.ar) { if (sheetOpen()) closeSheet(); const tel = vediDoc(g.ar, g.c); setTab('archivio', 'raccoglitore'); if (tel) arAct('ar-doc', b, { id: g.ar }); return; } if (g.tab) return setTab(g.tab, g.sub); if (g.form) return openEdit(g.form); if (g.edit) return openEdit(g.edit, g.id); return openDetail(g.type, g.id); }
       case 'back': return history.state && history.state.d ? history.back() : goBack();
       case 'new': { if (d.form === 'operazioni') return startWizard({ campoId: d.campo, tipo: d.tipo, stato: d.stato }); const pre = {}; if (d.campo) pre.campoId = d.campo; if (d.capo) pre.capoId = d.capo; if (d.tipo) pre.tipo = d.tipo; if (d.prodotto) pre.prodottoId = d.prodotto; if (d.mezzo) pre.mezzoId = d.mezzo; return openEdit(d.form, null, pre); }
       case 'edit': return openEdit(d.form, d.id);

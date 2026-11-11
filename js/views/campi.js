@@ -1,5 +1,6 @@
 // Campi: i tuoi campi raggruppati per conduzione, colture per annata, costi e margini, scheda del campo
 import { S, UI, get, azienda } from '../state.js';
+import { docsCard } from '../archivio-link.js';
 import { esc, nf, eur, fd, sum, byDate, byName, yearOf, N, addDays, plural } from '../util.js';
 import { ic } from '../icons.js';
 import { campoInfo, campoHa, cropColor, cropColorName, cropOf, colturaOf, storicoColture, rotazione } from '../domain.js';
@@ -97,6 +98,7 @@ function detail(c) {
   ${ndviCard(c)}
   ${c.note ? `<section class="card note">${esc(c.note)}</section>` : ''}
   <section class="card"><div class="card-h"><h2>${ic('notebook-pen')}Attività</h2><span class="count">${all.length}</span></div><div class="list">${all.length ? all.map(opRow).join('') : empty('notebook-pen', 'Nessuna attività', 'Registra la prima lavorazione di questo campo.')}</div></section>
+  ${docsCard('campi', c.id)}
   <section class="card"><div class="card-h"><h2>${ic('pencil')}Note del campo</h2><button class="btn sm ghost" data-act="new" data-form="note" data-campo="${c.id}">${ic('plus')}Nota</button></div>${note.length ? `<div class="note-strip">${note.map(noteCard).join('')}</div>` : '<div class="empty slim">Nessuna nota.</div>'}</section>` };
 }
 

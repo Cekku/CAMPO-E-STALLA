@@ -1,5 +1,6 @@
 // Mezzi: ore motore, tagliandi, scadenze, costi
 import { S, UI, get } from '../state.js';
+import { docsCard } from '../archivio-link.js';
 import { esc, nf, eur, fd, sum, byDate, byName, yearOf, N, diff, today, okD } from '../util.js';
 import { ic } from '../icons.js';
 import { mezzoOre, mezzoTagliando } from '../domain.js';
@@ -35,5 +36,6 @@ function detail(m) {
   <dl class="facts">${fact('Costo orario', N(m.costoOra) ? `<span class="num">${eur(m.costoOra, 2)}/h</span>` : '—')}${fact('Prossimo tagliando', t ? `<span class="num">${nf(t.prossimo, 0)} h</span> <small>${t.prossimo - ore < 0 ? 'superato' : 'tra ' + nf(t.prossimo - ore, 0) + ' h'}</small>` : '—')}${fact('Revisione', fd(m.scadenzaRevisione))}${fact('Assicurazione', fd(m.scadenzaAssicurazione))}${m.tipo === 'Irroratrice' || m.controlloFunzionale ? fact('Controllo funzionale', fd(m.controlloFunzionale)) + fact('Regolazione', fd(m.taratura)) : ''}${fact('Ore ' + UI.anno, `<span class="num">${nf(oreAnno(m), 1)} h</span>`)}${fact('Manutenzioni ' + UI.anno, `<span class="num">${eur(costoAnno(m))}</span>`)}</dl>
   ${m.note ? `<section class="card note">${esc(m.note)}</section>` : ''}
   <section class="card"><div class="card-h"><h2>Manutenzioni</h2><span class="count">${man.length}</span></div><div class="list">${man.length ? man.map(x => `<button class="row" data-act="edit" data-form="manutenzioni" data-id="${x.id}"><span class="r-icon">${ic('wrench')}</span><span class="r-main"><b>${esc(x.tipo || 'Intervento')}${x.descrizione ? ' · ' + esc(x.descrizione) : ''}${exChip(x)}</b><span>${fd(x.data)}${N(x.ore) ? ' · ' + nf(x.ore, 0) + ' h' : ''}${x.officina ? ' · ' + esc(x.officina) : ''}</span></span><span class="r-side num">${eur(x.costo)}</span></button>`).join('') : '<div class="empty slim">Nessuna manutenzione registrata.</div>'}</div></section>
+  ${docsCard('mezzi', m.id)}
   <section class="card"><div class="card-h"><h2>Lavori nel ${UI.anno}</h2><span class="count">${nf(sum(ops, o => o.ore), 1)} h</span></div><div class="list">${ops.length ? ops.map(opRow).join('') : '<div class="empty slim">Nessun lavoro registrato con questo mezzo.</div>'}</div></section>` };
 }

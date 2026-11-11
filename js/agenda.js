@@ -5,6 +5,7 @@ import { ic } from './icons.js';
 import { capoI, giac, campoInfo, cropOf, nomeCapoLungo } from './domain.js';
 import { righeTrattamenti } from './registro.js';
 import { isTrattore, compDi, stato } from './trattori.js';
+import { vociAgenda } from './archivio-link.js';
 
 // Ogni voce: { data, area: 'campi'|'stalla'|'mezzi'|'magazzino', icn, t, s, go, late }
 export function agenda(giorni = 14, area = 'tutte') {
@@ -42,13 +43,16 @@ export function agenda(giorni = 14, area = 'tutte') {
   S.operatori.forEach(o => { if (dentro(o.scadenzaPatentino)) add(o.scadenzaPatentino, 'campi', 'id-card', 'Patentino · ' + o.nome, 'Scadenza del patentino fitosanitario', { edit: 'operatori', id: o.id }); });
   S.prodotti.forEach(p => { if (dentro(p.scadenza) && giac(p) > 0) add(p.scadenza, 'magazzino', 'package', 'Scade · ' + p.nome, nf(giac(p), 1) + ' ' + (p.unita || '') + ' in magazzino', { type: 'prodotto', id: p.id }); });
 
+  // scadenze messe da un documento dell'archivio (solo per il titolare)
+  vociAgenda(T, fine).forEach(x => out.push(x));
+
   const STALLA = ['stalla'];
   const f = area === 'stalla' ? x => STALLA.includes(x.area) || x.area === 'magazzino' : area === 'campagna' ? x => !STALLA.includes(x.area) : () => true;
   return out.filter(f).sort((a, b) => a.data.localeCompare(b.data) || (b.late - a.late));
 }
 
 const giornoLabel = d => { const T = today(); const n = diff(T, d); if (n === 0) return 'Oggi'; if (n === 1) return 'Domani'; const w = weekday(d); return w[0].toUpperCase() + w.slice(1) + ' ' + fdShort(d); };
-const COL = { campi: 'ok', stalla: 'info', mezzi: 'hay', magazzino: 'warn' };
+const COL = { campi: 'ok', stalla: 'info', mezzi: 'hay', magazzino: 'warn', archivio: 'info' };
 
 export function agendaCard(area, giorni = 14) {
   const items = agenda(giorni, area);

@@ -161,7 +161,7 @@ function filtra(q) {
 function prova(percorso, metodo, corpo) {
   const u = new URL(percorso, 'http://prova'); const q = Object.fromEntries(u.searchParams);
   const L = docs();
-  if (metodo === 'POST' && u.pathname === '/apri') { const d = L.find(x => x.id === +corpo.id); if (!d) throw Object.assign(new Error('documento non trovato'), { codice: 404 }); return { aperto: corpo.percorso || d.copie_p[0], cartella: !!corpo.cartella, prova: true }; }
+  if (metodo === 'POST' && u.pathname === '/apri') { const d = L.find(x => x.id === +corpo.id || x.impronta === corpo.id); if (!d) throw Object.assign(new Error('documento non trovato'), { codice: 404 }); return { aperto: corpo.percorso || d.copie_p[0], cartella: !!corpo.cartella, prova: true }; }
   if (metodo === 'POST' && u.pathname === '/correzioni') {
     const aggiornati = [], errori = {};
     for (const [id, c] of Object.entries(corpo || {})) {
