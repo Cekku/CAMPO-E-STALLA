@@ -45,7 +45,7 @@ export const PARAMETRI = [
     ['camp_plv', 'Costi della campagna sulla PLV', c => div(c.F.campagna, c.F.plv), 'pct', 'Dai centri di costo: sementi, concimi, gasolio, contoterzisti, affitti e la parte di personale e ammortamenti della campagna.'],
     ['rls_v', 'Reddito lordo standard per vacca (€)', c => div(c.F.rls * c.d.ann, c.d.vacche), 'eur', 'PLV − spese varie − affitti − salari, per vacca presente.'],
     ['rls_plv', 'Reddito lordo standard sulla PLV', c => div(c.F.rls, c.F.plv), 'pct', ''],
-    ['amm_int_plv', 'Ammortamenti e interessi sulla PLV', c => (c.ce[62] + c.ce[86] ? div(c.ce[62] + c.ce[86], c.F.plv) : null), 'pct', 'Quanto della PLV serve a pagare stalle e macchine (ammortamenti) e i debiti (interessi). Serve il conto economico.'],
+    ['amm_int_plv', 'Ammortamenti e interessi sulla PLV', c => (c.ce[62] >= 1 ? div(c.ce[62] + c.ce[86], c.F.plv) : null), 'pct', 'Quanto della PLV serve a pagare stalle e macchine (ammortamenti) e i debiti (interessi). Serve il conto economico.'],
     ['debito_plv', 'Debiti finanziari netti sulla PLV', c => (c.I.pfn ? div(c.I.pfn, c.F.plv) : null), 'pct', 'Quanti anni di PLV servono per pagare i debiti verso le banche (100% = un anno intero). Serve lo stato patrimoniale.'],
   ]],
   ['Alimentazione e margine sul costo alimentare (IOFC)', [
