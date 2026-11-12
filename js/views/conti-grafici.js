@@ -3,7 +3,7 @@
 import { S, UI } from '../state.js';
 import { esc, nf, N } from '../util.js';
 import { ic } from '../icons.js';
-import { righe, anniFatture, parametri, datiTecnici, litriRiga, CAT_LATTE, CAT_PREMI } from '../conti/dati.js';
+import { righe, anniFatture, parametri, datiTecnici, calc, plvAnno, litriRiga, CAT_LATTE, CAT_PREMI } from '../conti/dati.js';
 import { rls } from '../conti/rls.js';
 import { PARAMETRI } from '../conti/analisi.js';
 import { RIF, FONTI, rifAnno, confronta } from '../conti/riferimenti.js';
@@ -45,6 +45,13 @@ export function vGrafici() {
   const avvisi = [];
   if (inCorso) avvisi.push(`Il ${y} non è finito: le fatture arrivano fino a oggi (il latte di solito con un mese di ritardo). Confronta con gli anni interi con prudenza.`);
   if (r.daClass > 0.05 * (r.sv || 1)) avvisi.push(`${fmtVal(r.daClass, 'eur')} di righe del ${y} sono ancora "Da classificare": contano come spese varie.`);
+  // conto economico incompleto (di solito un bilancino in corso d'anno): gli indici che lo usano vengono troppo buoni
+  const C = calc(y), ce = C.ce || {};
+  if (C.has && C.has.ce) {
+    if (!N(ce[62]) && !N(ce[86])) avvisi.push(`Il conto economico del ${y} non ha ammortamenti né interessi (di solito è un bilancino in corso d'anno): utile per vacca, IOFC e prezzo di pareggio risultano migliori del vero. Carica il bilancio di fine anno.`);
+    const fa = plvAnno(y).alimAcq;
+    if (fa && N(ce[30]) < fa * 0.7) avvisi.push(`Alimenti acquistati: ${fmtVal(N(ce[30]), 'eur')} nel conto economico, ${fmtVal(fa, 'eur')} nelle fatture (mangimi, materie prime, integratori, foraggi). Probabilmente alcuni conti del bilancino sono abbinati a un'altra voce: controlla in Bilancio → Conto economico. Finché non tornano, IOFC e costo alimentare per litro sono troppo bassi.`);
+  }
   const box = avvisi.map(a => `<div class="note-box warn">${ic('info')}<span>${esc(a)}</span></div>`).join('');
 
   // 1. PLV, spese varie e RLS negli anni

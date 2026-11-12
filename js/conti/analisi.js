@@ -45,8 +45,8 @@ export const PARAMETRI = [
     ['camp_plv', 'Costi della campagna sulla PLV', c => div(c.F.campagna, c.F.plv), 'pct', 'Dai centri di costo: sementi, concimi, gasolio, contoterzisti, affitti e la parte di personale e ammortamenti della campagna.'],
     ['rls_v', 'Reddito lordo standard per vacca (€)', c => div(c.F.rls * c.d.ann, c.d.vacche), 'eur', 'PLV − spese varie − affitti − salari, per vacca presente.'],
     ['rls_plv', 'Reddito lordo standard sulla PLV', c => div(c.F.rls, c.F.plv), 'pct', ''],
-    ['amm_int_plv', 'Ammortamenti e interessi sulla PLV', c => div(c.ce[62] + c.ce[86], c.F.plv), 'pct', 'Quanto della PLV serve a pagare stalle e macchine (ammortamenti) e i debiti (interessi). Serve il conto economico.'],
-    ['debito_plv', 'Debiti finanziari netti sulla PLV', c => div(c.I.pfn, c.F.plv), 'pct', 'Quanti anni di PLV servono per pagare i debiti verso le banche (100% = un anno intero). Serve lo stato patrimoniale.'],
+    ['amm_int_plv', 'Ammortamenti e interessi sulla PLV', c => (c.ce[62] + c.ce[86] ? div(c.ce[62] + c.ce[86], c.F.plv) : null), 'pct', 'Quanto della PLV serve a pagare stalle e macchine (ammortamenti) e i debiti (interessi). Serve il conto economico.'],
+    ['debito_plv', 'Debiti finanziari netti sulla PLV', c => (c.I.pfn ? div(c.I.pfn, c.F.plv) : null), 'pct', 'Quanti anni di PLV servono per pagare i debiti verso le banche (100% = un anno intero). Serve lo stato patrimoniale.'],
   ]],
   ['Alimentazione e margine sul costo alimentare (IOFC)', [
     ['alim_l', 'Costo degli alimenti acquistati per litro (€/l)', c => div(c.ce[30], c.d.latte), 'eur4', 'Mangimi e foraggi comprati, per tutta la mandria (anche manze e asciutte): di solito la voce di costo più importante.'],
@@ -111,8 +111,8 @@ export const PARAMETRI = [
     ['latte_ula', 'Latte per unità di lavoro (l/ULA)', c => div(c.d.latte, c.d.ula), 'n', ''],
   ]],
   ['Indebitamento rapportato alla stalla', [
-    ['pfn_v', 'Debito finanziario netto per vacca (€)', c => div(c.I.pfn, c.d.vacche), 'eur', 'Misura usata dalle banche per le aziende da latte.'],
-    ['pfn_l', 'Debito finanziario netto per litro (€/l)', c => div(c.I.pfn, c.d.latte), 'eur4', ''],
+    ['pfn_v', 'Debito finanziario netto per vacca (€)', c => (c.I.pfn ? div(c.I.pfn, c.d.vacche) : null), 'eur', 'Misura usata dalle banche per le aziende da latte.'],
+    ['pfn_l', 'Debito finanziario netto per litro (€/l)', c => (c.I.pfn ? div(c.I.pfn, c.d.latte) : null), 'eur4', ''],
     ['of_l', 'Oneri finanziari per litro (€/l)', c => div(c.ce[86], c.d.latte), 'eur4', ''],
     ['pn_v', 'Patrimonio netto per vacca (€)', c => div(c.sp[51], c.d.vacche), 'eur', ''],
   ]],
