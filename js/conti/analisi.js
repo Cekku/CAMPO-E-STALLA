@@ -6,9 +6,9 @@ const N = v => (typeof v === 'number' && isFinite(v) ? v : 0);
 
 // Dati tecnici: [chiave, etichetta, formato, nota, origine automatica]
 export const DATI = [
-  ['vacche', "Vacche da latte (media presenti nell'anno)", 'n', 'Media annua delle vacche presenti (in lattazione + asciutte).', 'stalla'],
-  ['vacche_latt', 'di cui vacche in lattazione (media)', 'n', 'Serve per i litri per vacca in lattazione.', 'stalla'],
-  ['latte_prod', "Latte prodotto nell'anno (litri)", 'n', 'Dal registro del latte della stalla. Comprende anche il latte per i vitelli.', 'stalla'],
+  ['vacche', "Vacche da latte (media presenti nell'anno)", 'n', "Media annua delle vacche presenti (in lattazione + asciutte). Con almeno 3 controlli funzionali AIA nell'anno si usa la loro media, altrimenti il registro della stalla.", 'stalla'],
+  ['vacche_latt', 'di cui vacche in lattazione (media)', 'n', 'Serve per i litri per vacca in lattazione. Dai controlli AIA: presenti meno asciutte.', 'stalla'],
+  ['latte_prod', "Latte prodotto nell'anno (litri)", 'n', 'Dal registro del latte della stalla. Comprende anche il latte per i vitelli. Senza registro: stima dai controlli AIA (latte medio × vacche controllate × giorni).', 'stalla'],
   ['latte_ven', 'Latte venduto (litri)', 'n', 'Dalle fatture di vendita (righe "Latte"); in mancanza, dai litri conferiti del registro.', 'fatture'],
   ['sau', 'Superficie agricola utilizzata – SAU (ha)', 'n1', 'Somma della superficie dei campi.', 'campi'],
   ['sup_for', 'di cui superficie a foraggere (ha)', 'n1', 'Campi con mais da insilato, prati, medica, erbai, sorgo.', 'campi'],
@@ -32,6 +32,21 @@ export const PARAMETRI = [
     ['inc_latte', 'Incidenza del latte sul valore della produzione', c => div(c.ce[8], c.ce[26]), 'pct', 'Grado di specializzazione della stalla.'],
     ['ric_carne_v', 'Ricavo da bovini e vitelli per vacca (€)', c => div(c.ce[9], c.d.vacche), 'eur', 'Vitelli e vacche a fine carriera.'],
     ['vitelli_v', 'Vitelli venduti per vacca', c => div(c.d.vitelli, c.d.vacche), 'n2', 'Indicatore indiretto di fertilità e rimonta.'],
+  ]],
+  ['PLV e reddito lordo standard (dalle fatture, senza PAC)', [
+    ['plv', "PLV dell'anno (€)", c => c.F.plv, 'eur', 'Vendite delle fatture (latte, premi, vitelli, bovini…) più i corrispettivi, senza IVA e senza PAC: come nella pagina Reddito lordo standard.'],
+    ['plv_v', 'PLV per vacca presente (€)', c => div(c.F.plv * c.d.ann, c.d.vacche), 'eur', 'Quanto rende ogni vacca in un anno, latte e carne insieme. Anno in corso: riportato a 12 mesi.'],
+    ['plv_l', 'PLV per litro di latte venduto (€/l)', c => div(c.F.plv, c.d.lv), 'eur4', 'Prezzo del latte più quello che rendono vitelli e vacche vendute, per ogni litro.'],
+    ['plv_ha', 'PLV per ettaro di SAU (€/ha)', c => div(c.F.plv * c.d.ann, c.d.sau), 'eur', ''],
+    ['plv_ula', 'PLV per unità di lavoro (€/ULA)', c => div(c.F.plv * c.d.ann, c.d.ula), 'eur', 'Serve il numero di unità di lavoro nei dati tecnici.'],
+    ['sau_v', 'Ettari di SAU per vacca', c => div(c.d.sau, c.d.vacche), 'n2', "Quanta terra c'è dietro ogni vacca: poca terra = più alimenti da comprare."],
+    ['alim_plv', 'Alimenti acquistati sulla PLV', c => div(c.F.alimAcq, c.F.plv), 'pct', 'Mangimi, materie prime, integratori e foraggi comprati (categorie delle fatture) divisi per la PLV.'],
+    ['sv_plv', 'Spese varie sulla PLV', c => div(c.F.sv, c.F.plv), 'pct', "Il relatore del corso indica 25% come media e 40% come allarme, ma su aziende apistiche, viticole, cerealicole e suinicole: in una stalla che compra gran parte degli alimenti è normale stare più in alto. Guarda soprattutto come cambia da un anno all'altro."],
+    ['camp_plv', 'Costi della campagna sulla PLV', c => div(c.F.campagna, c.F.plv), 'pct', 'Dai centri di costo: sementi, concimi, gasolio, contoterzisti, affitti e la parte di personale e ammortamenti della campagna.'],
+    ['rls_v', 'Reddito lordo standard per vacca (€)', c => div(c.F.rls * c.d.ann, c.d.vacche), 'eur', 'PLV − spese varie − affitti − salari, per vacca presente.'],
+    ['rls_plv', 'Reddito lordo standard sulla PLV', c => div(c.F.rls, c.F.plv), 'pct', ''],
+    ['amm_int_plv', 'Ammortamenti e interessi sulla PLV', c => div(c.ce[62] + c.ce[86], c.F.plv), 'pct', 'Quanto della PLV serve a pagare stalle e macchine (ammortamenti) e i debiti (interessi). Serve il conto economico.'],
+    ['debito_plv', 'Debiti finanziari netti sulla PLV', c => div(c.I.pfn, c.F.plv), 'pct', 'Quanti anni di PLV servono per pagare i debiti verso le banche (100% = un anno intero). Serve lo stato patrimoniale.'],
   ]],
   ['Alimentazione e margine sul costo alimentare (IOFC)', [
     ['alim_l', 'Costo degli alimenti acquistati per litro (€/l)', c => div(c.ce[30], c.d.latte), 'eur4', 'Mangimi e foraggi comprati, per tutta la mandria (anche manze e asciutte): di solito la voce di costo più importante.'],

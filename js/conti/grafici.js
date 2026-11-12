@@ -65,4 +65,20 @@ export function torta(items, { fmt = v => nf(v, 0) + ' €', tot: totLabel = 'to
   const segs = items.filter(i => i.v > 0).map((it, k) => { const l = it.v / tot * C; const s = `<circle cx="70" cy="70" r="${R}" fill="none" stroke="${it.color || PALETTE[k % PALETTE.length]}" stroke-width="22" stroke-dasharray="${l.toFixed(2)} ${(C - l).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 70 70)"><title>${esc(it.label)}: ${fmt(it.v)} (${nf(it.v / tot * 100, 1)}%)</title></circle>`; off += l; return s; }).join('');
   return `<div class="pie"><svg viewBox="0 0 140 140" class="pie-svg" role="img"><circle cx="70" cy="70" r="${R}" fill="none" stroke="var(--sunk)" stroke-width="22"/>${segs}<text x="70" y="66" text-anchor="middle" class="pie-v">${esc(compatto(tot))}</text><text x="70" y="82" text-anchor="middle" class="pie-l">${esc(totLabel)}</text></svg><ul class="pie-leg">${items.filter(i => i.v > 0).map((it, k) => `<li><i style="background:${it.color || PALETTE[k % PALETTE.length]}"></i><span>${esc(it.label)}</span><b class="num">${nf(it.v / tot * 100, 1)}%</b></li>`).join('')}</ul></div>`;
 }
+/** Confronto con altre aziende: per ogni voce una fascia (percentili 10–90 chiara, 25–75 scura), la mediana e il tuo valore.
+ *  items = [{ label, v, q: [p10, p25, p50, p75, p90] (p10 e p90 possono mancare), fmt, esito: 'ok'|'ko'|'', testo }] */
+export function fasce(items) {
+  const righe = items.filter(it => it.q).map(it => {
+    const q = it.q; const tutti = [...q, it.v].filter(x => x != null && isFinite(x));
+    let lo = Math.min(...tutti), hi = Math.max(...tutti); const pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.1 || 1; lo -= pad; hi += pad;
+    const x = v => ((v - lo) / (hi - lo) * 100).toFixed(2) + '%';
+    const banda = (a, b, cls) => (a == null || b == null ? '' : `<span class="fx-b ${cls}" style="left:${x(a)};width:calc(${x(b)} - ${x(a)})"></span>`);
+    const tu = it.v == null || !isFinite(it.v) ? '' : `<span class="fx-tu ${it.esito || ''}" style="left:${x(it.v)}" title="${esc(it.fmt(it.v))}"></span>`;
+    return `<div class="fx-r"><div class="fx-l"><b>${esc(it.label)}</b><span>${it.v == null || !isFinite(it.v) ? 'manca il dato' : `<span class="num">${esc(it.fmt(it.v))}</span> · ${esc(it.testo || '')}`}</span></div>
+      <div class="fx-t" role="img" aria-label="${esc(it.label)}">${banda(q[0], q[4], 'ext')}${banda(q[1], q[3], 'mid')}${q[2] != null ? `<span class="fx-m" style="left:${x(q[2])}" title="mediana ${esc(it.fmt(q[2]))}"></span>` : ''}${tu}</div>
+      <div class="fx-s"><span>${q[0] != null ? esc(it.fmt(q[0])) : esc(it.fmt(q[1]))}</span><span>mediana ${esc(it.fmt(q[2]))}</span><span>${q[4] != null ? esc(it.fmt(q[4])) : esc(it.fmt(q[3]))}</span></div></div>`;
+  });
+  if (!righe.length) return '<div class="empty slim">Nessun dato da confrontare.</div>';
+  return `<div class="fx">${righe.join('')}</div><div class="legend"><span><i class="sw fx-sw ext"></i>10–90% delle stalle</span><span><i class="sw fx-sw mid"></i>metà centrale (25–75%)</span><span><i class="sw fx-sw med"></i>mediana</span><span><i class="sw fx-sw tu"></i>la tua azienda</span></div>`;
+}
 export { compatto };

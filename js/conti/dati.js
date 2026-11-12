@@ -6,6 +6,8 @@ import { REGOLE_PREDEFINITE, RETTIFICA, CAT_RETTIFICA, CAT_LATTE, CAT_PREMI, DA_
 import { calcolaAnno, indici } from './schema.js';
 import { DATI, calcolaParametri } from './analisi.js';
 import { costiAnno } from './paghe.js';
+import { rls } from './rls.js';
+import { centri } from './centri.js';
 
 export const RISERVATE = ['fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti'];
 export const cfg = () => S.econfig.find(x => x.id === 'cfg') || {};
@@ -82,6 +84,15 @@ function stalla(y) {
     latte_conf: latte.some(l => N(l.conferiti)) ? Math.round(latte.reduce((t, l) => t + N(l.conferiti), 0)) : null,
   };
 }
+/** Media dei controlli funzionali AIA dell'anno (Si@lleva, config 'aia'): vacche presenti, in lattazione, latte al giorno.
+ *  Serve quando il registro dei capi è stato compilato da poco: con meno di 3 controlli nell'anno ritorna null. */
+export function aiaAnno(y) {
+  const a = S.config.find(x => x.id === 'aia'); const c = ((a && a.storia) || []).filter(x => yearOf(x.data) === y && N(x.presenti) > 0);
+  if (c.length < 3) return null;
+  const m = f => c.reduce((t, x) => t + f(x), 0) / c.length; const r1 = v => Math.round(v * 10) / 10;
+  const kg = c.every(x => N(x.latte) && N(x.controllate)) ? m(x => N(x.latte) * N(x.controllate)) : null;
+  return { vacche: r1(m(x => N(x.presenti))), vacche_latt: r1(m(x => N(x.presenti) - N(x.asciutte))), litriGiorno: kg ? kg / 1.032 : null, controlli: c.length };
+}
 const FORAGGERE = /trinciat|insil|erba|medica|prat|loiess|foragg|sorgo|erbai|fieno|pascol|trifoglio/i;
 function campi(y) {
   if (!S.campi.length) return { sau: null, sup_for: null };
@@ -100,11 +111,12 @@ export function fattureStalla(y) {
 }
 /** Dati tecnici di un anno: { auto, man, val, src } per ogni voce. */
 export function datiTecnici(y) {
-  return memo('tec' + y, [S.capi, S.eventi, S.latte, S.campi, S.fatture, S.bilanci], () => {
-    const st = stalla(y), ca = campi(y), fa = fattureStalla(y);
+  return memo('tec' + y, [S.capi, S.eventi, S.latte, S.campi, S.fatture, S.bilanci, S.config], () => {
+    const st = stalla(y), ca = campi(y), fa = fattureStalla(y), aia = aiaAnno(y);
     const b = bilancio(y) || {}; const man = Object.assign({}, b.dim || {}, b.analisi || {});
-    const auto = { vacche: st.vacche, vacche_latt: st.vacche_latt, capi: st.capi, latte_prod: st.latte_prod, latte_ven: fa.latteLitri || st.latte_conf, sau: ca.sau, sup_for: ca.sup_for, vitelli: fa.vitelli, bovini: fa.bovini };
-    const src = { vacche: 'stalla', vacche_latt: 'stalla', capi: 'stalla', latte_prod: 'registro del latte', latte_ven: fa.latteLitri ? 'fatture' : st.latte_conf ? 'registro (conferiti)' : '', sau: 'campi', sup_for: 'campi', vitelli: 'fatture', bovini: 'fatture' };
+    const stimaAia = !st.latte_prod && aia && aia.litriGiorno ? Math.round(aia.litriGiorno * st.giorni) : null;
+    const auto = { vacche: aia ? aia.vacche : st.vacche, vacche_latt: aia ? aia.vacche_latt : st.vacche_latt, capi: st.capi, latte_prod: st.latte_prod || stimaAia, latte_ven: fa.latteLitri || st.latte_conf, sau: ca.sau, sup_for: ca.sup_for, vitelli: fa.vitelli, bovini: fa.bovini };
+    const src = { vacche: aia ? 'controlli AIA' : 'stalla', vacche_latt: aia ? 'controlli AIA' : 'stalla', capi: 'stalla', latte_prod: stimaAia ? 'controlli AIA (stima)' : 'registro del latte', latte_ven: fa.latteLitri ? 'fatture' : st.latte_conf ? 'registro (conferiti)' : '', sau: 'campi', sup_for: 'campi', vitelli: 'fatture', bovini: 'fatture' };
     const val = {}, da = {};
     for (const [k] of DATI) {
       if (man[k] !== undefined && man[k] !== null && man[k] !== '') { val[k] = N(man[k]); da[k] = 'inserito'; }
@@ -118,7 +130,17 @@ export function datiTecnici(y) {
 }
 export const dim = y => { const d = datiTecnici(y).val; return { sau: d.sau, ula: d.ula, capi: d.capi }; };
 export const ind = y => memo('ind' + y, [S.bilanci, S.paghe, S.capi, S.eventi, S.campi, S.latte, S.fatture], () => indici(calc(y), dim(y)));
-export const parametri = y => memo('par' + y, [S.bilanci, S.paghe, S.capi, S.eventi, S.campi, S.latte, S.fatture], () => { const t = datiTecnici(y); return calcolaParametri(calc(y), ind(y), t.val, t.F); });
+export const parametri = y => memo('par' + y, [S.bilanci, S.paghe, S.capi, S.eventi, S.campi, S.latte, S.fatture, S.config, S.econfig], () => { const t = datiTecnici(y); return calcolaParametri(calc(y), ind(y), t.val, Object.assign({}, t.F, plvAnno(y))); });
+
+// alimenti comprati: categorie delle fatture di acquisto (mangimi, materie prime, integratori, foraggi)
+const ALIMENTI = /mangim|materie prime|integrat|additiv|foragg|alimen/i;
+/** PLV, spese varie, reddito lordo standard e costi della campagna dell'anno (dalle fatture e dai centri di costo). */
+export function plvAnno(y) {
+  const r = rls(y); if (!r.plv) return {};
+  const alimAcq = righe().filter(x => x.anno === y && x.tipo === 'Acquisto' && ALIMENTI.test(x.categoria || '')).reduce((t, x) => t + N(x.importo), 0);
+  let campagna = null; try { campagna = centri(y).R.campagna.costi; } catch (e) { campagna = null; }
+  return { plv: r.plv, sv: r.sv, rls: r.rls, pac: r.pac, alimAcq: alimAcq || null, campagna };
+}
 
 /** Anni da mostrare nei prospetti: quelli con dati, fino all'anno scelto (al massimo 5). */
 export function anniProspetto(fino, conFatture = false) {

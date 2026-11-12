@@ -4,7 +4,8 @@
 // Ricerca del 4/11/2026: dettagli e calcoli in "RICERCA-CONTI-STALLA.md" (fuori dal repository).
 
 export const FONTI = {
-  CA: { breve: 'Campiotti, bilanci 2023', testo: 'M. Campiotti, "Progetto Allevamento Futuro", bilanci 2023 di stalle da latte del Nord Italia (latte alimentare e DOP): mediana, fascia tra il 25% e il 75% delle aziende (UNIMI 2025, FIDAF 2024).' },
+  CA: { breve: 'Campiotti, bilanci 2023', testo: 'M. Campiotti, "Progetto Allevamento Futuro", bilanci 2023 di stalle da latte del Nord Italia (latte alimentare e DOP, mediana 184 vacche): mediana, fascia tra il 25% e il 75% delle aziende e, dove c\'è, percentili 10 e 90 (UNIMI 2025, FIDAF novembre 2024).' },
+  CAC: { breve: 'Campiotti, stalle per dimensione', testo: 'M. Campiotti, presentazione FIDAF (novembre 2024): tabella delle stalle per numero di vacche (170, 305, 480), costi per ettolitro. Le percentuali sulla PLV sono calcolate dall\'app da quella tabella (alimenti acquistati diviso PLV per ettolitro).' },
   AIA: { breve: 'AIA 2024/25', testo: 'AIA, bollettino dei controlli funzionali 2024/25, Frisona: medie di Friuli Venezia Giulia, Veneto e Lombardia.' },
   CLAL: { breve: 'CLAL Lombardia', testo: 'CLAL, prezzo medio annuo del latte alla stalla in Lombardia, senza IVA e senza premi.' },
   ISM: { breve: 'Ismea 2024', testo: 'Ismea, costo di produzione del latte 2024 (Lombardia, latte alimentare).' },
@@ -22,16 +23,24 @@ export const RIF = {
   alim_l: { media: 0.259, min: 0.22, max: 0.306, meglio: 'basso', f: ['CA'], n: 'Alimenti acquistati: 68% di un costo alimentare di 38,0 €/100 l.' },
   alim_tot_l: { media: 0.38, min: 0.348, max: 0.409, meglio: 'basso', f: ['CA'], n: 'Costo alimentare totale, con i foraggi aziendali valutati: il tuo valore allargato di solito è più basso, perché non comprende gasolio, lavoro e affitti dei campi.' },
   alim_inc: { media: 0.46, meglio: 'basso', f: ['CA', 'PSU'], n: 'Alimenti acquistati sul prezzo del latte (25,9 su 56,1 €/100 l).' },
-  iofc_tot_vg: { media: 5.5, min: 4.44, max: 6.67, meglio: 'alto', f: ['CA'], n: 'IOFC per vacca presente: 2.007 € all\'anno per vacca.' },
+  iofc_tot_vg: { media: 5.5, min: 4.4, max: 6.7, q: [3.1, 4.4, 5.5, 6.7, 7.7], meglio: 'alto', f: ['CA'], n: 'IOFC per vacca presente: 2.007 € all\'anno per vacca.' },
   iofc_latt_vg: { media: 9.3, min: 6.75, max: 10.1, meglio: 'alto', f: ['TZ'] },
   // altri costi
   san: { media: 99, min: 94, max: 121, meglio: 'basso', f: ['CA'], n: 'Solo medicinali: il tuo valore comprende anche fecondazione e controlli funzionali.' },
   en_l: { media: 0.015, min: 0.012, max: 0.018, meglio: 'basso', f: ['CA'] },
   // costo di produzione
-  pareggio_contr: { media: 0.497, min: 0.462, max: 0.547, meglio: 'basso', f: ['CA'], n: 'Prezzo del latte che copre i costi (2023).' },
+  pareggio_contr: { media: 0.497, min: 0.462, max: 0.547, q: [0.424, 0.462, 0.497, 0.547, 0.585], meglio: 'basso', f: ['CA'], n: 'Prezzo del latte che copre i costi (2023).' },
   costo_pieno: { media: 0.518, min: 0.458, max: 0.583, meglio: 'basso', f: ['CA', 'ISM', 'CREA'] },
   // redditività
-  utile_v: { media: 712, min: 238, max: 1099, meglio: 'alto', f: ['CA'] },
+  utile_v: { media: 712, min: 238, max: 1099, q: [-176, 238, 712, 1099, 1502], meglio: 'alto', f: ['CA'] },
+  // PLV (bilanci 2023 di Campiotti; q = percentili 10, 25, 50, 75, 90)
+  plv_v: { media: 6968, min: 6611, max: 7376, q: [6206, 6611, 6968, 7376, 8002], meglio: 'alto', f: ['CA'], n: 'PLV per vacca presente nel 2023, con il latte a 56 €/hl: con prezzi più alti (2025) i valori salgono. Non è detto che il riferimento escluda i contributi come la tua PLV.' },
+  sau_v: { media: 0.35, min: 0.28, max: 0.52, q: [0.22, 0.28, 0.35, 0.52, 0.65], meglio: '', f: ['CA'] },
+  alim_plv: { media: 0.34, min: 0.28, max: 0.42, meglio: 'basso', f: ['CAC'], n: 'Stalle da 480 vacche 28%, da 305 vacche 34%, da 170 vacche 42%.' },
+  camp_plv: { media: 0.189, min: 0.157, max: 0.236, q: [0.125, 0.157, 0.189, 0.236, 0.299], meglio: 'basso', f: ['CA'], n: "Costi totali dell'agricoltura sulla PLV (bilanci 2022)." },
+  amm_int_plv: { media: 0.07, min: 0.057, max: 0.098, q: [0.043, 0.057, 0.07, 0.098, 0.119], meglio: 'basso', f: ['CA'] },
+  debito_plv: { media: 0.59, min: 0.304, max: 0.884, q: [0.134, 0.304, 0.59, 0.884, 1.235], meglio: 'basso', f: ['CA'], n: 'Capitale di terzi sulla PLV annuale.' },
+  pfn_v: { media: 4003, min: 2257, max: 6340, q: [973, 2257, 4003, 6340, 9143], meglio: 'basso', f: ['CA'], n: 'Capitale di terzi per vacca presente.' },
   red_ula: { media: 46440, min: 45000, max: 47880, meglio: 'alto', f: ['CREA'] },
   contr_v: { media: 240, min: 220, max: 259, meglio: '', f: ['CREA'] },
   // intensità

@@ -119,7 +119,7 @@ export function vIndici() {
 }
 
 /* ---------------- analisi della stalla ---------------- */
-const SRC = { stalla: 'dalla stalla', 'registro del latte': 'dal registro del latte', campi: 'dai campi', fatture: 'dalle fatture', 'registro (conferiti)': 'dai conferiti', inserito: 'inserito' };
+const SRC = { 'controlli AIA': 'dai controlli AIA', 'controlli AIA (stima)': 'stima dai controlli AIA', stalla: 'dalla stalla', 'registro del latte': 'dal registro del latte', campi: 'dai campi', fatture: 'dalle fatture', 'registro (conferiti)': 'dai conferiti', inserito: 'inserito' };
 export function vAnalisi() {
   const anni = anniProspetto(UI.anno, true); const ed = +UI.f.an_edit || 0;
   const T = Object.fromEntries(anni.map(y => [y, datiTecnici(y)])); const P = Object.fromEntries(anni.map(y => [y, parametri(y)]));

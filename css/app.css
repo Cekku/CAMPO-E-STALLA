@@ -1561,3 +1561,26 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 .multi-bar .mb-go .btn { flex: 1 1 auto; }
 .multi-bar .mb-go .btn[disabled] { opacity: .45; pointer-events: none; }
 @media (max-width: 560px) { .multi-bar .mb-actions { width: 100%; } .multi-bar .mb-actions .btn { flex: 1; } .multi-bar .mb-text { min-width: 0; } }
+
+/* Conti → Grafici: confronto con le altre stalle (fasce dei percentili) — 1.33.0 */
+.fx { display: grid; gap: 4px; padding: 4px 18px 8px; }
+.fx-r { display: grid; grid-template-columns: minmax(150px, 260px) minmax(0, 1fr); column-gap: 18px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.fx-r:last-child { border-bottom: 0; }
+.fx-l { display: flex; flex-direction: column; gap: 2px; grid-row: span 2; min-width: 0; }
+.fx-l b { font-weight: 600; font-size: 14px; }
+.fx-l > span { font-size: 13px; color: var(--muted); }
+.fx-l .num { color: var(--ink); font-weight: 600; }
+.fx-t { position: relative; height: 18px; background: var(--sunk); border-radius: 4px; }
+.fx-b { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
+.fx-b.ext { background: var(--c-y1); }
+.fx-b.mid { background: var(--c-y2); }
+.fx-m { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--ink-2); }
+.fx-tu { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--ink-2); }
+.fx-tu.ok { background: var(--ok); }
+.fx-tu.ko { background: var(--bad); }
+.fx-s { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; padding-top: 3px; }
+.legend .fx-sw.ext { background: var(--c-y1); }
+.legend .fx-sw.mid { background: var(--c-y2); }
+.legend .fx-sw.med { background: var(--ink-2); width: 3px; }
+.legend .fx-sw.tu { background: var(--accent); border-radius: 50%; }
+@media (max-width: 640px) { .fx-r { grid-template-columns: minmax(0, 1fr); } .fx-l { grid-row: auto; margin-bottom: 6px; } }
