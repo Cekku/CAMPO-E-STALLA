@@ -1,6 +1,6 @@
 // Archivio local-first: IndexedDB sul dispositivo, sincronizzazione con Supabase quando configurata
 import { S, COLS, UI, bus } from './state.js';
-import { uid, lsGet, lsSet, debounce } from './util.js';
+import { uid, lsGet, lsSet, debounce, today, diff } from './util.js';
 import { CONFIG } from './config.js';
 import { indirizzoPubblico } from './nativo.js';
 
@@ -50,7 +50,49 @@ export async function initStore() {
     const farm = await metaGet('farm'); if (farm) { sync.farm = farm; sync.perm = lsGet(permKey(), null); }
   }
   rebuild(); UI.loaded = true; schedule();
+  proteggiDati();
   initCloud();
+}
+
+/* ---------------- Protezione dei dati sul dispositivo (dalla 1.32.0) ---------------- */
+const haDatiVeri = () => COLS.some(c => c !== 'config' && S[c].some(r => !r.esempio));
+const contaVeri = () => COLS.reduce((n, c) => n + (c === 'config' ? 0 : S[c].filter(r => !r.esempio).length), 0);
+// Archiviazione permanente: senza, il browser può cancellare da solo i dati del sito quando sul dispositivo manca spazio.
+// Chrome la concede senza chiedere (app installata o usata spesso), Firefox chiede il permesso: per questo si domanda
+// una volta sola per apertura e solo quando ci sono dati veri. stato: null = non si sa, true = permanente, false = non concessa.
+export const protezione = { stato: null };
+let chiesto = false;
+export async function proteggiDati() {
+  try {
+    if (!navigator.storage || !navigator.storage.persist) return;
+    const prima = protezione.stato;
+    protezione.stato = await navigator.storage.persisted();
+    if (!protezione.stato && !chiesto && haDatiVeri()) { chiesto = true; protezione.stato = await navigator.storage.persist(); }
+    if (protezione.stato !== prima) schedule();
+  } catch (e) { }
+}
+// Copia di sicurezza: la data dell'ultima sta sul dispositivo (ces.copia) e, con la sincronizzazione, anche nell'azienda
+// (config 'copia'), così il titolare non riceve il promemoria su ogni dispositivo. La copia di un collaboratore non conta:
+// i Conti sul suo dispositivo non ci sono.
+const titolare = () => !sync.farm || !!(sync.perm && sync.perm.role === 'titolare');
+export function ultimaCopia() {
+  const qui = (lsGet('ces.copia', null) || {}).quando || '', az = sync.farm ? (S.config.find(c => c.id === 'copia') || {}).quando || '' : '';
+  return (qui > az ? qui : az) || null;
+}
+export async function segnaCopia() {
+  const quando = today();
+  lsSet('ces.copia', { quando });
+  if (sync.farm && titolare()) { try { await put('config', 'copia', { quando }); } catch (e) { } }
+  schedule();
+}
+// Promemoria: ogni 14 giorni se i dati stanno solo su questo dispositivo, ogni 60 se c'è anche la sincronizzazione;
+// la prima volta quando ci sono almeno 20 registrazioni vere. → { giorni (null = mai fatta), ogni } oppure null
+export function copiaDaFare() {
+  if (!titolare() || soloLettura()) return null;
+  const u = ultimaCopia(), ogni = sync.farm ? 60 : 14;
+  if (!u) return contaVeri() >= 20 ? { giorni: null, ogni } : null;
+  const giorni = diff(u, today());
+  return giorni >= ogni && haDatiVeri() ? { giorni, ogni } : null;
 }
 
 async function writeLocal(col, id, data, deleted) {
@@ -62,6 +104,7 @@ async function writeLocal(col, id, data, deleted) {
     await tx(['records', 'outbox'], 'readwrite', t => { t.objectStore('records').put(rec); if (sync.farm) t.objectStore('outbox').put(rec); });
     if (sync.farm) { sync.pending = (await getAll('outbox')).length; emitSync(); syncSoon(); }
   }
+  if (!protezione.stato && !chiesto) proteggiDati();
 }
 export async function put(col, id, data) { const nid = id || uid(); await writeLocal(col, nid, clean(data), false); return nid; }
 export async function remove(col, id) { await writeLocal(col, id, {}, true); }
@@ -75,6 +118,7 @@ export async function bulkPut(rows) {
   const ts = Date.now();
   await tx(['records', 'outbox'], 'readwrite', t => { rows.forEach(({ col, id, data }) => { const rec = { k: col + '/' + id, col, id, data: clean(data), deleted: false, ts }; t.objectStore('records').put(rec); if (sync.farm) t.objectStore('outbox').put(rec); }); });
   if (sync.farm) { sync.pending = (await getAll('outbox')).length; emitSync(); syncSoon(); }
+  if (!protezione.stato && !chiesto) proteggiDati();
 }
 
 /* ---------------- Cloud ---------------- */

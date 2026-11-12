@@ -11,3 +11,9 @@ chiave.properties
 *.db-shm
 strumenti/archivio/config.json
 __pycache__/
+
+# dati veri e pagine di prova: il repository è pubblico, questi file restano solo sul PC
+xfarm-*.csv
+xfarm-*.geojson
+prova-*.html
+campo-e-stalla-*.json

@@ -15,7 +15,7 @@ import { agendaCard, registroCard } from '../agenda.js';
 import { caldoCard } from '../caldo.js';
 import { exChip } from '../ui.js';
 
-const AREA = { stalla: ['cow', 'Stalla'], magazzino: ['package', 'Magazzino'], mezzi: ['tractor', 'Mezzi'], campi: ['sprout', 'Campi'], latte: ['milk', 'Latte'] };
+const AREA = { stalla: ['cow', 'Stalla'], magazzino: ['package', 'Magazzino'], mezzi: ['tractor', 'Mezzi'], campi: ['sprout', 'Campi'], latte: ['milk', 'Latte'], dati: ['history', 'Dati'] };
 const NOTE_COL = { verde: '#4FA05A', giallo: '#E0B12E', rossa: '#D2553C', blu: '#3D7DC0' };
 
 function alertsCard(filter, title = 'Da fare') {

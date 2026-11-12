@@ -17,7 +17,7 @@ import { vMancanti, vRls, mancantiAnno } from './conti-verifiche.js';
 import { vCentri } from './conti-centri.js';
 
 export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', mancanti: 'Fatture mancanti', rls: 'Reddito lordo standard', centri: 'Centri di costo', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Cespiti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', prestiti: 'Anticipi e prestiti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie' };
-const GRUPPI = [['fatture', 'mancanti', 'fornitori', 'clienti', 'prodotti', 'categorie', 'mensile', 'latte'], ['ce', 'sp', 'indici', 'centri', 'rls', 'analisi', 'iva', 'cespiti', 'controlli'], ['personale', 'dipendenti', 'cedolini', 'pagamenti', 'prestiti', 'verifica']];
+export const GRUPPI = [['fatture', 'mancanti', 'fornitori', 'clienti', 'prodotti', 'categorie', 'mensile', 'latte'], ['ce', 'sp', 'indici', 'centri', 'rls', 'analisi', 'iva', 'cespiti', 'controlli'], ['personale', 'dipendenti', 'cedolini', 'pagamenti', 'prestiti', 'verifica']];
 const TAB_NOMI = { rls: 'RLS e spese varie', personale: 'Riepilogo', cedolini: 'Cedolini', prestiti: 'Anticipi e prestiti', verifica: 'Verifica' };
 
 /** Chi può vedere i conti: in locale sempre; con il cloud solo il titolare dell'azienda. */

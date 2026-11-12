@@ -2,7 +2,7 @@
 import { S, UI, D, bus, get, azienda, COLS } from './state.js';
 import { $, $$, esc, N, nf, fd, today, addDays, yearOf, byDate, byName, lsSet, debounce, sum } from './util.js';
 import { ic } from './icons.js';
-import { derive, razioneInfo, allAlerts, campoHa, cropOf, capoI, kgUnita } from './domain.js';
+import { derive, razioneInfo, allAlerts, extraAlerts, campoHa, cropOf, capoI, kgUnita } from './domain.js';
 import * as store from './store.js';
 import { sync, onSync } from './store.js';
 import { openSheet, closeSheet, sheetOpen, toast, arm, addLine, formDelete } from './ui.js';
@@ -27,7 +27,7 @@ import { render as vMezzi } from './views/mezzi.js';
 import { moveSheet, misureImport } from './views/stalle.js';
 import { render as vImp, authUI } from './views/impostazioni.js';
 import { avviaBlocco, blocca, salvaBloccoDaForm, disattivaDaForm } from './lock.js';
-import { render as vConti, onAct as contiAct, onChange as contiChange, onDrop as contiDrop, setRerender, contiVisibili, esportaTutto } from './views/conti.js';
+import { render as vConti, onAct as contiAct, onChange as contiChange, onDrop as contiDrop, setRerender, contiVisibili, esportaTutto, GRUPPI as GRUPPI_CONTI } from './views/conti.js';
 import { render as vArchivio, arAct, arInput, arChange, vediDoc } from './views/archivio.js';
 
 const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, impostazioni: vImp, conti: vConti, archivio: vArchivio };
@@ -60,6 +60,9 @@ const MENU = {
 };
 const TAB_OF = { campo: 'campi', capo: 'stalla', prodotto: 'magazzino', mezzo: 'mezzi', struttura: 'stalla' };
 const saveUI = () => lsSet('ces.ui', { sub: UI.sub, area: UI.area, view: UI.view });
+
+// Promemoria della copia di sicurezza (store.copiaDaFare): sta tra gli avvisi della dashboard e porta a La mia azienda → Dati
+extraAlerts.push(() => { const c = store.copiaDaFare(); return c ? [{ lv: 'warn', area: 'dati', t: c.giorni === null ? 'Non hai ancora una copia di sicurezza' : 'Copia di sicurezza di ' + c.giorni + ' giorni fa', s: 'Scarica una copia di tutti i dati e conservala anche fuori da questo dispositivo', go: { tab: 'impostazioni', el: 'datiSez' } }] : []; });
 
 /* ---------- render ---------- */
 let rq = 0;
@@ -107,17 +110,31 @@ const BNAV = {
 function bnavHTML() {
   return BNAV[UI.area].map(x => x ? `<button data-act="nav" data-tab="${x[0]}"${x[1] ? ` data-sub="${x[1]}"` : ''} aria-current="${!UI.detail && isCur(x[0], x[1]) ? 'page' : 'false'}">${ic(x[2])}<span>${x[3]}</span></button>` : `<button class="bn-plus" data-act="quick" aria-label="Registra"><span>${ic('plus')}</span></button>`).join('');
 }
-// Menu in alto sul computer: le voci della prima sezione in vista, le altre sezioni a tendina
+// Menu in alto sul computer (dalla 1.32.0): una voce per pagina o per gruppo di pagine, sempre su una riga sola.
+// Le pagine di un gruppo sono le schede sotto il titolo (tabs() nelle viste), così nessuna voce compare due volte:
+// [tab, sub, etichetta]; sub vuoto = l'ultima scheda aperta di quella pagina; sub numero = gruppo di pagine dei Conti (GRUPPI_CONTI).
+// Le voci meno usate restano nella tendina dell'ultima sezione di MENU ("Gestione").
+const TOP = {
+  campagna: [['oggi', null, 'Dashboard'], ['campi', null, 'Campi'], ['mappa', null, 'Mappa'], ['attivita', null, 'Attività'], ['magazzino', null, 'Magazzino'], ['meteo', null, 'Meteo'], ['note', null, 'Note']],
+  stalla: [['oggi', null, 'Dashboard'], ['stalla', null, 'Mandria e latte'], ['meteo', null, 'Meteo e caldo'], ['magazzino', null, 'Magazzino']],
+  conti: [['conti', 'panoramica', 'Panoramica'], ['conti', 0, 'Fatture'], ['conti', 1, 'Bilancio'], ['conti', 2, 'Personale'], ['conti', 'importa', 'Carica documenti']],
+  archivio: [['archivio', 'scaffale', 'Scaffale'], ['archivio', 'raccoglitore', 'Raccoglitori'], ['archivio', 'cerca', 'Cerca'], ['archivio', 'rivedere', 'Da rivedere']],
+};
+const ultimaConti = {};   // ultima pagina aperta di ogni gruppo dei Conti: la voce del gruppo riporta lì
 function topnavHTML() {
   const aree = [['campagna', 'Campagna'], ['stalla', 'Stalla'], ...(contiVisibili() ? [['conti', 'Conti'], ['archivio', 'Archivio']] : [])];
-  const attr = ([t, s]) => `data-act="nav" data-tab="${t}"${s ? ` data-sub="${s}"` : ''} aria-current="${isVoce(t, s) ? 'page' : 'false'}"`;
-  const [[, prime], ...altre] = MENU[UI.area];
+  const voce = ([t, s, l]) => {
+    let qui = isCur(t, s), sub = s;
+    if (typeof s === 'number') { const g = GRUPPI_CONTI[s]; qui = UI.tab === 'conti' && g.includes(UI.sub.conti); if (qui) ultimaConti[s] = UI.sub.conti; sub = ultimaConti[s] || g[0]; }
+    return `<button class="tn-i" data-act="nav" data-tab="${t}"${sub ? ` data-sub="${sub}"` : ''} aria-current="${qui ? 'page' : 'false'}">${esc(l)}</button>`;
+  };
+  const [sec, items] = MENU[UI.area][MENU[UI.area].length - 1];
   return `<div class="tn-areas" role="group" aria-label="Area">${aree.map(([k, l]) => `<button data-act="area" data-area="${k}" aria-pressed="${UI.area === k}">${l}</button>`).join('')}</div>
-  ${prime.map(v => `<button class="tn-i" ${attr(v)}>${esc(v[3])}</button>`).join('')}
-  ${altre.map(([sec, items]) => `<div class="tn-dd"><button class="tn-i" data-act="tnMenu" aria-expanded="false" aria-current="${items.some(v => isVoce(v[0], v[1])) ? 'page' : 'false'}">${esc(sec)}${ic('chevron-down')}</button><div class="tn-menu">${items.map(v => `<button class="tn-mi" ${attr(v)}>${ic(v[2])}<span>${esc(v[3])}</span></button>`).join('')}</div></div>`).join('')}
+  ${TOP[UI.area].map(voce).join('')}
+  <div class="tn-dd"><button class="tn-i" data-act="tnMenu" aria-expanded="false" aria-current="${items.some(v => isVoce(v[0], v[1])) ? 'page' : 'false'}">${esc(sec)}${ic('chevron-down')}</button><div class="tn-menu">${items.map(([t, s, i, l]) => `<button class="tn-mi" data-act="nav" data-tab="${t}"${s ? ` data-sub="${s}"` : ''} aria-current="${isVoce(t, s) ? 'page' : 'false'}">${ic(i)}<span>${esc(l)}</span></button>`).join('')}</div></div>
   <span class="sp"></span>
-  ${canInstall() ? `<button class="tn-i" data-act="install">${ic('smartphone')}Installa</button>` : ''}
-  <button class="tn-i" data-act="exportSheet">${ic('download')}Esporta</button>`;
+  ${canInstall() ? `<button class="tn-i tn-x" data-act="install" title="Installa l'app">${ic('smartphone')}<span>Installa</span></button>` : ''}
+  <button class="tn-i tn-x" data-act="exportSheet" title="Esporta documenti">${ic('download')}<span>Esporta</span></button>`;
 }
 const closeTn = () => $$('.tn-dd.open').forEach(x => { x.classList.remove('open'); x.firstElementChild.setAttribute('aria-expanded', 'false'); });
 // l'altezza del menu (va a capo sugli schermi stretti) sposta la mappa a tutto schermo
@@ -141,7 +158,7 @@ function render() {
   $('#mapView').hidden = !isMap; $('#view').hidden = isMap;
   $('#menuBtn').hidden = !!UI.detail; $('#backBtn').hidden = !UI.detail;
   $('#yearSel').hidden = !!UI.detail || !YEARLY.has(UI.tab);
-  if (isMap) { $('#abTitle').textContent = 'Mappa'; MAP.showMap(); MAP.mapUpdate(); return; }
+  if (isMap) { $('#abTitle').textContent = 'Mappa'; document.title = 'Mappa · Campo e Stalla'; MAP.showMap(); MAP.mapUpdate(); return; }
   const ae = document.activeElement; const fid = ae && ae.id && $('#view').contains(ae) ? ae.id : null; const sel = fid && ae.selectionStart != null ? [ae.selectionStart, ae.selectionEnd] : null;
   let r;
   if (!UI.loaded) r = { title: '', html: '<div class="loading"><span class="spinner"></span>Carico i dati…</div>' };
@@ -356,7 +373,7 @@ document.addEventListener('click', async e => {
       case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'conti' ? 'conti' : d.area === 'archivio' ? 'archivio' : 'oggi');
       case 'sub': if (d.tab && UI.tab !== d.tab) { UI.tab = d.tab; UI.detail = null; UI.hist = []; } UI.sub[d.sec] = d.sub; saveUI(); render(); return window.scrollTo(0, 0);
       case 'open': if (sheetOpen()) closeSheet(); return openDetail(d.type, d.id);
-      case 'go': { const g = JSON.parse(d.go); if (g.ar) { if (sheetOpen()) closeSheet(); const tel = vediDoc(g.ar, g.c); setTab('archivio', 'raccoglitore'); if (tel) arAct('ar-doc', b, { id: g.ar }); return; } if (g.tab) return setTab(g.tab, g.sub); if (g.form) return openEdit(g.form); if (g.edit) return openEdit(g.edit, g.id); return openDetail(g.type, g.id); }
+      case 'go': { const g = JSON.parse(d.go); if (g.ar) { if (sheetOpen()) closeSheet(); const tel = vediDoc(g.ar, g.c); setTab('archivio', 'raccoglitore'); if (tel) arAct('ar-doc', b, { id: g.ar }); return; } if (g.tab) { setTab(g.tab, g.sub); const el = g.el && document.getElementById(g.el); if (el) el.scrollIntoView(); return; } if (g.form) return openEdit(g.form); if (g.edit) return openEdit(g.edit, g.id); return openDetail(g.type, g.id); }
       case 'back': return history.state && history.state.d ? history.back() : goBack();
       case 'new': { if (d.form === 'operazioni') return startWizard({ campoId: d.campo, tipo: d.tipo, stato: d.stato }); const pre = {}; if (d.campo) pre.campoId = d.campo; if (d.capo) pre.capoId = d.capo; if (d.tipo) pre.tipo = d.tipo; if (d.prodotto) pre.prodottoId = d.prodotto; if (d.mezzo) pre.mezzoId = d.mezzo; return openEdit(d.form, null, pre); }
       case 'edit': return openEdit(d.form, d.id);
@@ -387,7 +404,7 @@ document.addEventListener('click', async e => {
       case 'install': drawer(false); return promptInstall();
       case 'loadExamples': await store.bulkPut(exampleRows()); toast('Dati di esempio caricati'); return setTab('oggi');
       case 'delExamples': return arm(b, 'Conferma: elimina gli esempi', delExamples);
-      case 'backup': { const o = await store.exportAll(); download(`campo-e-stalla-${today()}.json`, JSON.stringify(o), 'application/json'); return; }
+      case 'backup': { const o = await store.exportAll(); download(`campo-e-stalla-${today()}.json`, JSON.stringify(o), 'application/json'); await store.segnaCopia(); toast('Copia scaricata: conservala anche fuori da questo dispositivo'); return; }
       case 'wipe': return arm(b, 'Conferma: cancella tutto da questo dispositivo', () => store.wipeLocal());
       case 'syncNow': return store.syncNow();
       case 'findFarms': return store.findFarms();

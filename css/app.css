@@ -32,7 +32,9 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { -webkit-text-size-adjust: 100%; }
+/* lo spazio della barra di scorrimento resta riservato: il menu non si sposta da una pagina all'altra né quando si apre un foglio (sulla mappa a tutto schermo no) */
+html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
+html:has(body.on-map) { scrollbar-gutter: auto; }
 html.locked { overflow: hidden; }
 body { margin: 0; background-color: var(--bg); background-image: repeating-linear-gradient(180deg, transparent 0 31px, var(--rule) 31px 32px); color: var(--ink); font: 15px/1.45 var(--f-body); -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -118,6 +120,10 @@ body.drawer-open { overflow: hidden; }
 .tn-mi:hover { background: var(--sunk); color: var(--ink); }
 .tn-mi .ic { color: var(--muted); }
 .tn-mi[aria-current="page"] { background: var(--brand-soft); color: var(--ink); font-weight: 700; }
+/* il menu in alto sta su una riga: sugli schermi più stretti si stringe (Esporta e Installa solo con l'icona, poi margini e caratteri più piccoli) */
+@media (max-width: 1240px) { .tn-x span { display: none; } .tn-x { padding: 0 12px; } .tn-i { padding: 0 9px; } .tn-areas button { padding: 0 8px; } }
+@media (max-width: 1060px) { .tn-areas { margin-right: 8px; padding-right: 8px; } .tn-areas button { font-size: 17px; padding: 0 6px; } .tn-i { font-size: 14px; padding: 0 7px; } }
+@media (max-width: 960px) { .tn-areas { margin-right: 6px; padding-right: 6px; } .tn-areas button { font-size: 16px; padding: 0 5px; } .tn-i { font-size: 13.5px; padding: 0 5px; } .tn-x { padding: 0 8px; } }
 @media (max-width: 899px) {
   :root { --top-h: 56px; --pad-x: max(14px, var(--sal)); }
   #menuBtn:not([hidden]) { display: grid; }
@@ -453,6 +459,7 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 .code { font-size: 28px; font-weight: 600; letter-spacing: .14em; margin-top: 2px; }
 .divider { height: 1px; background: var(--line); margin: 4px 0; }
 .set p { margin: 0; }
+#datiSez { scroll-margin-top: calc(var(--top-h) + var(--sat) + var(--tn-h) + 14px); }
 .credits p { font-size: 13px; }
 .steps { list-style: none; padding: 0; margin: 0 0 14px; display: flex; flex-direction: column; gap: 14px; }
 .steps li { display: flex; gap: 14px; }

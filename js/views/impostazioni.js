@@ -5,7 +5,7 @@ import { esc, fd, nf, okD, today, diff, byName, lsGet } from '../util.js';
 import { fitoMeta } from '../fitodb.js';
 import { aiConfig } from '../nlp.js';
 import { ic } from '../icons.js';
-import { sync, cloudConfig, soloLettura } from '../store.js';
+import { sync, cloudConfig, soloLettura, protezione, ultimaCopia, copiaDaFare } from '../store.js';
 
 // Permessi delle persone (dalla 1.26.0): li sceglie il titolare, le regole vere sono nel database
 const PERMESSI = { collaboratore: 'Collaboratore', senzaAllegati: 'Collaboratore senza allegati', lettore: 'Solo lettura' };
@@ -15,6 +15,16 @@ import { canInstall, isStandalone } from '../install.js';
 import { VERSION } from '../version.js';
 
 export const authUI = { tab: 'login' };
+
+// Quanto sono al sicuro i dati di questo dispositivo: ultima copia di sicurezza scaricata e archiviazione permanente del browser (store.js)
+function statoDati() {
+  const u = ultimaCopia(), c = copiaDaFare(), gg = u ? diff(u, today()) : null;
+  const copia = u ? `<div class="note-box${c ? ' warn' : ''}">${ic(c ? 'triangle-alert' : 'circle-check')}<span>Ultima copia scaricata il <b>${fd(u)}</b> (${gg <= 0 ? 'oggi' : gg === 1 ? 'ieri' : gg + ' giorni fa'}).${c ? ' È ora di farne una nuova.' : ''}</span></div>`
+    : `<div class="note-box${c ? ' warn' : ''}">${ic(c ? 'triangle-alert' : 'info')}<span>Non hai ancora scaricato una copia di sicurezza${sync.farm ? '' : ' da questo dispositivo'}.</span></div>`;
+  const prot = protezione.stato === true ? `<div class="note-box">${ic('shield-check')}<span>Il browser conserva questi dati in modo permanente: non li cancella da solo.</span></div>`
+    : protezione.stato === false ? `<div class="note-box${sync.farm ? '' : ' warn'}">${ic('shield-alert')}<span>Se sul dispositivo manca spazio, il browser può cancellare da solo i dati salvati qui. Per proteggerli ${isStandalone() ? '' : "installa l'app, "}${sync.farm ? '' : 'attiva la sincronizzazione, '}tieni una copia di sicurezza recente.</span></div>` : '';
+  return copia + prot;
+}
 
 function cloudSection() {
   const cfg = cloudConfig();
@@ -75,7 +85,8 @@ export function render() {
   ${catastoSection()}
   ${cloudSection()}
   <section class="card set"><div class="set-h">${ic('smartphone')}<div><h2>App sul telefono</h2><p>${isStandalone() ? 'Stai usando l\'app installata. Funziona anche senza rete: le modifiche si sincronizzano al ritorno della connessione.' : 'Installala sulla schermata Home: si apre a schermo intero e funziona anche in campagna senza rete.'}</p></div></div>${canInstall() ? `<button class="btn primary" data-act="install">${ic('download')}Installa l'app</button>` : ''}<p class="muted small">Versione ${VERSION}</p></section>
-  <section class="card set"><div class="set-h">${ic('history')}<div><h2>Dati</h2><p>Copia di sicurezza completa in un file, da conservare o da caricare su un altro dispositivo.</p></div></div>
+  <section class="card set" id="datiSez"><div class="set-h">${ic('history')}<div><h2>Dati</h2><p>Copia di sicurezza completa in un file, da conservare o da caricare su un altro dispositivo.</p></div></div>
+    ${statoDati()}
     <div class="btns"><button class="btn" data-act="backup">${ic('download')}Scarica copia</button><label class="btn">${ic('file-up')}Carica copia<input type="file" accept=".json,application/json" data-act="restore" hidden></label></div>
     <div class="divider"></div>
     ${nEx ? `<p><b>Dati di esempio</b><br><span class="muted small">${nEx} registrazioni contrassegnate "Esempio".</span></p><button class="btn danger" data-act="delExamples">${ic('trash-2')}Elimina i dati di esempio</button>` : `<p><b>Dati di esempio</b><br><span class="muted small">Carica un'azienda di prova per vedere l'app al lavoro. Si eliminano con un tocco.</span></p><button class="btn" data-act="loadExamples">Carica dati di esempio</button>`}
