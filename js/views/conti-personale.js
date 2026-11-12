@@ -9,6 +9,7 @@ import { colonne, COL } from '../conti/grafici.js';
 import { miniTabs } from './conti-fatture.js';
 import * as P from '../conti/paghe.js';
 import * as B from '../conti/banca.js';
+import { btnOrig } from './conti-documenti.js';
 
 const r2 = v => Math.round(v * 100) / 100;
 const eu = v => fmtVal(v, 'eur2') || '0,00 €';
@@ -166,7 +167,7 @@ export function schedaCedolino(id) {
   const c = P.cedolini().find(x => x.id === id); if (!c) return;
   const fact = (l, v) => `<div><dt>${esc(l)}</dt><dd>${v}</dd></div>`;
   const e = v => fmtVal(v, 'eur2') || '–';
-  openSheet(`Cedolino ${P.nomeMese(c.periodo)}`, `<dl class="inv-head">${fact('Ore lavorate', nf(c.ore, 2))}${fact('Giorni lavorati', nf(c.giorni, 2))}${fact('Totale competenze', e(c.totComp))}${fact('Lordo', e(c.lordo))}${fact('Imponibile previdenziale', e(c.impPrev))}${fact('Contributi del dipendente', e(c.ritPrev) + (c.enti && Object.keys(c.enti).length ? `<span class="muted small"> (${Object.entries(c.enti).map(([k, v]) => k + ' ' + nf(v, 2)).join(', ')})</span>` : ''))}${fact('Imponibile fiscale', e(c.impFisc))}${fact('IRPEF lorda', e(c.irpefLorda))}${fact('Detrazioni', e(c.detrazioni))}${fact('IRPEF trattenuta', e(c.irpef))}${fact('Totale trattenute', e(c.totTratt))}${fact('Arrotondamenti', `${nf(c.arrPrec || 0, 2)} / ${nf(c.arrCorr || 0, 2)}`)}${fact('Netto in busta', `<b>${e(c.netto)}</b>`)}${fact('TFR al fondo', e(c.tfrFondo))}${fact('File', esc(c.file || '—'))}</dl>
+  openSheet(`Cedolino ${P.nomeMese(c.periodo)}`, `<dl class="inv-head">${fact('Ore lavorate', nf(c.ore, 2))}${fact('Giorni lavorati', nf(c.giorni, 2))}${fact('Totale competenze', e(c.totComp))}${fact('Lordo', e(c.lordo))}${fact('Imponibile previdenziale', e(c.impPrev))}${fact('Contributi del dipendente', e(c.ritPrev) + (c.enti && Object.keys(c.enti).length ? `<span class="muted small"> (${Object.entries(c.enti).map(([k, v]) => k + ' ' + nf(v, 2)).join(', ')})</span>` : ''))}${fact('Imponibile fiscale', e(c.impFisc))}${fact('IRPEF lorda', e(c.irpefLorda))}${fact('Detrazioni', e(c.detrazioni))}${fact('IRPEF trattenuta', e(c.irpef))}${fact('Totale trattenute', e(c.totTratt))}${fact('Arrotondamenti', `${nf(c.arrPrec || 0, 2)} / ${nf(c.arrCorr || 0, 2)}`)}${fact('Netto in busta', `<b>${e(c.netto)}</b>`)}${fact('TFR al fondo', e(c.tfrFondo))}${fact('File', esc(c.file || '—') + ' ' + btnOrig(c.file, c.imp))}</dl>
   <div class="pad-x">${(c.controlli || []).map(k => `<div class="esito ${k.esito === 'OK' ? 'ok' : 'wa'}">${ic(k.esito === 'OK' ? 'circle-check' : 'triangle-alert')}${esc(k.d)}: ${esc(k.esito)}</div>`).join('')}</div>
   <div class="tablewrap etab blk"><table><thead><tr><th class="t">Codice</th><th class="t">Voce</th><th class="n">Ore/giorni</th><th class="n">Unitario</th><th class="n">Competenze</th><th class="n">Trattenute</th></tr></thead><tbody>${(c.voci || []).map(v => `<tr><td class="t">${esc(v.codice)}</td><td class="t">${esc(v.descrizione)}</td><td class="n">${v.tempo != null ? nf(v.tempo, 2) : ''}</td><td class="n">${v.unitario != null ? nf(v.unitario, 5) : ''}</td><td class="n">${fmtVal(v.competenza, 'eur2')}</td><td class="n">${fmtVal(v.trattenuta, 'eur2')}</td></tr>`).join('')}</tbody></table></div>
   <div class="subcard" style="margin-top:14px"><b>${ic('users')}Questo cedolino è di un altro dipendente?</b><p class="muted small">Se ${esc(c.nome)} è la stessa persona di un altro dipendente (nome scritto in modo diverso, codice fiscale corretto dopo), scegli quale: tutti i cedolini con questo nome vanno nella sua scheda.</p><div class="toolbar"><select class="inp" id="pu_dest"><option value="">Scegli il dipendente…</option>${P.dipendenti().filter(d => d.key !== c.dip).map(d => `<option value="${esc(d.key)}">${esc(d.nome)}</option>`).join('')}</select><button class="btn sm" data-act="c-pUnisci" data-k="${esc(c.dipOrig || c.dip)}" data-nome="${esc(c.nome)}">${ic('check')}Assegna</button></div></div>
@@ -178,7 +179,7 @@ export function schedaBilancino(id) {
   const e = v => (v == null ? '' : fmtVal(v, 'eur2'));
   openSheet(`Bilancino paghe ${P.nomeMese(b.periodo)}`, `<div class="pad-x">${(b.controlli || []).map(k => `<div class="esito ${k.esito === 'OK' ? 'ok' : 'wa'}">${ic(k.esito === 'OK' ? 'circle-check' : 'triangle-alert')}${esc(k.d)}: ${esc(k.esito)}</div>`).join('')}</div>
   <div class="tablewrap etab blk"><table><thead><tr><th class="t">Voce</th><th class="n">Oneri ditta</th><th class="n">Oneri dipendente</th><th class="n">Oneri enti</th><th class="n">Debito/credito</th></tr></thead><tbody>${Object.entries(b.voci || {}).map(([k, o]) => `<tr><td class="t">${esc(NOMI[k] || k)}</td><td class="n">${e(o.ditta)}</td><td class="n">${e(o.dip)}</td><td class="n">${e(o.enti)}</td><td class="n">${e(o.debito)}</td></tr>`).join('')}</tbody></table></div>
-  <p class="muted small">${esc(b.file || '')}</p><div class="factions"><button class="btn ghost danger" data-act="c-pDelDoc" data-id="${esc(b.id)}">${ic('trash-2')}Elimina bilancino</button><span class="sp"></span><button class="btn" data-act="close">Chiudi</button></div>`, { wide: true, sub: b.ditta || '' });
+  <p class="muted small">${esc(b.file || '')} ${btnOrig(b.file, b.imp)}</p><div class="factions"><button class="btn ghost danger" data-act="c-pDelDoc" data-id="${esc(b.id)}">${ic('trash-2')}Elimina bilancino</button><span class="sp"></span><button class="btn" data-act="close">Chiudi</button></div>`, { wide: true, sub: b.ditta || '' });
 }
 
 /* ---------------- pagamenti ---------------- */
@@ -229,15 +230,16 @@ async function caricaMovimenti(files) {
   const pdf = files.filter(f => /\.pdf$/i.test(f.name)), altriF = files.filter(f => !/\.pdf$/i.test(f.name));
   if (pdf.length) {
     const { leggiBonifici, pareBonifico } = await import('../conti/bonifici-parse.js'); const B2 = await import('../conti/banca.js'); const { leggiPdf, testoPagina } = await import('../conti/pdftext.js');
-    const righe = []; const err = []; let est = false, ocr = false;
+    const righe = []; const err = []; let est = false, ocr = false; const OR = await import('../conti/originali.js'); PIMP.orig = [];
     for (const f of pdf) {
       try {
         const bytes = new Uint8Array(await f.arrayBuffer()); const pg = await leggiPdf(bytes); const t = pg.slice(0, 2).map(testoPagina).join('\n');
-        if (pareBonifico(t)) { righe.push(...P.righeBonifici(await leggiBonifici(null, pg), f.name)); continue; }
+        const k0 = righe.length; const fine = async () => { const x = { tipo: 'bonifici', righe: righe.slice(k0) }; await OR.segna([x], 0, f.name, bytes); if (x.imp) PIMP.orig.push(x); };
+        if (pareBonifico(t)) { righe.push(...P.righeBonifici(await leggiBonifici(null, pg), f.name)); await fine(); continue; }
         est = true; if (!pg.some(p => p.chars.length > 50)) { ocr = true; PIMP.busy = `Lettura ottica di ${f.name}… (la prima volta scarica circa 6 MB)`; rerenderP(); }
         const movs = await B2.leggiEstrattoPdf(bytes, p => { PIMP.busy = `Lettura ottica di ${f.name}: ${Math.round(p * 100)}%`; rerenderP(); });
         if (!movs.length) throw new Error('nessun movimento trovato (servono le colonne data, importo e descrizione)');
-        righe.push(...await B2.righeEstratto(movs, f.name));
+        righe.push(...await B2.righeEstratto(movs, f.name)); await fine();
       } catch (e) { err.push(f.name + ': ' + e.message); }
     }
     PIMP.busy = '';
@@ -246,11 +248,12 @@ async function caricaMovimenti(files) {
     if (righe.length) Object.assign(PIMP, { righe, file: pdf.length === 1 ? pdf[0].name : pdf.length + ' file', altri: 0, pdf: true, estratto: est, ocr, tutti: false });
     return;
   }
-  const file = altriF[0];
-  const mv = await P.leggiMovimenti(file.name, new Uint8Array(await file.arrayBuffer()));
+  const file = altriF[0]; const bytesF = new Uint8Array(await file.arrayBuffer());
+  const mv = await P.leggiMovimenti(file.name, bytesF);
   const B2 = await import('../conti/banca.js');
   const righe = await B2.righeEstratto(mv.map(m => B2.arricchisci(Object.assign({}, m, { importo: -m.importo }))), file.name);
   if (!righe.length) throw new Error('Nel file non ci sono movimenti in uscita.');
+  { const OR = await import('../conti/originali.js'); const x = { tipo: 'bonifici', righe }; await OR.segna([x], 0, file.name, bytesF); PIMP.orig = [x]; }
   Object.assign(PIMP, { righe, file: file.name, altri: 0, pdf: false, estratto: true, ocr: false, tutti: false });
 }
 export function schedaPagamento(id, pre = {}) {
@@ -261,7 +264,7 @@ export function schedaPagamento(id, pre = {}) {
   const mesi = new Set(P.periodi()); let m = P.meseSucc(today().slice(0, 7)); for (let n = 0; n < 16; n++) { mesi.add(m); m = P.mesePrec(m); } if (v.comp && !/T\d$/.test(v.comp)) mesi.add(v.comp); { const yy = +today().slice(0, 4); for (const y of [yy, yy - 1]) { mesi.add(y + '-13'); mesi.add(y + '-14'); } }
   const dipNoti = dips.some(d => d.key === v.dip);
   const preAperti = P.prestiti().filter(x => x.residuo > 0.005 || x.id === v.prestito);
-  openSheet(p ? (P.TIPI_PAG[v.tipo] || 'Pagamento') : 'Registra pagamento o anticipo', `<div class="fgrid" id="pgForm">
+  openSheet(p ? (P.TIPI_PAG[v.tipo] || 'Pagamento') : 'Registra pagamento o anticipo', `${p && p.fonte ? `<p class="muted small">Dal documento ${esc(p.fonte)} ${btnOrig(p.fonte, p.imp)}</p>` : ''}<div class="fgrid" id="pgForm">
   <label class="fld half"><span class="flabel">Tipo</span><div class="inwrap"><select id="pg_tipo">${Object.entries(P.TIPI_PAG).map(([k, l]) => `<option value="${k}"${v.tipo === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div></label>
   <label class="fld half" data-per="stipendio anticipo prestito rimborso"><span class="flabel">Dipendente</span><div class="inwrap"><select id="pg_dip"><option value="">—</option>${dips.map(d => `<option value="${esc(d.key)}"${v.dip === d.key ? ' selected' : ''}>${esc(d.nome)}</option>`).join('')}${v.dip && !dipNoti ? `<option value="${esc(v.dip)}" selected>${esc(P.nomeDi(v.dip))} (senza cedolini)</option>` : ''}</select></div></label>
   <label class="fld half"><span class="flabel">Data</span><div class="inwrap"><input id="pg_data" type="date" value="${esc(v.data || '')}"></div></label>
@@ -390,7 +393,8 @@ export async function personaleAct(a, b, d, rerender) {
     case 'c-pMovSave': {
       const sel = PIMP.righe.filter(r => r.sel); if (sel.some(r => P.CON_DIP.has(r.tipo) && !r.dip)) throw new Error('Per ogni stipendio, anticipo o prestito scegli il dipendente (o togli la spunta).');
       if (sel.some(r => r.tipo === 'fattura' && !(r.fatt || []).length)) throw new Error('Scegli la fattura per ogni pagamento di fattura (o togli la spunta).');
-      const o = await B.salvaRighe(sel, PIMP.file); PIMP.righe = null; toast(`Salvati: ${o.nP} pagamenti del personale, ${o.nF} pagamenti di fatture${o.nB ? `, ${o.nB} movimenti di banca e finanza` : ''}${o.nD ? `, ${o.nD} doppi eliminati` : ''}`); return rerender();
+      const o = await B.salvaRighe(sel, PIMP.file); PIMP.righe = null;
+      { const OR = await import('../conti/originali.js'); await OR.conserva((PIMP.orig || []).filter(x => x.righe.some(r => r.sel))).catch(e => console.warn(e)); PIMP.orig = []; } toast(`Salvati: ${o.nP} pagamenti del personale, ${o.nF} pagamenti di fatture${o.nB ? `, ${o.nB} movimenti di banca e finanza` : ''}${o.nD ? `, ${o.nD} doppi eliminati` : ''}`); return rerender();
     }
     case 'c-pMovTutti': if (d.k == null) { PIMP.tutti = !PIMP.tutti; return rerender(); } return;
   }

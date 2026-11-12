@@ -5,7 +5,19 @@ import { ic } from '../icons.js';
 import { empty } from '../ui.js';
 import { fatture, anniFatture } from '../conti/dati.js';
 import { tabella, bottoniExport, fmtVal } from '../conti/tabelle.js';
-import { elenco, elenchi, confronta } from '../conti/elenco.js';
+import { elenco, elenchi, confronta, spiegaDiversa, spiegaInPiu, spiegaManca } from '../conti/elenco.js';
+import { btnOrig } from './conti-documenti.js';
+import * as OR from '../conti/originali.js';
+
+// ricerca delle fatture mancanti nell'archivio del PC (solo lettura: si apre il file, non si salva niente)
+const MS = { carico: false, passo: '', err: '' };
+export async function mancantiAct(a, b, d, rerender) {
+  if (a !== 'c-msCerca') return;
+  MS.carico = true; MS.err = ''; rerender();
+  try { if (d.v === 'rileggi') OR.svuotaCatalogo(); await OR.caricaCatalogo((n, t) => { MS.passo = `${nf(n)} di ${nf(t)}`; rerender(); }); }
+  catch (e) { MS.err = e.spento ? 'Il ponte dell\'archivio non risponde: dal PC dell\'azienda avvia "Archivio - ponte.bat" e riprova.' : (e.message || 'Errore del ponte'); }
+  MS.carico = false; rerender();
+}
 import { rls, giudizio, VOCI, SOGLIE } from '../conti/rls.js';
 
 const miniTabs = (f, items, cur) => `<div class="mini-tabs" role="group">${items.map(([v, l]) => `<button data-act="chip" data-f="${f}" data-v="${esc(v)}" aria-pressed="${cur === v}">${esc(l)}</button>`).join('')}</div>`;
@@ -16,7 +28,7 @@ const nomeTipo = t => (t === 'Vendita' ? 'emesse' : 'ricevute');
 const STATI = { manca: ['circle-x', 'ko', 'Manca'], diversa: ['circle-alert', 'wa', 'Da controllare'], ok: ['circle-check', 'ok', 'Caricata'] };
 /** Riepilogo per la panoramica: elenchi con fatture mancanti. */
 export function mancantiAnno(y) {
-  return ['Acquisto', 'Vendita'].map(t => { const el = elenco(t, y); return el ? Object.assign({ tipo: t }, confronta(el, fatture()).conta) : null; }).filter(Boolean);
+  return ['Acquisto', 'Vendita'].map(t => { const el = elenco(t, y); if (!el) return null; const fs = fatture(); return Object.assign({ tipo: t, senza: !fs.some(f => f.tipo === t && f.anno === y) }, confronta(el, fs).conta); }).filter(Boolean);
 }
 
 export function vMancanti() {
@@ -26,26 +38,34 @@ export function vMancanti() {
   const altri = tutti.length ? `<div class="chipbar">${tutti.map(e => `<button data-act="c-elGo" data-anno="${e.anno}" data-tipo="${e.tipo}" aria-pressed="${e.anno === y && e.tipo === tipo}">${e.tipo === 'Vendita' ? 'Emesse' : 'Ricevute'} ${e.anno}<span class="n">${e.righe.length}</span></button>`).join('')}</div>` : '';
   if (!el) return `${bar}${altri}<section class="card">${empty('scan-search', `Nessun elenco delle fatture ${nomeTipo(tipo)} del ${y}`, "Carica il file Excel con l'elenco di tutte le fatture dell'anno (per esempio passive_2025.xlsx per quelle ricevute): l'app lo confronta con le fatture che hai caricato e ti dice quali mancano, quali hanno un importo o una data diversi e quali hai caricato ma non sono nell'elenco. L'anno si legge dal nome del file o dalle date.")}</section>`;
   const R = confronta(el, fatture()); const C = R.conta;
+  const nCar = fatture().filter(f => f.tipo === tipo && f.anno === y).length;
+  const docs = OR.catalogoPronto(); const PM = docs && C.manca && nCar ? OR.proposteMancanti(R.righe.filter(r => r.stato === 'manca'), docs) : null;
   const st = UI.f.cm_stato || (C.manca ? 'manca' : '');
   const totEl = el.righe.reduce((t, r) => t + Math.abs(r.totale || 0), 0);
   const kp = `<div class="kpis">${kpi("Nell'elenco", nf(C.tot), fmtVal(totEl, 'eur2') + ' IVA compresa')}${kpi('Caricate', nf(C.ok + C.diversa), C.diversa ? `${C.diversa} da controllare` : 'tutte uguali all\'elenco')}${kpi('Mancanti', nf(C.manca), C.manca ? fmtVal(C.mancaEuro, 'eur2') + ' da caricare' : 'nessuna', C.manca ? 't-bad' : '')}${kpi("Non nell'elenco", nf(C.inPiu), C.inPiu ? `caricate nel ${y}, ${fmtVal(C.inPiuEuro, 'eur2')}` : 'nessuna')}</div>`;
-  const esito = C.manca ? `<div class="note-box bad">${ic('triangle-alert')}<span><b>${C.manca === 1 ? 'Manca 1 fattura' : `Mancano ${C.manca} fatture`}</b> dell'elenco ${esc(el.file || '')}. Scaricale dal cassetto fiscale o dal portale e caricale in <button class="linkbtn" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">Carica documenti</button>.</span></div>` : `<div class="note-box">${ic('circle-check')}<span><b>Tutte le fatture dell'elenco sono caricate.</b>${C.diversa ? ` ${C.diversa} con importo o data diversi: controllale.` : ''}</span></div>`;
+  const cercaBtn = C.manca && nCar ? (MS.carico ? `<p class="muted small">Leggo il catalogo dell'archivio… ${esc(MS.passo)}</p>` : `<button class="btn sm" data-act="c-msCerca" data-v="${docs ? 'rileggi' : ''}">${ic('search')}${docs ? 'Rileggi il catalogo del PC' : "Cerca le mancanti nell'archivio del PC"}</button>`) : '';
+  const trovate = PM ? PM.size : 0;
+  const archivio = PM ? `<div class="note-box">${ic('book-open')}<span>${trovate ? `<b>${trovate === 1 ? '1 mancante è' : trovate + ' mancanti sono'} nell'archivio del PC</b> (colonna "Sul PC"): apri il file per controllare e trascinalo in Carica documenti.` : "<b>Nessuna delle mancanti è nell'archivio del PC.</b> Scaricale dal cassetto fiscale."} ${C.manca - trovate > 0 && trovate ? (C.manca - trovate === 1 ? "L'altra non l'ho trovata: scaricala dal cassetto fiscale." : `Le altre ${C.manca - trovate} non le ho trovate: scaricale dal cassetto fiscale.`) : ''}</span></div>` : MS.err ? `<div class="note-box warn">${ic('wifi-off')}<span>${esc(MS.err)}</span></div>` : '';
+  const esito = !nCar ? `<div class="note-box warn">${ic('info')}<span><b>Per il ${y} non hai caricato nessuna fattura ${tipo === 'Vendita' ? 'emessa' : 'ricevuta'}: le ${C.tot} righe dell'elenco risultano tutte "mancanti".</b> Non vanno cercate una per una: scarica dal cassetto fiscale lo ZIP delle fatture ${nomeTipo(tipo)} del ${y} (Fatture e Corrispettivi → Consultazione, scegli il periodo) e caricalo in <button class="linkbtn" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">Carica documenti</button>: il confronto si fa da solo.</span></div>`
+    : nCar < C.tot * 0.2 && C.manca > 20 ? `<div class="note-box warn">${ic('info')}<span><b>Per il ${y} hai caricato solo ${nCar} fatture ${nomeTipo(tipo)} su ${C.tot} dell'elenco.</b> Prima di cercare le mancanti una per una carica lo ZIP dell'anno dal cassetto fiscale.</span></div>`
+    : C.manca ? `<div class="note-box bad">${ic('triangle-alert')}<span><b>${C.manca === 1 ? 'Manca 1 fattura' : `Mancano ${C.manca} fatture`}</b> dell'elenco ${esc(el.file || '')}. Scaricale dal cassetto fiscale o dal portale e caricale in <button class="linkbtn" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">Carica documenti</button>.</span></div>` : `<div class="note-box">${ic('circle-check')}<span><b>Tutte le fatture dell'elenco sono caricate.</b>${C.diversa ? ` ${C.diversa} con importo o data diversi: controllale.` : ''}</span></div>`;
   const chips = `<div class="chipbar"><button data-act="chip" data-f="cm_stato" data-v="tutte" aria-pressed="${st === 'tutte'}">Tutte<span class="n">${C.tot}</span></button><button data-act="chip" data-f="cm_stato" data-v="manca" aria-pressed="${st === 'manca'}">Mancanti<span class="n">${C.manca}</span></button><button data-act="chip" data-f="cm_stato" data-v="diversa" aria-pressed="${st === 'diversa'}">Da controllare<span class="n">${C.diversa}</span></button><button data-act="chip" data-f="cm_stato" data-v="ok" aria-pressed="${st === 'ok'}">Caricate<span class="n">${C.ok}</span></button><button data-act="chip" data-f="cm_stato" data-v="inpiu" aria-pressed="${st === 'inpiu'}">Non nell'elenco<span class="n">${C.inPiu}</span></button></div>`;
   const cp = tipo === 'Vendita' ? 'Cliente' : 'Fornitore';
+  const sulPc = r => { const x = PM && PM.get(r.riga); if (!x) return ''; return `<span style="display:flex;gap:4px;align-items:center;flex-wrap:wrap"><button class="btn sm ghost" data-act="c-origPc" data-imp="${esc(x.d.impronta)}" title="${esc(x.d.nome_file)}">${ic('external-link')}Apri</button><button class="iconbtn sm" data-act="c-origCartella" data-imp="${esc(x.d.impronta)}" aria-label="Apri la cartella">${ic('folder-open')}</button></span><span class="sub">${esc(x.d.nome_file)}${x.certo ? '' : ' (da controllare: ' + (x.altri + 1) + ' simili)'}</span>`; };
   let corpo;
   if (st === 'inpiu') {
-    corpo = tabella('elpiu', { title: `Fatture ${nomeTipo(tipo)} ${y} caricate ma non nell'elenco`, sheet: "Non nell'elenco", cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'numero', h: 'Numero', cls: 'nw' }, { k: 'controparte', h: cp, cls: 'w', html: f => `${esc(f.controparte)}<span class="sub">${esc(f.piva || '')}</span>` }, { k: 'piva', h: 'P.IVA', export: true }, { k: 'tipoDoc', h: 'Doc.' }, { k: 'imponibile', h: 'Imponibile', fmt: 'eur2' }, { k: 'totale', h: 'Totale', fmt: 'eur2' }, { k: 'file', h: 'File', cls: 'clip' }].filter(c => c.export !== true), rows: R.inPiu.map(f => Object.assign({ _cls: 'click' }, f)), rowAttr: f => `data-act="c-fatt" data-id="${f.id}"`, tot: { data: 'Totale', imponibile: R.inPiu.reduce((t, f) => t + (+f.imponibile || 0), 0), totale: R.inPiu.reduce((t, f) => t + (+f.totale || 0), 0) } });
+    corpo = tabella('elpiu', { title: `Fatture ${nomeTipo(tipo)} ${y} caricate ma non nell'elenco`, sheet: "Non nell'elenco", cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'numero', h: 'Numero', cls: 'nw' }, { k: 'controparte', h: cp, cls: 'w', html: f => `${esc(f.controparte)}<span class="sub">${esc(f.piva || '')}</span>` }, { k: 'piva', h: 'P.IVA', export: true }, { k: 'tipoDoc', h: 'Doc.' }, { k: 'imponibile', h: 'Imponibile', fmt: 'eur2' }, { k: 'totale', h: 'Totale', fmt: 'eur2' }, { k: 'perche', h: 'Perché', cls: 'w' }, { k: 'file', h: 'File', cls: 'clip' }].filter(c => c.export !== true), rows: R.inPiu.map(f => Object.assign({ _cls: 'click', perche: spiegaInPiu(f, el, R, fatture()) }, f)), rowAttr: f => `data-act="c-fatt" data-id="${f.id}"`, tot: { data: 'Totale', imponibile: R.inPiu.reduce((t, f) => t + (+f.imponibile || 0), 0), totale: R.inPiu.reduce((t, f) => t + (+f.totale || 0), 0) } });
     corpo += `<p class="muted small pad-x">Possono essere fatture dell'anno arrivate dopo che hai scaricato l'elenco, doppioni caricati due volte con numeri diversi, oppure fatture con la partita IVA o il numero scritti in modo diverso.</p>`;
   } else {
-    const rows = R.righe.filter(r => st === 'tutte' || !st || r.stato === st).map(r => Object.assign({ _cls: r.fid ? 'click' : '', statoT: STATI[r.stato][2], noteT: r.note.join(' · ') }, r));
+    const rows = R.righe.filter(r => st === 'tutte' || !st || r.stato === st).map(r => Object.assign({ _cls: r.fid ? 'click' : '', statoT: STATI[r.stato][2], noteT: r.stato === 'diversa' ? spiegaDiversa(r) || r.note.join(' · ') : r.stato === 'manca' ? spiegaManca(r) : r.note.join(' · '), pcT: PM && PM.get(r.riga) ? PM.get(r.riga).d.nome_file : '' }, r));
     corpo = tabella('elenco', {
       title: `Controllo fatture ${nomeTipo(tipo)} ${y}`, sheet: 'Controllo', sub: el.file,
-      cols: [{ k: 'statoT', h: 'Esito', html: r => `<span class="esito ${STATI[r.stato][1]}">${ic(STATI[r.stato][0])}${STATI[r.stato][2]}</span>` }, { k: 'data', h: 'Data', fmt: 'date' }, { k: 'numero', h: 'Numero', cls: 'nw' }, { k: 'nome', h: cp, cls: 'w', html: r => `${esc(r.nome)}<span class="sub">${esc(r.piva || r.cf || '')}</span>` }, { k: 'tipologia', h: 'Tipo', cls: 'clip' }, { k: 'totale', h: 'Totale', fmt: 'eur2' }, { k: 'pagata', h: 'Pagata' }, { k: 'noteT', h: 'Note', cls: 'clip' }],
+      cols: [{ k: 'statoT', h: 'Esito', html: r => `<span class="esito ${STATI[r.stato][1]}">${ic(STATI[r.stato][0])}${STATI[r.stato][2]}</span>` }, { k: 'data', h: 'Data', fmt: 'date' }, { k: 'numero', h: 'Numero', cls: 'nw' }, { k: 'nome', h: cp, cls: 'w', html: r => `${esc(r.nome)}<span class="sub">${esc(r.piva || r.cf || '')}</span>` }, { k: 'tipologia', h: 'Tipo', cls: 'clip' }, { k: 'totale', h: 'Totale', fmt: 'eur2' }, { k: 'pagata', h: 'Pagata' }, { k: 'noteT', h: st === 'diversa' ? 'Perché' : 'Note', cls: st === 'diversa' || st === 'manca' ? 'w' : 'clip' }, ...(PM ? [{ k: 'pcT', h: 'Sul PC', html: sulPc }] : [])],
       rows, rowAttr: r => (r.fid ? `data-act="c-fatt" data-id="${r.fid}"` : ''), tot: { statoT: 'Totale', totale: rows.reduce((t, r) => t + (r.totale || 0), 0) }, freeze: 1,
     });
   }
-  return `${bar}${altri}${kp}${esito}<section class="card"><div class="card-h">${chips}${bottoniExport([st === 'inpiu' ? 'elpiu' : 'elenco'], `Controllo fatture ${nomeTipo(tipo)} ${y}`)}</div>${corpo}</section>
-  <p class="muted small">Elenco: ${esc(el.file || '')}, caricato il ${fd(el.caricato)}, ${el.righe.length} fatture. Si abbinano solo fatture dello stesso anno, per partita IVA e numero (spazi, barre e trattini non contano), poi per partita IVA, data e importo. <button class="linkbtn danger" data-act="c-elDel" data-anno="${y}" data-tipo="${tipo}">Togli questo elenco</button></p>`;
+  return `${bar}${altri}${kp}${esito}${archivio}${cercaBtn ? `<div class="btns" style="margin:0 0 12px">${cercaBtn}</div>` : ''}<section class="card"><div class="card-h">${chips}${bottoniExport([st === 'inpiu' ? 'elpiu' : 'elenco'], `Controllo fatture ${nomeTipo(tipo)} ${y}`)}</div>${corpo}</section>
+  <p class="muted small">Elenco: ${esc(el.file || '')} ${btnOrig(el.file, el.imp)}, caricato il ${fd(el.caricato)}, ${el.righe.length} fatture. Si abbinano solo fatture dello stesso anno, per partita IVA e numero (spazi, barre e trattini non contano), poi per partita IVA, data e importo. <button class="linkbtn danger" data-act="c-elDel" data-anno="${y}" data-tipo="${tipo}">Togli questo elenco</button></p>`;
 }
 
 /* ---------------- reddito lordo standard ---------------- */

@@ -6,6 +6,7 @@
 - Archivio: raccolta riservata `econfig`, id `el-<Acquisto|Vendita>-<anno>`. Nessuna modifica allo schema Supabase.
 - `confronta(el, fatture)` (dalla 1.32.1 solo fatture dello stesso anno della riga dell'elenco, di solito `el.anno`): abbinamento in ordine P.IVA + numero normalizzato (solo lettere e cifre) → P.IVA + sole cifre del numero → P.IVA + data + totale (±0,02) → numero + data + totale. Ogni fattura caricata si usa una volta. Totale confrontato in valore assoluto (le note di credito nell'app sono negative, nell'elenco positive). Differenza oltre 0,05 € o data diversa = "Da controllare". "Non nell'elenco" = fatture caricate dello stesso tipo e anno non abbinate.
 - Panoramica: `mancantiAnno(y)` aggiunge la voce in "Da sistemare".
+- Dalla 1.35.0: anni senza fatture caricate di quel tipo = "non confrontabile" (`mancantiAnno` dà `senza`, la Panoramica non li conta); ricerca delle mancanti nell'archivio del PC (`proposteMancanti` in `conti/originali.js`, solo lettura) e spiegazioni `spiegaDiversa`, `spiegaInPiu`, `spiegaManca` in `elenco.js`.
 
 ## Reddito lordo standard — `js/conti/rls.js`, `vRls` in `js/views/conti-verifiche.js`
 - Dal corso "Gestione economica dell'azienda agraria", serata 1 (riassunto nel documento claude.ai di Marco del 02/11/2026). Versione del relatore, non la definizione UE.

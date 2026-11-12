@@ -17,6 +17,7 @@ import { CE, SP, CESPITI } from './schema.js';
 import { DATI } from './analisi.js';
 import { trovaElenco } from './elenco.js';
 import { venditaSbagliata, riferimenti, unisciBanca } from './sistema.js';
+import { segna } from './originali.js';
 
 const r2 = v => Math.round(v * 100) / 100;
 export function idFattura(chiave) { let h = 0x811c9dc5; for (let i = 0; i < chiave.length; i++) { h ^= chiave.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return 'f' + h.toString(36) + chiave.length.toString(36); }
@@ -35,7 +36,7 @@ export async function leggiDocumento(nome, bytes, out = []) {
         out.push(Object.assign({ tipo: 'excel', nome }, await leggiExcel(bytes, W))); return out;
       }
       const z = await unzip(bytes);
-      for (const [n, b] of z) if (b && !n.startsWith('__MACOSX') && /\.(xml|p7m|pdf|txt|iva)$/i.test(n)) await leggiDocumento(n.split('/').pop(), b, out);
+      for (const [n, b] of z) if (b && !n.startsWith('__MACOSX') && /\.(xml|p7m|pdf|txt|iva)$/i.test(n)) { const k0 = out.length; await leggiDocumento(n.split('/').pop(), b, out); await segna(out, k0, n.split('/').pop(), b); }
       return out;
     }
     if (testa.startsWith('%PDF')) {
@@ -124,7 +125,7 @@ export function preparaFatture(lette) {
       return {
         id: idFattura(f.chiave), chiave: f.chiave, data: f.data, tipo, controparte, piva, tipoDoc: f.tipoDoc, numero: f.numero,
         imponibile: s * f.imponibile, iva: s * f.iva, totale: s * (f.totale || 0), ...(f.ritenuta ? { ritenuta: s * f.ritenuta } : {}), pagamento: (f.pagamenti[0] || {}).modalita || '', scadenza: scad[scad.length - 1] || null,
-        ...(f.autofattura ? { autofattura: true } : {}), controllo: f.controllo, file: f.file, fonte: f.fonte, caricata: new Date().toISOString().slice(0, 10),
+        ...(f.autofattura ? { autofattura: true } : {}), ...(f.imp ? { imp: f.imp } : {}), controllo: f.controllo, file: f.file, fonte: f.fonte, caricata: new Date().toISOString().slice(0, 10),
         righe: f.righe.map(r => { const c = classificaConMemoria(r.descrizione, controparte, reg, tipo, mem); return { codice: r.codice, descrizione: r.descrizione, categoria: c.categoria, ...(c.auto ? { catAuto: c.auto } : {}), quantita: r.quantita != null ? s * r.quantita : null, um: r.um, prezzo: r.prezzo, sconto: r.sconto, aliquota: r.aliquota, importo: s * (r.importo || 0), ddt: r.ddt }; }),
       };
     }),
@@ -165,7 +166,11 @@ export async function salvaFatture(lette) {
         const man = new Map((old.righe || []).filter(x => x.catManuale).map(x => [x.codice + '|' + x.descrizione, x.categoria]));
         r.righe.forEach(x => { const c = man.get(x.codice + '|' + x.descrizione); if (c) { x.categoria = c; x.catManuale = true; } });
         corrette++; rows.push({ col: 'fatture', id: r.id, data: r });
-      } else doppie++;
+      } else {
+        doppie++;
+        // la stessa fattura ricaricata: si tiene l'impronta dell'originale se prima non c'era
+        if (r.imp && !old.imp && !rows.some(x => x.data.id === old.id || x.id === old.id)) rows.push({ col: 'fatture', id: old.id, data: Object.assign({}, old, { imp: r.imp }) });
+      }
       continue;
     }
     nuove++; rows.push({ col: 'fatture', id: r.id, data: r });
@@ -173,7 +178,7 @@ export async function salvaFatture(lette) {
   if (rows.length) await store.bulkPut(rows.map(x => { const { id, ...data } = x.data; return { col: x.col, id: x.id || id, data }; }));
   for (const id of togli) await store.remove('fatture', id);
   if (propria && !cfg().piva) await store.put('econfig', 'cfg', Object.assign({}, cfg(), { piva: propria }));
-  return { nuove, doppie, corrette, spostate };
+  return { nuove, doppie, corrette, spostate, ids: [...visti] };
 }
 /** Riapplica le regole (e la memoria delle categorie già date) a tutte le righe non corrette a mano.
  *  Le righe classificate dall'IA restano se nessuna regola le cambia. */
@@ -383,7 +388,7 @@ export async function salvaBilancino(res, anno) {
   await salvaAnno(y, b => {
     b.ce = b.ce || {}; b.fonteCe = b.fonteCe || {};
     for (const r of VOCI_BILANCINO) { if (res.perRiga[r] != null) { b.ce[r] = res.perRiga[r]; b.fonteCe[r] = 'bilancino'; } else if (b.fonteCe[r] === 'bilancino' || b.fonteCe[r] === 'excel') { delete b.ce[r]; delete b.fonteCe[r]; } }
-    b.bilancino = { file: res.nome, caricato: new Date().toISOString().slice(0, 10), ditta: res.ditta, dati: res.dati, controlli: res.controlli };
+    b.bilancino = { file: res.nome, ...(res.imp ? { imp: res.imp } : {}), caricato: new Date().toISOString().slice(0, 10), ditta: res.ditta, dati: res.dati, controlli: res.controlli };
     return b;
   });
 }
@@ -395,7 +400,7 @@ export async function riabbinaBilancino(y) {
 }
 export async function salvaIva(res, anno) {
   const y = anno || res.anno; if (!y) throw new Error(`Non ho trovato l'anno della dichiarazione ${res.nome}: scrivilo nella casella "Anno d'imposta" e premi di nuovo Salva.`);
-  await salvaAnno(y, b => { b.iva = { righi: res.valori, voci: res.voci, controlli: res.controlli, fonte: res.fonte, file: res.nome, caricato: new Date().toISOString().slice(0, 10), avvisi: res.avvisi }; return b; });
+  await salvaAnno(y, b => { b.iva = { righi: res.valori, voci: res.voci, controlli: res.controlli, fonte: res.fonte, file: res.nome, ...(res.imp ? { imp: res.imp } : {}), caricato: new Date().toISOString().slice(0, 10), avvisi: res.avvisi }; return b; });
 }
 
 /* ---------------- vecchio file Excel ---------------- */

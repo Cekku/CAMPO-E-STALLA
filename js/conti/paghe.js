@@ -338,15 +338,15 @@ export async function salvaCedolini(x) {
   for (const c of x.cedolini) {
     const dip = chiaveDip(c); const id = `c-${periodo(c.anno, c.mese)}-${dip}`;
     (presenti.has(id) ? sostituiti : nuovi).push(c.nome);
-    rows.push({ col: 'paghe', id, data: Object.assign({ tipo: 'cedolino', dip, file: x.nome, caricato: today() }, c) });
+    rows.push({ col: 'paghe', id, data: Object.assign({ tipo: 'cedolino', dip, file: x.nome, ...(x.imp ? { imp: x.imp } : {}), caricato: today() }, c) });
   }
-  if (x.totali) rows.push({ col: 'paghe', id: `t-${periodo(x.totali.anno, x.totali.mese)}`, data: Object.assign({ tipo: 'totali', file: x.nome }, x.totali) });
+  if (x.totali) rows.push({ col: 'paghe', id: `t-${periodo(x.totali.anno, x.totali.mese)}`, data: Object.assign({ tipo: 'totali', file: x.nome, ...(x.imp ? { imp: x.imp } : {}) }, x.totali) });
   if (rows.length) await store.bulkPut(rows);
   return { nuovi: nuovi.length, sostituiti: sostituiti.length };
 }
 export async function salvaBilancinoPaghe(x) {
   const { voci, ...b } = x.bil;
-  await store.put('paghe', `b-${periodo(b.anno, b.mese)}`, Object.assign({ tipo: 'bilancino', file: x.nome, caricato: today(), voci }, b));
+  await store.put('paghe', `b-${periodo(b.anno, b.mese)}`, Object.assign({ tipo: 'bilancino', file: x.nome, ...(x.imp ? { imp: x.imp } : {}), caricato: today(), voci }, b));
 }
 
 /* ---------------- movimenti bancari (CSV o Excel della banca) ---------------- */
@@ -459,7 +459,7 @@ function righeBonifici0(bon, file) {
   });
 }
 /** Campi del pagamento da salvare. */
-export const datiPagamento = r => ({ data: r.data, importo: r.importo, tipo: r.tipo, dip: CON_DIP.has(r.tipo) ? r.dip : '', comp: r.comp || '', modalita: r.modalita || 'bonifico', descrizione: r.descrizione, fonte: r.fonte, ...(r.causale ? { causale: r.causale } : {}), ...(r.beneficiario ? { beneficiario: r.beneficiario } : {}), ...(r.iban ? { iban: r.iban } : {}), ...(r.idBanca ? { idBanca: r.idBanca } : {}) });
+export const datiPagamento = r => ({ data: r.data, importo: r.importo, tipo: r.tipo, dip: CON_DIP.has(r.tipo) ? r.dip : '', comp: r.comp || '', modalita: r.modalita || 'bonifico', descrizione: r.descrizione, fonte: r.fonte, ...(r.causale ? { causale: r.causale } : {}), ...(r.beneficiario ? { beneficiario: r.beneficiario } : {}), ...(r.iban ? { iban: r.iban } : {}), ...(r.idBanca ? { idBanca: r.idBanca } : {}), ...(r.imp ? { imp: r.imp } : {}) });
 
 /** "È la stessa persona": unisce il dipendente (o il nome dei bonifici) `da` a quello `a`. Il nome unito diventa un nome alternativo. */
 export async function unisci(da, a, nomeDa) {
