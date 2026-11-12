@@ -45,7 +45,7 @@ export function vMancanti() {
     });
   }
   return `${bar}${altri}${kp}${esito}<section class="card"><div class="card-h">${chips}${bottoniExport([st === 'inpiu' ? 'elpiu' : 'elenco'], `Controllo fatture ${nomeTipo(tipo)} ${y}`)}</div>${corpo}</section>
-  <p class="muted small">Elenco: ${esc(el.file || '')}, caricato il ${fd(el.caricato)}, ${el.righe.length} fatture. Le fatture si abbinano per partita IVA e numero (spazi, barre e trattini non contano), poi per partita IVA, data e importo. <button class="linkbtn danger" data-act="c-elDel" data-anno="${y}" data-tipo="${tipo}">Togli questo elenco</button></p>`;
+  <p class="muted small">Elenco: ${esc(el.file || '')}, caricato il ${fd(el.caricato)}, ${el.righe.length} fatture. Si abbinano solo fatture dello stesso anno, per partita IVA e numero (spazi, barre e trattini non contano), poi per partita IVA, data e importo. <button class="linkbtn danger" data-act="c-elDel" data-anno="${y}" data-tipo="${tipo}">Togli questo elenco</button></p>`;
 }
 
 /* ---------------- reddito lordo standard ---------------- */

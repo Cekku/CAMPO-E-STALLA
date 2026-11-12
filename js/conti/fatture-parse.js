@@ -242,7 +242,7 @@ export async function leggiFatturaPdf(data) {
   const testo1 = pagine[0].map(testo).join('\n');
   if (!testo1.includes('Cedente/prestatore')) {
     let f;
-    if (testo1.includes('D E S C R I Z I O N E') || (testo1.includes('ARTICOLO') && testo1.includes('IMPORTO NETTO'))) f = leggiGamma(pagine);
+    if (testo1.includes('D E S C R I Z I O N E') || (testo1.includes('ARTICOLO') && testo1.includes('IMPORTO NETTO'))) { f = leggiGamma(pagine); autofattura(f, testoPagine(pagine), true); }
     else if (/(Fattura|Nota di credito)\s+n\./i.test(testo1) && testo1.includes('Totale Imponibile')) f = leggiLatte(pagine);
     else throw new Error('formato di fattura non riconosciuto');
     f.fonte = 'pdf'; return [f];
@@ -317,8 +317,31 @@ export async function leggiFatturaPdf(data) {
       }
     });
   }
+  autofattura(fatt, testoPagine(pagine), false);
   return [fatt];
 }
+
+/* ---------------- autofatture ---------------- */
+// Autofattura per acquisti da agricoltori esonerati (art. 34, c. 6 DPR 633/72): la emette l'azienda che compra, ma è un
+// acquisto. Nella stampa del gestionale l'azienda compare in alto come chi emette e l'agricoltore come "Spett.le": si scambiano,
+// così la chiave (P.IVA del venditore | numero | data) è la stessa della visualizzazione dell'Agenzia e non nasce un doppione.
+const testoPagine = pagine => pagine.map(p => p.map(testo).join('\n')).join('\n');
+const RE_AUTOF = /\bauto\s?fattur/i, RE_ESON = /esonerat|art\.?\s*34\b[^\n]{0,12}(c\.|comma)\s*6\b/i;
+/** Riconosce un'autofattura per acquisti da esonerati dal testo; con `emessaInAlto` scambia venditore e compratore.
+ *  Toglie dalla descrizione delle righe la frase dell'autofattura (resta il prodotto, per le categorie). */
+export function autofattura(f, testoTutto, emessaInAlto) {
+  const t = String(testoTutto || '') + '\n' + f.righe.map(r => r.descrizione).join('\n');
+  if (!RE_AUTOF.test(t) || !RE_ESON.test(t) || NOTE_CREDITO.has(f.tipoDoc)) return false;
+  f.autofattura = true;
+  if (emessaInAlto) {
+    [f.fornitore, f.cliente] = [f.cliente, f.fornitore]; [f.pivaFornitore, f.pivaCliente] = [f.pivaCliente, f.pivaFornitore];
+    f.emessaDaNoi = false;
+  }
+  for (const r of f.righe) r.descrizione = pulisciAutofattura(r.descrizione);
+  return true;
+}
+/** "FORNITURA DI FORAGGIO Autofattura emessa per acquisti da soggetto esonerato a norma dell'art. 34…" → "FORNITURA DI FORAGGIO". */
+export const pulisciAutofattura = d => String(d || '').replace(/\s*-?\s*\bauto\s?fattura\b[\s\S]*$/i, '').replace(/\s*\b(emessa\s+)?(per\s+acquisti\s+da\s+soggetto\s+esonerato\s+)?a\s+norma\s+dell'?\s*art\.?\s*34\b[\s\S]*$/i, '').trim() || String(d || '').trim();
 
 /* ---------------- XML FatturaPA ---------------- */
 function latin1(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 8192) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192)); return s; }

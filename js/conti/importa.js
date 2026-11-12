@@ -16,6 +16,7 @@ import { cfg, regole, pivaPropria, bilancio } from './dati.js';
 import { CE, SP, CESPITI } from './schema.js';
 import { DATI } from './analisi.js';
 import { trovaElenco } from './elenco.js';
+import { venditaSbagliata, riferimenti, unisciBanca } from './sistema.js';
 
 const r2 = v => Math.round(v * 100) / 100;
 export function idFattura(chiave) { let h = 0x811c9dc5; for (let i = 0; i < chiave.length; i++) { h ^= chiave.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return 'f' + h.toString(36) + chiave.length.toString(36); }
@@ -114,7 +115,7 @@ export function preparaFatture(lette) {
     const conta = {}; (em.length ? em.map(p => [p, 1]) : lette.flatMap(f => [[f.pivaFornitore, 1], [f.pivaCliente, 1.01]])).forEach(([p, w]) => { if (p) conta[p] = (conta[p] || 0) + w; });
     propria = Object.entries(conta).sort((a, b) => b[1] - a[1]).map(x => x[0])[0] || '';
   }
-  const reg = regole(); const mem = impara(S.fatture);
+  const reg = regole(); const mem = impara(S.fatture, reg);
   return {
     propria, records: lette.map(f => {
       const s = f.segno; const vendita = !!propria && f.pivaFornitore === propria;
@@ -123,7 +124,7 @@ export function preparaFatture(lette) {
       return {
         id: idFattura(f.chiave), chiave: f.chiave, data: f.data, tipo, controparte, piva, tipoDoc: f.tipoDoc, numero: f.numero,
         imponibile: s * f.imponibile, iva: s * f.iva, totale: s * (f.totale || 0), ...(f.ritenuta ? { ritenuta: s * f.ritenuta } : {}), pagamento: (f.pagamenti[0] || {}).modalita || '', scadenza: scad[scad.length - 1] || null,
-        controllo: f.controllo, file: f.file, fonte: f.fonte, caricata: new Date().toISOString().slice(0, 10),
+        ...(f.autofattura ? { autofattura: true } : {}), controllo: f.controllo, file: f.file, fonte: f.fonte, caricata: new Date().toISOString().slice(0, 10),
         righe: f.righe.map(r => { const c = classificaConMemoria(r.descrizione, controparte, reg, tipo, mem); return { codice: r.codice, descrizione: r.descrizione, categoria: c.categoria, ...(c.auto ? { catAuto: c.auto } : {}), quantita: r.quantita != null ? s * r.quantita : null, um: r.um, prezzo: r.prezzo, sconto: r.sconto, aliquota: r.aliquota, importo: s * (r.importo || 0), ddt: r.ddt }; }),
       };
     }),
@@ -142,13 +143,22 @@ export async function aggiornaControlli() {
   if (rows.length) await store.bulkPut(rows);
   return rows.length;
 }
-/** Salva le fatture: salta i doppioni, sostituisce quelle già presenti ma incomplete tenendo le categorie scelte a mano. */
+/** Salva le fatture: salta i doppioni, sostituisce quelle già presenti ma incomplete tenendo le categorie scelte a mano.
+ *  Un'autofattura letta come acquisto prende il posto della stessa fattura salvata per errore fra le vendite
+ *  (versioni fino alla 1.32.0): la vendita si toglie e i suoi pagamenti e collegamenti passano all'acquisto. */
 export async function salvaFatture(lette) {
   const { propria, records } = preparaFatture(lette);
   const presenti = new Map(S.fatture.map(f => [f.id, f]));
-  const rows = []; let nuove = 0, doppie = 0, corrette = 0; const visti = new Set();
+  const rows = []; let nuove = 0, doppie = 0, corrette = 0, spostate = 0; const visti = new Set(); const togli = [];
   for (const r of records) {
     if (visti.has(r.id)) { doppie++; continue; } visti.add(r.id);
+    const sbagliata = venditaSbagliata(r, propria);
+    if (sbagliata && !togli.includes(sbagliata.id)) {
+      togli.push(sbagliata.id); spostate++; rows.push(...riferimenti(sbagliata.id, r.id));
+      const dove = presenti.get(r.id) || r;
+      if ((sbagliata.pagamentiBanca || []).length) dove.pagamentiBanca = unisciBanca(dove.pagamentiBanca, sbagliata.pagamentiBanca);
+      if (presenti.get(r.id)) { const { id, ...data } = dove; rows.push({ col: 'fatture', id, data }); }
+    }
     const old = presenti.get(r.id);
     if (old) {
       if (incompleta(old) && String(r.controllo).startsWith('OK')) {
@@ -160,14 +170,15 @@ export async function salvaFatture(lette) {
     }
     nuove++; rows.push({ col: 'fatture', id: r.id, data: r });
   }
-  if (rows.length) await store.bulkPut(rows.map(x => { const { id, ...data } = x.data; return { col: 'fatture', id, data }; }));
+  if (rows.length) await store.bulkPut(rows.map(x => { const { id, ...data } = x.data; return { col: x.col, id: x.id || id, data }; }));
+  for (const id of togli) await store.remove('fatture', id);
   if (propria && !cfg().piva) await store.put('econfig', 'cfg', Object.assign({}, cfg(), { piva: propria }));
-  return { nuove, doppie, corrette };
+  return { nuove, doppie, corrette, spostate };
 }
 /** Riapplica le regole (e la memoria delle categorie già date) a tutte le righe non corrette a mano.
  *  Le righe classificate dall'IA restano se nessuna regola le cambia. */
 export async function riapplicaRegole() {
-  const reg = regole(); const mem = impara(S.fatture); const rows = []; let n = 0;
+  const reg = regole(); const mem = impara(S.fatture, reg); const rows = []; let n = 0;
   for (const f of S.fatture) {
     let cambiata = false;
     const righe = (f.righe || []).map(r => {
@@ -251,7 +262,7 @@ export async function classificaConIA(onProgresso = () => { }, motore = 'claude'
     const memoria = await riapplicaRegole();
     const lavoro = [];
     for (const tipo of ['Acquisto', 'Vendita']) {
-      const cats = categorieTipo(reg, tipo); const idx = indiceRicordi(ricordi(S.fatture, tipo));
+      const cats = categorieTipo(reg, tipo); const idx = indiceRicordi(ricordi(S.fatture, tipo, reg));
       const voci = new Map();
       for (const f of S.fatture) if (f.tipo === tipo) for (const r of f.righe || []) {
         if (r.catManuale) continue;
@@ -304,7 +315,7 @@ export async function provaPrecisione(onProgresso = () => { }, motore = 'locale'
     let giuste = 0, incerte = 0, provate = 0; const errori = [];
     const campioni = [];
     for (const tipo of ['Acquisto', 'Vendita']) {
-      const tutti = ricordi(S.fatture, tipo); const man = tutti.filter(e => e.manuale);
+      const tutti = ricordi(S.fatture, tipo, reg); const man = tutti.filter(e => e.manuale);
       const base = man.length >= 20 ? man : tutti;
       // campione sparso: un po' da ogni controparte, in ordine fisso (così due prove sono confrontabili)
       const per = new Map(); base.forEach(e => { if (!per.has(e.c)) per.set(e.c, []); per.get(e.c).push(e); });

@@ -24,10 +24,15 @@ export const REGOLE_PREDEFINITE = [
   ['PAILLET', '', 'Azoto e fecondazione', 'Acquisto'],
   ['SEME ANIMALE', '', 'Azoto e fecondazione', 'Acquisto'],
   ['FECONDAZ', '', 'Azoto e fecondazione', 'Acquisto'],
-  ['CAT', '', 'Animali domestici', 'Acquisto'],
+  // cani e gatti: parole intere tra virgolette ("CAT" da sola prendeva CATASTALE, CATRAME, CAT. 1, CATEGORIA…)
   ['GATT', '', 'Animali domestici', 'Acquisto'],
-  ['CANE', '', 'Animali domestici', 'Acquisto'],
-  ['DOG', '', 'Animali domestici', 'Acquisto'],
+  ['"CANE"', '', 'Animali domestici', 'Acquisto'],
+  ['"CANI"', '', 'Animali domestici', 'Acquisto'],
+  ['CUCCIOL', '', 'Animali domestici', 'Acquisto'],
+  ['CROCCHETT', '', 'Animali domestici', 'Acquisto'],
+  ['PET FOOD', '', 'Animali domestici', 'Acquisto'],
+  ['"DOG"', '', 'Animali domestici', 'Acquisto'],
+  ['SEME BOV', '', 'Azoto e fecondazione', 'Acquisto'],
   ['FARMAC', '', 'Farmaci e prodotti veterinari', 'Acquisto'],
   ['VACCIN', '', 'Farmaci e prodotti veterinari', 'Acquisto'],
   ['ANTIBIOT', '', 'Farmaci e prodotti veterinari', 'Acquisto'],
@@ -128,6 +133,19 @@ export const REGOLE_PREDEFINITE = [
   ['PEDOMETR', '', 'Attrezzature ed elettronica', 'Acquisto'],
   ['SENSOR', '', 'Attrezzature ed elettronica', 'Acquisto'],
   ['', 'TECNOZOO', 'Integratori e additivi', 'Acquisto'],
+  // smaltimento degli animali morti e acquisto di bovine per la mandria: dopo tutte le altre, così
+  // "MANGIME VACCHE", "INTEGRATORE BOVINI", "VACCINO" restano nelle loro categorie
+  ['CARCASS', '', 'Smaltimento carcasse', 'Acquisto'],
+  ['MAT. CAT. 1', '', 'Smaltimento carcasse', 'Acquisto'],
+  ['BOVIN', '', 'Acquisto bestiame', 'Acquisto'],
+  ['MANZ', '', 'Acquisto bestiame', 'Acquisto'],
+  ['VACCA', '', 'Acquisto bestiame', 'Acquisto'],
+  ['VACCHE', '', 'Acquisto bestiame', 'Acquisto'],
+  ['GIOVENC', '', 'Acquisto bestiame', 'Acquisto'],
+  ['VITELLA', '', 'Acquisto bestiame', 'Acquisto'],
+  ['VITELLE', '', 'Acquisto bestiame', 'Acquisto'],
+  ['TORELL', '', 'Acquisto bestiame', 'Acquisto'],
+  ['RISTALLO', '', 'Acquisto bestiame', 'Acquisto'],
   ['PREMIO', '', 'Premi e trattenute latte', 'Vendita'],
   ['PREMI', '', 'Premi e trattenute latte', 'Vendita'],
   ['TRATTENUT', '', 'Premi e trattenute latte', 'Vendita'],
@@ -174,6 +192,13 @@ export const CAT_LATTE = 'Latte';
 export const CAT_PREMI = 'Premi e trattenute latte';
 
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Parola chiave → espressione: si cerca all'inizio di una parola; tra virgolette ("CANE") solo come parola intera. */
+const RE_KW = new Map();
+function reParola(kw) {
+  let re = RE_KW.get(kw); if (re) return re;
+  const intera = /^"[^"]+"$/.test(kw); const k = intera ? kw.slice(1, -1).trim() : kw;
+  re = new RegExp('(?<![A-Z0-9])' + escRe(k) + (intera ? '(?![A-Z0-9])' : '')); RE_KW.set(kw, re); return re;
+}
 /** Categoria di una riga: vince la prima regola che corrisponde (come nel foglio Fatture-Categorie). */
 export function classifica(descrizione, controparte, regole, tipo = 'Acquisto') {
   const d = ' ' + String(descrizione || '').toUpperCase() + ' ';
@@ -183,7 +208,7 @@ export function classifica(descrizione, controparte, regole, tipo = 'Acquisto') 
     if (tp && tp.trim().toLowerCase() !== String(tipo || '').toLowerCase()) continue;
     const kw = String(kw0 || '').toUpperCase().trim(), forn = String(forn0 || '').toUpperCase().trim();
     if (forn && !fo.includes(forn)) continue;
-    if (kw && !new RegExp('(?<![A-Z0-9])' + escRe(kw)).test(d)) continue;
+    if (kw && !reParola(kw).test(d)) continue;
     if (!kw && !forn) continue;
     return cat;
   }
@@ -203,16 +228,18 @@ export function parole(s) {
 }
 /** Chiave per riconoscere le descrizioni quasi uguali ("OLIO 15W40 FUSTO 20L" e "OLIO 15W40 TANICA 5L" → "OLIO"). */
 export const chiaveSimile = s => [...new Set(parole(s))].sort().join(' ');
-/** Le righe da cui imparare: scelte a mano o dalle regole (non quelle decise in automatico, per non ripetere un errore a catena). */
-export const daImparare = r => r.categoria && r.categoria !== DA_CLASSIFICARE && (r.catManuale || !r.catAuto);
+/** Le righe da cui imparare: scelte a mano o dalle regole (non quelle decise in automatico, per non ripetere un errore a catena).
+ *  Con `regole` (più tipo e controparte della fattura) una riga data da una regola conta solo se le regole di oggi le danno
+ *  ancora la stessa categoria: così una regola corretta (es. "CAT" → animali domestici) non torna dalla memoria. */
+export const daImparare = (r, regole = null, tipo = '', controparte = '') => !!r.categoria && r.categoria !== DA_CLASSIFICARE && (!!r.catManuale || (!r.catAuto && (!regole || classifica(r.descrizione, controparte, regole, tipo) === r.categoria)));
 
 /** Memoria delle categorie già date: stessa descrizione o descrizione quasi uguale → stessa categoria;
  *  fornitore con quasi tutte le righe in una categoria. */
-export function impara(fatture) {
+export function impara(fatture, regole = null) {
   const desc = new Map(), simili = new Map(), forn = new Map();
   const conta = (map, k, cat, peso) => { const v = map.get(k) || new Map(); v.set(cat, (v.get(cat) || 0) + peso); map.set(k, v); };
   for (const f of fatture) for (const r of f.righe || []) {
-    if (!daImparare(r)) continue;
+    if (!daImparare(r, regole, f.tipo, f.controparte)) continue;
     const peso = r.catManuale ? 3 : 1;
     conta(desc, f.tipo + '|' + normDesc(r.descrizione), r.categoria, peso);
     const ks = chiaveSimile(r.descrizione); if (ks) conta(simili, f.tipo + '|' + ks, r.categoria, peso);
@@ -237,10 +264,10 @@ export function classificaConMemoria(descrizione, controparte, regole, tipo, mem
 }
 
 /** Esempi già classificati di un tipo (fattura di acquisto o vendita), uno per coppia controparte + descrizione. */
-export function ricordi(fatture, tipo) {
+export function ricordi(fatture, tipo, regole = null) {
   const out = new Map();
   for (const f of fatture) if (f.tipo === tipo) for (const r of f.righe || []) {
-    if (!daImparare(r)) continue;
+    if (!daImparare(r, regole, f.tipo, f.controparte)) continue;
     const k = f.controparte + '\u0001' + r.descrizione; const x = out.get(k);
     if (!x || (r.catManuale && !x.manuale)) out.set(k, { k, c: f.controparte || '', d: r.descrizione || '', cat: r.categoria, manuale: !!r.catManuale, w: parole(r.descrizione) });
   }

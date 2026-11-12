@@ -90,13 +90,17 @@ const numCifre = s => soloCifre(s).replace(/^0+/, '');
 /**
  * Confronta l'elenco con le fatture caricate dello stesso tipo.
  * Ritorna { righe: [...esiti dell'elenco], inPiu: [...fatture caricate dell'anno che non sono nell'elenco], conta }.
+ * Si abbinano solo fatture dello stesso anno della riga dell'elenco (di solito l'anno dell'elenco): i numeri che
+ * ricominciano ogni anno (fatture mensili del latte, sezionali come "26/06") non devono prendere la fattura di un altro anno.
  * Abbinamento, in ordine: partita IVA + numero; partita IVA + sole cifre del numero; partita IVA + data + importo;
  * numero + data + importo (partita IVA diversa o mancante).
  */
 export function confronta(el, fattureCaricate) {
-  const pool = fattureCaricate.filter(f => f.tipo === el.tipo).map(f => ({ f, cp: chiaveCp(f.piva), n: numNorm(f.numero), c: numCifre(f.numero), tot: Math.abs(N(f.totale)), usata: false }));
-  const prova = (e, test) => pool.find(p => !p.usata && test(p));
+  const annoDi = d => +String(d || '').slice(0, 4) || null;
+  const pool = fattureCaricate.filter(f => f.tipo === el.tipo).map(f => ({ f, anno: annoDi(f.data), cp: chiaveCp(f.piva), n: numNorm(f.numero), c: numCifre(f.numero), tot: Math.abs(N(f.totale)), usata: false }));
   const out = el.righe.map(e => {
+    const anno = annoDi(e.data) || el.anno;
+    const prova = (e, test) => pool.find(p => !p.usata && p.anno === anno && test(p));
     const cp = chiaveCp(e.piva, e.cf), n = numNorm(e.numero), c = numCifre(e.numero), tot = Math.abs(N(e.totale));
     const stessoImporto = p => p.tot > 0 && Math.abs(p.tot - tot) <= 0.02;
     let p = prova(e, p => cp && p.cp === cp && n && p.n === n);
@@ -113,7 +117,7 @@ export function confronta(el, fattureCaricate) {
     if (cp && p.cp !== cp) r.note.push('P.IVA caricata ' + (p.f.piva || '—'));
     return r;
   });
-  const inPiu = pool.filter(p => !p.usata && +String(p.f.data || '').slice(0, 4) === el.anno).map(p => p.f);
+  const inPiu = pool.filter(p => !p.usata && p.anno === el.anno).map(p => p.f);
   const somma = a => r2(a.reduce((t, x) => t + Math.abs(N(x.totale)), 0));
   const man = out.filter(r => r.stato === 'manca'), div = out.filter(r => r.stato === 'diversa');
   return { righe: out, inPiu, conta: { tot: out.length, ok: out.filter(r => r.stato === 'ok').length, manca: man.length, mancaEuro: somma(man), diversa: div.length, inPiu: inPiu.length, inPiuEuro: somma(inPiu) } };

@@ -15,8 +15,9 @@ import { vPersonale, vDipendenti, vCedolini, vPagamenti, vVerifica, vPrestiti, p
 import { anomalie as anomaliePaghe } from '../conti/paghe.js';
 import { vMancanti, vRls, mancantiAnno } from './conti-verifiche.js';
 import { vCentri } from './conti-centri.js';
+import { vSistema, sistemaAct, sistemaChange, daSistemare } from './conti-sistema.js';
 
-export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', mancanti: 'Fatture mancanti', rls: 'Reddito lordo standard', centri: 'Centri di costo', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Cespiti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', prestiti: 'Anticipi e prestiti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie' };
+export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', mancanti: 'Fatture mancanti', rls: 'Reddito lordo standard', centri: 'Centri di costo', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Cespiti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', prestiti: 'Anticipi e prestiti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie', sistema: 'Sistemazione dei dati' };
 export const GRUPPI = [['fatture', 'mancanti', 'fornitori', 'clienti', 'prodotti', 'categorie', 'mensile', 'latte'], ['ce', 'sp', 'indici', 'centri', 'rls', 'analisi', 'iva', 'cespiti', 'controlli'], ['personale', 'dipendenti', 'cedolini', 'pagamenti', 'prestiti', 'verifica']];
 const TAB_NOMI = { rls: 'RLS e spese varie', personale: 'Riepilogo', cedolini: 'Cedolini', prestiti: 'Anticipi e prestiti', verifica: 'Verifica' };
 
@@ -34,7 +35,7 @@ export function render() {
   if (!PULIZIA.controlli && S.fatture.length && contiVisibili()) { PULIZIA.controlli = true; import('../conti/importa.js').then(m => m.aggiornaControlli()).then(n => { if (n) toast(n === 1 ? '1 fattura con ritenuta d\'acconto ora risulta corretta' : `${n} fatture con ritenuta d'acconto ora risultano corrette`); }).catch(e => console.warn(e)); }
   const sub = SUBS[UI.sub.conti] ? UI.sub.conti : 'panoramica';
   if (!contiVisibili()) return { title: 'Conti', html: `<section class="card lock">${ic('shield-check', 'huge')}<h2>Area riservata al titolare</h2><p class="muted">Fatture, bilancio e margini sono visibili solo a chi ha creato l'azienda. Chiedi al titolare se ti servono questi dati.</p></section>` };
-  const V = { panoramica, fatture: vFatture, mancanti: vMancanti, rls: vRls, centri: vCentri, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, controlli: vControlli, personale: vPersonale, dipendenti: vDipendenti, cedolini: vCedolini, pagamenti: vPagamenti, prestiti: vPrestiti, verifica: vVerifica, regole: vRegole };
+  const V = { panoramica, fatture: vFatture, mancanti: vMancanti, rls: vRls, centri: vCentri, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, controlli: vControlli, personale: vPersonale, dipendenti: vDipendenti, cedolini: vCedolini, pagamenti: vPagamenti, prestiti: vPrestiti, verifica: vVerifica, regole: vRegole, sistema: vSistema };
   const gruppo = GRUPPI.find(g => g.includes(sub)) || null;
   const t = gruppo ? tabs('conti', gruppo.map(k => [k, TAB_NOMI[k] || SUBS[k]]), sub) : '';
   const azioni = sub === 'importa' ? '' : `<div class="btns"><button class="btn sm" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">${ic('file-up')}Carica documenti</button></div>`;
@@ -62,6 +63,7 @@ function panoramica() {
   const topF = [...pf.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   const daVer = fs.filter(f => !ok(f)).length, daCl = righe().filter(r => r.categoria === DA_CLASSIFICARE).length;
   const todo = [];
+  { const n = daSistemare(); if (n) todo.push(['arrow-right-left', n === 1 ? '1 correzione da approvare nelle fatture salvate' : `${n} correzioni da approvare nelle fatture salvate`, 'Righe finite per errore in "Animali domestici" e autofatture fra le vendite: guarda prima e dopo, poi conferma', 'sistema']); }
   if (daVer) todo.push(['triangle-alert', daVer === 1 ? '1 fattura da verificare' : `${daVer} fatture da verificare`, 'La somma delle righe non coincide con l\'imponibile', 'fatture', 'cf_stato', 'verifica']);
   if (daCl) todo.push(['tags', daCl === 1 ? '1 riga senza categoria' : `${daCl} righe senza categoria`, 'Assegna la categoria o aggiungi una regola', 'fatture', 'cf_stato', 'daclass']);
   for (const m of mancantiAnno(y)) if (m.manca) todo.push(['scan-search', m.manca === 1 ? `1 fattura ${m.tipo === 'Vendita' ? 'emessa' : 'ricevuta'} non caricata` : `${m.manca} fatture ${m.tipo === 'Vendita' ? 'emesse' : 'ricevute'} non caricate`, `Sono nell'elenco del ${y} ma non tra le fatture caricate`, 'mancanti', 'cm_tipo', m.tipo]);
@@ -132,7 +134,7 @@ async function salvaImport() {
   const fat = r.filter(x => x.tipo === 'fattura').map(x => x.f);
   const elx = r.filter(x => x.tipo === 'elenco');
   if (elx.length) { const EL = await import('../conti/elenco.js'); for (const x of elx) { x.anno = +x.anno; await EL.salvaElenco(x); msg.push(`elenco fatture ${x.tipoF === 'Vendita' ? 'emesse' : 'ricevute'} ${x.anno}`); } }
-  if (fat.length) { const o = await M.salvaFatture(fat); msg.push(`${o.nuove} fatture nuove${o.corrette ? ', ' + o.corrette + ' corrette' : ''}${o.doppie ? ', ' + o.doppie + ' già presenti' : ''}`); }
+  if (fat.length) { const o = await M.salvaFatture(fat); msg.push(`${o.nuove} fatture nuove${o.corrette ? ', ' + o.corrette + ' corrette' : ''}${o.doppie ? ', ' + o.doppie + ' già presenti' : ''}${o.spostate ? ', ' + (o.spostate === 1 ? "1 autofattura spostata dalle vendite agli acquisti" : o.spostate + ' autofatture spostate dalle vendite agli acquisti') : ''}`); }
   for (const x of r.filter(x => x.tipo === 'bilancino')) { await M.salvaBilancino(x, +x.anno || null); msg.push('bilancino ' + x.anno); }
   for (const x of r.filter(x => x.tipo === 'iva')) { await M.salvaIva(x, +x.anno || null); msg.push(`dichiarazione IVA anno d'imposta ${x.anno}`); }
   if (r.some(x => x.tipo === 'cedolini' || x.tipo === 'bilpaghe')) {
@@ -176,7 +178,7 @@ function vRegole() {
   const nc = new Map(); righe().forEach(r => nc.set(r.categoria, (nc.get(r.categoria) || 0) + 1));
   return `<section class="card"><div class="card-h"><h2>${ic('building-2')}Partita IVA dell'azienda</h2></div><div class="pad-x" style="padding-bottom:16px"><p class="muted small">Serve a distinguere le fatture di vendita (emesse dall'azienda) da quelle di acquisto.</p><div class="toolbar"><input class="inp" id="c_piva" inputmode="numeric" value="${esc(piva)}" placeholder="11 cifre" style="max-width:200px"><button class="btn sm" data-act="c-piva">${ic('check')}Salva e ricalcola</button></div></div></section>
   <section class="card"><div class="card-h"><h2>${ic('list-checks')}Regole delle categorie</h2><span class="count">${reg.length}</span></div>
-  <p class="muted small pad-x">Le regole si applicano dall'alto verso il basso: vince la prima che corrisponde. La parola chiave si cerca all'inizio delle parole della descrizione; il nome della controparte, se indicato, deve comparire nel fornitore o cliente. Tipo vuoto = vale per acquisti e vendite.</p>
+  <p class="muted small pad-x">Le regole si applicano dall'alto verso il basso: vince la prima che corrisponde. La parola chiave si cerca all'inizio delle parole della descrizione (tra virgolette, per esempio "CANE", solo come parola intera); il nome della controparte, se indicato, deve comparire nel fornitore o cliente. Tipo vuoto = vale per acquisti e vendite.</p>
   <div class="toolbar pad-x"><div class="search">${ic('search')}<input class="inp" id="rgq" data-filter="rg_q" placeholder="Cerca tra le regole" value="${esc(UI.f.rg_q || '')}" autocomplete="off"></div></div>
   <form id="regForm" class="tablewrap etab"><table><thead><tr><th class="t">#</th><th class="t">Parola chiave</th><th class="t">Fornitore o cliente</th><th class="t">Categoria</th><th class="t">Tipo</th><th class="t"></th></tr></thead><tbody>${reg.map((r, i) => `<tr data-i="${i}"${q && !r.join(' ').toLowerCase().includes(q) ? ' hidden' : ''}><td class="t">${i + 1}</td><td class="t"><input class="cell-in wide" name="kw" value="${esc(r[0])}"></td><td class="t"><input class="cell-in wide" name="fo" value="${esc(r[1])}"></td><td class="t"><input class="cell-in wide" name="cat" list="dlcat-${r[3] || 'Acquisto'}" value="${esc(r[2])}"></td><td class="t"><select class="cell-in" name="tp"><option value=""${!r[3] ? ' selected' : ''}>Entrambi</option><option${r[3] === 'Acquisto' ? ' selected' : ''}>Acquisto</option><option${r[3] === 'Vendita' ? ' selected' : ''}>Vendita</option></select></td><td class="t" style="white-space:nowrap"><button type="button" class="iconbtn" data-act="c-regMove" data-i="${i}" data-d="-1" aria-label="Su">${ic('chevron-left', 'rot90')}</button><button type="button" class="iconbtn" data-act="c-regMove" data-i="${i}" data-d="1" aria-label="Giù">${ic('chevron-right', 'rot90')}</button><button type="button" class="iconbtn" data-act="c-regDel" data-i="${i}" aria-label="Elimina">${ic('trash-2')}</button></td></tr>`).join('')}</tbody></table></form>
   <div class="factions pad-x" style="padding-bottom:16px"><button class="btn sm ghost" data-act="c-regAdd">${ic('plus')}Aggiungi regola</button><button class="btn sm ghost" data-act="c-regReset">${ic('rotate-ccw')}Ripristina le predefinite</button><span class="sp"></span><button class="btn sm" data-act="c-regSave">${ic('check')}Salva</button><button class="btn sm primary" data-act="c-regApply">${ic('refresh-cw')}Salva e riapplica a tutte le righe</button></div></section>
@@ -262,6 +264,7 @@ async function catTutte(desc, cat) {
 export async function onAct(a, b, d) {
   if (a === 'c-pMovTutti' && d.k != null) { const x = IMP.ris[+d.k]; if (x) x.tutti = !x.tutti; return rerender(); }
   if (/^c-p[A-Z]/.test(a)) return personaleAct(a, b, d, rerender);
+  if (/^c-sd[A-Z]/.test(a)) return sistemaAct(a, b, d, rerender);
   switch (a) {
     case 'tsort': ordina(d.id, d.k); return rerender();
     case 'texp': try { await esporta(d.ids.split(','), d.nome, d.fmt); } catch (e) { toast(e.message, 'err'); } return;
@@ -326,6 +329,7 @@ export async function onChange(t) {
   if (a === 'c-rlsCat') { const m = Object.assign({}, cfg().rlsCat || {}); m[t.dataset.k] = t.value; await salvaCfg({ rlsCat: m }); return; }
   if ((a === 'c-pMovSel' || a === 'c-pMovSet') && t.dataset.k != null) { const x = IMP.ris[+t.dataset.k]; if (x && x.righe) modificaRiga(x.righe, t); return rerender(); }
   if (/^c-p[A-Z]/.test(a || '')) return personaleChange(t, rerender);
+  if (/^c-sd[A-Z]/.test(a || '')) return sistemaChange(t, rerender);
   if (a === 'c-cat') return salvaCategoria(t.dataset.fid, +t.dataset.i, t.value.trim(), t);
   if (a === 'c-catDesc') { const v = t.value.trim(); if (v) return catDesc(t.dataset.tipo, t.dataset.cp, t.dataset.desc, v); return; }
   if (a === 'c-impAnno') { const x = IMP.ris[+t.dataset.k]; if (x) x.anno = +t.value || null; return; }

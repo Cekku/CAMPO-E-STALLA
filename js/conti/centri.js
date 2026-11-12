@@ -26,7 +26,7 @@ export const NOME_SCELTA = Object.fromEntries(SCELTE);
 const R_ACQ = [
   ['segue', /spese accessorie|^differenze non dettagliate/i],
   ['finanza', /banc|commission|interess|finanziam|mutu|fideiuss|oneri finanz/i],
-  ['inv', /materiali edili|calcestruzz|investiment|cespit|costruzion|macchine nuove|acquisto (di )?(mezzi|macchin|trattor|attrezz)/i],
+  ['inv', /materiali edili|calcestruzz|investiment|cespit|costruzion|acquisto bestiame|macchine nuove|acquisto (di )?(mezzi|macchin|trattor|attrezz)/i],
   ['stalla', /mangim|foragg|integrat|additiv|(?<!fito)farmac|veterin|medicin|fecondaz|azoto|seme anim|igiene|mungit|latte|bestiame|acquisto (di )?(capi|animali|bovin|manz|vacc)|controll[io] funzional|selezione|genetic|lettier|segatur|paglia|attrezzature ed elettronica|collar|podolog|pareggio|smaltimento (carcass|animal)|carcass/i],
   ['campagna', /sement|piantin|concim|ammendant|fertiliz|fitofarm|diserb|antiparassit|contoterz|lavorazion|terzist|affitt.*terren|fitti? (di )?terren|affitti passivi|irrigaz|consorzio di bonifica|bonifica|teli|film|spago|rete per|essicca|stoccaggio cereal/i],
   ['generali', /commercialist|consulen|paghe|elaborazione|telefon|internet|postal|cancelleri|assicuraz|tass|impost|\bimu\b|bollo|associativ|associazion|sindac|abbonament|software|vestiario|dpi|animali domestici|pulizia uffic|spese generali|formazione|corsi|certificaz|pubblicit|rappresentanz/i],

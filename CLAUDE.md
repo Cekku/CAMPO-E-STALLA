@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.32.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.32.1** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -87,6 +87,16 @@ Con il cloud la riservatezza è garantita dalle regole RLS in `supabase/schema.s
 - `importa.js`: "Carica documenti" riconosce da solo il tipo di file (fatture, IVA, bilancini, cedolini, bilancini paghe, contabili di bonifico, estratti conto).
 - `tabelle.js`: tabelle ordinabili con esportazione **Excel / CSV / stampa-PDF**; `xlsx.js`, `zip.js` scritti a mano.
 - Fatture mancanti (`elenco.js`, vista `views/conti-verifiche.js`) e reddito lordo standard (`rls.js`): vedi `.claude/rules/conti-controllo-rls.md`.
+
+### Correzioni della 1.32.1 (12/11/2026) e sistemazione dei dati — `conti/sistema.js`, `views/conti-sistema.js`
+
+- Errori trovati con un controllo in sola lettura dei dati veri (i numeri restano fuori dal repository).
+- **Regole**: la vecchia `CAT` (inizio di parola) prendeva CATASTALE, CATRAME, CAT. 1, CATEGORIA; tolte anche `CANE`/`DOG` come prefisso. Una parola chiave tra virgolette (`"CANE"`) vale solo come parola intera (`reParola` in `regole.js`, spiegato nella pagina Regole). Categorie nuove in fondo alle regole di acquisto (dopo tutte le altre, così "MANGIME VACCHE", "VACCINO" restano dove sono): **Acquisto bestiame** (BOVIN, MANZ, VACCA, VACCHE, GIOVENC, VITELLA/E, TORELL, RISTALLO) e **Smaltimento carcasse** (CARCASS, MAT. CAT. 1). Acquisto bestiame = investimento: `voce()` in `rls.js` dà `inv` (fuori dalle spese varie) e `centroPredefinito` dà `inv` (fuori dai costi della stalla dell'anno); si cambia in `rlsCat`/`cdcCat`. Smaltimento carcasse → stalla e spese varie.
+- **Memoria**: `daImparare(r, regole, tipo, controparte)`, `impara(fatture, regole)` e `ricordi(fatture, tipo, regole)`: una riga data da una regola (senza `catAuto`) si impara solo se le regole di oggi le danno ancora la stessa categoria. Così una regola corretta non torna dalla memoria o dagli esempi dell'IA.
+- **Fatture mancanti**: `confronta` abbina solo fatture dello stesso anno della riga dell'elenco (senza data: `el.anno`), in tutti i tentativi; prima i numeri che si ripetono ogni anno (latte mensile, sezionali) prendevano la fattura di un altro anno.
+- **Autofatture** (acquisti da esonerati, art. 34 c. 6): la stampa del gestionale (`leggiGamma`) mette l'azienda in alto come chi emette e l'agricoltore come "Spett.le", quindi diventavano vendite; la visualizzazione dell'Agenzia aveva già il cedente giusto. `autofattura(f, testo, emessaInAlto)` in `fatture-parse.js` riconosce "autofattura" + "esonerato"/"art. 34 c. 6", scambia venditore e compratore (solo per la stampa del gestionale), toglie la frase dalla descrizione (`pulisciAutofattura`) e segna `autofattura: true`. La chiave diventa `P.IVA venditore|numero|data`, uguale alla versione dell'Agenzia: niente doppione. In `salvaFatture` una vendita sbagliata con stesso numero, data e P.IVA (`venditaSbagliata`) si toglie e i suoi pagamenti della banca e i collegamenti passano all'acquisto (messaggio "autofattura spostata").
+- **Sistemazione dei dati salvati** (pagina Conti → `sistema`, fuori dai `GRUPPI`, aperta da "Da sistemare" in Panoramica quando ci sono proposte): `proposte()` elenca le righe di acquisto in "Animali domestici" non scelte né confermate a mano a cui le regole di oggi danno un'altra categoria (sopra 5.000 € e non bestiame → "Da classificare" con una nota, può essere un investimento) e le autofatture fra le vendite (`togli` se c'è la gemella fra gli acquisti, altrimenti `sposta` con `comeAcquisto`). Tabelle esportabili, spunte e categoria "Dopo" modificabili (la scelta a mano diventa `catManuale`), `applica` solo dopo il pulsante con conferma in due tocchi; `riferimenti` aggiorna `pagamenti.fatt` e i collegamenti `ar-` dell'archivio. Niente si applica da solo.
+- Provato in locale con fatture ed elenchi finti (poi cancellati), computer e telefono 375 px. In sola lettura sui dati veri il nuovo `confronta` dà i numeri attesi del controllo.
 
 ### Centri di costo (dalla 1.30.0) — `conti/centri.js`, `views/conti-centri.js`
 

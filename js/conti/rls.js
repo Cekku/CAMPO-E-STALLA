@@ -19,7 +19,8 @@ export function voce(tipo, categoria) {
   if (tipo === 'Vendita') return /contribut|\bpac\b|psr|rimbors|indennizz|risarc|plusvalen|cession|vendita di (mezzi|macchin|attrezz)/i.test(c) ? 'no' : 'plv';
   if (c === DA_CLASSIFICARE) return 'sv';
   if (/affitt|\bfitti?\b/i.test(c)) return 'aff';
-  if (/materiali edili|calcestruzz|investiment|cespit|costruzion/i.test(c)) return 'inv';
+  // l'acquisto di bovine per la mandria (manze, vacche da allevamento) è capitale, come un trattore: non è una spesa dell'anno
+  if (/materiali edili|calcestruzz|investiment|cespit|costruzion|bestiame/i.test(c)) return 'inv';
   return 'sv';
 }
 
