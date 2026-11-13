@@ -229,7 +229,7 @@ function leggiRiepiloghi(righe) {
     }
     if ('imponibile' in valori) {
       const nat = /\bN\d(\.\d)?\b/.exec(t);
-      out.push({ aliquota: valori.aliquota || 0, imponibile: valori.imponibile, imposta: valori.imposta || 0, natura: nat ? nat[0] : '', spese: valori.spese || 0 });
+      out.push({ aliquota: valori.aliquota || 0, imponibile: valori.imponibile, imposta: valori.imposta || 0, natura: nat ? nat[0] : '', spese: valori.spese || 0, arr: valori.arr || 0 });
     }
   }
   return out;
@@ -268,10 +268,16 @@ export async function leggiFatturaPdf(data) {
   for (const righe of pagine) {
     const iTab = idx(righe, r => testo(r).includes('Cod.') && testo(r).includes('Quantità'));
     if (iTab === null) continue;
-    const h = righe[iTab]; const xs = {};
-    const prezzi = h.filter(w => w.text === 'Prezzo');
+    // intestazione su due righe in alcuni programmi: "Prezzo / unitario", "Sconto o / magg.", "% IVA" staccati
+    const sotto = (righe[iTab + 1] || []).every(w => /^(unitario|sconto|o|magg\.?|totale|prezzo)$/i.test(w.text)) ? righe[iTab + 1] : [];
+    const h = [...righe[iTab], ...sotto]; const xs = {};
+    const prezzi = h.filter(w => w.text === 'Prezzo').sort((a, b) => a.x0 - b.x0);
+    if (prezzi.length === 1) { const u = h.find(w => w.text === 'unitario'); if (u && u.x0 < prezzi[0].x0) prezzi.unshift(u); }
     for (const w of h) if (['Cod.', 'Quantità', 'UM', 'Sconto', '%IVA'].includes(w.text)) xs[w.text] = w.x0;
-    if (prezzi.length < 2 || Object.keys(xs).length < 5) continue;
+    if (xs['%IVA'] == null) { const pc = righe[iTab].find((w, k, a) => w.text === '%' && a[k + 1] && a[k + 1].text === 'IVA'); if (pc) xs['%IVA'] = pc.x0; }
+    // "Sconto o magg." a volte va su due righe e "Sconto" non si legge (resta "magg." sotto): senza, la tabella si scartava tutta
+    if (xs.Sconto == null && xs.UM != null && xs['%IVA'] != null) { const w2 = [...h, ...(righe[iTab + 1] || [])].find(w => /^(sconto|magg\.?)$/i.test(w.text) && w.x0 > xs.UM && w.x0 < xs['%IVA']); xs.Sconto = w2 ? w2.x0 : (xs.UM + xs['%IVA']) / 2; }
+    if (prezzi.length < 2 || ['Cod.', 'Quantità', 'UM', 'Sconto', '%IVA'].some(k => xs[k] == null)) continue;
     const xCodFine = xs['Cod.'] + 58, xQta = xs['Quantità'], xPu = prezzi[0].x0, xUm = xs.UM, xSc = xs.Sconto, xIva = xs['%IVA'], xTot = prezzi[1].x0;
     for (const r of righe.slice(iTab + 1)) {
       const t = testo(r);
@@ -307,7 +313,7 @@ export async function leggiFatturaPdf(data) {
     righe.forEach((r, i) => {
       const t = testo(r);
       if (t.includes('RIEPILOGHI IVA')) fatt.riepiloghi.push(...leggiRiepiloghi(righe.slice(i + 1)));
-      if (t.includes('Totale documento')) for (const rr of righe.slice(i + 1, i + 4)) { const nums = rr.filter(w => NUM.test(w.text)).map(w => w.text); if (nums.length) { fatt.totale = numIt(nums[nums.length - 1]); break; } }
+      if (t.includes('Totale documento')) totaliDocumento(fatt, r, [...righe.slice(i + 1, i + 4), ...(pagine[pagine.indexOf(righe) + 1] || []).slice(0, 6)]);
       if (t.includes('Modalità pagamento')) for (const rr of righe.slice(i + 1, i + 8)) {
         const t2 = testo(rr); if (t2.startsWith('Copia della fattura') || t2.includes('Allegati')) break;
         if (/^(MP\d\d)\b/.test(t2)) {
@@ -321,6 +327,33 @@ export async function leggiFatturaPdf(data) {
   return [fatt];
 }
 
+/** Riga dei totali della visualizzazione dell'Agenzia: "Importo bollo | (Bollo virtuale) | Sconto/Maggiorazione | Arr. | Totale documento".
+ *  Ogni numero va alla colonna più a destra che comincia prima della sua fine (i numeri sono allineati a destra sotto la loro intestazione).
+ *  I valori possono stare sulla pagina dopo (fatture lunghe): le righe "Copia della fattura…" e "Pagina N di M" non contano. */
+function totaliDocumento(fatt, h, dopo) {
+  const col = []; let k = 0;
+  for (const w of h) {
+    if (w.text === 'Importo' && !col.length) col.push(['bollo', w.x0]);
+    else if (w.text === 'Bollo') col.push(['virtuale', w.x0]);
+    else if (/^Sconto/.test(w.text)) col.push(['sconto', w.x0]);
+    else if (w.text === 'Arr.') col.push(['arr', w.x0]);
+    else if (w.text === 'Totale') col.push(['totale', w.x0]);
+  }
+  if (!col.some(c => c[0] === 'totale')) return;
+  const xTot = col.find(c => c[0] === 'totale')[1];
+  for (const rr of dopo) {
+    const t = testo(rr); if (/^(Copia della fattura|Pagina\s+\d)/.test(t.trim())) continue;
+    const nums = rr.filter(w => NUM.test(w.text)); if (!nums.length) continue;
+    if (nums.length !== rr.length) { if (++k > 3) break; continue; } // una riga con parole non è quella dei totali
+    if (!nums.some(w => w.x1 >= xTot)) continue;
+    for (const w of nums) {
+      const c = col.filter(c => c[1] <= w.x1 - 2).pop(); if (!c) continue;
+      const v = numIt(w.text);
+      if (c[0] === 'totale') fatt.totale = v; else if (c[0] === 'sconto') fatt.scontoDoc = v; else if (c[0] === 'arr') fatt.arrDoc = v; else fatt.bolloDoc = (fatt.bolloDoc || 0) + v;
+    }
+    return;
+  }
+}
 /* ---------------- autofatture ---------------- */
 // Autofattura per acquisti da agricoltori esonerati (art. 34, c. 6 DPR 633/72): la emette l'azienda che compra, ma è un
 // acquisto. Nella stampa del gestionale l'azienda compare in alto come chi emette e l'agricoltore come "Spett.le": si scambiano,
@@ -411,7 +444,9 @@ export function leggiFatturaXml(bytes, p7m = false) {
     const riep = tutti(body, 'DatiRiepilogo').map(r => ({ aliquota: F(T(r, 'AliquotaIVA')) || 0, imponibile: F(T(r, 'ImponibileImporto')) || 0, imposta: F(T(r, 'Imposta')) || 0, natura: T(r, 'Natura') }));
     const pag = tutti(body, 'DettaglioPagamento').map(p => ({ modalita: T(p, 'ModalitaPagamento'), scadenza: D(T(p, 'DataScadenzaPagamento')), importo: F(T(p, 'ImportoPagamento')) }));
     const rit = r2(figli(gen, 'DatiRitenuta').reduce((t, d) => t + (F(T(d, 'ImportoRitenuta')) || 0), 0));
-    out.push({ fornitore, pivaFornitore: pivaF, cliente, pivaCliente: pivaC, tipoDoc: T(gen, 'TipoDocumento'), numero: T(gen, 'Numero'), data: D(T(gen, 'Data')), righe, riepiloghi: riep, pagamenti: pag, totale: F(T(gen, 'ImportoTotaleDocumento')), ritenuta: rit || 0, avvisi: [], fonte: 'xml' });
+    // sconto o maggiorazione sul totale del documento (SC = meno, MG = più) e arrotondamento
+    const scDoc = r2(figli(gen, 'ScontoMaggiorazione').reduce((t, sm) => t + (F(T(sm, 'Importo')) || 0) * (T(sm, 'Tipo') === 'MG' ? 1 : -1), 0));
+    out.push({ fornitore, pivaFornitore: pivaF, cliente, pivaCliente: pivaC, tipoDoc: T(gen, 'TipoDocumento'), numero: T(gen, 'Numero'), data: D(T(gen, 'Data')), righe, riepiloghi: riep, pagamenti: pag, totale: F(T(gen, 'ImportoTotaleDocumento')), ritenuta: rit || 0, ...(scDoc ? { scontoDoc: scDoc } : {}), ...(F(T(gen, 'Arrotondamento')) ? { arrDoc: F(T(gen, 'Arrotondamento')) } : {}), avvisi: [], fonte: 'xml' });
   }
   return out;
 }
@@ -427,24 +462,47 @@ export function ritenutaDa(diff, imponibile, ritenutaLetta = 0) {
   return 0;
 }
 /** Esito del controllo "totale = imponibile + IVA" (il bollo di 2 € e la ritenuta d'acconto sono normali). */
-export function controlloTotale(totale, imponibile, iva, ritenutaLetta = 0) {
+export function controlloTotale(totale, imponibile, iva, ritenutaLetta = 0, aggiustamento = 0) {
   const diff = r2((totale || 0) - imponibile - iva);
   if (Math.abs(diff) <= 0.05 || Math.abs(Math.abs(diff) - 2) <= 0.01) return { controllo: 'OK', ritenuta: 0 };
-  const rit = ritenutaDa(diff, imponibile, ritenutaLetta) || ritenutaDa(r2(diff + 2), imponibile, ritenutaLetta);
+  // sconto/maggiorazione (es. omaggio con l'IVA addebitata) o arrotondamento scritti nei totali del documento
+  if (aggiustamento && (Math.abs(diff - aggiustamento) <= 0.05 || Math.abs(Math.abs(diff - aggiustamento) - 2) <= 0.01)) return { controllo: `OK (sconto o arrotondamento sul totale ${eu(aggiustamento)})`, ritenuta: 0 };
+  const rit = ritenutaDa(r2(diff - aggiustamento), imponibile, ritenutaLetta) || ritenutaDa(r2(diff - aggiustamento + 2), imponibile, ritenutaLetta);
   if (rit) return { controllo: `OK (ritenuta d'acconto ${eu(rit)})`, ritenuta: rit };
   return { controllo: `totale ≠ imponibile + IVA (diff. ${eu(diff)})`, ritenuta: 0 };
 }
 
 /** Totali, controllo di quadratura, segno e chiave univoca (come completa() di estrai_fatture). */
 export function completa(f) {
+  // nota di credito con gli importi già negativi nel documento: si girano qui, poi il segno meno la rende negativa una volta sola
+  if (NOTE_CREDITO.has(f.tipoDoc)) {
+    const imp0 = f.riepiloghi.length ? f.riepiloghi.reduce((t, r) => t + (r.imponibile || 0), 0) : f.righe.reduce((t, r) => t + (r.importo || 0), 0);
+    if (imp0 < 0 || (!imp0 && (f.totale || 0) < 0)) {
+      for (const r of f.righe) { r.importo = -(r.importo || 0); if (r.quantita < 0) r.quantita = -r.quantita; }
+      for (const r of f.riepiloghi) { r.imponibile = -(r.imponibile || 0); r.imposta = -(r.imposta || 0); if (r.arr) r.arr = -r.arr; }
+      if (f.totale != null) f.totale = -f.totale;
+      if (f.ritenuta) f.ritenuta = -f.ritenuta;
+      for (const p of f.pagamenti || []) if (p.importo < 0) p.importo = -p.importo;
+      if (f.scontoDoc) f.scontoDoc = -f.scontoDoc; if (f.arrDoc) f.arrDoc = -f.arrDoc;
+      f.avvisi.push('nota di credito con importi negativi nel documento');
+    }
+  }
   const somma = r2(f.righe.reduce((t, r) => t + (r.importo || 0), 0));
+  const arrRiep = r2(f.riepiloghi.reduce((t, r) => t + (r.arr || 0), 0));
+  f.aggiustamento = r2((f.scontoDoc || 0) + (f.arrDoc || 0));
   if (f.riepiloghi.length) { f.imponibile = r2(f.riepiloghi.reduce((t, r) => t + r.imponibile, 0)); f.iva = r2(f.riepiloghi.reduce((t, r) => t + r.imposta, 0)); }
   else { f.imponibile = somma; f.iva = f.totale != null ? r2((f.totale || somma) - somma) : 0; }
   if (f.totale == null) f.totale = r2(f.imponibile + f.iva);
   if (!f.riepiloghi.length) f.controllo = f.righe.length ? 'OK (imponibile dalle righe)' : 'riepilogo IVA non trovato';
-  else if (Math.abs(somma - f.imponibile) <= 0.05) {
-    const c = controlloTotale(f.totale, f.imponibile, f.iva, f.ritenuta);
+  else if (Math.abs(somma - f.imponibile) <= 0.05 || (arrRiep && Math.abs(somma + arrRiep - f.imponibile) <= 0.05)) {
+    // totale scritto senza decimali (9.254,00 invece di 92,54) ma pagamenti giusti: vale la somma dei pagamenti
+    const pag = r2((f.pagamenti || []).reduce((t, p) => t + (p.importo || 0), 0));
+    if (pag && Math.abs(pag - f.imponibile - f.iva) <= 0.05 && Math.abs((f.totale || 0) - pag) > 1 && Math.abs((f.totale || 0) - pag * 100) <= 1) { f.totale = pag; f.avvisi.push('totale del documento scritto senza decimali: preso dai pagamenti'); }
+    let c = controlloTotale(f.totale, f.imponibile, f.iva, f.ritenuta, f.aggiustamento);
+    // l'arrotondamento del riepilogo è già dentro l'imponibile ma non nel totale del documento
+    if (!c.controllo.startsWith('OK') && arrRiep) { const c2 = controlloTotale(f.totale, f.imponibile, f.iva, f.ritenuta, r2(f.aggiustamento - arrRiep)); if (c2.controllo.startsWith('OK')) { c = c2; f.aggiustamento = r2(f.aggiustamento - arrRiep); } }
     f.controllo = c.controllo; if (c.ritenuta) f.ritenuta = c.ritenuta;
+    if (arrRiep && Math.abs(somma - f.imponibile) > 0.05 && f.controllo.startsWith('OK')) f.controllo += ` (arrotondamento ${eu(arrRiep)} nel riepilogo IVA)`;
   } else f.controllo = `righe ${eu(somma)} ≠ imponibile ${eu(f.imponibile)}`;
   for (const r of f.righe) { const a = r.aliquota; if (typeof a === 'string' && /^\d+([.,]\d+)?$/.test(a.trim())) r.aliquota = parseFloat(a.trim().replace(',', '.')); }
   f.segno = NOTE_CREDITO.has(f.tipoDoc) ? -1 : 1;

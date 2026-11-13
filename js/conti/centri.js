@@ -30,7 +30,7 @@ const R_ACQ = [
   ['stalla', /mangim|foragg|integrat|additiv|(?<!fito)farmac|veterin|medicin|fecondaz|azoto|seme anim|igiene|mungit|latte|bestiame|acquisto (di )?(capi|animali|bovin|manz|vacc)|controll[io] funzional|selezione|genetic|lettier|segatur|paglia|attrezzature ed elettronica|collar|podolog|pareggio|smaltimento (carcass|animal)|carcass/i],
   ['campagna', /sement|piantin|concim|ammendant|fertiliz|fitofarm|diserb|antiparassit|contoterz|lavorazion|terzist|affitt.*terren|fitti? (di )?terren|affitti passivi|irrigaz|consorzio di bonifica|bonifica|teli|film|spago|rete per|essicca|stoccaggio cereal/i],
   ['generali', /commercialist|consulen|paghe|elaborazione|telefon|internet|postal|cancelleri|assicuraz|tass|impost|\bimu\b|bollo|associativ|associazion|sindac|abbonament|software|vestiario|dpi|animali domestici|pulizia uffic|spese generali|formazione|corsi|certificaz|pubblicit|rappresentanz/i],
-  ['comuni', /carburant|gasolio|lubrific|ricamb|manutenz|riparaz|lavori e riparaz|tubi|idraulic|energia|elettric|acqua|gas\b|metano|noleggi|leasing|pneumat|attrezz|ferrament|trasport|officina|utensil|materiale elettric/i],
+  ['comuni', /rifiut|carburant|gasolio|lubrific|ricamb|manutenz|riparaz|lavori e riparaz|tubi|idraulic|energia|elettric|acqua|gas\b|metano|noleggi|leasing|pneumat|attrezz|ferrament|trasport|officina|utensil|materiale elettric/i],
 ];
 const R_VEN = [
   ['finanza', /interess|banc|proventi finanz/i],

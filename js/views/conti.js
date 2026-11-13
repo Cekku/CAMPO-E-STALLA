@@ -224,7 +224,7 @@ async function salvaCategoria(fid, i, cat, el) {
   const { id, ...data } = f; await store.put('fatture', fid, Object.assign(data, { righe: righe_ }));
   const r = f.righe[i];
   // impara subito: le righe uguali o quasi uguali classificate in automatico prendono la stessa categoria
-  const { propagaCorrezione } = await import('../conti/importa.js'); const prop = await propagaCorrezione(f.tipo, r.descrizione, cat);
+  const { propagaCorrezione } = await import('../conti/importa.js'); const prop = await propagaCorrezione(f.tipo, r.descrizione, cat, f.controparte);
   const simili = S.fatture.reduce((t, x) => t + (x.righe || []).filter((y, k) => !(x.id === fid && k === i) && y.descrizione === r.descrizione && y.categoria !== cat).length, 0);
   toast(prop ? `Categoria salvata e applicata anche a ${prop === 1 ? '1 riga simile classificata' : prop + ' righe simili classificate'} in automatico` : 'Categoria salvata');
   const box = $('#catHint');
@@ -250,7 +250,7 @@ async function catDesc(tipo, cp, desc, cat) {
     if (c) { const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { righe: rr }) }); }
   }
   if (rows.length) await store.bulkPut(rows);
-  const { propagaCorrezione } = await import('../conti/importa.js'); const prop = await propagaCorrezione(tipo, desc, cat);
+  const { propagaCorrezione } = await import('../conti/importa.js'); const prop = await propagaCorrezione(tipo, desc, cat, cp);
   toast((n === 1 ? 'Corretta 1 riga' : `Corrette ${n} righe`) + (prop ? ` e ${prop === 1 ? '1 riga simile' : prop + ' righe simili'}` : '') + (n === 1 && !prop ? ': ora è un tuo esempio' : ': ora sono tuoi esempi'));
 }
 const msgConf = n => toast(n ? `${n === 1 ? 'Confermata 1 riga' : `Confermate ${n} righe`}: l'IA le userà come esempi` : 'Niente da confermare');

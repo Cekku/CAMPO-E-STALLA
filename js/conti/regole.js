@@ -1,9 +1,185 @@
 // Regole predefinite di classificazione delle righe di fattura (parola chiave, parte del nome della controparte, categoria, tipo)
 export const REGOLE_PREDEFINITE = [
+  // --- frasi precise (dalla 1.35.1): stanno prima delle parole larghe più sotto (MAIS, SOIA, ORZO, FILTRO, PREMIO…) ---
+  // bollette di luce, gas e acqua
+  ['MATERIA ENERGIA', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['ONERI DI SISTEMA', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['ONERI GENERALI DI SISTEMA', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['ONERI ASOS', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['USO DELLA RETE', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['GESTIONE DEL CONTATORE', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['GESTIONE CONTATORE', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['VENDITA DI ENERGIA', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['DISPACCIAMENTO', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['IMPOSTA ERARIALE', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['"POD"', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['POD/PDR', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['"PDR"', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['PERDITE OCCULTE', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['QUOTA FISSA ACQUEDOTTO', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['FOGNATURA', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['DEPURAZIONE', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['GPL USO', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  ['GAS NATURALE', '', 'Energia elettrica, acqua e gas', 'Acquisto'],
+  // affitti dei terreni
+  ['CANONE DI AFFITTO', '', 'Affitti di terreni', 'Acquisto'],
+  ['AFFITTO DI TERRENI', '', 'Affitti di terreni', 'Acquisto'],
+  ['AFFITTO TERRENI', '', 'Affitti di terreni', 'Acquisto'],
+  ['AFFITTO DEI TERRENI', '', 'Affitti di terreni', 'Acquisto'],
+  ['AFFITTO AGRARIO', '', 'Affitti di terreni', 'Acquisto'],
+  ['CANONE DI AFFITTANZA', '', 'Affitti di terreni', 'Acquisto'],
+  // teli, film e reti per i foraggi
+  ['RETE X ROTOPRESS', '', 'Teli, film e reti', 'Acquisto'],
+  ['RETE PER ROTOPRESS', '', 'Teli, film e reti', 'Acquisto'],
+  ['RETE ROTOPRESS', '', 'Teli, film e reti', 'Acquisto'],
+  ['FILM X FASCIATURA', '', 'Teli, film e reti', 'Acquisto'],
+  ['FILM PER FASCIATURA', '', 'Teli, film e reti', 'Acquisto'],
+  ['FILM FASCIATURA', '', 'Teli, film e reti', 'Acquisto'],
+  ['FOGLIA POL', '', 'Teli, film e reti', 'Acquisto'],
+  ['FOGLIA SILO', '', 'Teli, film e reti', 'Acquisto'],
+  ['FILM SILO', '', 'Teli, film e reti', 'Acquisto'],
+  ['TELO SILO', '', 'Teli, film e reti', 'Acquisto'],
+  ['TELI SILO', '', 'Teli, film e reti', 'Acquisto'],
+  ['"TELO"', '', 'Teli, film e reti', 'Acquisto'],
+  ['"TELI"', '', 'Teli, film e reti', 'Acquisto'],
+  ['SPAGO', '', 'Teli, film e reti', 'Acquisto'],
+  // foraggio comprato in campo: è un acquisto di foraggio, non un lavoro del terzista
+  ['RACCOLTO DALL', '', 'Mangimi e materie prime', 'Acquisto'],
+  ['RACCOLTA IN CAMPO', '', 'Mangimi e materie prime', 'Acquisto'],
+  ['RACCOLTO IN CAMPO', '', 'Mangimi e materie prime', 'Acquisto'],
+  ['FORAGGIO IN CAMPO', '', 'Mangimi e materie prime', 'Acquisto'],
+  ['FARINA DI ESTRAZ', '', 'Mangimi e materie prime', 'Acquisto'],
+  // lavori dei terzisti
+  ['TREBBIATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['MIETITREBBIATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['TRINCIATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['"SEMINA"', '', 'Contoterzisti', 'Acquisto'],
+  ['SEMINA SU SODO', '', 'Contoterzisti', 'Acquisto'],
+  ['ARATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['ERPICATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['FRESATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['RIPUNTATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['FALCIATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['RANGHINATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['PRESSATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['ROTOPRESSATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['IMBALLATURA', '', 'Contoterzisti', 'Acquisto'],
+  ['SPANDIMENTO', '', 'Contoterzisti', 'Acquisto'],
+  ['RACCOLTA MEDICA', '', 'Contoterzisti', 'Acquisto'],
+  ['RACCOLTA ERBA', '', 'Contoterzisti', 'Acquisto'],
+  ['RACCOLTA FIENO', '', 'Contoterzisti', 'Acquisto'],
+  ['TRASPORTO INSILATO', '', 'Contoterzisti', 'Acquisto'],
+  ['TRASPORTO MEDICA', '', 'Contoterzisti', 'Acquisto'],
+  ['LAVORI AGRICOLI', '', 'Contoterzisti', 'Acquisto'],
+  ['LAVORAZIONI AGRICOLE', '', 'Contoterzisti', 'Acquisto'],
+  ['CONTO TERZI', '', 'Contoterzisti', 'Acquisto'],
+  ['CONTOTERZ', '', 'Contoterzisti', 'Acquisto'],
+  // sementi: "SEME MAIS", "CONF. SEME SOIA"… (ma "prod. da seme di soia" della farina resta mangime, regola sopra)
+  ['CONF. SEME', '', 'Sementi', 'Acquisto'],
+  ['SEME MAIS', '', 'Sementi', 'Acquisto'],
+  ['SEME SOIA', '', 'Sementi', 'Acquisto'],
+  ['SEME SORGO', '', 'Sementi', 'Acquisto'],
+  ['SEME ORZO', '', 'Sementi', 'Acquisto'],
+  ['SEME FRUMENTO', '', 'Sementi', 'Acquisto'],
+  ['SEME GRANO', '', 'Sementi', 'Acquisto'],
+  ['SEME SENAPE', '', 'Sementi', 'Acquisto'],
+  ['SEME ERBA', '', 'Sementi', 'Acquisto'],
+  ['SEME MEDICA', '', 'Sementi', 'Acquisto'],
+  ['SEME LOIESSA', '', 'Sementi', 'Acquisto'],
+  ['SEME LOGLIO', '', 'Sementi', 'Acquisto'],
+  ['SEME TRIFOGLIO', '', 'Sementi', 'Acquisto'],
+  ['SEME TRITICALE', '', 'Sementi', 'Acquisto'],
+  ['SEME AVENA', '', 'Sementi', 'Acquisto'],
+  ['SEME COLZA', '', 'Sementi', 'Acquisto'],
+  ['SEME GIRASOLE', '', 'Sementi', 'Acquisto'],
+  ['SEME MISCUGLIO', '', 'Sementi', 'Acquisto'],
+  ['IBRIDO MAIS', '', 'Sementi', 'Acquisto'],
+  ['IBRIDI MAIS', '', 'Sementi', 'Acquisto'],
+  // consulenze, notaio, pratiche e servizi professionali
+  ['PREMIO UNICO', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['NOTARIATO', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['IMPOSTA DI REGISTRO', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['IMPOSTA IPOTECARIA', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['TASSA IPOTECARIA', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['IMPOSTA CATASTALE', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['TASSA ARCHIVIO', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['TASSA CONSIGLIARE', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['REPERTORIO', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['CATASTAL', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['ACCATASTAMENTO', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['FRAZIONAMENT', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['RILIEVO TOPOGRAFICO', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['VISURE', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['CONTABILITA', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['DICHIARAZIONE IVA', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['DICHIARAZIONE DEI REDDITI', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['MODELLO UNICO', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['ASSISTENZA PREDISP', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['ASSISTENZA FISCALE', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['ASSISTENZA CONTABILE', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['ELABORAZIONE PAGHE', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['ELABORAZIONE CEDOLINI', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['CONSULENZA', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['FATTURAZIONE ELETTRONICA', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['"PEC"', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['ONORARI', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['PARCELLA', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  ['ISTRUTTORIA DELLA PRATICA', '', 'Consulenze e servizi professionali', 'Acquisto'],
+  // impianti e investimenti (fotovoltaico, accumulo, videosorveglianza)
+  ['FOTOVOLTAIC', '', 'Investimenti: fabbricati e impianti', 'Acquisto'],
+  ['SISTEMA DI ACCUMULO', '', 'Investimenti: fabbricati e impianti', 'Acquisto'],
+  ['INVERTER IBRIDO', '', 'Investimenti: fabbricati e impianti', 'Acquisto'],
+  ['INVERTER FOTOVOLTAIC', '', 'Investimenti: fabbricati e impianti', 'Acquisto'],
+  ['SISTEMI DI ACCUMULO', '', 'Investimenti: fabbricati e impianti', 'Acquisto'],
+  ['BATTERIA DI ACCUMULO', '', 'Investimenti: fabbricati e impianti', 'Acquisto'],
+  ['MODULI FV', '', 'Investimenti: fabbricati e impianti', 'Acquisto'],
+  ['VIDEOSORVEGLIANZA', '', 'Investimenti: fabbricati e impianti', 'Acquisto'],
+  ['TELECAMER', '', 'Investimenti: fabbricati e impianti', 'Acquisto'],
+  // sicurezza sul lavoro, medico competente e formazione
+  ['VISITA MEDICA', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['SORVEGLIANZA SANITARIA', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['SPIROMETRIA', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['AUDIOMETRIA', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['DRUG TEST', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['ALCOOL TEST', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['ESAME TOSSICOLOGICO', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['ESTINTOR', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['PRIMO SOCCORSO', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['CORSO FORMAZIONE', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['CORSO DI FORMAZIONE', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['FORMAZIONE GENERALE', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['FORMAZIONE SICUREZZA', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['FORMAZIONE SPECIFICA', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['SICUREZZA SUL LAVORO', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['MEDICINA DEL LAVORO', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['MEDICO COMPETENTE', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  ['SOPRALLUOGO NEGLI AMBIENTI', '', 'Sicurezza sul lavoro e formazione', 'Acquisto'],
+  // rifiuti (le carcasse hanno la loro categoria più sotto)
+  ['RIFIUT', '', 'Smaltimento rifiuti', 'Acquisto'],
+  ['FORMULARIO', '', 'Smaltimento rifiuti', 'Acquisto'],
+  ['(SMALTIMENTO)', '', 'Smaltimento rifiuti', 'Acquisto'],
+  ['SVUOTAMENTO NAVETTE', '', 'Smaltimento rifiuti', 'Acquisto'],
+  ['OLIO ESAUSTO', '', 'Smaltimento rifiuti', 'Acquisto'],
+  ['OLI ESAUSTI', '', 'Smaltimento rifiuti', 'Acquisto'],
+  ['AGHI E BISTURI', '', 'Smaltimento rifiuti', 'Acquisto'],
+  ['REGISTRO BASIC', '', 'Smaltimento rifiuti', 'Acquisto'],
+  // controlli funzionali, marche auricolari e anagrafe
+  ['MARCA AURICOLARE', '', 'Controlli funzionali e anagrafe bovina', 'Acquisto'],
+  ['MARCHE AURICOLARI', '', 'Controlli funzionali e anagrafe bovina', 'Acquisto'],
+  ['"BDN"', '', 'Controlli funzionali e anagrafe bovina', 'Acquisto'],
+  ['ANAGRAFE BOVINA', '', 'Controlli funzionali e anagrafe bovina', 'Acquisto'],
+  ['CERTIFICATI LATTE', '', 'Controlli funzionali e anagrafe bovina', 'Acquisto'],
+  // pedaggi (i noleggi restano a mano o all'IA: "noleggio" compare anche nelle descrizioni dei lavori edili)
+  ['PEDAGG', '', 'Trasporti e pedaggi', 'Acquisto'],
+  // --- fine delle frasi precise ---
   ['SPESE INCASSO', '', 'Spese accessorie e contributi', 'Acquisto'],
   ['SPESE DI INCASSO', '', 'Spese accessorie e contributi', 'Acquisto'],
   ['SPESE TRASPORTO', '', 'Spese accessorie e contributi', 'Acquisto'],
   ['SPESE DI TRASPORTO', '', 'Spese accessorie e contributi', 'Acquisto'],
+  ['SPESE PER TRASPORTO', '', 'Spese accessorie e contributi', 'Acquisto'],
+  ['SPESE PER IL TRASPORTO', '', 'Spese accessorie e contributi', 'Acquisto'],
+  ['SPESE EFFETTI', '', 'Spese accessorie e contributi', 'Acquisto'],
+  ['BOLLI IN FATTURA', '', 'Spese accessorie e contributi', 'Acquisto'],
   ['CONTRIBUTO', '', 'Spese accessorie e contributi', 'Acquisto'],
   ['BOLLO', '', 'Spese accessorie e contributi', 'Acquisto'],
   ['GUANT', '', 'Vestiario e DPI', 'Acquisto'],
@@ -67,11 +243,11 @@ export const REGOLE_PREDEFINITE = [
   ['MYCODEX', '', 'Integratori e additivi', 'Acquisto'],
   ['MICOTOSS', '', 'Integratori e additivi', 'Acquisto'],
   ['TECNOFAT', '', 'Integratori e additivi', 'Acquisto'],
-  ['PREMIO', '', 'Integratori e additivi', 'Acquisto'],
+  ['"PREMIO"', '', 'Integratori e additivi', 'Acquisto'], // "premio unico aziendale" è una consulenza (sopra)
   ['DRY COW', '', 'Integratori e additivi', 'Acquisto'],
   ['NORMOTERM', '', 'Integratori e additivi', 'Acquisto'],
   ['ADISAL', '', 'Integratori e additivi', 'Acquisto'],
-  ['INTEGRAT', '', 'Integratori e additivi', 'Acquisto'],
+  ['INTEGRATOR', '', 'Integratori e additivi', 'Acquisto'], // non "impianto integrato"
   ['VITAMIN', '', 'Integratori e additivi', 'Acquisto'],
   ['MINERAL', '', 'Integratori e additivi', 'Acquisto'],
   ['NUCLEO', '', 'Integratori e additivi', 'Acquisto'],
@@ -88,12 +264,13 @@ export const REGOLE_PREDEFINITE = [
   ['PAGLIA', '', 'Mangimi e materie prime', 'Acquisto'],
   ['ERBA MEDICA', '', 'Mangimi e materie prime', 'Acquisto'],
   ['SORGO', '', 'Mangimi e materie prime', 'Acquisto'],
-  ['LIN', '', 'Mangimi e materie prime', 'Acquisto'],
+  ['"LIN"', '', 'Mangimi e materie prime', 'Acquisto'], // solo "LIN" da solo (seme di lino), non LINEA, LINZ
+  ['LINO', '', 'Mangimi e materie prime', 'Acquisto'],
   ['GIRASOL', '', 'Mangimi e materie prime', 'Acquisto'],
-  ['MELASS', '', 'Mangimi e materie prime', 'Acquisto'],
+  ['"MELASSO"', '', 'Mangimi e materie prime', 'Acquisto'], // non MELASSATORE
+  ['"MELASSA"', '', 'Mangimi e materie prime', 'Acquisto'],
   ['BICARBONATO', '', 'Mangimi e materie prime', 'Acquisto'],
   ['SEMENT', '', 'Sementi', 'Acquisto'],
-  ['IBRID', '', 'Sementi', 'Acquisto'],
   ['CONCIM', '', 'Concimi', 'Acquisto'],
   ['UREA', '', 'Concimi', 'Acquisto'],
   ['NITRAT', '', 'Concimi', 'Acquisto'],
@@ -228,21 +405,29 @@ export function parole(s) {
 }
 /** Chiave per riconoscere le descrizioni quasi uguali ("OLIO 15W40 FUSTO 20L" e "OLIO 15W40 TANICA 5L" → "OLIO"). */
 export const chiaveSimile = s => [...new Set(parole(s))].sort().join(' ');
+// parole che da sole non dicono che cosa si è comprato ("Importo", "A corpo", "Totale a corpo", "e Assistenza Geometri)")
+const GENERICHE = new Set(('IMPORTO IMPORTI TOTALE TOTALI CORPO SALDO ACCONTO ACCONTI COMPRESO COMPRESA COMPRESI ESCLUSA ESCLUSO IVA ' +
+  'ASSISTENZA SERVIZIO SERVIZI PRESTAZIONE PRESTAZIONI SPESA SPESE LAVORO LAVORI OPERE OPERA COSTO COSTI QUOTA RATA CANONE ' +
+  'COME VOSTRA RICHIESTA ORDINE RIFERIMENTO DETRARRE DEDURRE NOTA CREDITO STORNO').split(' '));
+/** Descrizione generica (meno di due parole che dicono qualcosa): la memoria la usa solo per lo stesso fornitore. */
+export const generica = s => parole(s).filter(w => !GENERICHE.has(w)).length < 2;
+const chiaveDesc = (tipo, controparte, d) => (generica(d) ? tipo + '|' + normDesc(controparte) + '|' : tipo + '|') + normDesc(d);
 /** Le righe da cui imparare: scelte a mano o dalle regole (non quelle decise in automatico, per non ripetere un errore a catena).
  *  Con `regole` (più tipo e controparte della fattura) una riga data da una regola conta solo se le regole di oggi le danno
  *  ancora la stessa categoria: così una regola corretta (es. "CAT" → animali domestici) non torna dalla memoria. */
 export const daImparare = (r, regole = null, tipo = '', controparte = '') => !!r.categoria && r.categoria !== DA_CLASSIFICARE && (!!r.catManuale || (!r.catAuto && (!regole || classifica(r.descrizione, controparte, regole, tipo) === r.categoria)));
 
 /** Memoria delle categorie già date: stessa descrizione o descrizione quasi uguale → stessa categoria;
- *  fornitore con quasi tutte le righe in una categoria. */
+ *  fornitore con quasi tutte le righe in una categoria. Le descrizioni generiche (vedi `generica`) valgono solo
+ *  per lo stesso fornitore e non entrano fra le "quasi uguali". */
 export function impara(fatture, regole = null) {
   const desc = new Map(), simili = new Map(), forn = new Map();
   const conta = (map, k, cat, peso) => { const v = map.get(k) || new Map(); v.set(cat, (v.get(cat) || 0) + peso); map.set(k, v); };
   for (const f of fatture) for (const r of f.righe || []) {
     if (!daImparare(r, regole, f.tipo, f.controparte)) continue;
     const peso = r.catManuale ? 3 : 1;
-    conta(desc, f.tipo + '|' + normDesc(r.descrizione), r.categoria, peso);
-    const ks = chiaveSimile(r.descrizione); if (ks) conta(simili, f.tipo + '|' + ks, r.categoria, peso);
+    conta(desc, chiaveDesc(f.tipo, f.controparte, r.descrizione), r.categoria, peso);
+    const ks = !generica(r.descrizione) && chiaveSimile(r.descrizione); if (ks) conta(simili, f.tipo + '|' + ks, r.categoria, peso);
     conta(forn, f.tipo + '|' + normDesc(f.controparte), r.categoria, 1);
   }
   const prima = (m, quota, minimo) => { const tot = [...m.values()].reduce((t, n) => t + n, 0); const [c, n] = [...m.entries()].sort((a, b) => b[1] - a[1])[0]; return tot >= minimo && n / tot >= quota ? c : null; };
@@ -257,8 +442,8 @@ export function impara(fatture, regole = null) {
 export function classificaConMemoria(descrizione, controparte, regole, tipo, mem) {
   const c = classifica(descrizione, controparte, regole, tipo);
   if (c !== DA_CLASSIFICARE || !mem) return { categoria: c, auto: '' };
-  const d = mem.desc.get(tipo + '|' + normDesc(descrizione)); if (d) return { categoria: d, auto: 'descrizione' };
-  const ks = chiaveSimile(descrizione); const s = ks && mem.simili && mem.simili.get(tipo + '|' + ks); if (s) return { categoria: s, auto: 'simile' };
+  const d = mem.desc.get(chiaveDesc(tipo, controparte, descrizione)); if (d) return { categoria: d, auto: 'descrizione' };
+  const ks = !generica(descrizione) && chiaveSimile(descrizione); const s = ks && mem.simili && mem.simili.get(tipo + '|' + ks); if (s) return { categoria: s, auto: 'simile' };
   const f = mem.forn.get(tipo + '|' + normDesc(controparte)); if (f) return { categoria: f, auto: 'fornitore' };
   return { categoria: DA_CLASSIFICARE, auto: '' };
 }

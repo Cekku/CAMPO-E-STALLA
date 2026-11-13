@@ -11,7 +11,7 @@ import { pareBonifico, leggiBonifici } from './bonifici-parse.js';
 import { pareEstratto } from './banca.js';
 import { unzip } from './zip.js';
 import { leggiXlsx, serialeAData, colLett } from './xlsx.js';
-import { classifica, classificaConMemoria, impara, categorie, ricordi, indiceRicordi, esempiPer, chiaveSimile, REGOLE_PREDEFINITE, RETTIFICA, DA_CLASSIFICARE } from './regole.js';
+import { classifica, classificaConMemoria, impara, categorie, ricordi, indiceRicordi, esempiPer, chiaveSimile, generica, REGOLE_PREDEFINITE, RETTIFICA, DA_CLASSIFICARE } from './regole.js';
 import { cfg, regole, pivaPropria, bilancio } from './dati.js';
 import { CE, SP, CESPITI } from './schema.js';
 import { DATI } from './analisi.js';
@@ -124,7 +124,7 @@ export function preparaFatture(lette) {
       const scad = f.pagamenti.map(p => p.scadenza).filter(Boolean).sort();
       return {
         id: idFattura(f.chiave), chiave: f.chiave, data: f.data, tipo, controparte, piva, tipoDoc: f.tipoDoc, numero: f.numero,
-        imponibile: s * f.imponibile, iva: s * f.iva, totale: s * (f.totale || 0), ...(f.ritenuta ? { ritenuta: s * f.ritenuta } : {}), pagamento: (f.pagamenti[0] || {}).modalita || '', scadenza: scad[scad.length - 1] || null,
+        imponibile: s * f.imponibile, iva: s * f.iva, totale: s * (f.totale || 0), ...(f.ritenuta ? { ritenuta: s * f.ritenuta } : {}), ...(f.aggiustamento ? { aggiustamento: s * f.aggiustamento } : {}), pagamento: (f.pagamenti[0] || {}).modalita || '', scadenza: scad[scad.length - 1] || null,
         ...(f.autofattura ? { autofattura: true } : {}), ...(f.imp ? { imp: f.imp } : {}), controllo: f.controllo, file: f.file, fonte: f.fonte, caricata: new Date().toISOString().slice(0, 10),
         righe: f.righe.map(r => { const c = classificaConMemoria(r.descrizione, controparte, reg, tipo, mem); return { codice: r.codice, descrizione: r.descrizione, categoria: c.categoria, ...(c.auto ? { catAuto: c.auto } : {}), quantita: r.quantita != null ? s * r.quantita : null, um: r.um, prezzo: r.prezzo, sconto: r.sconto, aliquota: r.aliquota, importo: s * (r.importo || 0), ddt: r.ddt }; }),
       };
@@ -137,7 +137,7 @@ export async function aggiornaControlli() {
   for (const f of S.fatture) {
     if (!String(f.controllo || '').startsWith('totale ≠')) continue;
     const s = (f.imponibile || 0) < 0 || (f.totale || 0) < 0 ? -1 : 1;
-    const c = controlloTotale(s * (f.totale || 0), s * (f.imponibile || 0), s * (f.iva || 0), s * (f.ritenuta || 0));
+    const c = controlloTotale(s * (f.totale || 0), s * (f.imponibile || 0), s * (f.iva || 0), s * (f.ritenuta || 0), s * (f.aggiustamento || 0));
     if (!c.controllo.startsWith('OK')) continue;
     const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { controllo: c.controllo, ritenuta: s * c.ritenuta }) });
   }
@@ -352,11 +352,13 @@ export async function provaPrecisione(onProgresso = () => { }, motore = 'locale'
 
 /** Quando correggi a mano una riga, l'app corregge subito anche le righe con descrizione uguale o quasi uguale
  *  classificate in automatico (dalla memoria o dal modello), mai quelle scelte a mano. Ritorna quante ne ha cambiate. */
-export async function propagaCorrezione(tipo, descrizione, cat) {
-  const ks = chiaveSimile(descrizione); const d0 = String(descrizione || '').toUpperCase().trim(); if (!ks && !d0) return 0;
+export async function propagaCorrezione(tipo, descrizione, cat, controparte = null) {
+  // descrizione generica ("Importo", "A corpo"): solo le righe dello stesso fornitore, e solo con la stessa descrizione
+  const gen = generica(descrizione); const ks = gen ? '' : chiaveSimile(descrizione); const d0 = String(descrizione || '').toUpperCase().trim(); if (!ks && !d0) return 0;
+  const cp0 = String(controparte || '').toUpperCase().trim();
   const rows = []; let n = 0;
   for (const f of S.fatture) {
-    if (f.tipo !== tipo) continue; let cambiata = false;
+    if (f.tipo !== tipo) continue; if (gen && String(f.controparte || '').toUpperCase().trim() !== cp0) continue; let cambiata = false;
     const righe = (f.righe || []).map(r => {
       if (r.catManuale || r.categoria === cat || !(r.catAuto || r.categoria === DA_CLASSIFICARE)) return r;
       const uguale = String(r.descrizione || '').toUpperCase().trim() === d0 || (ks && chiaveSimile(r.descrizione) === ks);
