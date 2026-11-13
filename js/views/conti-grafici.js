@@ -48,7 +48,7 @@ export function vGrafici() {
   // conto economico incompleto (di solito un bilancino in corso d'anno): gli indici che lo usano vengono troppo buoni
   const C = calc(y), ce = C.ce || {};
   if (C.has && C.has.ce) {
-    if (N(ce[62]) < 1) avvisi.push(`Il conto economico del ${y} non ha gli ammortamenti (di solito è un bilancino in corso d'anno): utile per vacca, IOFC e prezzo di pareggio risultano migliori del vero. Carica il bilancio di fine anno.`);
+    if (N(ce[62]) < 1) avvisi.push(`Il conto economico del ${y} non ha gli ammortamenti (di solito è un bilancino in corso d'anno): utile per vacca, IOFC e prezzo di pareggio risultano migliori del vero. Carica il bilancio di fine anno oppure compila il registro dei beni (Bilancio → Beni e ammortamenti).`);
     const fa = plvAnno(y).alimAcq;
     if (fa && N(ce[30]) < fa * 0.7) avvisi.push(`Alimenti acquistati: ${fmtVal(N(ce[30]), 'eur')} nel conto economico, ${fmtVal(fa, 'eur')} nelle fatture (mangimi, materie prime, integratori, foraggi). Probabilmente alcuni conti del bilancino sono abbinati a un'altra voce: controlla in Bilancio → Conto economico. Finché non tornano, IOFC e costo alimentare per litro sono troppo bassi.`);
   }

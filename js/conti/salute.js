@@ -104,7 +104,7 @@ export const SERVE = {
   aia: ["i parametri zootecnici AIA dell'anno", 'Carica il PDF dei parametri aziendali in Stalla → Indici e benessere', 'analisi'],
   paghe: ['i cedolini e i bilancini paghe', 'Caricali in Carica documenti', 'importa'],
   pagamenti: ['i pagamenti ai dipendenti', "Carica l'estratto conto o le contabili dei bonifici in Personale → Pagamenti: senza, ogni stipendio risulterebbe non pagato", 'pagamenti'],
-  amm: ['gli ammortamenti nel conto economico', 'Arrivano con il bilancio di fine anno del commercialista', 'ce'],
+  amm: ['gli ammortamenti nel conto economico', 'Dal bilancio di fine anno del commercialista, oppure dal registro dei beni: segna stalle, impianti, macchine e bestiame comprati e l\'app calcola le quote', 'cespiti'],
   interessi: ['interessi passivi nel conto economico', 'Nessun interesse: l\'indice non serve', ''],
 };
 
@@ -123,7 +123,7 @@ function mandriaAia(y) {
 export function problemiCe(y) {
   const C = calc(y), ce = C.ce || {}; const out = [];
   if (!C.has || !C.has.ce) return out;
-  if (N(ce[62]) < 1) out.push(`Il conto economico del ${y} non ha gli ammortamenti (di solito è un bilancino in corso d'anno): utile, margini e prezzo di pareggio vengono migliori del vero.`);
+  if (N(ce[62]) < 1) out.push(`Il conto economico del ${y} non ha gli ammortamenti (di solito è un bilancino in corso d'anno): utile, margini e prezzo di pareggio vengono migliori del vero. Si sistema con il registro dei beni (Bilancio → Beni e ammortamenti).`);
   const fa = plvAnno(y).alimAcq;
   if (fa && N(ce[30]) < fa * 0.7) out.push(`Gli alimenti acquistati del conto economico del ${y} sono molto più bassi di quelli delle fatture: alcuni conti del bilancino sono finiti in un'altra voce.`);
   return out;
@@ -183,7 +183,7 @@ function controlliDati(y, V) {
   const { C, T, F, P, H } = V; const ce = C.ce || {}; const ch = [];
   const add = (ok, testo, dettaglio, sub, tipo = 'manca') => ch.push({ ok: !!ok, testo, dettaglio, sub, tipo });
   add(C.has.ce, `Conto economico ${y}`, 'Carica il bilancino o il bilancio del commercialista.', 'importa');
-  if (C.has.ce) add(N(ce[62]) >= 1, 'Conto economico con gli ammortamenti', V.pCe.find(t => /ammortamenti/.test(t)) || '', 'ce', 'incoerente');
+  if (C.has.ce) add(N(ce[62]) >= 1, 'Conto economico con gli ammortamenti', V.pCe.find(t => /ammortamenti/.test(t)) || '', 'cespiti', 'incoerente');
   const fa = F.alimAcq; if (C.has.ce && fa) add(N(ce[30]) >= fa * 0.7, 'Alimenti del conto economico uguali a quelli delle fatture', V.pCe.find(t => /alimenti/.test(t)) || '', 'ce', 'incoerente');
   add(C.has.sp, `Stato patrimoniale ${y}`, 'Serve per debiti, liquidità e autonomia finanziaria: viene con il bilancio di fine anno.', 'sp');
   add(T.vacche && !V.vaccheReg, 'Numero di vacche', V.vaccheReg || SERVE.vacche[1], 'analisi');

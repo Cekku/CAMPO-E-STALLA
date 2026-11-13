@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.37.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.38.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -98,6 +98,17 @@ Con il cloud la riservatezza è garantita dalle regole RLS in `supabase/schema.s
 - `importa.js`: "Carica documenti" riconosce da solo il tipo di file (fatture, IVA, bilancini, cedolini, bilancini paghe, contabili di bonifico, estratti conto).
 - `tabelle.js`: tabelle ordinabili con esportazione **Excel / CSV / stampa-PDF**; `xlsx.js`, `zip.js` scritti a mano.
 - Fatture mancanti (`elenco.js`, vista `views/conti-verifiche.js`) e reddito lordo standard (`rls.js`): vedi `.claude/rules/conti-controllo-rls.md`.
+
+### Registro dei beni e ammortamenti (1.38.0, 13/11/2026) — `conti/beni.js`, `views/conti-beni.js`
+
+- Chiesto da Marco: la società semplice agricola (reddito catastale) non ha il bilancio di fine anno, quindi il CE dei bilancini è senza ammortamenti e la salute dell'azienda non dava il voto. Ammortamenti "gestionali", per i costi veri, non per il fisco.
+- Pagina Conti → `cespiti` (scheda "Beni e ammortamenti" del gruppo Bilancio; prima si chiamava Cespiti): `vBeni()` sopra le tabelle dei cespiti di prima. Azioni `c-be…` instradate in `onAct`/`onChange` di `views/conti.js`.
+- Un bene = `econfig` id `be-<uid>` (riservato, nessuna modifica allo schema): `{tipo: 'bene', nome, cat, data, costo, anni, residuo, fine, fatture: [{fid, righe}], mezzo, note}`. `CATEGORIE` con riga dei cespiti (`cesp` 10, 13-20), riga del CE (`ce` 63-66; terreni senza) e anni predefiniti (fabbricati 33, impianti 10 e fotovoltaico 20, macchine 10, automezzi/ufficio/bestiame/immateriali 5, colture 20).
+- `quote(b, y)`: quote costanti mese per mese dal mese della data per anni × 12; anno in corso fino al mese di oggi; con `fine` si ferma a quel mese e il bene esce da costo e fondo a fine anno (niente plus/minusvalenze). `annoRegistro(y)` somma per riga del CE e dei cespiti.
+- `calc(y)` in `dati.js` (memo anche su `S.econfig`; `ind` pure): se il CE non ha nulla nelle righe 63-67 e il registro dà qualcosa, le quote vanno nelle righe 63-66; se i cespiti del bilancio sono vuoti, costo/fondo/acquisti arrivano dal registro. `out.amm = {registro, ce, cesp, tot, n}` (`registro: false` = vale il CE del commercialista). `has.ce` resta quello del CE caricato; `has.sp` non diventa vero con i soli cespiti del registro (l'autonomia finanziaria verrebbe zero). Centri di costo: ammortamenti anche senza CE se vengono dal registro (fonte "registro dei beni").
+- Proposte (`proposte()`): righe di acquisto con centro `inv` (`riga.cdc` o `centroCategoria`), una per fattura, non ancora usate in un bene e non scartate (`cfg.beniNo` = id delle fatture, "Non sono beni" con conferma in due tocchi). Tipo da `categoriaDa` sul testo (bestiame, fabbricati, impianti, automezzi, ufficio, altrimenti macchine). Sotto 516,46 € nota "di solito si mette tutto nell'anno".
+- Testi aggiornati: `SERVE.amm` e `problemiCe` in `salute.js`, voce "senza ammortamenti" di `sospesi.js` (porta a `cespiti`), avviso dei Grafici.
+- Provato nel browser in locale con fatture finte (poi cancellate): fotovoltaico 60.000 € da aprile 2024 su 20 anni → 2.250 € nel 2024, manze 18.000 € da marzo 2025 su 5 anni → 3.000 €; CE 2025 con 6.000 € negli ammortamenti, cespiti dal registro, salute senza "ammortamenti" fra i dati mancanti; manze vendute a fine giugno → 1.200 €; tettoia proposta come fabbricato; "Non sono beni"; telefono 375 px senza scorrimento di lato.
 
 ### Preventivi e contratti di fornitura (1.36.0, 13/11/2026) — `conti/preventivi.js`, `views/conti-preventivi.js`
 

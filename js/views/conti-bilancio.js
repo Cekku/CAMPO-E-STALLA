@@ -13,6 +13,7 @@ import { bilancio, calc, ind, parametri, datiTecnici, anniProspetto, fatture, cf
 import { tabella, bottoniExport, fmtVal } from '../conti/tabelle.js';
 import { btnOrig } from './conti-documenti.js';
 import { colonne, linee, COL, coloreAnno } from '../conti/grafici.js';
+import { vBeni } from './conti-beni.js';
 
 const num2 = v => (v === null || v === undefined || v === '' ? '' : Number(v).toLocaleString('it-IT', { maximumFractionDigits: 2 }));
 const inCell = (col, y, row, v, extra = '') => `<input class="cell-in" inputmode="decimal" data-act="c-val" data-col="${col}" data-y="${y}" data-row="${row}" value="${esc(num2(v))}" aria-label="Importo ${y}"${extra}>`;
@@ -100,7 +101,8 @@ export function vCespiti() {
   const inp = (k) => r => (r.sum || !ed ? esc(fmtVal(r[k], 'eur')) : `<input class="cell-in" inputmode="decimal" data-act="c-val" data-col="cespiti" data-campo="${k}" data-y="${y}" data-row="${r.row}" value="${esc(num2(((b.cespiti || {})[r.row] || {})[k]))}">`);
   const anni = anniProspetto(y);
   const sint = anni.map(a => ({ anno: String(a), c: calc(a).cesp[23]?.c, f: calc(a).cesp[23]?.f, n: calc(a).cesp[23]?.n, a: calc(a).cesp[23]?.a }));
-  return `<div class="toolbar"><span class="muted small">Valori al 31/12/${y}</span><span class="sp"></span>${ed ? `<button class="btn sm primary" data-act="chip" data-f="cs_edit" data-v="">${ic('check')}Fine modifica</button>` : `<button class="btn sm" data-act="chip" data-f="cs_edit" data-v="${y}">${ic('pencil')}Modifica il ${y}</button>`}</div>
+  const dalReg = c.amm && c.amm.cesp && !ed;
+  return vBeni() + `${dalReg ? `<div class="note-box">${ic('info')}<span>Costo, ammortizzato e acquisti qui sotto vengono dal registro dei beni. Se scrivi a mano i valori del commercialista con "Modifica", vincono quelli.</span></div>` : ''}<div class="toolbar"><span class="muted small">Valori al 31/12/${y}</span><span class="sp"></span>${ed ? `<button class="btn sm primary" data-act="chip" data-f="cs_edit" data-v="">${ic('check')}Fine modifica</button>` : `<button class="btn sm" data-act="chip" data-f="cs_edit" data-v="${y}">${ic('pencil')}Modifica il ${y}</button>`}</div>
   ${ed ? `<div class="note-box">${ic('info')}<span>Per ogni categoria inserisci costo storico, fondo ammortamento e acquisti dell'anno (dal registro dei beni ammortizzabili del commercialista). Il valore netto va da solo nello stato patrimoniale.</span></div>` : ''}
   <section class="card"><div class="card-h"><h2>${ic('tractor')}Immobilizzazioni ${y}</h2>${bottoniExport(['cesp', 'cespA'], 'Cespiti ' + y)}</div>${tabella('cesp', { title: 'Immobilizzazioni al 31/12/' + y, sheet: 'Cespiti ' + y, cols: [{ k: 'l', h: 'Categoria', fmt: 'text' }, { k: 'c', h: 'Costo storico', fmt: 'eur', html: inp('c') }, { k: 'f', h: 'Fondo ammortamento', fmt: 'eur', html: inp('f') }, { k: 'n', h: 'Valore netto', fmt: 'eur' }, { k: 'a', h: "Acquisti dell'anno", fmt: 'eur', html: inp('a') }], rows, sort: false })}</section>
   <section class="card"><div class="card-h"><h2>Totale immobilizzazioni per anno</h2></div>${tabella('cespA', { title: 'Totale immobilizzazioni per anno', sheet: 'Per anno', cols: [{ k: 'anno', h: 'Anno' }, { k: 'c', h: 'Costo storico', fmt: 'eur' }, { k: 'f', h: 'Fondo ammortamento', fmt: 'eur' }, { k: 'n', h: 'Valore netto', fmt: 'eur' }, { k: 'a', h: 'Acquisti', fmt: 'eur' }], rows: sint, sort: false })}</section>`;

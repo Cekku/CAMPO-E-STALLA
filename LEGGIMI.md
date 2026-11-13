@@ -24,6 +24,17 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.38: ammortamenti senza il bilancio di fine anno
+
+Si trova in **Conti → Bilancio → Beni e ammortamenti**. Serve quando il commercialista non fa il bilancio di fine anno (società semplice agricola con il reddito catastale): senza ammortamenti utile, margini e prezzo di pareggio vengono migliori del vero.
+
+1. In alto ci sono gli **investimenti trovati nelle fatture** (righe con il centro "Investimento": lavori edili, impianti, macchine, bestiame comprato), uno per fattura. Controlla nome, tipo di bene e anni di vita, spunta quelli giusti e premi **Aggiungi**. Quelli che non sono beni li togli con **Non sono beni**.
+2. I beni comprati prima delle fatture caricate li aggiungi con **Nuovo bene**: nome, tipo, data, costo senza IVA e anni di vita (di solito stalle 33 anni, fotovoltaico 20, mungitura e trattori 10, vacche comprate 5).
+3. L'app divide il costo per gli anni di vita, a partire dal mese dell'acquisto, e mette la quota di ogni anno nel conto economico, nei centri di costo, nei grafici e nella salute dell'azienda. Quando vendi o elimini un bene, scrivi la data in **Venduto o eliminato il**: da quel mese non conta più.
+4. Se carichi un conto economico che ha già gli ammortamenti del commercialista, per quell'anno vale quello. Se il bilancino mette già un acquisto fra i costi dell'anno, non aggiungerlo al registro, altrimenti si conta due volte.
+
+Sono numeri per capire i costi veri dell'azienda, non per le tasse.
+
 ## Novità della versione 1.36: preventivi e contratti di fornitura
 
 Si trova in **Conti → Fatture → Preventivi** (anche nel menu "Acquisti e vendite"). Serve a confrontare le offerte di più ditte per mangimi, sementi e forniture varie.

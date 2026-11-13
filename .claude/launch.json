@@ -4,14 +4,33 @@
     {
       "name": "campo-e-stalla",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8765"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765"
+      ],
       "port": 8765
     },
     {
       "name": "campo-e-stalla-2",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8767"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8767"
+      ],
       "port": 8767,
+      "autoPort": false
+    },
+    {
+      "name": "campo-e-stalla-3",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8768"
+      ],
+      "port": 8768,
       "autoPort": false
     }
   ]

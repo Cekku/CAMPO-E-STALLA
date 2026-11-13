@@ -8,6 +8,7 @@ import { DATI, calcolaParametri } from './analisi.js';
 import { costiAnno } from './paghe.js';
 import { rls } from './rls.js';
 import { centri } from './centri.js';
+import { annoRegistro } from './beni.js';
 
 export const RISERVATE = ['fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti'];
 export const cfg = () => S.econfig.find(x => x.id === 'cfg') || {};
@@ -39,13 +40,26 @@ export const righe = () => memo('righe', [S.fatture], () => {
 export const anniFatture = () => memo('anniF', [S.fatture], () => [...new Set(fatture().map(f => f.anno).filter(Boolean))].sort());
 export const bilancio = y => S.bilanci.find(b => b.id === String(y)) || null;
 export const anniBilancio = () => memo('anniB', [S.bilanci], () => S.bilanci.map(b => +b.id).filter(Boolean).sort());
-/** Conto economico dell'anno; se B.9 è vuoto e ci sono le paghe, salari, oneri e TFR arrivano dai bilancini paghe. */
-export const calc = y => memo('calc' + y, [S.bilanci, S.paghe], () => {
+/** Conto economico dell'anno; se B.9 è vuoto e ci sono le paghe, salari, oneri e TFR arrivano dai bilancini paghe.
+ *  Se il CE non ha ammortamenti e c'è il registro dei beni, le quote (righe 63-66) e i cespiti arrivano dal registro (`amm`). */
+export const calc = y => memo('calc' + y, [S.bilanci, S.paghe, S.econfig], () => {
   const b = bilancio(y) || {}; const ce = b.ce || {};
   const p = [57, 58, 59].some(r => N(ce[r])) ? null : costiAnno(y);
-  if (!p) return calcolaAnno(b);
-  const rec = Object.assign({}, b, { ce: Object.assign({}, ce, { 57: p.salari, 58: p.oneri || 0, 59: p.tfr || 0 }) });
-  const out = calcolaAnno(rec); out.has.ce = Object.values(ce).some(v => N(v) !== 0); out.paghe = p;
+  const R = annoRegistro(y);
+  const ammCe = [63, 64, 65, 66, 67].some(r => N(ce[r]));
+  const cespMan = Object.values(b.cespiti || {}).some(o => o && (N(o.c) || N(o.f) || N(o.a)));
+  const usaAmm = R.n && !ammCe && R.tot > 0, usaCesp = R.n && !cespMan;
+  if (!p && !usaAmm && !usaCesp) return calcolaAnno(b);
+  const ce2 = Object.assign({}, ce);
+  if (p) Object.assign(ce2, { 57: p.salari, 58: p.oneri || 0, 59: p.tfr || 0 });
+  if (usaAmm) for (const [r, v] of Object.entries(R.ce)) ce2[r] = v;
+  const rec = Object.assign({}, b, { ce: ce2 }, usaCesp ? { cespiti: R.cesp } : {});
+  const out = calcolaAnno(rec);
+  out.has.ce = Object.values(ce).some(v => N(v) !== 0);
+  out.has.sp = Object.values(b.sp || {}).some(v => N(v) !== 0) || cespMan; // i soli cespiti del registro non fanno uno stato patrimoniale
+  if (p) out.paghe = p;
+  if (usaAmm || usaCesp) out.amm = { registro: true, ce: usaAmm, cesp: usaCesp, tot: R.tot, n: R.n };
+  else if (ammCe) out.amm = { registro: false };
   return out;
 });
 export const personaleDaPaghe = y => costiAnno(y);
@@ -129,7 +143,7 @@ export function datiTecnici(y) {
   });
 }
 export const dim = y => { const d = datiTecnici(y).val; return { sau: d.sau, ula: d.ula, capi: d.capi }; };
-export const ind = y => memo('ind' + y, [S.bilanci, S.paghe, S.capi, S.eventi, S.campi, S.latte, S.fatture], () => indici(calc(y), dim(y)));
+export const ind = y => memo('ind' + y, [S.bilanci, S.paghe, S.econfig, S.capi, S.eventi, S.campi, S.latte, S.fatture], () => indici(calc(y), dim(y)));
 export const parametri = y => memo('par' + y, [S.bilanci, S.paghe, S.capi, S.eventi, S.campi, S.latte, S.fatture, S.config, S.econfig], () => { const t = datiTecnici(y); return calcolaParametri(calc(y), ind(y), t.val, Object.assign({}, t.F, plvAnno(y))); });
 
 // alimenti comprati: categorie delle fatture di acquisto (mangimi, materie prime, integratori, foraggi)

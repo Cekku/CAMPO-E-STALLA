@@ -122,11 +122,14 @@ export function centri(y) {
   const aggiungi = (centro, tipo, voce, importo, fonte) => { if (Math.abs(N(importo)) >= 0.005) voci.push({ centro, tipo, voce, importo: N(importo), fonte }); };
   const pers = conCe || C.paghe ? N(ce[56]) : 0;
   aggiungi('pers', 'costo', 'Personale dipendente', pers, C.paghe ? 'paghe' : 'conto economico');
+  const ammReg = !!(C.amm && C.amm.ce); const fAmm = ammReg ? 'registro dei beni' : 'conto economico';
+  if (conCe || ammReg) {
+    aggiungi('comuni', 'costo', 'Ammortamento fabbricati e impianti', ce[64], fAmm);
+    aggiungi('comuni', 'costo', 'Ammortamento macchine e attrezzature', ce[65], fAmm);
+    aggiungi('stalla', 'costo', 'Ammortamento del bestiame', ce[66], fAmm);
+    aggiungi('generali', 'costo', 'Altri ammortamenti', N(ce[63]) + N(ce[67]) + N(ce[68]), fAmm);
+  }
   if (conCe) {
-    aggiungi('comuni', 'costo', 'Ammortamento fabbricati e impianti', ce[64], 'conto economico');
-    aggiungi('comuni', 'costo', 'Ammortamento macchine e attrezzature', ce[65], 'conto economico');
-    aggiungi('stalla', 'costo', 'Ammortamento del bestiame', ce[66], 'conto economico');
-    aggiungi('generali', 'costo', 'Altri ammortamenti', N(ce[63]) + N(ce[67]) + N(ce[68]), 'conto economico');
     aggiungi('generali', 'costo', 'IMU, tasse e imposte indirette', ce[73], 'conto economico');
     aggiungi('campagna', 'ricavo', 'Contributi PAC e PSR', N(ce[20]) + N(ce[21]), 'conto economico');
   }

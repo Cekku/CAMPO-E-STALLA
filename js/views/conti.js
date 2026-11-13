@@ -21,8 +21,9 @@ import { vGrafici } from './conti-grafici.js';
 import { vSalute, saluteCard } from './conti-salute.js';
 import { vSistema, sistemaAct, sistemaChange, daSistemare } from './conti-sistema.js';
 import { vPreventivi, preventiviAct, preventiviChange, scadenzeVicine } from './conti-preventivi.js';
+import { beniAct, beniChange } from './conti-beni.js';
 
-export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', mancanti: 'Fatture mancanti', rls: 'Reddito lordo standard', centri: 'Centri di costo', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Cespiti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', prestiti: 'Anticipi e prestiti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie', sistema: 'Sistemazione dei dati', grafici: 'Grafici e confronti', salute: "Salute dell'azienda", documenti: 'Documenti originali', sospesi: 'In sospeso', preventivi: 'Preventivi e contratti' };
+export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', mancanti: 'Fatture mancanti', rls: 'Reddito lordo standard', centri: 'Centri di costo', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Beni e ammortamenti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', prestiti: 'Anticipi e prestiti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie', sistema: 'Sistemazione dei dati', grafici: 'Grafici e confronti', salute: "Salute dell'azienda", documenti: 'Documenti originali', sospesi: 'In sospeso', preventivi: 'Preventivi e contratti' };
 export const GRUPPI = [['fatture', 'mancanti', 'fornitori', 'clienti', 'prodotti', 'preventivi', 'categorie', 'mensile', 'latte'], ['salute', 'grafici', 'ce', 'sp', 'indici', 'centri', 'rls', 'analisi', 'iva', 'cespiti', 'controlli'], ['personale', 'dipendenti', 'cedolini', 'pagamenti', 'prestiti', 'verifica']];
 const TAB_NOMI = { preventivi: 'Preventivi', salute: 'Salute', grafici: 'Grafici', rls: 'RLS e spese varie', personale: 'Riepilogo', cedolini: 'Cedolini', prestiti: 'Anticipi e prestiti', verifica: 'Verifica' };
 
@@ -276,6 +277,7 @@ async function catTutte(desc, cat) {
 export async function onAct(a, b, d) {
   if (a === 'c-pMovTutti' && d.k != null) { const x = IMP.ris[+d.k]; if (x) x.tutti = !x.tutti; return rerender(); }
   if (/^c-pv[A-Z]/.test(a)) return preventiviAct(a, b, d, rerender);
+  if (/^c-be[A-Z]/.test(a)) return beniAct(a, b, d, rerender);
   if (/^c-p[A-Z]/.test(a)) return personaleAct(a, b, d, rerender);
   if (/^c-sd[A-Z]/.test(a)) return sistemaAct(a, b, d, rerender);
   if (/^c-(orig|doc[A-Z])/.test(a)) return documentiAct(a, b, d, rerender);
@@ -338,6 +340,7 @@ function leggiRegoleConVuote() { return $$('#regForm tbody tr').map(tr => [tr.qu
 export async function onChange(t) {
   const a = t.dataset.act;
   if (/^c-pv[A-Z]/.test(a || '')) return preventiviChange(t, rerender);
+  if (/^c-be[A-Z]/.test(a || '')) return beniChange(t, rerender);
   if (a === 'c-docSel') return documentiChange(t, rerender);
   if (a === 'c-ssSel') return sospesiChange(t, rerender);
   if (a === 'c-files' && t.files.length) { const fs = [...t.files]; t.value = ''; return leggiFiles(fs); }
