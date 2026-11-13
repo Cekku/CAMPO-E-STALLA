@@ -14,6 +14,7 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Quaderno di campagna (QDCA)** stampabile o in PDF, CSV per Excel e registro dei trattamenti in formato dati (JSON).
 - **Banca dati fitofarmaci** del Ministero della Salute: si carica il CSV open data e le schede prodotto si compilano da sole; i prodotti revocati vengono segnalati.
 - **Piano Colturale Grafico**: importa lo shapefile (.zip) del CAA; gli appezzamenti si associano ai campi già disegnati, gli altri diventano campi nuovi. Vista **Piano colturale** su cinque annate con avviso dei ristoppi.
+- **Chiedi** (pulsante in alto, o Ctrl+K e scrivi la domanda): fai domande sui dati dell'azienda ("quali vacche partoriscono questo mese?", "quanto ho speso di mangimi nel 2025 rispetto al 2024?") e l'assistente risponde guardando i dati dell'app, con i pulsanti per aprire la pagina giusta. Non cambia niente nell'app. Scegli chi risponde: **Claude** (a pagamento, funziona anche dal telefono; riceve solo la domanda e i numeri che servono) oppure **Sul PC** (il modello di LM Studio: gratis, i dati non escono dal computer, ma è lento). Le domande su fatture, bilancio, personale e archivio le può fare solo il titolare. Sotto ogni risposta c'è il costo indicativo.
 - **Registrazione a voce o con testo libero** dal pulsante Registra ("ieri diserbo su Pradone 1,5 l/ha"): interprete locale, oppure Claude con una chiave API Anthropic salvata sul dispositivo.
 - **Stalle, box e silos**: capi assegnati ai box, occupazione, autonomia dei silos con le razioni; **indici della mandria** (DIM, giorni aperti, interparto, IOFC) e **allarmi di benessere** dai dati importati da Alpro, MooMonitor e altri sistemi (CSV).
 - **NDVI Sentinel-2**: vigore vegetativo sulla mappa per data e andamento per ogni campo.
@@ -163,3 +164,17 @@ Ogni modifica pubblicata sul repository arriva da sola sui dispositivi: alla ria
 - **Ortofoto FVG** (predefinita in Friuli Venezia Giulia): true ortofoto 2017-2020 della Regione, servizio WMS pubblico. Fuori regione sotto c'è il satellite Esri. Dalla 1.13 i colori sono ritoccati per somigliare a Google Maps: la foto della Regione era più chiara e più spenta. Dalla 1.11.4 usa la copia già pronta della Regione: la prima volta che guardi una zona ci mette qualche secondo, poi si apre in un attimo (circa 0,2 s), anche per i giorni dopo.
 - **Stradale** (OpenStreetMap) e **Rilievo** (OpenTopoMap). Dalla 1.13 non ci sono più Satellite, Satellite 2, Google e la regolazione dei colori a mano.
 - **Colori dei campi** (dalla 1.23): come su xFarm, il bordo è marcato e ha il colore della coltura, l'interno è velato, così si vede la foto. I campi senza coltura nell'annata sono grigio scuro. Dalla 1.24 l'importazione dei confini legge anche coltura, varietà e annata dal file: ai campi già presenti aggiunge solo la coltura che manca, senza cambiare quelle già scritte. In Livelli puoi cambiare l'intensità del riempimento. Dalla 1.23.1 i nomi non compaiono più sopra i campi: si vedono toccando il campo, e si possono riaccendere da Livelli con "Nomi dei campi".
+
+## Chiedi: collegare Claude (una volta sola)
+
+La chiave di Claude non sta nell'app (il codice è pubblico): sta nei segreti di Supabase, e la funzione "chiedi" la usa solo per chi ha fatto l'accesso all'azienda.
+
+1. Su **console.anthropic.com** crea un account per le API (è a parte rispetto all'abbonamento di claude.ai), aggiungi un metodo di pagamento e, in **Limits**, metti un tetto di spesa mensile (per esempio 20 $).
+2. In **API Keys** crea una chiave e copiala (si vede una volta sola).
+3. In **Supabase** → il progetto → **Edge Functions** → **Secrets** → **Add new secret**: nome `ANTHROPIC_API_KEY`, valore la chiave. Salva.
+4. La funzione `chiedi` si pubblica da sola con l'integrazione GitHub (file `supabase/functions/chiedi/index.ts`). Se non compare in Edge Functions: **Deploy a new function** → Via Editor → nome `chiedi` → incolla il file → Deploy.
+5. Nell'app apri **Chiedi** e fai una domanda con Claude. Se dice "funzione non ancora pubblicata", manca il passo 4; se dice "manca la chiave", il passo 3.
+
+In alternativa, su un solo dispositivo, si può salvare la chiave in La mia azienda → Registrazione a voce e con testo libero: la chat la usa al posto della funzione.
+
+Per **Sul PC** basta quello che serve già per le fatture: LM Studio aperto con il server acceso, il ponte avviato (`strumenti/Avvia ponte LM Studio.bat`) e il modello collegato in La mia azienda → Modello sul PC. Funziona solo da quel computer.

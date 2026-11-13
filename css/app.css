@@ -1661,3 +1661,62 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 @media (max-width: 560px) { .pv-h h2 { flex-basis: 100%; } }
 .pv-off .r-side { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; max-width: 55%; }
 @media (max-width: 560px) { .pv-off { flex-wrap: wrap; } .pv-off .r-main { flex: 1 1 calc(100% - 60px); } .pv-off .r-side { flex-basis: 100%; max-width: none; justify-content: flex-start; } }
+
+/* ---------- chat "Chiedi" (dalla 1.37.0, js/chiedi/pannello.js) ---------- */
+.ab-chiedi span { display: none; }
+@media (min-width: 900px) {
+  .ab-btn.ab-chiedi { width: auto; display: inline-flex; gap: 6px; padding: 0 12px; border: 1px solid var(--line-2); font-weight: 600; }
+  .ab-chiedi span { display: inline; }
+  body.chiedi-on .ab-chiedi { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+}
+.chiedi { position: fixed; z-index: 45; inset: 0; display: flex; flex-direction: column; background: var(--surface); color: var(--ink); padding: var(--sat) 0 var(--sab); }
+.chiedi[hidden] { display: none; }
+@media (min-width: 900px) {
+  .chiedi { inset: 0 0 0 auto; width: 420px; border-left: 1px solid var(--ink); box-shadow: var(--shadow-2); }
+  body.chiedi-on .main { margin-right: 420px; }
+  body.chiedi-on .mapview { right: 420px; }
+}
+@media (min-width: 900px) and (max-width: 1199px) { body.chiedi-on .main { margin-right: 0; } body.chiedi-on .mapview { right: 0; } }
+.ch-head { display: flex; align-items: center; gap: 6px; padding: 10px 10px 8px 16px; border-bottom: 4px double var(--ink); }
+.ch-tit { display: inline-flex; align-items: center; gap: 7px; font-family: var(--f-display); font-size: 22px; font-weight: 600; margin-right: 6px; }
+.ch-tit .ic { color: var(--action); }
+.ch-sel { height: 32px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--surface); color: inherit; font: inherit; font-size: 13.5px; padding: 0 6px; max-width: 120px; }
+.ch-stato { margin: 0; padding: 6px 16px; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid var(--line); }
+.ch-msgs { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 12px; }
+.ch-msg { max-width: 100%; line-height: 1.5; font-size: 15px; overflow-wrap: anywhere; }
+.ch-msg p { margin: 0 0 6px; }
+.ch-msg p:last-child { margin-bottom: 0; }
+.ch-msg ul, .ch-msg ol { margin: 2px 0 8px; padding-left: 20px; }
+.ch-msg li { margin: 2px 0; }
+.ch-msg code { font-family: var(--f-mono); font-size: 13px; background: var(--sunk); padding: 0 3px; border-radius: 3px; }
+.ch-msg .ch-h { font-weight: 700; margin-top: 6px; }
+.ch-msg.tu { align-self: flex-end; max-width: 88%; background: var(--sunk); border: 1px solid var(--line); border-radius: 8px 8px 2px 8px; padding: 8px 12px; white-space: pre-wrap; }
+.ch-msg.ia { padding: 2px 2px 2px 12px; border-left: 2px solid var(--accent); }
+.ch-msg.ia.err { border-left-color: var(--bad); color: var(--bad); }
+.ch-msg.ia.err p { display: flex; gap: 6px; align-items: flex-start; }
+.ch-msg.ia.err .btn { margin-top: 6px; color: var(--ink); }
+.ch-msg.busy { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+.ch-msg.busy .btn { margin-left: auto; }
+.ch-fonti { display: flex; align-items: flex-start; gap: 5px; margin-top: 6px !important; font-size: 12px; color: var(--muted); font-family: var(--f-mono); }
+.ch-fonti .ic { width: 13px; height: 13px; flex: none; margin-top: 2px; }
+.ch-link { display: inline-flex; align-items: center; gap: 2px; border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.ch-link .ic { width: 14px; height: 14px; }
+.ch-tab { overflow-x: auto; margin: 4px 0 8px; }
+.ch-tab table { border-collapse: collapse; font-size: 13.5px; min-width: 100%; }
+.ch-tab th, .ch-tab td { border-bottom: 1px solid var(--line); padding: 4px 8px 4px 0; text-align: left; vertical-align: top; }
+.ch-tab th { font-weight: 650; border-bottom-color: var(--line-2); white-space: nowrap; }
+.ch-tab td.n { text-align: right; font-family: var(--f-mono); white-space: nowrap; }
+.ch-vuoto { margin: auto 0; padding: 10px 2px; }
+.ch-ciao { display: flex; align-items: center; gap: 8px; font-family: var(--f-display); font-size: 20px; margin: 0 0 6px; }
+.ch-ciao .ic { color: var(--action); }
+.ch-es { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.ch-chip { text-align: left; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); border-radius: 6px; padding: 8px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+.ch-chip:hover { border-color: var(--ink); }
+.ch-bar { display: flex; align-items: flex-end; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--ink); background: var(--surface); }
+.ch-bar textarea { flex: 1; min-width: 0; resize: none; border: 1px solid var(--line-2); border-radius: 6px; background: var(--bg); color: inherit; font: inherit; font-size: 16px; line-height: 1.4; padding: 9px 11px; max-height: 160px; }
+.ch-bar textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.ch-go { background: var(--action); border-color: var(--action); color: #fff; }
+.ch-go:hover { background: var(--action); filter: brightness(1.08); }
+.ch-go:disabled { opacity: .5; }
+.ch-bar .iconbtn.on { color: var(--bad); }
+@media (max-width: 440px) { .ch-head { gap: 4px; padding-left: 12px; } .ch-tit span { display: none; } .ch-sel { max-width: 104px; } }

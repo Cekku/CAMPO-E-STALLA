@@ -29,6 +29,7 @@ import { render as vImp, authUI } from './views/impostazioni.js';
 import { avviaBlocco, blocca, salvaBloccoDaForm, disattivaDaForm } from './lock.js';
 import { render as vConti, onAct as contiAct, onChange as contiChange, onDrop as contiDrop, setRerender, contiVisibili, esportaTutto, GRUPPI as GRUPPI_CONTI } from './views/conti.js';
 import { render as vArchivio, arAct, arInput, arChange, vediDoc } from './views/archivio.js';
+import { initChiedi, apri as apriChiedi, alterna as alternaChiedi } from './chiedi/pannello.js';
 
 const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, impostazioni: vImp, conti: vConti, archivio: vArchivio };
 const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio' };
@@ -252,6 +253,7 @@ function quickGo(k) {
     case 'tr': return later(() => openEdit('eventi', null, { tipo: 'Trattamento sanitario' }));
     case 'latte': return later(() => openEdit('latte'));
     case 'capo': return later(() => openEdit('capi'));
+    case 'chiedi': return apriChiedi();
   }
 }
 
@@ -259,7 +261,7 @@ function quickGo(k) {
 const AZIONI = [
   ['att', 'notebook-pen', 'Nuova attività', 'campagna'], ['plan', 'calendar', 'Pianifica attività', 'campagna'], ['campo', 'pentagon', 'Nuovo campo', 'campagna'],
   ['carico', 'download', 'Carico magazzino', 'tutte'], ['nota', 'pencil', 'Nuova nota', 'tutte'], ['man', 'wrench', 'Manutenzione', 'campagna'],
-  ['ev', 'cow', 'Evento di stalla', 'stalla'], ['tr', 'syringe', 'Trattamento sanitario', 'stalla'], ['latte', 'milk', 'Latte del giorno', 'stalla'], ['capo', 'baby', 'Nuovo capo', 'stalla'],
+  ['chiedi', 'sparkles', "Chiedi all'assistente", 'tutte'], ['ev', 'cow', 'Evento di stalla', 'stalla'], ['tr', 'syringe', 'Trattamento sanitario', 'stalla'], ['latte', 'milk', 'Latte del giorno', 'stalla'], ['capo', 'baby', 'Nuovo capo', 'stalla'],
 ];
 const norm = x => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 function comandi() {
@@ -269,7 +271,7 @@ function comandi() {
 }
 const AREA_L = { campagna: 'Campagna', stalla: 'Stalla', conti: 'Conti', tutte: '' };
 function cmdRow(c) {
-  if (c.kind === 'az') return `<button class="row cmd" data-act="cmdAz" data-k="${c.k}" data-area="${c.area}"><span class="r-icon act">${ic(c.i)}</span><span class="r-main"><b>${esc(c.l)}</b><span>Registra${AREA_L[c.area] ? ' · ' + AREA_L[c.area] : ''}</span></span>${ic('plus', 'chev')}</button>`;
+  if (c.kind === 'az') return `<button class="row cmd" data-act="cmdAz" data-k="${c.k}" data-area="${c.area}"><span class="r-icon act">${ic(c.i)}</span><span class="r-main"><b>${esc(c.l)}</b><span>${c.k === 'chiedi' ? "Domande sui dati dell'azienda" : 'Registra' + (AREA_L[c.area] ? ' · ' + AREA_L[c.area] : '')}</span></span>${ic(c.k === 'chiedi' ? 'chevron-right' : 'plus', 'chev')}</button>`;
   return `<button class="row cmd" data-act="cmdPag" data-area="${c.area}" data-tab="${c.t}"${c.sb ? ` data-sub="${c.sb}"` : ''}><span class="r-icon">${ic(c.i)}</span><span class="r-main"><b>${esc(c.l)}</b><span>Vai a · ${AREA_L[c.area]}</span></span>${ic('chevron-right', 'chev')}</button>`;
 }
 function searchSheet() {
@@ -295,7 +297,8 @@ function searchRun(q) {
     ...(contiVisibili() ? S.fatture.filter(f => hit(f.controparte) || hit(f.numero)).slice(0, 15).map(f => ['fattura', f.id, 'receipt', f.controparte + ' n. ' + f.numero, fd(f.data) + ' · ' + (f.tipo === 'Vendita' ? 'vendita' : 'acquisto')]) : []),
   ].slice(0, 40);
   const dati = rows.map(([t, id, i, l, s]) => `<button class="row" data-act="${t === 'nota' ? 'edit' : t === 'fattura' ? 'c-fatt' : 'open'}" ${t === 'nota' ? `data-form="note" data-id="${id}"` : `data-type="${t}" data-id="${id}"`}><span class="r-icon">${ic(i)}</span><span class="r-main"><b>${esc(l)}</b><span>${esc(s || '')}</span></span>${ic('chevron-right', 'chev')}</button>`).join('');
-  out.innerHTML = (rows.length ? `<div class="dr-sec left">Dati</div>${dati}` : '') + (cmd.length ? `<div class="dr-sec left">Comandi</div>${cmd.map(cmdRow).join('')}` : '') || '<div class="empty slim">Nessun risultato.</div>';
+  const domanda = qn.length >= 8 && /\s/.test(q.trim()) ? `<div class="dr-sec left">Assistente</div><button class="row cmd" data-act="chiediQ" data-q="${esc(q.trim())}"><span class="r-icon act">${ic('sparkles')}</span><span class="r-main"><b>Chiedi: «${esc(q.trim())}»</b><span>Risponde guardando i dati dell'azienda</span></span>${ic('chevron-right', 'chev')}</button>` : '';
+  out.innerHTML = ((rows.length ? `<div class="dr-sec left">Dati</div>${dati}` : '') + (cmd.length ? `<div class="dr-sec left">Comandi</div>${cmd.map(cmdRow).join('')}` : '') + domanda) || '<div class="empty slim">Nessun risultato.</div>';
 }
 
 /* ---------- esportazioni ---------- */
@@ -386,6 +389,8 @@ document.addEventListener('click', async e => {
       case 'llmForget': try { localStorage.removeItem('ces.llm'); } catch (e) { } toast('Modello sul PC scollegato'); return render();
       case 'aiForget': try { localStorage.removeItem('ces.ai'); } catch (e) { } toast('Chiave rimossa'); return render();
       case 'search': return searchSheet();
+      case 'chiedi': drawer(false); return alternaChiedi();
+      case 'chiediQ': closeSheet(); return setTimeout(() => apriChiedi(d.q), 230);
       case 'cmdAz': if (d.area !== 'tutte' && d.area !== UI.area) { UI.area = d.area; saveUI(); setTab('oggi'); } return quickGo(d.k);
       case 'cmdPag': if (UI.area !== d.area) { UI.area = d.area; saveUI(); } closeSheet(); return setTab(d.tab, d.sub);
       case 'close': return closeSheet();
@@ -546,9 +551,17 @@ function gpsAzienda() {
 
 setRerender(() => render());
 
+// pagine dell'app per i collegamenti nelle risposte della chat (area/tab/sub)
+function pagineChat() {
+  const out = []; const seen = new Set();
+  Object.entries(MENU).forEach(([area, secs]) => { if ((area === 'conti' || area === 'archivio') && !contiVisibili()) return; secs.forEach(([, items]) => items.forEach(([t, sb, , l]) => { const k = area + '/' + t + (sb ? '/' + sb : ''); if (!seen.has(k)) { seen.add(k); out.push(k + ' = ' + l); } })); });
+  return out.join('; ');
+}
+
 /* ---------- avvio ---------- */
 (function boot() {
   avviaBlocco();
+  initChiedi({ conti: contiVisibili, pagine: pagineChat, dettatura: canDictate() ? dictate : null });
   $('#mapControls').innerHTML = `
     <div class="mapsearch">${ic('search')}<input id="mapSearch" placeholder="Cerca comune, località o coordinate" autocomplete="off" enterkeyhint="search"><div id="mapResults" class="map-results" hidden></div></div>
     <div id="mapWeather" class="map-weather" hidden></div>

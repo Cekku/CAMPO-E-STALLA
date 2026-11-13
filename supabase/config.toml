@@ -1,8 +1,14 @@
 # Configurazione per l'integrazione GitHub di Supabase (pubblicazione automatica delle funzioni).
-# viene pubblicata la funzione "catasto" (collegamento al catasto dell'Agenzia delle Entrate).
+# vengono pubblicate le funzioni "catasto" (collegamento al catasto dell'Agenzia delle Entrate) e "chiedi" (chat con Claude).
 project_id = "campo-e-stalla"
 
 [functions.catasto]
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/catasto/index.ts"
+
+# chat "Chiedi": passa le domande a Claude con la chiave nei segreti (ANTHROPIC_API_KEY); serve l'accesso all'azienda
+[functions.chiedi]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/chiedi/index.ts"
