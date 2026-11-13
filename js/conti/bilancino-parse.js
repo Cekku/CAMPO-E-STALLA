@@ -164,6 +164,8 @@ export function ripartisci(c, contiUtente = {}) {
   const det = c.dettagli.map(d => [d, valoreDettaglio(d)]).filter(([, v]) => v !== null);
   if (det.length > 1 && tot !== null && Math.abs(det.reduce((t, [, v]) => t + v, 0) - tot) < 0.015 && !contiUtente[c.conto]) {
     return det.map(([d, v]) => {
+      // voce scelta dal titolare per questo solo dettaglio (chiave "conto|descrizione del dettaglio", dalla 1.35.0)
+      const su = contiUtente[c.conto + '|' + d.descrizione]; if (su) return [su, v, d.descrizione, 'scelto da te'];
       const t = ' ' + d.descrizione.toUpperCase() + ' ';
       for (const [sez, parole, r] of DETTAGLI) if (sez === c.sezione) { const p = parole.find(p => t.includes(p)); if (p) return [r, v, d.descrizione, `dettaglio '${p}'`]; }
       return [rc, v, d.descrizione, cc + ' (dettaglio senza parola chiave)'];
@@ -206,7 +208,7 @@ export function calcolaCe(dati, contiUtente = {}) {
   for (const c of dati.conti) {
     if (!['RICAVI', 'COSTI'].includes(c.sezione)) continue;
     for (const [riga, imp, det, crit] of ripartisci(c, contiUtente)) {
-      conti.push({ conto: c.conto, descrizione: c.descrizione + (det ? ' – ' + det : ''), sezione: c.sezione, riga, importo: imp, criterio: crit, blocco: c.blocco });
+      conti.push({ conto: c.conto, chiave: det ? c.conto + '|' + det : c.conto, descrizione: c.descrizione + (det ? ' – ' + det : ''), sezione: c.sezione, riga, importo: imp, criterio: crit, blocco: c.blocco });
       if (riga === null || imp === null) continue;
       perRiga[riga] = (perRiga[riga] || 0) + imp;
     }

@@ -75,7 +75,7 @@ export const elenchi = () => S.econfig.filter(x => String(x.id).startsWith('el-'
 export const elenco = (tipo, anno) => S.econfig.find(x => x.id === idElenco(tipo, anno)) || null;
 export async function salvaElenco(x) {
   if (!x.anno) throw new Error(`Non ho capito di che anno è l'elenco ${x.nome}: scrivi l'anno nel nome del file (es. passive_2025.xlsx).`);
-  await store.put('econfig', idElenco(x.tipoF, x.anno), { tipo: x.tipoF, anno: x.anno, file: x.nome, caricato: today(), righe: x.righe });
+  await store.put('econfig', idElenco(x.tipoF, x.anno), { tipo: x.tipoF, anno: x.anno, file: x.nome, ...(x.imp ? { imp: x.imp } : {}), caricato: today(), righe: x.righe });
 }
 export const togliElenco = (tipo, anno) => store.remove('econfig', idElenco(tipo, anno));
 
@@ -121,4 +121,46 @@ export function confronta(el, fattureCaricate) {
   const somma = a => r2(a.reduce((t, x) => t + Math.abs(N(x.totale)), 0));
   const man = out.filter(r => r.stato === 'manca'), div = out.filter(r => r.stato === 'diversa');
   return { righe: out, inPiu, conta: { tot: out.length, ok: out.filter(r => r.stato === 'ok').length, manca: man.length, mancaEuro: somma(man), diversa: div.length, inPiu: inPiu.length, inPiuEuro: somma(inPiu) } };
+}
+
+/* ---------------- spiegazioni per le fatture da controllare e quelle non nell'elenco ---------------- */
+const euro = v => Math.abs(N(v)).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const gg = d => String(d || '').split('-').reverse().join('/');
+/** Perché una riga dell'elenco è "da controllare": testo semplice. */
+export function spiegaDiversa(r) {
+  const f = r.caricata || {}; const out = [];
+  const totE = Math.abs(N(r.totale)), totF = Math.abs(N(f.totale));
+  if (totF > 0 && Math.abs(totE - totF) > 0.05) {
+    const dif = Math.abs(totE - totF);
+    if (N(f.ritenuta) && Math.abs(dif - Math.abs(N(f.ritenuta))) <= 0.05) out.push(`la differenza (${euro(dif)}) è la ritenuta d'acconto: l'elenco e la fattura contano il totale uno prima e l'altro dopo la ritenuta. Va bene così.`);
+    else if (f.fonte === 'pdf') out.push(`totale diverso (elenco ${euro(totE)}, fattura ${euro(totF)}): la fattura è stata letta da un PDF e il totale può essere letto male. Apri l'originale e, se serve, carica l'XML dal cassetto fiscale.`);
+    else if (Math.abs(totE - N(f.imponibile)) <= 0.05) out.push(`nell'elenco c'è l'imponibile senza IVA (${euro(totE)}) al posto del totale: va bene così.`);
+    else out.push(`totale diverso (elenco ${euro(totE)}, fattura ${euro(totF)}): può essere una fattura corretta con una nota di credito o un'altra fattura con lo stesso numero. Controlla l'originale.`);
+  }
+  if (f.data && r.data && f.data !== r.data) out.push(`data diversa (elenco ${gg(r.data)}, fattura ${gg(f.data)}): spesso nell'elenco c'è la data di ricezione al posto di quella del documento. Se il resto torna, va bene così.`);
+  return out.join(' ');
+}
+/** Perché una fattura caricata non è nell'elenco: testo semplice. */
+export function spiegaInPiu(f, el, R, tutte = []) {
+  const cp = chiaveCp(f.piva), tot = Math.abs(N(f.totale)), c = numCifre(f.numero);
+  const libere = R.righe.filter(r => r.stato === 'manca' && chiaveCp(r.piva, r.cf) === cp);
+  const stessoImp = libere.find(r => Math.abs(Math.abs(N(r.totale)) - tot) <= 0.02);
+  if (stessoImp) return `nell'elenco c'è la n. ${stessoImp.numero} del ${gg(stessoImp.data)} della stessa ditta con lo stesso importo, risultata mancante: probabilmente è questa con il numero scritto in modo diverso.`;
+  const doppia = tutte.find(x => x.id !== f.id && x.tipo === f.tipo && chiaveCp(x.piva) === cp && Math.abs(Math.abs(N(x.totale)) - tot) <= 0.02 && x.data === f.data);
+  if (doppia) return `probabile doppione: c'è anche la n. ${doppia.numero} della stessa ditta, con la stessa data e lo stesso importo.`;
+  const stessoNum = el.righe.find(r => chiaveCp(r.piva, r.cf) === cp && c && numCifre(r.numero) === c);
+  if (stessoNum) return `nell'elenco c'è un numero uguale della stessa ditta ma con data o importo diversi (${gg(stessoNum.data)}, ${euro(stessoNum.totale)}).`;
+  const ultima = el.righe.map(r => r.data || '').sort().pop();
+  if (ultima && (f.data || '') > ultima) return `è più recente dell'ultima fattura dell'elenco (${gg(ultima)}): l'elenco è stato scaricato prima che arrivasse.`;
+  if (/^TD0?4$/i.test(f.tipoDoc || '') || N(f.totale) < 0) return 'è una nota di credito: alcuni elenchi le tengono a parte.';
+  if (!cp) return 'manca la partita IVA della ditta: non si può abbinare all\'elenco. Controlla l\'originale.';
+  return 'la ditta non ha altre fatture mancanti nell\'elenco: forse è una fattura scartata dallo SdI, un documento che non è una fattura, oppure manca dall\'elenco scaricato.';
+}
+/** Nota per una fattura dell'elenco che manca, quando il tipo di documento spiega qualcosa. */
+export function spiegaManca(r) {
+  const t = String(r.tipologia || '');
+  if (/acconto|anticipo/i.test(t)) return "acconto su fattura (TD02): di solito lo emette a tuo nome chi ritira il prodotto (per esempio la cooperativa per un conferimento). Si scarica dal cassetto fiscale fra le fatture emesse.";
+  if (r.nc || /nota\s+di\s+credito/i.test(t)) return 'nota di credito: scaricala dal cassetto fiscale insieme alle fatture.';
+  if (/integrazione|autofattura|reverse|TD1[6-9]/i.test(t)) return 'integrazione o autofattura (inversione contabile): la emetti tu per una fattura ricevuta, si scarica dal cassetto fiscale.';
+  return '';
 }

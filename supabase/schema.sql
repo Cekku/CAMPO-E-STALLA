@@ -127,8 +127,9 @@ end $$;
 revoke all on function public.create_farm(text), public.join_farm(text), public.new_join_code(uuid), public.set_member_role(uuid, uuid, text, boolean) from public, anon;
 grant execute on function public.create_farm(text), public.join_farm(text), public.new_join_code(uuid), public.set_member_role(uuid, uuid, text, boolean) to authenticated;
 
--- Versione dello schema (l'app la controlla per sapere se i conti sono protetti; 5 = permessi delle persone)
-create or replace function public.ces_schema_version() returns int language sql immutable as $$ select 5 $$;
+-- Versione dello schema (l'app la controlla per sapere se i conti sono protetti; 5 = permessi delle persone,
+-- 6 = cartella degli originali dei Conti riservata al titolare)
+create or replace function public.ces_schema_version() returns int language sql immutable as $$ select 6 $$;
 grant execute on function public.ces_schema_version() to authenticated;
 
 -- Regole di accesso -------------------------------------------------------
@@ -184,12 +185,13 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.is_member_path(text) from public, anon;
 grant execute on function public.is_member_path(text) to authenticated;
--- Allegati (dalla 1.26.0): il titolare sempre, i collaboratori se il titolare non li ha esclusi, chi è in sola lettura mai
+-- Allegati (dalla 1.26.0): il titolare sempre, i collaboratori se il titolare non li ha esclusi, chi è in sola lettura mai.
+-- La cartella "<azienda>/conti/" (originali dei documenti dei Conti, dalla 1.35.0) solo il titolare.
 alter table public.farm_members add column if not exists allegati boolean not null default true;
 create or replace function public.can_files_path(p text) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from farm_members where farm_id::text = split_part(p, '/', 1) and user_id = auth.uid()
-    and (role = 'titolare' or (role = 'membro' and allegati)));
+    and (role = 'titolare' or (role = 'membro' and allegati and split_part(p, '/', 2) <> 'conti')));
 $$;
 revoke all on function public.can_files_path(text) from public, anon;
 grant execute on function public.can_files_path(text) to authenticated;

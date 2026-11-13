@@ -9,7 +9,10 @@ export const MAX_MB = 12;
 const chiave = id => new URL('./allegati/' + id, location.href).href;
 const percorso = id => sync.farm.id + '/' + id;
 export const NO_ALLEGATI = 'Il titolare non ti ha dato il permesso di vedere gli allegati (fattura e foto degli interventi).';
-export const stato = { archivio: null }; // null = non provato, true = attivo, false = manca il bucket (SQL da eseguire)
+export const stato = { archivio: null, riservati: null }; // archivio: null = non provato, true = attivo, false = manca il bucket (SQL da eseguire)
+// riservati: originali dei Conti (id "conti/…", js/conti/originali.js). Online solo se la cartella "conti" è riservata al titolare
+// (supabase/aggiornamento-documenti-conti.sql, versione dello schema 6): fino ad allora restano sul dispositivo.
+const riservato = id => String(id).startsWith('conti/');
 
 async function salvaLocale(id, blob, tipo) {
   try { const c = await caches.open(CACHE); await c.put(chiave(id), new Response(blob, { headers: { 'content-type': tipo || blob.type || 'application/octet-stream' } })); } catch (e) { console.warn('allegato non salvato in locale', e); }
@@ -41,7 +44,23 @@ export async function aggiungi(file, nome) {
   inviaInSospeso();
   return { id, nome: n, tipo, kb: Math.round(blob.size / 1024) };
 }
-export const daInviare = () => lsGet(CODA, []).length;
+export const daInviare = () => lsGet(CODA, []).filter(id => !riservato(id)).length;
+/** Originale di un documento dei Conti: si tiene così com'è (niente riduzione), con l'id scelto da chi lo chiama. */
+export async function conservaRiservato(id, blob, tipo) {
+  await salvaLocale(id, blob, tipo);
+  if (!lsGet(CODA, []).includes(id)) lsSet(CODA, [...lsGet(CODA, []), id]);
+  inviaInSospeso();
+}
+export const riservatiDaInviare = () => lsGet(CODA, []).filter(riservato).length;
+/** Controlla una volta se il database ha la cartella riservata dei Conti (versione dello schema 6 o più). */
+export async function provaRiservati() {
+  if (stato.riservati !== null) return stato.riservati;
+  if (!sync.farm || !sync.user) return null;
+  const { schemaVersion } = await import('./store.js'); const v = await schemaVersion();
+  if (v == null) return null;
+  stato.riservati = v >= 6; if (stato.riservati) inviaInSospeso();
+  return stato.riservati;
+}
 // Controlla una volta se l'archivio online esiste (il bucket si crea con supabase/aggiornamento-allegati.sql)
 export async function prova() {
   const sb = cloudClient(); if (!sb || !sync.user || !sync.farm || stato.archivio !== null || !puoAllegati()) return stato.archivio;
@@ -57,6 +76,7 @@ export function inviaInSospeso() {
     const sb = cloudClient();
     if (!sb || !sync.user || !sync.farm || !navigator.onLine || !puoAllegati()) return;
     for (const id of lsGet(CODA, [])) {
+      if (riservato(id) && stato.riservati !== true) continue;
       const blob = await leggiLocale(id);
       if (blob) {
         const { error } = await sb.storage.from(BUCKET).upload(percorso(id), blob, { contentType: blob.type, upsert: true });

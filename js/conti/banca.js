@@ -158,13 +158,13 @@ function somma(v, t) {
 }
 
 /** Registra il pagamento (o l'incasso) sulle fatture scelte, ripartendo l'importo in ordine di data. */
-export async function registraSuFatture(m, ids, fonte) {
+export async function registraSuFatture(m, ids, fonte, imp) {
   let resto = Math.abs(m.importo); const rows = [];
   const fs = ids.map(id => S.fatture.find(f => f.id === id)).filter(Boolean).sort((a, b) => (a.data || '').localeCompare(b.data || ''));
   fs.forEach((f, i) => {
     const st = statoPagamento(f); const v = i === fs.length - 1 ? resto : Math.min(resto, Math.max(0, st.residuo)); resto = r2(resto - v);
     const { id, ...data } = f; const pb = (data.pagamentiBanca || []).filter(p => p.mov !== m.id);
-    pb.push({ mov: m.id, data: m.data, importo: r2(v), descrizione: String(m.descrizione || '').slice(0, 160), fonte });
+    pb.push({ mov: m.id, data: m.data, importo: r2(v), descrizione: String(m.descrizione || '').slice(0, 160), fonte, ...(imp ? { imp } : {}) });
     rows.push({ col: 'fatture', id, data: Object.assign(data, { pagamentiBanca: pb }) });
   });
   if (rows.length) await store.bulkPut(rows);
@@ -209,7 +209,7 @@ export async function salvaRighe(sel, fonte) {
   const ban = sel.filter(r => r.tipo === 'banca');
   if (ban.length) { const CD = await import('./centri.js'); await store.bulkPut(ban.map(r => ({ col: 'econfig', id: 'bk-' + r.id, data: CD.datiBanca(Object.assign({ fonte }, r)) }))); }
   if (pag.length) { await store.bulkPut(pag.map(r => ({ col: 'pagamenti', id: r.id, data: P.datiPagamento(Object.assign({ fonte }, r)) }))); nP = pag.length; await P.imparaNomi(pag); }
-  for (const r of sel.filter(r => r.tipo === 'fattura' && r.fatt && r.fatt.length)) { await registraSuFatture({ id: r.id, data: r.data, importo: r.entrata ? r.importo : -r.importo, descrizione: r.descrizione }, r.fatt, r.fonte || fonte); nF++; }
+  for (const r of sel.filter(r => r.tipo === 'fattura' && r.fatt && r.fatt.length)) { await registraSuFatture({ id: r.id, data: r.data, importo: r.entrata ? r.importo : -r.importo, descrizione: r.descrizione }, r.fatt, r.fonte || fonte, r.imp); nF++; }
   const nD = await P.eliminaDoppi();
   return { nP, nF, nD, nB: ban.length };
 }

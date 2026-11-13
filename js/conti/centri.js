@@ -76,7 +76,7 @@ export function voceBanca(m) {
 /** Il movimento è una spesa della banca o una rata (da proporre come "Banca e finanza")? */
 export const pareBanca = m => m.tipoOp === 'spese bancarie' || /\bRATA\b|MUTUO|FINANZIAMENTO|LEASING|COMPETENZE|INTERESSI/i.test(m.descrizione || '');
 export const movimentiBanca = () => S.econfig.filter(x => x.tipo === 'banca');
-export const datiBanca = r => ({ tipo: 'banca', data: r.data, importo: Math.abs(N(r.importo)), entrata: !!r.entrata, voce: r.voce || voceBanca(r), descrizione: r.descrizione || '', fonte: r.fonte || '' });
+export const datiBanca = r => ({ tipo: 'banca', data: r.data, importo: Math.abs(N(r.importo)), entrata: !!r.entrata, voce: r.voce || voceBanca(r), descrizione: r.descrizione || '', fonte: r.fonte || '', ...(r.imp ? { imp: r.imp } : {}) });
 
 /* ---------------- calcolo dell'anno ---------------- */
 const r2 = v => Math.round(v * 100) / 100;

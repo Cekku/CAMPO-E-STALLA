@@ -17,11 +17,12 @@ revoke all on function public.is_member_path(text) from public, anon;
 grant execute on function public.is_member_path(text) to authenticated;
 
 alter table public.farm_members add column if not exists allegati boolean not null default true;
--- Allegati (dalla 1.26.0): il titolare sempre, i collaboratori se il titolare non li ha esclusi, chi è in sola lettura mai
+-- Allegati (dalla 1.26.0): il titolare sempre, i collaboratori se il titolare non li ha esclusi, chi è in sola lettura mai;
+-- la cartella "<azienda>/conti/" (originali dei Conti, dalla 1.35.0) solo il titolare
 create or replace function public.can_files_path(p text) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from farm_members where farm_id::text = split_part(p, '/', 1) and user_id = auth.uid()
-    and (role = 'titolare' or (role = 'membro' and allegati)));
+    and (role = 'titolare' or (role = 'membro' and allegati and split_part(p, '/', 2) <> 'conti')));
 $$;
 revoke all on function public.can_files_path(text) from public, anon;
 grant execute on function public.can_files_path(text) to authenticated;
