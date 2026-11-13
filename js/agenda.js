@@ -6,6 +6,8 @@ import { capoI, giac, campoInfo, cropOf, nomeCapoLungo } from './domain.js';
 import { righeTrattamenti } from './registro.js';
 import { isTrattore, compDi, stato } from './trattori.js';
 import { vociAgenda } from './archivio-link.js';
+import { vociAgenda as vociPreventivi } from './conti/preventivi.js';
+import { contiVisibili } from './views/conti.js';
 
 // Ogni voce: { data, area: 'campi'|'stalla'|'mezzi'|'magazzino', icn, t, s, go, late }
 export function agenda(giorni = 14, area = 'tutte') {
@@ -45,13 +47,15 @@ export function agenda(giorni = 14, area = 'tutte') {
 
   // scadenze messe da un documento dell'archivio (solo per il titolare)
   vociAgenda(T, fine).forEach(x => out.push(x));
+  // contratti di fornitura (disdetta e fine) e preventivi che scadono (Conti → Preventivi e contratti, solo per il titolare)
+  if (contiVisibili()) vociPreventivi(T, fine).forEach(x => out.push(x));
 
   const STALLA = ['stalla'];
   const f = area === 'stalla' ? x => STALLA.includes(x.area) || x.area === 'magazzino' : area === 'campagna' ? x => !STALLA.includes(x.area) : () => true;
   return out.filter(f).sort((a, b) => a.data.localeCompare(b.data) || (b.late - a.late));
 }
 
-const AREA_N = { campi: ['Campagna', 'ok'], stalla: ['Stalla', 'info'], mezzi: ['Mezzi', 'hay'], magazzino: ['Magazzino', 'warn'], archivio: ['Archivio', ''] };
+const AREA_N = { campi: ['Campagna', 'ok'], stalla: ['Stalla', 'info'], mezzi: ['Mezzi', 'hay'], magazzino: ['Magazzino', 'warn'], archivio: ['Archivio', ''], conti: ['Conti', ''] };
 const breve = d => weekday(d).slice(0, 3) + ' ' + Number(d.slice(8));
 // gruppi dell'elenco: Oggi, Domani, poi per settimana (la settimana finisce la domenica)
 function gruppo(d, T) {

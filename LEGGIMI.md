@@ -23,6 +23,18 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.36: preventivi e contratti di fornitura
+
+Si trova in **Conti → Fatture → Preventivi** (anche nel menu "Acquisti e vendite"). Serve a confrontare le offerte di più ditte per mangimi, sementi e forniture varie.
+
+1. **Nuovo confronto**: scrivi che cosa compri (per esempio "Mangime vacche 2027") e il tipo di fornitura.
+2. **Prodotti**: aggiungili a mano oppure con **Prendi dalle fatture**, che mostra quello che hai comprato negli ultimi 12 mesi con quantità e prezzo medio. Per ogni prodotto scrivi la quantità che ti serve in un anno. Se le ditte danno il prezzo a sacco o a dose, scrivi quanto pesa un sacco.
+3. **Offerte**: una per ditta, con validità, giorni di pagamento, trasporto e sconto. Se hai un contratto in corso, aggiungilo con **Contratto in corso** (data di fine e giorni di preavviso): diventa il termine di paragone e l'agenda ti ricorda l'ultimo giorno per la disdetta.
+4. **Prezzi**: scrivili a mano, oppure carica il PDF del preventivo con **Carica PDF**. L'app cerca da sola i prezzi dei prodotti (anche nei PDF scansionati), la validità e i giorni di pagamento, e tu controlli prima di salvare. Per i preventivi scritti in modo disordinato puoi farli leggere al modello sul PC (il testo resta sul PC) oppure a Claude.
+5. **Confronto**: tutti i prezzi vengono portati alla stessa unità (€/kg, €/q, €/t), con trasporto e sconto compresi. Vedi il costo dell'anno di ogni offerta, quanto costa il contratto e quanto avresti speso ai prezzi delle fatture. Il **costo riportato a oggi** mette alla pari chi ti fa pagare a 30 e chi a 90 giorni. Per i mangimi, se scrivi la proteina grezza, vedi anche il costo per kg di proteina. Se a una ditta manca un prezzo, il confronto si fa sui prodotti che hanno tutte. La tabella si scarica in Excel, CSV o PDF.
+
+**Preventivi dal PC**: l'archivio del PC riconosce da solo i preventivi e i contratti. In fondo alla pagina, **Cerca nell'archivio** li elenca. Con un tocco diventano un'offerta e l'app ne legge il testo. Se i preventivi ti arrivano per email, salva gli allegati in una cartella che l'archivio controlla: dopo il controllo di ogni giorno (alle 12:30) li trovi qui. Funziona dal PC dell'azienda, con il ponte dell'archivio acceso.
+
 ## Novità della versione 1.25: la vacca si riconosce dal numero
 
 - **Prima il numero**: in Stalla ogni vacca si chiama con il suo numero aziendale (lo stesso dei collari e della sala di mungitura), in elenco, nella scheda, nel modulo degli eventi e nei promemoria. La mandria è ordinata per numero e scrivendo solo il numero nella ricerca compare quella vacca.

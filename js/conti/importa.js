@@ -211,7 +211,7 @@ export async function modelliLocali(url) {
   let r; try { r = await fetch(baseLocale(url) + '/v1/models'); } catch (e) { throw new Error(NON_RISPONDE); }
   const j = await r.json().catch(() => ({})); return (j.data || []).map(m => m.id).filter(id => !/embed/i.test(id));
 }
-async function chiediModello(motore, sys, testo) {
+export async function chiediModello(motore, sys, testo) {
   if (motore === 'locale') {
     const c = llmLocale() || {}; const model = c.model || (await modelliLocali(c.url))[0];
     if (!model) throw new Error('Nessun modello caricato in LM Studio');

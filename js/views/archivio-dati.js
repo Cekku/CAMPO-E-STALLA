@@ -102,6 +102,8 @@ const MODELLI = [
   ['13.3', 'Revisione', 'Motorizzazione', 'Revisione periodica', '.jpg'],
   ['07.1', 'Polizza', 'Assicurazioni Esempio', 'Polizza responsabilità civile', '.pdf'],
   ['06.2', 'Bolletta', 'Acquedotto Esempio', 'Acqua della stalla', '.pdf'],
+  ['06.3', 'Preventivo', 'Mangimi Esempio', 'Offerta farina di mais e soia', '.pdf'],
+  ['06.1', 'Contratto', 'Sementi Esempio', 'Contratto di fornitura sementi', '.pdf'],
   ['09.2', 'Contratto di affitto', 'Proprietario Esempio', 'Affitto di fondo rustico', '.docx'],
   ['14.2', 'Formulario rifiuti', 'Smaltimenti Esempio', 'Ritiro oli esausti', '.pdf'],
   ['15', 'Attestato', 'Ente di Formazione Esempio', 'Patentino fitosanitari', '.pdf'],
@@ -136,7 +138,7 @@ function docs() {
           aggiornato: `${anno}-${String(mese).padStart(2, '0')}-${String(giorno).padStart(2, '0')}T10:00:00`,
           nome_proposto: `${data}_${pulisci(tipo)}_${pulisci(contoP || 'Varie')}_${pulisci(descr)}${est}`,
           copie_p: copie.map(c => c + '\\' + nomeFile),
-          testo: `${tipo} — ${contro || ''}\n${descr} ${anno}.\nDocumento di prova inventato: serve solo a vedere l'archivio senza il ponte acceso.`,
+          testo: `${tipo} — ${contro || ''}\n${descr} ${anno}.\n${tipo === 'Preventivo' ? `Farina di mais nazionale ${27 + caso(3)},${10 + caso(80)} €/q\nFarina di estrazione soia 48% ${440 + caso(40)},00 €/t\nOfferta valida 30 giorni. Pagamento 60 gg d.f.f.m.\n` : ''}Documento di prova inventato: serve solo a vedere l'archivio senza il ponte acceso.`,
         });
       }
     });
