@@ -24,6 +24,17 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.40: bilancino e fatture a confronto (schema RICA)
+
+Si trova in **Conti → Bilancio → Bilancino e fatture**. Il conto economico è nella forma dei bilanci agricoli del **RICA** (la rete contabile agricola del CREA): ricavi totali, costi correnti, valore aggiunto, ammortamenti e lavoro, reddito operativo, reddito netto.
+
+- **Differenze più grandi**: dove bilancino e fatture non tornano, con la spiegazione. Quando il commercialista ha messo una spesa in un conto generico ("acquisti vari", "altri servizi"), l'app propone in quale voce spostarlo con il pulsante **Sposta**.
+- **Voce per voce**: le barre del bilancino (blu) e delle fatture (gialle) una sotto l'altra.
+- **Dettaglio**: tocca una voce per vedere affiancati i conti del bilancino e le nostre categorie che ci sono finiti dentro. Con "va in" sposti un conto del bilancino in un'altra voce.
+- **Le nostre categorie**: in fondo puoi scegliere in quale voce va ogni categoria delle fatture.
+
+Spostare un conto cambia solo dove l'app lo mette nel conto economico (vale per tutti gli anni): il bilancino del commercialista resta com'è. Tutte le tabelle si scaricano in Excel, CSV o PDF.
+
 ## Novità della versione 1.39: documenti presi dall'archivio del PC
 
 Dal PC dell'azienda, con il ponte dell'archivio acceso. **Dopo questo aggiornamento chiudi la finestra del ponte e riaprila con "Archivio - ponte.bat"**, altrimenti l'app ti avvisa che il ponte è vecchio.

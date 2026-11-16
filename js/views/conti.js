@@ -22,10 +22,11 @@ import { vSalute, saluteCard } from './conti-salute.js';
 import { vSistema, sistemaAct, sistemaChange, daSistemare } from './conti-sistema.js';
 import { vPreventivi, preventiviAct, preventiviChange, scadenzeVicine } from './conti-preventivi.js';
 import { beniAct, beniChange } from './conti-beni.js';
+import { vRica, ricaAct, ricaChange } from './conti-rica.js';
 
-export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', mancanti: 'Fatture mancanti', rls: 'Reddito lordo standard', centri: 'Centri di costo', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Beni e ammortamenti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', prestiti: 'Anticipi e prestiti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie', sistema: 'Sistemazione dei dati', grafici: 'Grafici e confronti', salute: "Salute dell'azienda", documenti: 'Documenti originali', sospesi: 'In sospeso', preventivi: 'Preventivi e contratti' };
-export const GRUPPI = [['fatture', 'mancanti', 'fornitori', 'clienti', 'prodotti', 'preventivi', 'categorie', 'mensile', 'latte'], ['salute', 'grafici', 'ce', 'sp', 'indici', 'centri', 'rls', 'analisi', 'iva', 'cespiti', 'controlli'], ['personale', 'dipendenti', 'cedolini', 'pagamenti', 'prestiti', 'verifica']];
-const TAB_NOMI = { preventivi: 'Preventivi', salute: 'Salute', grafici: 'Grafici', rls: 'RLS e spese varie', personale: 'Riepilogo', cedolini: 'Cedolini', prestiti: 'Anticipi e prestiti', verifica: 'Verifica' };
+export const SUBS = { panoramica: 'Panoramica', fatture: 'Fatture', mancanti: 'Fatture mancanti', rls: 'Reddito lordo standard', centri: 'Centri di costo', importa: 'Carica documenti', fornitori: 'Fornitori', clienti: 'Clienti', prodotti: 'Prodotti', categorie: 'Categorie', mensile: 'Andamento mensile', latte: 'Latte venduto', ce: 'Conto economico', sp: 'Stato patrimoniale', indici: 'Indici di bilancio', analisi: 'Analisi della stalla', iva: 'Dichiarazioni IVA', cespiti: 'Beni e ammortamenti', controlli: 'Controlli', personale: 'Personale', dipendenti: 'Dipendenti', cedolini: 'Cedolini e bilancini paghe', pagamenti: 'Pagamenti', prestiti: 'Anticipi e prestiti', verifica: 'Verifica pagamenti', regole: 'Regole delle categorie', sistema: 'Sistemazione dei dati', grafici: 'Grafici e confronti', salute: "Salute dell'azienda", documenti: 'Documenti originali', sospesi: 'In sospeso', preventivi: 'Preventivi e contratti', rica: 'Bilancino e fatture (schema RICA)' };
+export const GRUPPI = [['fatture', 'mancanti', 'fornitori', 'clienti', 'prodotti', 'preventivi', 'categorie', 'mensile', 'latte'], ['salute', 'grafici', 'ce', 'rica', 'sp', 'indici', 'centri', 'rls', 'analisi', 'iva', 'cespiti', 'controlli'], ['personale', 'dipendenti', 'cedolini', 'pagamenti', 'prestiti', 'verifica']];
+const TAB_NOMI = { rica: 'Bilancino e fatture', preventivi: 'Preventivi', salute: 'Salute', grafici: 'Grafici', rls: 'RLS e spese varie', personale: 'Riepilogo', cedolini: 'Cedolini', prestiti: 'Anticipi e prestiti', verifica: 'Verifica' };
 
 /** Chi può vedere i conti: in locale sempre; con il cloud solo il titolare dell'azienda. */
 export function contiVisibili() {
@@ -41,7 +42,7 @@ export function render() {
   if (!PULIZIA.controlli && S.fatture.length && contiVisibili()) { PULIZIA.controlli = true; import('../conti/importa.js').then(m => m.aggiornaControlli()).then(n => { if (n) toast(n === 1 ? '1 fattura con ritenuta d\'acconto ora risulta corretta' : `${n} fatture con ritenuta d'acconto ora risultano corrette`); }).catch(e => console.warn(e)); }
   const sub = SUBS[UI.sub.conti] ? UI.sub.conti : 'panoramica';
   if (!contiVisibili()) return { title: 'Conti', html: `<section class="card lock">${ic('shield-check', 'huge')}<h2>Area riservata al titolare</h2><p class="muted">Fatture, bilancio e margini sono visibili solo a chi ha creato l'azienda. Chiedi al titolare se ti servono questi dati.</p></section>` };
-  const V = { panoramica, fatture: vFatture, mancanti: vMancanti, rls: vRls, centri: vCentri, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, controlli: vControlli, personale: vPersonale, dipendenti: vDipendenti, cedolini: vCedolini, pagamenti: vPagamenti, prestiti: vPrestiti, verifica: vVerifica, regole: vRegole, sistema: vSistema, grafici: vGrafici, salute: vSalute, documenti: vDocumenti, sospesi: vSospesi, preventivi: vPreventivi };
+  const V = { panoramica, fatture: vFatture, mancanti: vMancanti, rls: vRls, centri: vCentri, importa: vImporta, fornitori: () => vControparti('Acquisto'), clienti: () => vControparti('Vendita'), prodotti: vProdotti, categorie: vCategorie, mensile: vMensile, latte: vLatte, ce: vCE, sp: vSP, indici: vIndici, analisi: vAnalisi, iva: vIva, cespiti: vCespiti, rica: vRica, controlli: vControlli, personale: vPersonale, dipendenti: vDipendenti, cedolini: vCedolini, pagamenti: vPagamenti, prestiti: vPrestiti, verifica: vVerifica, regole: vRegole, sistema: vSistema, grafici: vGrafici, salute: vSalute, documenti: vDocumenti, sospesi: vSospesi, preventivi: vPreventivi };
   const gruppo = GRUPPI.find(g => g.includes(sub)) || null;
   const t = gruppo ? tabs('conti', gruppo.map(k => [k, TAB_NOMI[k] || SUBS[k]]), sub) : '';
   const azioni = sub === 'importa' ? '' : `<div class="btns"><button class="btn sm" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">${ic('file-up')}Carica documenti</button></div>`;
@@ -280,6 +281,7 @@ export async function onAct(a, b, d) {
   if (a === 'c-pMovTutti' && d.k != null) { const x = IMP.ris[+d.k]; if (x) x.tutti = !x.tutti; return rerender(); }
   if (/^c-pv[A-Z]/.test(a)) return preventiviAct(a, b, d, rerender);
   if (/^c-be[A-Z]/.test(a)) return beniAct(a, b, d, rerender);
+  if (/^c-rc[A-Z]/.test(a)) return ricaAct(a, b, d, rerender);
   if (/^c-p[A-Z]/.test(a)) return personaleAct(a, b, d, rerender);
   if (/^c-sd[A-Z]/.test(a)) return sistemaAct(a, b, d, rerender);
   if (/^c-(orig|doc[A-Z])/.test(a)) return documentiAct(a, b, d, rerender);
@@ -343,6 +345,7 @@ export async function onChange(t) {
   const a = t.dataset.act;
   if (/^c-pv[A-Z]/.test(a || '')) return preventiviChange(t, rerender);
   if (/^c-be[A-Z]/.test(a || '')) return beniChange(t, rerender);
+  if (/^c-rc[A-Z]/.test(a || '')) return ricaChange(t, rerender);
   if (a === 'c-docSel') return documentiChange(t, rerender);
   if (a === 'c-ssSel') return sospesiChange(t, rerender);
   if (a === 'c-files' && t.files.length) { const fs = [...t.files]; t.value = ''; return leggiFiles(fs); }
