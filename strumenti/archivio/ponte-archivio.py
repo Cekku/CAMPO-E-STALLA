@@ -14,6 +14,8 @@ Richieste (risposte JSON, contratto descritto in CLAUDE.md, sezione "Archivio do
   GET  /registro              ultime operazioni (?limite=)
   POST /apri                  {"id": 123, "percorso": "...facoltativo", "cartella": false} apre il file originale
   POST /correzioni            {"123": {"a": "02.3", "t": "F24", ...}} come "archivio.py applica", fatte dall'utente
+  GET  /file/<id o impronta>  il contenuto del file (solo documenti: PDF, XML, P7M, ZIP, Excel, CSV, testo, foto; mai
+                              i riservati), per farlo leggere all'app (Conti: estratti conto, contabili, fatture)
 
 Avvio: doppio clic su "Archivio - ponte.bat" (oppure: python ponte-archivio.py).
 """
@@ -29,7 +31,7 @@ import urllib.parse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import archivio as A  # noqa: E402
 
-VERSIONE = 1
+VERSIONE = 2
 PORTA = 1236
 ORIGINI = {
     'https://cekku.github.io',
@@ -40,6 +42,11 @@ HOST_OK = {f'127.0.0.1:{PORTA}', f'localhost:{PORTA}'}
 NON_APRIRE = {'.exe', '.msi', '.bat', '.cmd', '.com', '.ps1', '.vbs', '.vbe', '.js', '.jse', '.wsf', '.wsh', '.hta',
               '.lnk', '.url', '.scr', '.pif', '.cpl', '.jar', '.reg', '.dll', '.sys', '.application', '.appref-ms'}
 MAX_LIMITE = 500
+# file che l'app può leggere (GET /file): solo documenti, al massimo 30 MB
+DA_LEGGERE = {'.pdf': 'application/pdf', '.xml': 'application/xml', '.p7m': 'application/pkcs7-mime', '.zip': 'application/zip',
+              '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xls': 'application/vnd.ms-excel',
+              '.csv': 'text/csv', '.txt': 'text/plain', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png'}
+MAX_FILE = 30 * 1024 * 1024
 TESTO_SCHEDA = 6000
 
 
@@ -356,6 +363,38 @@ def correzioni(corpo):
     return {'aggiornati': aggiornati, 'errori': errori}
 
 
+def file_doc(id_):
+    """Percorso e tipo di una copia presente del documento, controllando che il contenuto sia ancora quello del catalogo."""
+    import hashlib
+    db = _db()
+    try:
+        r = A.trova_contenuto(db, id_)
+        if not r:
+            raise Errore(404, 'documento non trovato')
+        if r['stato'] == 'riservato':
+            raise Errore(403, 'documento riservato (contiene password): il ponte non lo passa')
+        presenti = [f[0] for f in db.execute('SELECT percorso FROM file WHERE impronta=? AND presente=1 ORDER BY length(percorso)',
+                                             (r['impronta'],))]
+        pref = r['percorso_scelto']
+    finally:
+        db.close()
+    presenti = sorted(presenti, key=lambda p: (A.chiave(p) != A.chiave(pref or ''), len(p)))
+    presenti = [p for p in presenti if os.path.isfile(p)]
+    if not presenti:
+        raise Errore(410, "il file non c'è più in quella cartella: rifai la scansione")
+    p = presenti[0]
+    tipo = DA_LEGGERE.get(os.path.splitext(p)[1].lower())
+    if not tipo:
+        raise Errore(415, "tipo di file che l'app non legge")
+    if os.path.getsize(p) > MAX_FILE:
+        raise Errore(413, 'file troppo grande (oltre 30 MB)')
+    with open(p, 'rb') as f:
+        dati = f.read()
+    if hashlib.sha256(dati).hexdigest() != r['impronta']:
+        raise Errore(409, "il file è cambiato dopo l'ultima scansione: rifai la scansione")
+    return os.path.basename(p), tipo, dati
+
+
 # ---------------------------------------------------------------- server
 
 LETTURE = {'/stato': stato, '/aree': aree, '/valori': valori, '/documenti': documenti, '/registro': registro}
@@ -374,6 +413,7 @@ class Ponte(http.server.BaseHTTPRequestHandler):
         self.send_header('Vary', 'Origin')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'content-type')
+        self.send_header('Access-Control-Expose-Headers', 'X-Nome-File')
         self.send_header('Access-Control-Allow-Private-Network', 'true')
         self.send_header('Access-Control-Max-Age', '600')
 
@@ -415,6 +455,25 @@ class Ponte(http.server.BaseHTTPRequestHandler):
             self.log_message('ERRORE %s: %s', type(e).__name__, e)
             self._json(500, {'errore': f'{type(e).__name__}: {e}'}, origine)
 
+    def _file(self, origine, id_):
+        try:
+            nome, tipo, dati = file_doc(id_)
+        except Errore as e:
+            return self._json(e.codice, {'errore': e.testo}, origine)
+        except Exception as e:
+            self.log_message('ERRORE %s: %s', type(e).__name__, e)
+            return self._json(500, {'errore': f'{type(e).__name__}: {e}'}, origine)
+        self.send_response(200)
+        self._cors(origine)
+        self.send_header('Content-Type', tipo)
+        self.send_header('X-Nome-File', urllib.parse.quote(nome))
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Content-Disposition', 'attachment')
+        self.send_header('Content-Length', str(len(dati)))
+        self.end_headers()
+        self.wfile.write(dati)
+
     def do_GET(self):
         origine = self._controlli()
         if not origine:
@@ -424,6 +483,9 @@ class Ponte(http.server.BaseHTTPRequestHandler):
         m = re.fullmatch(r'/documenti/([0-9a-f]{64}|\d{1,9})', u.path)
         if m:
             return self._esegui(origine, scheda, m[1])
+        m = re.fullmatch(r'/file/([0-9a-f]{64}|\d{1,9})', u.path)
+        if m:
+            return self._file(origine, m[1])
         fn = LETTURE.get(u.path)
         if not fn:
             return self._json(404, {'errore': 'richiesta sconosciuta'}, origine)

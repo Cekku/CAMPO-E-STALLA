@@ -6,7 +6,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.38.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.39.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -98,6 +98,19 @@ Con il cloud la riservatezza è garantita dalle regole RLS in `supabase/schema.s
 - `importa.js`: "Carica documenti" riconosce da solo il tipo di file (fatture, IVA, bilancini, cedolini, bilancini paghe, contabili di bonifico, estratti conto).
 - `tabelle.js`: tabelle ordinabili con esportazione **Excel / CSV / stampa-PDF**; `xlsx.js`, `zip.js` scritti a mano.
 - Fatture mancanti (`elenco.js`, vista `views/conti-verifiche.js`) e reddito lordo standard (`rls.js`): vedi `.claude/rules/conti-controllo-rls.md`.
+
+### Documenti della banca e fatture mancanti dall'archivio del PC (1.39.0, 16/11/2026)
+
+- Chiesto da Marco: far cercare all'app, nell'archivio del PC, i documenti che mancano per pagamenti e fatture. Serve il ponte con `GET /file` (sopra): dopo l'aggiornamento il ponte va chiuso e riaperto.
+- **Pagamenti** (`views/conti-personale.js`): pulsante "Cerca nell'archivio" (`c-pArch`) → `/documenti?area=04&anno=y` e gennaio di y+1, solo file leggibili (pdf, csv, txt, xls, xlsx) di tipo estratto conto / bonifico / distinta o sottoarea con estratti, bonifici, contabili. Foglio con le spunte: già letti (`giaLetti`: id `do-<imp>` e `imp` di `econfig` e `pagamenti`) senza spunta; con i cedolini spuntati solo i documenti dei mesi con cedolino e senza stipendio registrato e del mese dopo (`mesiScoperti`). "Leggi gli spuntati" (`c-pArchLeggi`): `scaricaFile` uno alla volta, poi `caricaMovimenti(files)` come il pulsante dei file (PDF insieme, al massimo 40; Excel e CSV uno alla volta). Niente si salva prima della revisione.
+- **Fatture mancanti** (`views/conti-verifiche.js`): nella colonna "Sul PC" pulsante "Carica" (`c-msCarica`, `data-imps`) e nel riquadro "Carica le N trovate con certezza" (solo `certo`); i file vanno a `leggiDaFile(files)` di `views/conti.js`, che apre Carica documenti e usa `leggiFiles`. Instradamento `/^c-ms[A-Z]/` → `mancantiAct`.
+- Provato con un catalogo finto (`ARCHIVIO_DATI` in una cartella temporanea, estratto conto CSV e fattura XML inventati) e il ponte avviato con l'origine di prova aggiunta solo nello script di prova: origine sbagliata 403, documento inesistente 404; dall'app l'estratto conto arriva nella revisione dei movimenti (2 righe) e la fattura in Carica documenti pronta da salvare. Non provato sull'archivio vero.
+
+### Ammortamenti sui dati veri (16/11/2026)
+
+- Su richiesta di Marco messi nel registro 49 beni dalle proposte delle fatture (copia di prima nell'IndexedDB `ces-copia-prima-2026-11-16-beni` dell'origine di GitHub Pages). Fuori: bestiame comprato e trasporti dei bovini (il bilancino li ha già fra i costi, conto "acquisto animali": contarli anche nel registro li raddoppierebbe) e righe sotto 516,46 €. Gli altri investimenti nel bilancino sono nel conto patrimoniale "beni strumentali", senza ammortamento.
+- Il cantiere della nuova stalla 2026 (prefabbricati, costruzione, scavi, progetto e permessi anche del 2025, attrezzature, impianto elettrico) parte dal 1/1/2027 con una nota da cambiare quando la stalla entra in funzione; le vasche di stoccaggio da agosto 2026; il fotovoltaico 101 kWp dalla fattura di saldo (11/2025). Fotovoltaico del 2024: manca l'acconto del 2023 (fatture del 2023 non caricate).
+- Risultato: ammortamenti 2024 ~1.400 €, 2025 ~27.000 €, 2026 ~42.000 € (fino a novembre); salute 2025 con voto complessivo 70, 2026 provvisorio. Mancano ancora stato patrimoniale e pagamenti; resta il dubbio "alimenti del CE sotto il 70% delle fatture".
 
 ### Registro dei beni e ammortamenti (1.38.0, 13/11/2026) — `conti/beni.js`, `views/conti-beni.js`
 
@@ -345,6 +358,7 @@ Cartella `C:\Users\Marco\Desktop\PROGETTO CAMPO E STALLA`: contiene questo repos
 - `GET /registro?limite=50` → `{registro: [{quando, chi, azione, id, nome, percorso, dettagli}]}`.
 - `POST /apri` `{"id": 123, "percorso": "facoltativo, una delle copie", "cartella": false}` → apre il file con il programma di Windows (`os.startfile`), oppure con `cartella: true` apre Esplora file con il file selezionato. Solo percorsi del catalogo con il file ancora presente (404 se la copia non è del documento, 410 se il file non c'è più); niente eseguibili e script (`NON_APRIRE`). → `{aperto, cartella}`.
 - `POST /correzioni` `{"123": {"a": "02.3", "t": "F24", "d": "2025-01", "c": "…", "p": "…", "x": "…", "n": "nome a mano"}, "456": {}}` (chiave vuota `{}` = conferma; `""` in un campo lo svuota; massimo 1.000) → `{aggiornati: [doc], errori: {id: testo}}`; le correzioni valide si salvano anche se altre hanno errori. `classificato_da='utente'`, stato `confermato`, registro con prima e dopo.
+- `GET /file/<id o impronta>` (dalla 1.39.0, `VERSIONE = 2` del ponte) → il contenuto del file (prima copia presente, preferita `percorso_scelto`), `Content-Type` dall'estensione e nome in `X-Nome-File` (codificato, esposto con `Access-Control-Expose-Headers`). Solo `DA_LEGGERE` (pdf, xml, p7m, zip, xlsx, xls, csv, txt, jpg, png), al massimo 30 MB; 403 per i riservati, 410 file sparito, 409 se lo SHA-256 non è più quello del catalogo (file cambiato: rifare la scansione), 415 tipo non ammesso. Nell'app `scaricaFile(imp)` di `archivio-dati.js` restituisce un `File` (con un ponte vecchio il 404 "richiesta sconosciuta" diventa "chiudi e riapri il ponte"); `cerca(filtri)` = `/documenti` senza la memoria della vista.
 - Provato con curl il 10/11/2026 su una copia del catalogo: origine/host sbagliati 403, ricerca ~0,15 s su 11.600 contenuti, correzioni valide e sbagliate (codice, data inesistente, campo sconosciuto), riservato senza testo, apertura della cartella.
 
 ### Archivio nell'app (dalla 1.27.0) — `js/views/archivio.js`, `js/views/archivio-dati.js`

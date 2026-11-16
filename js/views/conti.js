@@ -120,6 +120,8 @@ import { idFattura } from '../conti/importa.js';
 const idF = f => idFattura(f.chiave);
 const sumSez = (x, s) => x.conti.filter(c => c.sezione === s && c.riga != null).reduce((t, c) => t + N(c.importo), 0);
 
+/** File presi dall'archivio del PC: si aprono in Carica documenti e si leggono come quelli scelti a mano. */
+export async function leggiDaFile(files) { UI.tab = 'conti'; UI.sub.conti = 'importa'; UI.detail = null; rerender(); window.scrollTo(0, 0); await leggiFiles(files); }
 async function leggiFiles(files) {
   const { leggiDocumento } = await import('../conti/importa.js'); const OR = await import('../conti/originali.js');
   IMP.busy = true; IMP.tot = files.length; IMP.fatti = 0; IMP.ris = IMP.ris || []; rerender();
@@ -282,7 +284,7 @@ export async function onAct(a, b, d) {
   if (/^c-sd[A-Z]/.test(a)) return sistemaAct(a, b, d, rerender);
   if (/^c-(orig|doc[A-Z])/.test(a)) return documentiAct(a, b, d, rerender);
   if (/^c-ss[A-Z]/.test(a)) return sospesiAct(a, b, d, rerender);
-  if (a === 'c-msCerca') return mancantiAct(a, b, d, rerender);
+  if (/^c-ms[A-Z]/.test(a)) return mancantiAct(a, b, d, rerender);
   switch (a) {
     case 'tsort': ordina(d.id, d.k); return rerender();
     case 'texp': try { await esporta(d.ids.split(','), d.nome, d.fmt); } catch (e) { toast(e.message, 'err'); } return;

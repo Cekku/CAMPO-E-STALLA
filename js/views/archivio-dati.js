@@ -48,6 +48,27 @@ export function leggi(percorso) {
 export async function aspetta(percorso) { const e = leggi(percorso); while (e.carico) await new Promise(r => setTimeout(r, 40)); if (e.err) throw e.err; return e.dati; }
 
 export const apri = (id, percorso, cartella) => chiama('/apri', { metodo: 'POST', corpo: Object.assign({ id }, percorso ? { percorso } : {}, cartella ? { cartella: true } : {}) });
+/** Il file di un documento (GET /file, dalla 1.39.0 del ponte) come File, per farlo leggere ai Conti. */
+export async function scaricaFile(id, { tempo = 60000 } = {}) {
+  const c = conf();
+  if (c.prova) throw new Error("Con i dati di prova dell'archivio non ci sono file veri da leggere");
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), tempo);
+  let r;
+  try { r = await fetch(String(c.url || PONTE_PREDEFINITO).replace(/\/+$/, '') + '/file/' + encodeURIComponent(id), { signal: ctl.signal, cache: 'no-store' }); }
+  catch (e) { clearTimeout(t); throw Object.assign(new Error(e.name === 'AbortError' ? 'Il ponte non risponde' : 'Ponte non raggiungibile'), { spento: true }); }
+  if (!r.ok) {
+    clearTimeout(t); let j = null; try { j = await r.json(); } catch (e) { }
+    if (r.status === 404 && j && j.errore === 'richiesta sconosciuta') throw Object.assign(new Error(`Il ponte dell'archivio è di una versione vecchia: chiudi la sua finestra e riaprilo con "Archivio - ponte.bat"`), { codice: 404 });
+    throw Object.assign(new Error((j && j.errore) || 'Errore ' + r.status), { codice: r.status });
+  }
+  try {
+    const buf = await r.arrayBuffer(); let nome = 'documento';
+    try { nome = decodeURIComponent(r.headers.get('X-Nome-File') || '') || nome; } catch (e) { }
+    return new File([buf], nome, { type: r.headers.get('Content-Type') || '' });
+  } finally { clearTimeout(t); }
+}
+/** Elenco di documenti dal ponte senza passare dalla memoria della vista. */
+export const cerca = (filtri, tempo = 15000) => chiama('/documenti' + qs(filtri), { tempo });
 /** correzioni nel formato del ponte: { "<id>": { a, t, d, c, p, x, n } }; {} = confermato così com'è */
 export async function correggi(corr) { const r = await chiama('/correzioni', { metodo: 'POST', corpo: corr }); cache.clear(); return r; }
 

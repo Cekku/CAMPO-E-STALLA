@@ -192,7 +192,7 @@ export function vPagamenti() {
   const imp = PIMP.righe || PIMP.busy ? anteprimaMov() : '';
   const t = tabella('ppag', { title: 'Pagamenti ' + y, sheet: 'Pagamenti ' + y, cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'tipoN', h: 'Tipo' }, { k: 'chi', h: 'Dipendente o descrizione', cls: 'w' }, { k: 'compN', h: 'Competenza' }, { k: 'modN', h: 'Modalità', html: r => r.modalita === 'contanti' && r.tipo === 'stipendio' ? `<span class="esito ko">${ic('octagon-x')}contanti</span>` : esc(r.modN) }, { k: 'importo', h: 'Importo', fmt: 'eur2', html: r => r.tipo === 'rimborso' ? `<span class="t-ok">+${eu(r.importo)}</span>` : eu(r.importo) }, { k: 'fonte', h: 'Inserito da', cls: 'clip' }],
     rows: ps.map(p => Object.assign({ tipoN: P.TIPI_PAG[p.tipo] || p.tipo, chi: p.dip ? nomeDip(p.dip) || p.descrizione : p.descrizione || '', compN: p.tipo === 'prestito' ? '—' : p.comp ? (/T\d$/.test(p.comp) ? p.comp.replace('-T', ' · trimestre ') : P.nomeMese(p.comp)) : p.tipo === 'stipendio' && P.compCausale(p) ? P.nomeMese(P.compCausale(p)) + ' (dalla causale)' : 'automatica', modN: p.tipo === 'rimborso' ? (P.COME_RIMB[p.come] || '') : P.MODALITA[p.modalita] || '', _cls: 'click' }, p)), rowAttr: r => `data-act="c-pPag" data-id="${esc(r.id)}"`, tot: { data: 'Totale', importo: tot } });
-  return `<div class="toolbar">${miniTabs('pp_tipo', [['', 'Tutti'], ...Object.entries(P.TIPI_PAG).map(([k, l]) => [k, l.split(' (')[0]])], tp)}<span class="sp"></span><button class="btn sm" data-act="c-pPag">${ic('plus')}Registra pagamento</button><label class="btn sm">${ic('file-up')}Estratto conto o bonifici (PDF, Excel, CSV)<input type="file" accept=".csv,.txt,.xlsx,.pdf" multiple data-act="c-pMovFile" hidden></label></div>
+  return `<div class="toolbar">${miniTabs('pp_tipo', [['', 'Tutti'], ...Object.entries(P.TIPI_PAG).map(([k, l]) => [k, l.split(' (')[0]])], tp)}<span class="sp"></span><button class="btn sm" data-act="c-pPag">${ic('plus')}Registra pagamento</button><button class="btn sm" data-act="c-pArch">${ic('book-open')}Cerca nell'archivio</button><label class="btn sm">${ic('file-up')}Estratto conto o bonifici (PDF, Excel, CSV)<input type="file" accept=".csv,.txt,.xlsx,.pdf" multiple data-act="c-pMovFile" hidden></label></div>
   ${imp}<section class="card"><div class="card-h"><h2>${ic('banknote')}Pagamenti ${y}</h2><span class="count">${ps.length}</span>${bottoniExport(['ppag'], 'Pagamenti personale ' + y)}</div>${ps.length ? t : empty('banknote', 'Nessun pagamento registrato', 'Registra gli stipendi pagati, gli F24 e i contributi, oppure carica l\'estratto conto della banca: i bonifici ai dipendenti si riconoscono dal nome.')}</section>
   <p class="muted small pad-x">Gli anticipi che togli tu dal bonifico e le rate di prestito tolte dallo stipendio contano come stipendio pagato di quel mese. Le restituzioni (in verde) non sono uscite e non entrano nel totale. Lo stipendio pagato va al mese indicato; se scegli "automatica" va al mese più vecchio ancora da saldare. Gli F24 coprono le ritenute IRPEF del mese prima, i contributi INPS agricoli si pagano per trimestre.</p>`;
 }
@@ -349,8 +349,73 @@ function schedaMese(p) {
 /* ---------------- azioni ---------------- */
 async function salvaCfg(patch) { await store.put('econfig', 'cfg', Object.assign({}, cfg(), patch)); }
 const parseIt = s => { s = String(s || '').trim().replace(/\s|€/g, ''); if (!s) return null; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const v = parseFloat(s); return isFinite(v) ? v : null; };
+/* ---------------- estratti conto e contabili dall'archivio del PC (dalla 1.39.0) ---------------- */
+// Il ponte dell'archivio elenca i documenti della banca dell'anno (area 04: estratti conto, bonifici e contabili, distinte)
+// e passa il file all'app (GET /file): la lettura è la stessa del pulsante "Estratto conto o bonifici".
+const ARCH = { L: null, err: '', anno: null };
+const LEGGIBILI = /\.(pdf|csv|txt|xlsx|xls)$/i;
+const BANCA_TIPI = /^(estratto|bonifico|distinta|contabile|movimento)/i;
+const mesePrima = m => { const [y, mm] = m.split('-').map(Number); return mm === 1 ? `${y - 1}-12` : `${y}-${String(mm - 1).padStart(2, '0')}`; };
+/** Impronte dei documenti già letti dall'app (originali conservati o collegati, pagamenti, movimenti della banca). */
+function giaLetti() {
+  const s = new Set();
+  for (const x of S.econfig) { if (x.id && x.id.startsWith('do-')) s.add(x.id.slice(3)); if (x.imp) s.add(x.imp); }
+  for (const p of S.pagamenti) if (p.imp) s.add(p.imp);
+  return s;
+}
+/** Mesi dell'anno con il cedolino e senza nessuno stipendio pagato registrato. */
+function mesiScoperti(y) {
+  const ced = P.periodi().filter(m => m.startsWith(y + '-') && /-\d\d$/.test(m) && +m.slice(5) <= 12);
+  const pagati = new Set(P.pagamenti().filter(p => p.tipo === 'stipendio' && p.dip).map(p => p.comp || (p.data ? mesePrima(p.data.slice(0, 7)) : '')));
+  return ced.filter(m => !pagati.has(m));
+}
+async function cercaArchivio(y) {
+  const AD = await import('./archivio-dati.js');
+  const [a, b] = await Promise.all([AD.cerca({ area: '04', anno: y, limite: 500, ordina: 'data' }), AD.cerca({ area: '04', anno: y + 1, limite: 500, ordina: 'data' })]);
+  const tutti = [...(a.documenti || []), ...(b.documenti || []).filter(d => String(d.data || '').slice(0, 7) === `${y + 1}-01`)];
+  return tutti.filter(d => LEGGIBILI.test(d.nome_file || d.estensione || '') && (BANCA_TIPI.test(d.tipo || '') || /estratt|bonific|contabil/i.test(d.sotto || '')));
+}
+function schedaArchivio() {
+  const y = ARCH.anno; const L = ARCH.L || []; const gia = giaLetti(); const scop = mesiScoperti(y);
+  const utili = new Set(scop.flatMap(m => { const [yy, mm] = m.split('-').map(Number); const dopo = mm === 12 ? `${yy + 1}-01` : `${yy}-${String(mm + 1).padStart(2, '0')}`; return [m, dopo]; }));
+  const scelto = d => !gia.has(d.impronta) && (!scop.length || utili.has(String(d.data || '').slice(0, 7)));
+  const leg = s => String(s || '').replace(/(\d)EUR\b/g, '$1 €').replace(/(?<!\d)-|-(?!\d)/g, ' ').replace(/\s+/g, ' ').trim();
+  const righe = L.map(d => `<label class="row"><span class="r-icon"><input type="checkbox" class="pa-sel" value="${esc(d.impronta)}"${scelto(d) ? ' checked' : ''}></span><span class="r-main"><b>${esc(leg(d.nome_proposto || d.nome_file))}</b><span>${esc(d.data ? fd(d.data.length === 7 ? d.data + '-01' : d.data).replace(/^01\//, '') : 'senza data')} · ${esc(leg(d.tipo) || d.sotto || '')} · ${esc(d.nome_file || '')}</span></span><span class="r-side">${gia.has(d.impronta) ? '<span class="chip ok">già letto</span>' : ''}</span></label>`).join('');
+  const nSc = L.filter(scelto).length;
+  openSheet("Documenti della banca nell'archivio", `<p class="muted small">Estratti conto, contabili e distinte di bonifico del ${y} (e di gennaio ${y + 1}) trovati nell'archivio del PC. ${scop.length ? `Mesi con il cedolino e senza stipendi pagati registrati: <b>${esc(scop.map(m => P.nomeMese ? P.nomeMese(m) : m).join(', '))}</b>; sono spuntati i documenti di quei mesi e del mese dopo che l'app non ha ancora letto.` : "Sono spuntati quelli che l'app non ha ancora letto."} Dopo la lettura controlli i movimenti, come con un file caricato a mano: non si salva niente finché non confermi.</p>
+    ${L.length ? `<div class="list flat">${righe}</div>` : `<p class="muted">Nell'archivio non ci sono documenti della banca del ${y}.</p>`}
+    <div class="factions"><span class="muted small">${L.length} documenti · ${nSc} spuntati</span><span class="sp"></span><button class="btn" data-act="close">Annulla</button>${L.length ? `<button class="btn primary" data-act="c-pArchLeggi">${ic('scan-text')}Leggi gli spuntati</button>` : ''}</div>`, { wide: true });
+}
+async function leggiDaArchivio(b, rerender) {
+  const imps = $$('#sheet .pa-sel').filter(x => x.checked).map(x => x.value);
+  if (!imps.length) return toast('Spunta almeno un documento', 'err');
+  const L = (ARCH.L || []).filter(d => imps.includes(d.impronta));
+  const pdf = L.filter(d => /\.pdf$/i.test(d.nome_file || '')), altri = L.filter(d => !/\.pdf$/i.test(d.nome_file || ''));
+  const scelti = pdf.length ? pdf.slice(0, 40) : altri.slice(0, 1);
+  b.disabled = true; const AD = await import('./archivio-dati.js'); const files = []; const err = [];
+  for (const [i, d] of scelti.entries()) {
+    b.textContent = `Prendo dal PC ${i + 1} di ${scelti.length}…`;
+    try { files.push(await AD.scaricaFile(d.impronta)); } catch (e) { if (e.spento || /versione vecchia/.test(e.message)) { b.disabled = false; b.textContent = 'Leggi gli spuntati'; return toast(e.message, 'err'); } err.push((d.nome_file || 'documento') + ': ' + e.message); }
+  }
+  closeSheet(); rerenderP = rerender;
+  if (err.length) toast(err.join(' · '), 'err');
+  if (!files.length) return;
+  const resto = (pdf.length ? pdf.length - scelti.length + altri.length : altri.length - 1);
+  try { await caricaMovimenti(files); } catch (e) { toast(e.message, 'err'); }
+  if (resto > 0) toast(pdf.length > 40 ? `Letti i primi 40 PDF: gli altri ${resto} alla prossima volta` : `Gli Excel e CSV si leggono uno alla volta: ${resto === 1 ? 'ne resta 1' : 'ne restano ' + resto}`);
+  rerender();
+}
+
 export async function personaleAct(a, b, d, rerender) {
   switch (a) {
+    case 'c-pArch': {
+      b.disabled = true; ARCH.anno = UI.anno;
+      try { ARCH.L = await cercaArchivio(UI.anno); schedaArchivio(); }
+      catch (e) { toast(e.spento ? 'Il ponte dell\'archivio non risponde: dal PC dell\'azienda avvia "Archivio - ponte.bat" e riprova.' : e.message, 'err'); }
+      finally { b.disabled = false; }
+      return;
+    }
+    case 'c-pArchLeggi': return leggiDaArchivio(b, rerender);
     case 'c-pDip': return schedaDipendente(d.k);
     case 'c-pCed': return schedaCedolino(d.id);
     case 'c-pBil': return schedaBilancino(d.id);

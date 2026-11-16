@@ -2,7 +2,7 @@
 import { UI } from '../state.js';
 import { esc, nf, fd } from '../util.js';
 import { ic } from '../icons.js';
-import { empty } from '../ui.js';
+import { empty, toast } from '../ui.js';
 import { fatture, anniFatture } from '../conti/dati.js';
 import { tabella, bottoniExport, fmtVal } from '../conti/tabelle.js';
 import { elenco, elenchi, confronta, spiegaDiversa, spiegaInPiu, spiegaManca } from '../conti/elenco.js';
@@ -12,11 +12,26 @@ import * as OR from '../conti/originali.js';
 // ricerca delle fatture mancanti nell'archivio del PC (solo lettura: si apre il file, non si salva niente)
 const MS = { carico: false, passo: '', err: '' };
 export async function mancantiAct(a, b, d, rerender) {
+  if (a === 'c-msCarica') return caricaDalPc(b, (d.imps || '').split(',').filter(Boolean));
   if (a !== 'c-msCerca') return;
   MS.carico = true; MS.err = ''; rerender();
   try { if (d.v === 'rileggi') OR.svuotaCatalogo(); await OR.caricaCatalogo((n, t) => { MS.passo = `${nf(n)} di ${nf(t)}`; rerender(); }); }
   catch (e) { MS.err = e.spento ? 'Il ponte dell\'archivio non risponde: dal PC dell\'azienda avvia "Archivio - ponte.bat" e riprova.' : (e.message || 'Errore del ponte'); }
   MS.carico = false; rerender();
+}
+// fatture mancanti trovate sul PC: il ponte passa i file all'app e si leggono come in Carica documenti (dalla 1.39.0)
+async function caricaDalPc(b, imps) {
+  if (!imps.length) return;
+  const AD = await import('./archivio-dati.js'); const files = []; const err = []; const testo = b.innerHTML; b.disabled = true;
+  for (const [i, imp] of imps.entries()) {
+    if (imps.length > 1) b.textContent = `Prendo dal PC ${i + 1} di ${imps.length}…`;
+    try { files.push(await AD.scaricaFile(imp)); }
+    catch (e) { if (e.spento || /versione vecchia/.test(e.message)) { b.disabled = false; b.innerHTML = testo; return toast(e.message, 'err'); } err.push(e.message); }
+  }
+  b.disabled = false; b.innerHTML = testo;
+  if (err.length) toast(err.join(' · '), 'err');
+  if (!files.length) return;
+  const C = await import('./conti.js'); await C.leggiDaFile(files);
 }
 import { rls, giudizio, VOCI, SOGLIE } from '../conti/rls.js';
 
@@ -45,13 +60,15 @@ export function vMancanti() {
   const kp = `<div class="kpis">${kpi("Nell'elenco", nf(C.tot), fmtVal(totEl, 'eur2') + ' IVA compresa')}${kpi('Caricate', nf(C.ok + C.diversa), C.diversa ? `${C.diversa} da controllare` : 'tutte uguali all\'elenco')}${kpi('Mancanti', nf(C.manca), C.manca ? fmtVal(C.mancaEuro, 'eur2') + ' da caricare' : 'nessuna', C.manca ? 't-bad' : '')}${kpi("Non nell'elenco", nf(C.inPiu), C.inPiu ? `caricate nel ${y}, ${fmtVal(C.inPiuEuro, 'eur2')}` : 'nessuna')}</div>`;
   const cercaBtn = C.manca && nCar ? (MS.carico ? `<p class="muted small">Leggo il catalogo dell'archivio… ${esc(MS.passo)}</p>` : `<button class="btn sm" data-act="c-msCerca" data-v="${docs ? 'rileggi' : ''}">${ic('search')}${docs ? 'Rileggi il catalogo del PC' : "Cerca le mancanti nell'archivio del PC"}</button>`) : '';
   const trovate = PM ? PM.size : 0;
-  const archivio = PM ? `<div class="note-box">${ic('book-open')}<span>${trovate ? `<b>${trovate === 1 ? '1 mancante è' : trovate + ' mancanti sono'} nell'archivio del PC</b> (colonna "Sul PC"): apri il file per controllare e trascinalo in Carica documenti.` : "<b>Nessuna delle mancanti è nell'archivio del PC.</b> Scaricale dal cassetto fiscale."} ${C.manca - trovate > 0 && trovate ? (C.manca - trovate === 1 ? "L'altra non l'ho trovata: scaricala dal cassetto fiscale." : `Le altre ${C.manca - trovate} non le ho trovate: scaricale dal cassetto fiscale.`) : ''}</span></div>` : MS.err ? `<div class="note-box warn">${ic('wifi-off')}<span>${esc(MS.err)}</span></div>` : '';
+  const certe = PM ? [...new Set([...PM.values()].filter(x => x.certo).map(x => x.d.impronta))] : [];
+  const tutteBtn = certe.length > 1 ? ` <button class="btn sm" data-act="c-msCarica" data-imps="${esc(certe.join(','))}">${ic('file-up')}Carica le ${certe.length} trovate con certezza</button>` : '';
+  const archivio = PM ? `<div class="note-box">${ic('book-open')}<span>${trovate ? `<b>${trovate === 1 ? '1 mancante è' : trovate + ' mancanti sono'} nell'archivio del PC</b> (colonna "Sul PC"): con <b>Carica</b> l'app la legge come in Carica documenti e tu la controlli prima di salvarla.` : "<b>Nessuna delle mancanti è nell'archivio del PC.</b> Scaricale dal cassetto fiscale."} ${C.manca - trovate > 0 && trovate ? (C.manca - trovate === 1 ? "L'altra non l'ho trovata: scaricala dal cassetto fiscale." : `Le altre ${C.manca - trovate} non le ho trovate: scaricale dal cassetto fiscale.`) : ''}${tutteBtn}</span></div>` : MS.err ? `<div class="note-box warn">${ic('wifi-off')}<span>${esc(MS.err)}</span></div>` : '';
   const esito = !nCar ? `<div class="note-box warn">${ic('info')}<span><b>Per il ${y} non hai caricato nessuna fattura ${tipo === 'Vendita' ? 'emessa' : 'ricevuta'}: le ${C.tot} righe dell'elenco risultano tutte "mancanti".</b> Non vanno cercate una per una: scarica dal cassetto fiscale lo ZIP delle fatture ${nomeTipo(tipo)} del ${y} (Fatture e Corrispettivi → Consultazione, scegli il periodo) e caricalo in <button class="linkbtn" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">Carica documenti</button>: il confronto si fa da solo.</span></div>`
     : nCar < C.tot * 0.2 && C.manca > 20 ? `<div class="note-box warn">${ic('info')}<span><b>Per il ${y} hai caricato solo ${nCar} fatture ${nomeTipo(tipo)} su ${C.tot} dell'elenco.</b> Prima di cercare le mancanti una per una carica lo ZIP dell'anno dal cassetto fiscale.</span></div>`
     : C.manca ? `<div class="note-box bad">${ic('triangle-alert')}<span><b>${C.manca === 1 ? 'Manca 1 fattura' : `Mancano ${C.manca} fatture`}</b> dell'elenco ${esc(el.file || '')}. Scaricale dal cassetto fiscale o dal portale e caricale in <button class="linkbtn" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">Carica documenti</button>.</span></div>` : `<div class="note-box">${ic('circle-check')}<span><b>Tutte le fatture dell'elenco sono caricate.</b>${C.diversa ? ` ${C.diversa} con importo o data diversi: controllale.` : ''}</span></div>`;
   const chips = `<div class="chipbar"><button data-act="chip" data-f="cm_stato" data-v="tutte" aria-pressed="${st === 'tutte'}">Tutte<span class="n">${C.tot}</span></button><button data-act="chip" data-f="cm_stato" data-v="manca" aria-pressed="${st === 'manca'}">Mancanti<span class="n">${C.manca}</span></button><button data-act="chip" data-f="cm_stato" data-v="diversa" aria-pressed="${st === 'diversa'}">Da controllare<span class="n">${C.diversa}</span></button><button data-act="chip" data-f="cm_stato" data-v="ok" aria-pressed="${st === 'ok'}">Caricate<span class="n">${C.ok}</span></button><button data-act="chip" data-f="cm_stato" data-v="inpiu" aria-pressed="${st === 'inpiu'}">Non nell'elenco<span class="n">${C.inPiu}</span></button></div>`;
   const cp = tipo === 'Vendita' ? 'Cliente' : 'Fornitore';
-  const sulPc = r => { const x = PM && PM.get(r.riga); if (!x) return ''; return `<span style="display:flex;gap:4px;align-items:center;flex-wrap:wrap"><button class="btn sm ghost" data-act="c-origPc" data-imp="${esc(x.d.impronta)}" title="${esc(x.d.nome_file)}">${ic('external-link')}Apri</button><button class="iconbtn sm" data-act="c-origCartella" data-imp="${esc(x.d.impronta)}" aria-label="Apri la cartella">${ic('folder-open')}</button></span><span class="sub">${esc(x.d.nome_file)}${x.certo ? '' : ' (da controllare: ' + (x.altri + 1) + ' simili)'}</span>`; };
+  const sulPc = r => { const x = PM && PM.get(r.riga); if (!x) return ''; return `<span style="display:flex;gap:4px;align-items:center;flex-wrap:wrap"><button class="btn sm" data-act="c-msCarica" data-imps="${esc(x.d.impronta)}" title="Leggi la fattura come in Carica documenti">${ic('file-up')}Carica</button><button class="btn sm ghost" data-act="c-origPc" data-imp="${esc(x.d.impronta)}" title="${esc(x.d.nome_file)}">${ic('external-link')}Apri</button><button class="iconbtn sm" data-act="c-origCartella" data-imp="${esc(x.d.impronta)}" aria-label="Apri la cartella">${ic('folder-open')}</button></span><span class="sub">${esc(x.d.nome_file)}${x.certo ? '' : ' (da controllare: ' + (x.altri + 1) + ' simili)'}</span>`; };
   let corpo;
   if (st === 'inpiu') {
     corpo = tabella('elpiu', { title: `Fatture ${nomeTipo(tipo)} ${y} caricate ma non nell'elenco`, sheet: "Non nell'elenco", cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'numero', h: 'Numero', cls: 'nw' }, { k: 'controparte', h: cp, cls: 'w', html: f => `${esc(f.controparte)}<span class="sub">${esc(f.piva || '')}</span>` }, { k: 'piva', h: 'P.IVA', export: true }, { k: 'tipoDoc', h: 'Doc.' }, { k: 'imponibile', h: 'Imponibile', fmt: 'eur2' }, { k: 'totale', h: 'Totale', fmt: 'eur2' }, { k: 'perche', h: 'Perché', cls: 'w' }, { k: 'file', h: 'File', cls: 'clip' }].filter(c => c.export !== true), rows: R.inPiu.map(f => Object.assign({ _cls: 'click', perche: spiegaInPiu(f, el, R, fatture()) }, f)), rowAttr: f => `data-act="c-fatt" data-id="${f.id}"`, tot: { data: 'Totale', imponibile: R.inPiu.reduce((t, f) => t + (+f.imponibile || 0), 0), totale: R.inPiu.reduce((t, f) => t + (+f.totale || 0), 0) } });

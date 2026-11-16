@@ -24,6 +24,15 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.39: documenti presi dall'archivio del PC
+
+Dal PC dell'azienda, con il ponte dell'archivio acceso. **Dopo questo aggiornamento chiudi la finestra del ponte e riaprila con "Archivio - ponte.bat"**, altrimenti l'app ti avvisa che il ponte è vecchio.
+
+- **Conti → Personale → Pagamenti → Cerca nell'archivio**: elenca gli estratti conto, le contabili e le distinte di bonifico dell'anno che stanno sul PC. Sono già spuntati quelli dei mesi con il cedolino ma senza stipendio pagato registrato. Con **Leggi gli spuntati** l'app li legge come se li avessi caricati tu, e controlli i movimenti prima di salvarli.
+- **Conti → Fatture mancanti**: dopo "Cerca le mancanti nell'archivio del PC", accanto a ogni fattura trovata c'è **Carica**, e c'è anche **Carica le N trovate con certezza**. Le fatture si aprono in Carica documenti, pronte da controllare e salvare.
+
+Il ponte passa i file solo all'app, solo su questo PC, e mai i documenti riservati (quelli con password scritte dentro).
+
 ## Novità della versione 1.38: ammortamenti senza il bilancio di fine anno
 
 Si trova in **Conti → Bilancio → Beni e ammortamenti**. Serve quando il commercialista non fa il bilancio di fine anno (società semplice agricola con il reddito catastale): senza ammortamenti utile, margini e prezzo di pareggio vengono migliori del vero.
