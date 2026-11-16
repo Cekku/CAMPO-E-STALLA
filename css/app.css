@@ -1720,3 +1720,34 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 .ch-go:disabled { opacity: .5; }
 .ch-bar .iconbtn.on { color: var(--bad); }
 @media (max-width: 440px) { .ch-head { gap: 4px; padding-left: 12px; } .ch-tit span { display: none; } .ch-sel { max-width: 104px; } }
+
+/* ---------- Ritocchi di impaginazione (1.39.1) ---------- */
+/* Schede: sul computer vanno a capo, così si vedono tutte; sul telefono scorrono e una sfumatura ai lati dice che ce ne sono altre (classi messe da barre() in app.js) */
+@media (min-width: 900px) { .tabs { flex-wrap: wrap; overflow-x: visible; row-gap: 0; } }
+.piu-d { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+.piu-s { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
+.piu-s.piu-d { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
+/* Filtri a pulsanti (Pagamenti): non allargano più la pagina sul telefono */
+.mini-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.mini-tabs::-webkit-scrollbar { display: none; }
+.mini-tabs button { flex: none; white-space: nowrap; }
+/* Icona dentro i pulsanti di scelta (Elenco / Tabella della mandria): staccata dal testo */
+.chipbar button .ic { width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; }
+/* Righe di numeri: niente casella rimasta sola con il vuoto accanto */
+@media (min-width: 900px) {
+  .kpis:not(.three):has(> :nth-child(3):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .kpis:not(.three) > :nth-child(5):last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 899px) {
+  .kpis > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  /* Titolo della pagina: fino a due righe invece di "Panora…" */
+  .ab-title { font-size: 19px; line-height: 1.05; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; text-wrap: balance; overflow-wrap: anywhere; }
+  .ab-year { font-size: 13px; height: 32px; padding: 0 20px 0 7px; background-position: right 6px center; margin-left: 4px; flex: none; }
+}
+@media (max-width: 420px) { .appbar .ab-btn { width: 40px; } }
+/* Righe con una tendina a destra (collaboratori): sul telefono la tendina va sotto, il testo resta leggibile */
+@media (max-width: 560px) {
+  .row.static:has(> .btns select) { flex-wrap: wrap; }
+  .row.static:has(> .btns select) > .btns { flex: 1 0 100%; }
+  .row.static > .btns select { min-width: 0; max-width: 100%; flex: 1 1 auto; }
+}

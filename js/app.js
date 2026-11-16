@@ -169,6 +169,20 @@ function render() {
   document.title = (t ? t + ' · ' : '') + 'Campo e Stalla';
   $('#view').innerHTML = r.html;
   if (fid) { const el = document.getElementById(fid); if (el) { el.focus(); if (sel) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { } } }
+  barre();
+}
+// Schede e filtri che non stanno in una riga: la voce scelta resta in vista (prima a ogni ridisegno la barra tornava all'inizio),
+// una sfumatura ai lati dice che ce ne sono altre (.piu-s / .piu-d) e sul computer la rotella del mouse li fa scorrere.
+function barre() {
+  for (const b of $('#view').querySelectorAll('.tabs, .chipbar, .mini-tabs')) {
+    if (b.scrollWidth <= b.clientWidth + 2) continue;
+    const s = b.querySelector('[aria-selected="true"], [aria-pressed="true"]');
+    if (s) { const rs = s.getBoundingClientRect(), rb = b.getBoundingClientRect(); b.scrollLeft = Math.max(0, rs.left - rb.left + b.scrollLeft - (b.clientWidth - rs.width) / 2); }
+    const segna = () => { b.classList.toggle('piu-s', b.scrollLeft > 4); b.classList.toggle('piu-d', b.scrollLeft + b.clientWidth < b.scrollWidth - 4); };
+    segna();
+    b.addEventListener('scroll', segna, { passive: true });
+    b.addEventListener('wheel', e => { if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; const prima = b.scrollLeft; b.scrollLeft += e.deltaY; if (b.scrollLeft !== prima) e.preventDefault(); }, { passive: false });
+  }
 }
 
 /* ---------- navigazione ---------- */
