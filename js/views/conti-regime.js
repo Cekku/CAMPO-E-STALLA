@@ -44,7 +44,7 @@ export function vRegime() {
       { k: 'ord', h: 'Da versare: ordinario', fmt: 'eur' }, { k: 'spec', h: 'Da versare: speciale', fmt: 'eur' }, { k: 'vant', h: 'Risparmio con lo speciale', fmt: 'eur', html: r => `<span class="${r.vant > 0 ? 't-ok' : r.vant < 0 ? 't-bad' : ''}">${esc(fmtVal(r.vant, 'eur') || '0 €')}</span>` }],
   });
   const cardAnni = `<section class="card"><div class="card-h"><h2>${ic('list')}Anno per anno</h2>${bottoniExport(['rganni', 'rgvend', 'rgscen', 'rgrett'], 'Regime IVA')}</div>${tAnni}
-    <p class="muted small pad-x">Risparmio negativo (in rosso) = in quell'anno l'ordinario è stato meglio. Un'IVA da versare negativa nell'ordinario è un credito. Quando c'è la dichiarazione IVA dell'anno, l'IVA viene da lì (comprende anche schede carburante e scontrini); altrimenti dalle fatture caricate.</p></section>`;
+    <p class="muted small pad-x">Risparmio negativo (in rosso) = in quell'anno l'ordinario è stato meglio. Un'IVA da versare negativa nell'ordinario è un credito. Quando c'è la dichiarazione IVA dell'anno, l'IVA viene da lì, perché è quella che fa fede: rigo VL1 (IVA a debito) e VL2 (IVA detraibile), con dentro anche il reverse charge dei lavori edili, le schede carburante e gli scontrini. Senza dichiarazione si usano le fatture caricate. La compensazione invece si calcola sempre dalle fatture di vendita, perché la dichiarazione in ordinario non divide il venduto per prodotto.</p></section>`;
 
   // ---- vendite del gruppo e percentuali
   const vend = GRUPPI.map(g => ({ k: g.k, gruppo: g.nome, imp: A.gr[g.k].imp, iva: A.gr[g.k].iva, perc: perc(g.k), comp: A.gr[g.k].imp * perc(g.k) / 100 }));

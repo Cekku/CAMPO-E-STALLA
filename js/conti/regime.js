@@ -56,9 +56,14 @@ export function anno(y) {
   }
   const comp = GRUPPI.reduce((t, g) => t + gr[g.k].imp * perc(g.k) / 100, 0);
   const ivaVenF = ven.reduce((t, f) => t + N(f.iva), 0), ivaAcqF = acq.reduce((t, f) => t + N(f.iva), 0);
+  // La dichiarazione IVA fa fede: VL1 = IVA a debito (vendite + reverse charge e autofatture), VL2 = IVA detraibile.
+  // Il reverse charge sta in tutti e due: nello speciale resta da versare senza detrazione, quindi il conto torna.
+  // Se mancano VL1/VL2 si prova con VE26/VF; altrimenti si usano le fatture caricate.
   const v = ((bilancio(y) || {}).iva || {}).voci || {};
-  const dich = v.vf_iva !== undefined && v.vf_iva !== null && v.ve_iva !== undefined && v.ve_iva !== null;
-  const ivaVen = dich ? N(v.ve_iva) : ivaVenF, ivaAcq = dich ? N(v.vf_iva) : ivaAcqF;
+  const c = x => x !== undefined && x !== null && x !== '';
+  const dich = (c(v.vl1) && c(v.vl2)) || (c(v.ve_iva) && c(v.vf_iva));
+  const ivaVen = !dich ? ivaVenF : c(v.vl1) && c(v.vl2) ? N(v.vl1) : N(v.ve_iva);
+  const ivaAcq = !dich ? ivaAcqF : c(v.vl1) && c(v.vl2) ? N(v.vl2) : N(v.vf_iva);
   const ord = ivaVen - ivaAcq;               // negativo = credito IVA
   const spec = Math.max(0, ivaVen - comp);   // nel regime speciale non nasce credito (salvo esportazioni)
   return {
