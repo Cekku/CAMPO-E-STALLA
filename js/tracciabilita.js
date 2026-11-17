@@ -7,7 +7,7 @@ import { N, okD, addDays, uid, yearOf, esc, nf, today } from './util.js';
 import { cropOf } from './domain.js';
 import { righe } from './conti/dati.js';
 import { umNorm, convertiQ } from './conti/preventivi.js';
-import { scriviXlsx, leggiXlsx, serialeAData } from './conti/xlsx.js';
+import { scriviGriglia, leggiXlsx, serialeAData } from './conti/xlsx.js';
 import { scarica } from './conti/tabelle.js';
 import { nativa, stampaHtml } from './nativo.js';
 import { contiVisibili } from './views/conti.js';
@@ -303,24 +303,55 @@ export function stampaApprovvigionamenti(anno, pid = null) {
 }
 export function stampaAutoprodotti(anno, tutti = false) { stampa(`Registro alimenti autoprodotti ${anno}`, [paginaAutoprodotti(anno, tutti)]); }
 
-/** Excel: un foglio per prodotto (come il registro del caseificio) e, se ci sono, il foglio degli autoprodotti. */
+/* Colonne dei due registri: [intestazione, larghezza, { fmt, h (allineamento), wrap }] */
+const C = (t, w, o = {}) => ({ t, w, ...o });   // t = testo dell'intestazione, h = allineamento
+const COL_APPR = [C('N.', 5, { fmt: 'int', h: 'center' }), C('Fornitore', 30, { wrap: true }), C('DDT', 12, { h: 'center' }), C('Data arrivo', 12, { fmt: 'date', h: 'center' }), C('Quantità (kg)', 13, { fmt: 'num', h: 'right' }),
+  C('Conforme al controllo visivo', 12, { h: 'center' }), C('Accettato Sì/No', 11, { h: 'center' }), C('Silos / zona di stoccaggio', 13, { h: 'center' }), C('Data inizio utilizzo', 12, { fmt: 'date', h: 'center' }), C('Data fine utilizzo', 12, { fmt: 'date', h: 'center' })];
+const GRUPPI_APPR = [['Arrivo del prodotto', 1, 7], ['Stoccaggio', 8, 8], ['Utilizzo', 9, 10]];
+const COL_AUTO = [C('N.', 5, { fmt: 'int', h: 'center' }), C('Prodotto', 30, { wrap: true }), C('Data produzione', 13, { fmt: 'date', h: 'center' }), C('Quantità (quintali)', 13, { fmt: 'num', h: 'right' }), C('Conforme al controllo visivo', 12, { h: 'center' }),
+  C('Trincea, silos, zona', 16, { h: 'center' }), C('N.', 7, { h: 'center' }), C('Data inizio utilizzo', 12, { fmt: 'date', h: 'center' }), C('Data fine utilizzo', 12, { fmt: 'date', h: 'center' })];
+const GRUPPI_AUTO = [['Preparazione', 1, 5], ['Stoccaggio', 6, 7], ['Utilizzo', 8, 9]];
+const lettera = n => String.fromCharCode(64 + n);
+/** Foglio impaginato come il registro di carta del caseificio: titolo, azienda, prodotto, riquadro del timbro,
+ *  intestazione su due righe (gruppi e colonne, ripetuta su ogni pagina), righe con bordo e righe vuote fino a RIGHE_MIN. */
+function foglioModulo({ nome, titolo, anno, riga3, cols, gruppi, dati }) {
+  const nc = cols.length; const t = nc - 3; const rows = []; const merges = [];
+  const nuova = (ht) => { rows.push({ ht, cells: Array(nc).fill(null) }); return rows.length; };
+  const unisci = (r1, c1, r2, c2, cell) => {
+    for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) rows[r - 1].cells[c - 1] = Object.assign({}, cell, r === r1 && c === c1 ? {} : { v: null });
+    if (r2 > r1 || c2 > c1) merges.push(`${lettera(c1)}${r1}:${lettera(c2)}${r2}`);
+  };
+  const az = azienda();
+  nuova(36); nuova(18); nuova(18);   // titolo su due righe se non sta nella larghezza
+  unisci(1, 1, 1, t - 1, { v: `Tracciabilità degli alimenti · ${titolo} ${anno}`, k: 'gt', wrap: true });
+  unisci(2, 1, 2, t - 1, { v: `Azienda: ${az.nome || ''}${az.iva ? '   ·   P.IVA ' + az.iva : ''}`, k: 'glb' });
+  unisci(3, 1, 3, t - 1, { v: riga3, k: 'glb' });
+  unisci(1, t, 3, nc, { v: 'Timbro aziendale:', k: 'gb', h: 'left', va: 'top' });
+  nuova(8);
+  const rg = nuova(18); for (const [l, a, b] of gruppi) unisci(rg, a, rg, b, { v: l, k: 'gh', h: 'center' });
+  const rc = nuova(40); cols.forEach((c, i) => { rows[rc - 1].cells[i] = { v: c.t, k: 'gh', h: 'center', wrap: true }; });
+  // righe più alte quando un nome lungo va a capo (Excel non allarga da solo le righe ad altezza fissa)
+  const righeTesto = d => Math.max(1, ...cols.map((c, i) => c.wrap ? Math.ceil(String(d[i] ?? '').length / Math.max(1, c.w - 3)) : 1));
+  for (const d of dati) { const r = nuova(Math.min(15 * righeTesto(d) + 3, 63)); cols.forEach((c, i) => { rows[r - 1].cells[i] = { v: d[i], k: 'g', fmt: c.fmt || '', h: c.h || 'left', wrap: !!c.wrap }; }); }
+  for (let i = dati.length; i < RIGHE_MIN; i++) { const r = nuova(18); cols.forEach((c, j) => { rows[r - 1].cells[j] = { v: null, k: 'g' }; }); }
+  return { name: nome, widths: cols.map(c => c.w), rows, merges, freeze: rc, printTitles: [rg, rc], footer: `${titolo} ${anno} · ${nome}` };
+}
+/** Excel impaginato come il registro del caseificio: un foglio per prodotto e, se ci sono, il foglio degli autoprodotti. */
 export async function excel(anno, { pid = null, auto = true } = {}) {
-  const A = assegna(anno); const az = azienda(); const imp = impostazioni();
-  const sub = ['Azienda: ' + (az.nome || ''), imp.programma].filter(Boolean).join('  ·  ');
+  const A = assegna(anno); const imp = impostazioni();
   const ps = pid ? [prodotto(pid)].filter(Boolean) : prodotti();
   const sheets = [];
   for (const p of ps) {
     const R = registro(p, anno, A); if (!R.righe.length && !pid) continue;
-    sheets.push({ name: p.nome, title: `Registro approvvigionamenti ${anno} · Prodotto: ${p.nome}`, subtitle: sub,
-      cols: [{ h: 'N.', fmt: 'int', w: 5 }, { h: 'Fornitore', w: 28 }, { h: 'DDT', w: 14 }, { h: 'Data arrivo', fmt: 'date', w: 12 }, { h: 'Quantità (kg)', fmt: 'num', w: 13 }, { h: 'Conforme al controllo visivo', w: 12 }, { h: 'Accettato Sì/No', w: 11 }, { h: 'Silos / zona di stoccaggio', w: 14 }, { h: 'Data inizio utilizzo', fmt: 'date', w: 12 }, { h: 'Data fine utilizzo', fmt: 'date', w: 12 }],
-      rows: R.righe.map(r => [r.n, r.fornitore, r.ddt, r.data, r.um === 'kg' ? N(r.qta) : fq(r.qta, r.um), r.conforme, r.accettato, r.silos, r.inizio || '', r.fine || '']) });
+    sheets.push(foglioModulo({ nome: p.nome, titolo: 'Registro approvvigionamenti', anno, cols: COL_APPR, gruppi: GRUPPI_APPR,
+      riga3: [imp.programma, 'Prodotto: ' + p.nome].filter(Boolean).join('   ·   '),
+      dati: R.righe.map(r => [r.n, r.fornitore, r.ddt, r.data, r.um === 'kg' ? N(r.qta) : fq(r.qta, r.um), r.conforme, r.accettato, r.silos, r.inizio || '', r.fine || '']) }));
   }
   if (auto && !pid) {
     const rr = autoprodotti(anno);
-    if (rr.length) sheets.push({ name: 'Alimenti autoprodotti', title: `Registro alimenti autoprodotti ${anno}`, subtitle: sub,
-      cols: [{ h: 'N.', fmt: 'int', w: 5 }, { h: 'Prodotto', w: 28 }, { h: 'Data produzione', fmt: 'date', w: 12 }, { h: 'Quantità (quintali)', fmt: 'num', w: 13 }, { h: 'Conforme al controllo visivo', w: 12 }, { h: 'Trincea, silos, zona', w: 16 }, { h: 'N.', w: 6 }, { h: 'Data inizio utilizzo', fmt: 'date', w: 12 }, { h: 'Data fine utilizzo', fmt: 'date', w: 12 }],
-      rows: rr.map(r => [r.n, r.prodotto, r.data, N(r.qta), r.conforme, r.zona, r.num, r.inizio || '', r.fine || '']) });
+    if (rr.length) sheets.push(foglioModulo({ nome: 'Alimenti autoprodotti', titolo: 'Registro alimenti autoprodotti', anno, cols: COL_AUTO, gruppi: GRUPPI_AUTO, riga3: imp.programma || '',
+      dati: rr.map(r => [r.n, r.prodotto, r.data, N(r.qta) || '', r.conforme, r.zona, r.num, r.inizio || '', r.fine || '']) }));
   }
   if (!sheets.length) throw new Error('Niente da esportare per il ' + anno + '.');
-  scarica(`tracciabilita-${anno}${pid ? '-' + norm(prodotto(pid).nome).toLowerCase().replace(/[^a-z0-9]+/g, '-') : ''}.xlsx`, await scriviXlsx(sheets));
+  scarica(`tracciabilita-${anno}${pid ? '-' + norm(prodotto(pid).nome).toLowerCase().replace(/[^a-z0-9]+/g, '-') : ''}.xlsx`, await scriviGriglia(sheets));
 }

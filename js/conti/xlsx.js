@@ -51,13 +51,21 @@ const BORDERS = ['<border><left/><right/><top/><bottom/><diagonal/></border>', '
   '<border><left/><right/><top style="thin"><color rgb="FF9DBFA9"/></top><bottom style="thin"><color rgb="FF9DBFA9"/></bottom><diagonal/></border>'];
 // tipi di cella: [font, fill, bordo]
 const KIND = { d: [0, 0, 1], b: [1, 0, 1], tot: [1, 3, 2], h: [4, 2, 0], sez: [4, 4, 0], sub: [5, 5, 1], tit: [2, 0, 0], nota: [3, 0, 0] };
+// moduli a griglia (registri da stampare, js/tracciabilita.js): nero su bianco, bordo sottile su tutti i lati
+// font 6 titolo, 7 intestazione di colonna, 8 normale, 9 grassetto; fill 6 grigio chiaro; bordo 3 sottile
+const NERO = (b, sz) => `<font>${b ? '<b/>' : ''}<sz val="${sz}"/><color rgb="FF000000"/><name val="Arial"/><family val="2"/></font>`;
+FONTS.push(NERO(true, 13), NERO(true, 9), NERO(false, 10), NERO(true, 10));
+FILLS.push('<fill><patternFill patternType="solid"><fgColor rgb="FFE4E9E6"/><bgColor indexed="64"/></patternFill></fill>');
+const SOTT = l => `<${l} style="thin"><color rgb="FF000000"/></${l}>`;
+BORDERS.push(`<border>${SOTT('left')}${SOTT('right')}${SOTT('top')}${SOTT('bottom')}<diagonal/></border>`);
+Object.assign(KIND, { gt: [6, 0, 0], gl: [8, 0, 0], glb: [9, 0, 0], gh: [7, 6, 3], g: [8, 0, 3], gb: [9, 0, 3] });
 
 class Stili {
   constructor() { this.xf = ['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>']; this.map = {}; }
-  id(kind = 'd', fmt = '', ind = 0, wrap = false, h = '') {
-    const k = [kind, fmt, ind, wrap, h].join('|'); if (k in this.map) return this.map[k];
+  id(kind = 'd', fmt = '', ind = 0, wrap = false, h = '', va = 'center') {
+    const k = [kind, fmt, ind, wrap, h, va].join('|'); if (k in this.map) return this.map[k];
     const [f, fi, b] = KIND[kind] || KIND.d; const nf = fmt ? FMT_ID[fmt] || 0 : 0;
-    const al = `<alignment vertical="center"${h ? ` horizontal="${h}"` : ''}${ind ? ` indent="${ind}"` : ''}${wrap ? ' wrapText="1"' : ''}/>`;
+    const al = `<alignment vertical="${va}"${h ? ` horizontal="${h}"` : ''}${ind ? ` indent="${ind}"` : ''}${wrap ? ' wrapText="1"' : ''}/>`;
     this.xf.push(`<xf numFmtId="${nf}" fontId="${f}" fillId="${fi}" borderId="${b}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"${nf ? ' applyNumberFormat="1"' : ''}>${al}</xf>`);
     return (this.map[k] = this.xf.length - 1);
   }
@@ -110,9 +118,43 @@ export async function scriviXlsx(sheets) {
     const filtro = sh.filter !== false && last >= first && nc > 1;
     const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0" showGridLines="0"${si === 0 ? ' tabSelected="1"' : ''}><pane${sh.freezeCols ? ` xSplit="${sh.freezeCols}"` : ''} ySplit="${hr}" topLeftCell="${colLett((sh.freezeCols || 0) + 1)}${hr + 1}" activePane="${sh.freezeCols ? 'bottomRight' : 'bottomLeft'}" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w.toFixed(1)}" customWidth="1"/>`).join('')}</cols><sheetData>${out.join('')}</sheetData>${filtro ? `<autoFilter ref="A${hr}:${colLett(nc)}${last}"/>` : ''}<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="${nc > 6 ? 'landscape' : 'portrait'}" fitToWidth="1" fitToHeight="0"/><headerFooter><oddFooter>&amp;L&amp;"Arial"&amp;8Campo e Stalla&amp;C&amp;"Arial"&amp;8&amp;A&amp;R&amp;"Arial"&amp;8Pagina &amp;P di &amp;N</oddFooter></headerFooter></worksheet>`;
     files.push([`xl/worksheets/sheet${si + 1}.xml`, xml]);
-    defs.push(`<definedName name="_xlnm.Print_Titles" localSheetId="${si}">'${nome.replace(/'/g, "''")}'!$${hr}:$${hr}</definedName>` + (filtro ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${si}" hidden="1">'${nome.replace(/'/g, "''")}'!$A$${hr}:$${colLett(nc)}$${last}</definedName>` : ''));
+    defs.push(`<definedName name="_xlnm.Print_Titles" localSheetId="${si}">'${esc(nome.replace(/'/g, "''"))}'!$${hr}:$${hr}</definedName>` + (filtro ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${si}" hidden="1">'${esc(nome.replace(/'/g, "''"))}'!$A$${hr}:$${colLett(nc)}$${last}</definedName>` : ''));
   });
-  const n = sheets.length;
+  return impacchetta(st, files, nomi, defs);
+}
+
+/** Cella singola (ref = "B7"): vuota ma con lo stile, numero, data ISO (con fmt 'date') o testo. */
+function cella(ref, v, s, fmt) {
+  if (v === null || v === undefined || v === '') return `<c r="${ref}" s="${s}"/>`;
+  if (fmt === 'date' && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return `<c r="${ref}" s="${s}"><v>${serial(v)}</v></c>`;
+  if (isNum(v)) return `<c r="${ref}" s="${s}"><v>${v}</v></c>`;
+  return `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${esc(v)}</t></is></c>`;
+}
+/**
+ * Modulo a griglia, impaginato come un registro di carta: sheets: [{ name, widths: [larghezze], rows: [{ ht, cells: [{ v, k, fmt, wrap, h, va } | null] }],
+ * merges: ['A1:F1'], freeze: righe bloccate in alto, printTitles: [prima, ultima] righe ripetute su ogni pagina, footer, verticale }].
+ * k: 'gt' titolo, 'gl' testo, 'glb' testo grassetto, 'gh' intestazione con bordo, 'g' cella con bordo, 'gb' grassetto con bordo.
+ */
+export async function scriviGriglia(sheets) {
+  const st = new Stili(); const files = []; const nomi = []; const defs = [];
+  sheets.forEach((sh, si) => {
+    let nome = String(sh.name || 'Foglio').replace(/[\\/?*[\]:]/g, ' ').slice(0, 31).trim() || 'Foglio';
+    while (nomi.includes(nome)) nome = nome.slice(0, 28) + ' ' + (si + 1);
+    nomi.push(nome);
+    // allineamenti fuori elenco ignorati: un valore sbagliato in styles.xml rende il file illeggibile
+    const sty = c => st.id(c.k || 'g', c.fmt || '', 0, !!c.wrap, ['left', 'center', 'right'].includes(c.h) ? c.h : '', ['top', 'center', 'bottom'].includes(c.va) ? c.va : 'center');
+    const out = sh.rows.map((rw, ri) => `<row r="${ri + 1}"${rw.ht ? ` ht="${rw.ht}" customHeight="1"` : ''}>${(rw.cells || []).map((c, ci) => c ? cella(colLett(ci + 1) + (ri + 1), c.v, sty(c), c.fmt) : '').join('')}</row>`);
+    const mg = sh.merges || []; const fr = sh.freeze || 0;
+    const piede = esc(String(sh.footer || '').replace(/&/g, '&&'));
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0" showGridLines="0"${si === 0 ? ' tabSelected="1"' : ''}>${fr ? `<pane ySplit="${fr}" topLeftCell="A${fr + 1}" activePane="bottomLeft" state="frozen"/>` : ''}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${sh.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>${out.join('')}</sheetData>${mg.length ? `<mergeCells count="${mg.length}">${mg.map(m => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : ''}<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.6" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="${sh.verticale ? 'portrait' : 'landscape'}" fitToWidth="1" fitToHeight="0"/><headerFooter><oddFooter>&amp;L&amp;"Arial"&amp;8${piede}&amp;R&amp;"Arial"&amp;8Pagina &amp;P di &amp;N</oddFooter></headerFooter></worksheet>`;
+    files.push([`xl/worksheets/sheet${si + 1}.xml`, xml]);
+    if (sh.printTitles) defs.push(`<definedName name="_xlnm.Print_Titles" localSheetId="${si}">'${esc(nome.replace(/'/g, "''"))}'!$${sh.printTitles[0]}:$${sh.printTitles[1]}</definedName>`);
+  });
+  return impacchetta(st, files, nomi, defs);
+}
+/** Mette insieme il file .xlsx: tipi, relazioni, cartella di lavoro, stili. */
+async function impacchetta(st, files, nomi, defs) {
+  const n = nomi.length;
   files.unshift(['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${Array.from({ length: n }, (_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`],
     ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>'],
     ['docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:creator>Campo e Stalla</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString().slice(0, 19)}Z</dcterms:created></cp:coreProperties>`],
