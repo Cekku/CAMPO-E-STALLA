@@ -57,17 +57,22 @@ export function mesiBanca() {
   S.fatture.forEach(f => (f.pagamentiBanca || []).forEach(p => { if (p.data) m.add(meseDi(p.data)); }));
   m.delete(''); return m;
 }
-/** Fatture che dovevano passare dalla banca in un mese di cui hai caricato i movimenti, ma non sono abbinate a nessun movimento. */
+/** Fatture che dovevano passare dalla banca in un mese di cui hai caricato i movimenti, ma non sono abbinate a nessun movimento.
+ *  `altrove` = la ditta non compare mai nei movimenti abbinati (di solito pagata da un altro conto) oppure è pagata con RiBa,
+ *  che la banca addebita tutte insieme a fine mese con un solo movimento senza i numeri delle fatture: da sole non si possono abbinare. */
+const chiaveDitta = f => f.tipo + '|' + String(f.piva || f.controparte || '').replace(/\W/g, '').toUpperCase();
+export const conRiba = f => /MP12|\bRI\.?BA\b/i.test(f.pagamento || '');
 export function nonAbbinate() {
   const mesi = mesiBanca(); if (!mesi.size) return { mesi, righe: [] };
   const ultimo = [...mesi].sort().pop();
+  const viste = new Set(S.fatture.filter(f => (f.pagamentiBanca || []).length).map(chiaveDitta));
   const out = [];
   for (const f of S.fatture) {
     if (!(Math.abs(N(f.totale)) > 0) || N(f.totale) < 0 || /MP01|contant/i.test(f.pagamento || '')) continue;
     const st = statoPagamento(f); if (st.stato === 'pagata') continue;
     const atteso = meseDi(f.scadenza && f.scadenza >= (f.data || '') ? f.scadenza : f.data);
     if (!mesi.has(atteso) || atteso >= ultimo) continue; // il mese dopo l'ultimo estratto potrebbe ancora arrivare
-    out.push({ f, residuo: st.residuo, stato: st.stato, atteso });
+    out.push({ f, residuo: st.residuo, stato: st.stato, atteso, altrove: conRiba(f) ? 'riba' : viste.has(chiaveDitta(f)) ? '' : 'conto' });
   }
   return { mesi, righe: out.sort((a, b) => (a.f.data || '').localeCompare(b.f.data || '')) };
 }
@@ -112,11 +117,15 @@ export function sospesi() {
 
   // banca
   const NA = nonAbbinate();
-  const nA = NA.righe.filter(x => x.f.tipo === 'Acquisto'), nV = NA.righe.filter(x => x.f.tipo === 'Vendita');
+  const vere = NA.righe.filter(x => !x.altrove);
+  const nA = vere.filter(x => x.f.tipo === 'Acquisto'), nV = vere.filter(x => x.f.tipo === 'Vendita');
+  const riba = NA.righe.filter(x => x.altrove === 'riba'), conto = NA.righe.filter(x => x.altrove === 'conto');
   const voB = [];
   if (!NA.mesi.size) voB.push({ liv: 'info', t: 'Nessun estratto conto caricato', s: 'Senza i movimenti della banca l\'app non può dire quali fatture hai pagato o incassato.', n: 0, go: { sub: 'importa' } });
-  if (nA.length) voB.push({ liv: 'warn', t: `${nA.length === 1 ? '1 fattura ricevuta' : nA.length + ' fatture ricevute'} senza pagamento in banca`, s: `${eur(nA.reduce((t, x) => t + x.residuo, 0))} da pagare in mesi di cui hai caricato l'estratto conto (${fmtMesi(NA.mesi)}). Pagate in contanti, con assegno, compensate o con un movimento non abbinato.`, n: nA.length, go: { sub: 'sospesi', el: 'ss-banca' } });
-  if (nV.length) voB.push({ liv: 'warn', t: `${nV.length === 1 ? '1 fattura emessa' : nV.length + ' fatture emesse'} senza incasso in banca`, s: `${eur(nV.reduce((t, x) => t + x.residuo, 0))} da incassare in mesi coperti dagli estratti conto.`, n: nV.length, go: { sub: 'sospesi', el: 'ss-banca' } });
+  if (nA.length) voB.push({ liv: 'warn', t: `${nA.length === 1 ? '1 fattura ricevuta' : nA.length + ' fatture ricevute'} senza pagamento in banca`, s: `${eur(nA.reduce((t, x) => t + x.residuo, 0))} da pagare in mesi di cui hai caricato l'estratto conto (${fmtMesi(NA.mesi)}), di ditte che negli estratti compaiono. Pagate in contanti, con assegno, compensate o con un movimento non abbinato.`, n: nA.length, go: { sub: 'sospesi', el: 'ss-banca' } });
+  if (nV.length) voB.push({ liv: 'warn', t: `${nV.length === 1 ? '1 fattura emessa' : nV.length + ' fatture emesse'} senza incasso in banca`, s: `${eur(nV.reduce((t, x) => t + x.residuo, 0))} da incassare in mesi coperti dagli estratti conto, da clienti che negli estratti compaiono.`, n: nV.length, go: { sub: 'sospesi', el: 'ss-banca' } });
+  if (riba.length) voB.push({ liv: 'info', t: `${riba.length === 1 ? '1 fattura pagata' : riba.length + ' fatture pagate'} con RiBa`, s: `${eur(riba.reduce((t, x) => t + x.residuo, 0))}. La banca addebita le RiBa del mese tutte insieme, con un solo movimento senza i numeri delle fatture: per abbinarle serve l'elenco degli effetti pagati (lo dà la banca).`, n: riba.length, go: { sub: 'sospesi', el: 'ss-banca' } });
+  if (conto.length) voB.push({ liv: 'info', t: `${conto.length === 1 ? '1 fattura' : conto.length + ' fatture'} di ditte che negli estratti non compaiono mai`, s: `${eur(conto.reduce((t, x) => t + x.residuo, 0))} (${conto.filter(x => x.f.tipo === 'Vendita').length} emesse, ${conto.filter(x => x.f.tipo === 'Acquisto').length} ricevute). Di solito passano da un altro conto: carica anche l'estratto di quel conto.`, n: conto.length, go: { sub: 'sospesi', el: 'ss-banca' } });
   add('banca', 'Pagamenti delle fatture', 'landmark', voB);
 
   // personale

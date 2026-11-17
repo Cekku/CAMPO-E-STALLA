@@ -24,6 +24,20 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.41: i documenti dell'archivio vanno al loro posto da soli
+
+Scarica i documenti come fai sempre (cassetto fiscale, banca, consulente del lavoro) e lasciali sul PC: l'archivio li trova e li classifica ogni giorno. Quando apri l'app **sul PC con il ponte dell'archivio acceso**, l'app prende da sola quelli dei Conti che non ha ancora e li mette al loro posto: fatture, cedolini, bilancini paghe, estratti conto, contabili dei bonifici, dichiarazioni IVA, elenchi delle fatture.
+
+- **Salva da sola solo quello che è sicuro**: fatture elettroniche, fatture PDF con i totali che tornano, cedolini e bilancini paghe, movimenti della banca riconosciuti con certezza (spese della banca, stipendi con il dipendente giusto, F24, fatture trovate per numero o per nome e importo).
+- **Il resto lo trovi in Conti → Dall'archivio del PC → Da controllare**: omonimi, dipendenti nuovi, fatture trovate solo per importo, bilancini del commercialista (sostituiscono il conto economico, quindi li confermi tu). Con **Rivedi** si aprono pronti da controllare e salvare.
+- **Niente doppioni con gli estratti conto**: per ogni conto l'app ricorda i giorni già letti; un estratto scaricato di nuovo, o più lungo, aggiunge solo i giorni nuovi. Le contabili dei bonifici nei giorni già coperti da un estratto si saltano.
+- I PDF di cortesia delle fatture già caricate dall'XML non si rileggono: si collegano alla fattura.
+- Nella stessa pagina puoi spegnere la ricerca automatica, scegliere da che data prendere i documenti e farla partire a mano.
+
+Sul telefono non fa niente: l'archivio è sul PC. Gli originali restano sul PC e si aprono dalla scheda con **Apri**.
+
+Altre correzioni: in **In sospeso** le fatture "senza pagamento in banca" sono divise fra quelle da controllare, quelle pagate con RiBa (la banca le addebita tutte insieme a fine mese) e quelle di ditte che negli estratti non compaiono mai (di solito un altro conto); il saldo di inizio e fine anno dell'estratto conto non si legge più come un movimento; i "prelievi soci" non finiscono più fra le spese della banca.
+
 ## Novità della versione 1.40: bilancino e fatture a confronto (schema RICA)
 
 Si trova in **Conti → Bilancio → Bilancino e fatture**. Il conto economico è nella forma dei bilanci agricoli del **RICA** (la rete contabile agricola del CREA): ricavi totali, costi correnti, valore aggiunto, ammortamenti e lavoro, reddito operativo, reddito netto.

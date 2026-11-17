@@ -87,7 +87,8 @@ export function movimentiDaParole(pagine) {
       out.push({ data: a.data, valuta: a.valuta, importo: r2(a.segno * a.importo), descrizione: desc.replace(/\s+/g, ' ').trim() });
     }
   }
-  return out.filter(m => m.data && m.importo);
+  // le righe del saldo iniziale e finale ("+ 588.262,49 €" senza descrizione) non sono movimenti
+  return out.filter(m => m.data && m.importo && !/^[\s+\-–€\d.,]*$|^SALDO\b/i.test(m.descrizione));
 }
 
 /** Beneficiario o ordinante, IBAN, causale e tipo di operazione dalla descrizione del movimento. */
@@ -102,7 +103,8 @@ export function arricchisci(m) {
 }
 
 /* ---------------- lettura del PDF ---------------- */
-export const pareEstratto = t => /DARE|AVERE|ADDEBITI|ACCREDITI|USCITE|ENTRATE/i.test(t) && /(DESCRIZIONE|OPERAZIONE|CAUSALE)/i.test(t) && /\d{2}\/\d{2}\/\d{4}/.test(t) && /(ESTRATTO|MOVIMENT|SALDO|VALUTA)/i.test(t);
+// anche la "lista movimenti" con una sola colonna IMPORTO (segno davanti) e il saldo contabile in testa (1.41.0)
+export const pareEstratto = t => (/DARE|AVERE|ADDEBITI|ACCREDITI|USCITE|ENTRATE/i.test(t) || (/SALDO\s+CONTABILE/i.test(t) && /DATA\s+MOV\.?\s+VALUTA\s+IMPORTO/i.test(t))) && /(DESCRIZIONE|OPERAZIONE|CAUSALE)/i.test(t) && /\d{2}\/\d{2}\/\d{4}/.test(t) && /(ESTRATTO|MOVIMENT|SALDO|VALUTA)/i.test(t);
 
 /** Legge un estratto conto in PDF; se le pagine sono immagini usa la lettura ottica (serve la connessione la prima volta). */
 export async function leggiEstrattoPdf(bytes, avanzamento = () => { }) {

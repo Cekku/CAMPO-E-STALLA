@@ -47,7 +47,7 @@ const MENU = {
     ['Gestione', [['note', null, 'pencil', 'Note'], ['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
   ],
   conti: [
-    ['Principale', [['conti', 'panoramica', 'layout-dashboard', 'Panoramica'], ['conti', 'fatture', 'receipt', 'Fatture'], ['conti', 'mancanti', 'scan-search', 'Fatture mancanti'], ['conti', 'importa', 'file-up', 'Carica documenti']]],
+    ['Principale', [['conti', 'panoramica', 'layout-dashboard', 'Panoramica'], ['conti', 'fatture', 'receipt', 'Fatture'], ['conti', 'mancanti', 'scan-search', 'Fatture mancanti'], ['conti', 'importa', 'file-up', 'Carica documenti'], ['conti', 'automatico', 'folder-open', "Dall'archivio del PC"]]],
     ['Acquisti e vendite', [['conti', 'fornitori', 'truck', 'Fornitori'], ['conti', 'clienti', 'handshake', 'Clienti'], ['conti', 'prodotti', 'package', 'Prodotti e prezzi'], ['conti', 'preventivi', 'clipboard-list', 'Preventivi e contratti'], ['conti', 'categorie', 'tags', 'Categorie'], ['conti', 'mensile', 'calendar-range', 'Andamento mensile'], ['conti', 'latte', 'milk', 'Latte venduto']]],
     ['Bilancio', [['conti', 'salute', 'heart-pulse', "Salute dell'azienda"], ['conti', 'grafici', 'chart-column', 'Grafici e confronti'], ['conti', 'ce', 'scale', 'Conto economico'], ['conti', 'rica', 'scale', 'Bilancino e fatture (RICA)'], ['conti', 'sp', 'landmark', 'Stato patrimoniale'], ['conti', 'indici', 'gauge', 'Indici di bilancio'], ['conti', 'centri', 'chart-pie', 'Centri di costo'], ['conti', 'rls', 'gauge', 'Reddito lordo standard'], ['conti', 'analisi', 'cow', 'Analisi della stalla'], ['conti', 'iva', 'percent', 'Dichiarazioni IVA'], ['conti', 'cespiti', 'tractor', 'Beni e ammortamenti'], ['conti', 'controlli', 'shield-check', 'Controlli']]],
     ['Personale', [['conti', 'personale', 'users', 'Riepilogo del personale'], ['conti', 'dipendenti', 'id-card', 'Dipendenti'], ['conti', 'cedolini', 'file-text', 'Cedolini e bilancini paghe'], ['conti', 'pagamenti', 'banknote', 'Pagamenti'], ['conti', 'prestiti', 'hand-coins', 'Anticipi e prestiti'], ['conti', 'verifica', 'shield-check', 'Verifica pagamenti']]],
@@ -594,7 +594,7 @@ function pagineChat() {
   const q = new URLSearchParams(location.search).get('azione');
   render();
   initFito();
-  store.initStore().then(() => { if (q === 'operazione') startWizard(); else if (q === 'latte') openEdit('latte'); else if (q === 'evento') openEdit('eventi'); });
+  store.initStore().then(() => { if (q === 'operazione') startWizard(); else if (q === 'latte') openEdit('latte'); else if (q === 'evento') openEdit('eventi'); avviaArchivioConti(); });
   window.addEventListener('online', () => { syncPill(); schedule(); });
   window.addEventListener('offline', () => { syncPill(); schedule(); });
   alTastoIndietro(puoTornare => {
@@ -612,6 +612,20 @@ function pagineChat() {
     let reloaded = false; navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloaded) return; reloaded = true; location.reload(); });
   }
 })();
+// Documenti nuovi dell'archivio del PC nei Conti (conti/automatico.js): dopo l'apertura, quando i dati sono scaricati.
+// Prova ogni 20 secondi per 5 minuti; sul telefono o con il ponte spento non fa niente.
+function avviaArchivioConti() {
+  let n = 0;
+  const prova = async () => {
+    if (++n > 15) return;
+    if (!UI.loaded || !contiVisibili() || (store.sync.mode === 'cloud' && (store.sync.status !== 'ok' || store.sync.pending))) return setTimeout(prova, 20000);
+    try {
+      const AU = await import('./conti/automatico.js'); const s = await AU.avvia();
+      if (s && !s.errore && (s.esiti.fatto || s.esiti.dubbi)) toast(`Dall'archivio del PC: ${s.esiti.fatto} documenti sistemati${s.esiti.dubbi ? ', ' + s.esiti.dubbi + ' da controllare (Conti → Dall\'archivio del PC)' : ''}`);
+    } catch (e) { console.warn('archivio dei conti', e); }
+  };
+  setTimeout(prova, 15000);
+}
 function showUpdate(worker) {
   const t = $('#toast'); t.innerHTML = ic('refresh-cw') + '<span>Nuova versione disponibile</span><button class="btn sm" id="updBtn">Aggiorna</button>'; t.className = 'toast show sticky'; t.hidden = false;
   $('#updBtn').onclick = () => worker.postMessage('skipWaiting');

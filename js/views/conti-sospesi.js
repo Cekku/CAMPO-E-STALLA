@@ -45,14 +45,15 @@ function alimenti() {
 /* fatture non trovate nei movimenti della banca */
 function banca() {
   const NA = nonAbbinate(); if (!NA.righe.length) return '';
-  const rows = NA.righe.map(x => ({ _cls: 'click', id: x.f.id, data: x.f.data, tipo: x.f.tipo, numero: x.f.numero, controparte: x.f.controparte, totale: Math.abs(+x.f.totale || 0), residuo: x.residuo, stato: x.stato, atteso: fmtMesi([x.atteso]), pagamento: x.f.pagamento || '' }));
+  const PERCHE = { '': 'Da controllare', riba: 'RiBa (addebito unico del mese)', conto: 'Ditta mai vista negli estratti' };
+  const rows = NA.righe.map(x => ({ _cls: 'click', id: x.f.id, data: x.f.data, tipo: x.f.tipo, numero: x.f.numero, controparte: x.f.controparte, totale: Math.abs(+x.f.totale || 0), residuo: x.residuo, stato: x.stato, atteso: fmtMesi([x.atteso]), pagamento: x.f.pagamento || '', perche: PERCHE[x.altrove || ''] })).sort((a, b) => (a.perche === PERCHE[''] ? 0 : 1) - (b.perche === PERCHE[''] ? 0 : 1));
   const t = tabella('ssbanca', {
     title: 'Fatture senza pagamento in banca', sheet: 'Non abbinate',
-    cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'tipo', h: 'Tipo' }, { k: 'numero', h: 'Numero', cls: 'nw' }, { k: 'controparte', h: 'Ditta', cls: 'w' }, { k: 'totale', h: 'Totale', fmt: 'eur2' }, { k: 'residuo', h: 'Da pagare', fmt: 'eur2' }, { k: 'atteso', h: 'Mese atteso' }, { k: 'pagamento', h: 'Pagamento', cls: 'clip' }],
+    cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'tipo', h: 'Tipo' }, { k: 'numero', h: 'Numero', cls: 'nw' }, { k: 'controparte', h: 'Ditta', cls: 'w' }, { k: 'totale', h: 'Totale', fmt: 'eur2' }, { k: 'residuo', h: 'Da pagare', fmt: 'eur2' }, { k: 'atteso', h: 'Mese atteso' }, { k: 'pagamento', h: 'Pagamento', cls: 'clip' }, { k: 'perche', h: 'Perché' }],
     rows, rowAttr: r => `data-act="c-fatt" data-id="${esc(r.id)}"`, tot: { data: 'Totale', residuo: rows.reduce((s, r) => s + r.residuo, 0) },
   });
   return `<section class="card" id="ss-banca"><div class="card-h"><h2>${ic('landmark')}Fatture senza pagamento in banca</h2><span class="count">${rows.length}</span>${bottoniExport(['ssbanca'], 'Fatture senza pagamento in banca')}</div>
-    <p class="muted small pad-x">Fatture che dovevano essere pagate o incassate in un mese di cui hai caricato i movimenti della banca (${esc(fmtMesi(NA.mesi))}), ma non sono abbinate a nessun movimento. I movimenti che non hai salvato non restano nell'app, quindi non posso abbinarli da qui: ricarica l'estratto conto di quel mese in Carica documenti e l'app ti propone da sola la fattura per ogni movimento (numero nella causale, ditta e importo, più fatture pagate insieme); tu controlli e salvi. Se una fattura è stata pagata in contanti o compensata, lo vedi aprendo la scheda.</p>${t}</section>`;
+    <p class="muted small pad-x">Fatture che dovevano essere pagate o incassate in un mese di cui hai caricato i movimenti della banca (${esc(fmtMesi(NA.mesi))}), ma non sono abbinate a nessun movimento. I movimenti che non hai salvato non restano nell'app, quindi non posso abbinarli da qui: ricarica l'estratto conto di quel mese in Carica documenti e l'app ti propone da sola la fattura per ogni movimento (numero nella causale, ditta e importo, più fatture pagate insieme); tu controlli e salvi. Se una fattura è stata pagata in contanti o compensata, lo vedi aprendo la scheda. In cima quelle da controllare; sotto le RiBa (la banca le addebita tutte insieme a fine mese) e le fatture di ditte che negli estratti non compaiono mai (di solito passano da un altro conto).</p>${t}</section>`;
 }
 
 export async function sospesiAct(a, b, d, rerender) {
