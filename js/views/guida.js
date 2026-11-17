@@ -7,11 +7,17 @@ import { GUIDA, AREE_GUIDA } from '../guida.js';
 import { contiVisibili } from './conti.js';
 
 const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+// La scheda che spiega la pagina aperta (pulsante ? in alto): prima quella della stessa sottopagina, poi quella della pagina nell'area giusta
+export function schedaDi(tab, sub, area) {
+  const c = GUIDA.filter(g => g.vai && g.vai[0] === tab && (contiVisibili() || (g.area !== 'conti' && g.area !== 'archivio')));
+  const qui = g => g.area === area || g.area === 'generale';
+  return c.find(g => g.vai[1] && g.vai[1] === sub && qui(g)) || c.find(g => g.vai[1] === sub) || c.find(g => !g.vai[1] && qui(g)) || c.find(qui) || c[0] || null;
+}
 const testo = g => norm([g.titolo, g.cosa, ...(g.passi || []), ...(g.consigli || []), g.parole].join(' '));
 
 function scheda(g, aperta) {
   const vai = g.vai ? `<button class="btn sm" data-act="guVai" data-area="${g.area === 'generale' ? UI.area : g.area}" data-tab="${g.vai[0]}"${g.vai[1] ? ` data-sub="${g.vai[1]}"` : ''}>Apri la pagina ${ic('chevron-right')}</button>` : '';
-  return `<details class="card gu-s" id="gu-${esc(g.id)}"${aperta ? ' open' : ''}><summary>${ic(g.icona || 'info')}<b>${esc(g.titolo)}</b><span class="gu-cosa">${esc(g.cosa)}</span>${ic('chevron-down', 'gu-chev')}</summary>
+  return `<details class="card gu-s${UI.guApri === g.id ? ' gu-qui' : ''}" id="gu-${esc(g.id)}"${aperta || UI.guApri === g.id ? ' open' : ''}><summary>${ic(g.icona || 'info')}<b>${esc(g.titolo)}</b><span class="gu-cosa">${esc(g.cosa)}</span>${ic('chevron-down', 'gu-chev')}</summary>
   <div class="gu-b">${g.passi && g.passi.length ? `<ol>${g.passi.map(p => `<li>${esc(p)}</li>`).join('')}</ol>` : ''}
   ${g.consigli && g.consigli.length ? `<ul class="gu-tip">${g.consigli.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}${vai}</div></details>`;
 }
@@ -20,6 +26,7 @@ export function render() {
   const aree = AREE_GUIDA.filter(([k]) => contiVisibili() || (k !== 'conti' && k !== 'archivio'));
   const ok = new Set(aree.map(a => a[0]));
   const ar = ok.has(UI.sub.guida) ? UI.sub.guida : 'tutte';
+  if (UI.f.guq || (UI.sub.guida && UI.sub.guida !== 'tutte')) UI.guApri = null;   // cercando o filtrando non resta aperta la scheda di prima
   const parole = norm(UI.f.guq).split(/\s+/).filter(Boolean);
   const lista = GUIDA.filter(g => ok.has(g.area) && (ar === 'tutte' || g.area === ar) && (!parole.length || parole.every(p => testo(g).includes(p))));
   const gruppi = aree.map(([k, nome, i]) => [nome, i, lista.filter(g => g.area === k)]).filter(x => x[2].length);

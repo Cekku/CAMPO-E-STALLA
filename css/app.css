@@ -1744,7 +1744,8 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
   .ab-title { font-size: 19px; line-height: 1.05; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; text-wrap: balance; overflow-wrap: anywhere; }
   .ab-year { font-size: 13px; height: 32px; padding: 0 20px 0 7px; background-position: right 6px center; margin-left: 4px; flex: none; }
 }
-@media (max-width: 420px) { .appbar .ab-btn { width: 40px; } }
+@media (max-width: 420px) { .appbar .ab-btn { width: 36px; } }
+@media (max-width: 380px) { .appbar .ab-title { font-size: 17px; } }   /* con il ? della Guida in più il titolo non si spezza a metà parola */
 /* Righe con una tendina a destra (collaboratori): sul telefono la tendina va sotto, il testo resta leggibile */
 @media (max-width: 560px) {
   .row.static:has(> .btns select) { flex-wrap: wrap; }
@@ -1779,3 +1780,5 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 .gu-b li { margin: 4px 0; line-height: 1.45; }
 .gu-tip { color: var(--muted); list-style: '💡 '; }
 @media (max-width: 600px) { .gu-b { padding-left: 16px; } }
+.gu-s { scroll-margin-top: calc(var(--top-h) + var(--sat) + var(--tn-h) + 110px); }
+.gu-s.gu-qui { box-shadow: 0 0 0 2px var(--ink-2); }

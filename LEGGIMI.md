@@ -26,7 +26,7 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 
 ## Novità della versione 1.43: la Guida dentro l'app
 
-In fondo al menu di ogni area c'è **Guida**: una scheda per ogni pagina, con a cosa serve e come si usa. In alto c'è una barra di ricerca (scrivi per esempio "fatture" o "latte") e i pulsanti per guardare una sola area. Il pulsante "Apri la pagina" ti porta direttamente alla pagina. La guida viene aggiornata a ogni novità dell'app.
+In fondo al menu di ogni area c'è **Guida**: una scheda per ogni pagina, con a cosa serve e come si usa. In alto c'è una barra di ricerca (scrivi per esempio "fatture" o "latte") e i pulsanti per guardare una sola area. Il pulsante "Apri la pagina" ti porta direttamente alla pagina. In ogni pagina, in alto, il **punto di domanda (?)** apre la Guida proprio sulla scheda di quella pagina. La guida viene aggiornata a ogni novità dell'app.
 
 ## Novità della versione 1.41: i documenti dell'archivio vanno al loro posto da soli
 
