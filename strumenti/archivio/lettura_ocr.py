@@ -431,6 +431,46 @@ def rileggi(minuti=None, riclassifica=True):
     return cambiati
 
 
+def priorita_bassa():
+    """I tuoi programmi prima di questo: priorità 'sotto il normale' (la ereditano anche i processi di lettura)."""
+    if os.name == 'nt':
+        try:
+            import ctypes
+            k = ctypes.windll.kernel32
+            k.GetCurrentProcess.restype = ctypes.c_void_p
+            k.SetPriorityClass(ctypes.c_void_p(k.GetCurrentProcess()), 0x4000)   # BELOW_NORMAL_PRIORITY_CLASS
+        except Exception:
+            pass
+
+
+def all_avvio():
+    """Per l'attività di Windows all'accesso: scansioni vecchie per --minuti (120), con registro in
+    ArchivioAzienda\\ocr-avvio-log.txt, priorità bassa e lo stesso blocco di 'aggiorna' (mai due giri insieme).
+    Quando non resta niente da rileggere esce subito."""
+    os.makedirs(A.DATI, exist_ok=True)
+    f = open(os.path.join(A.DATI, 'ocr-avvio-log.txt'), 'a', encoding='utf-8', buffering=1)
+    sys.stdout = sys.stderr = f
+    print(f'\n===== Scansioni vecchie all\'avvio {A.adesso()} =====')
+    blocco = os.path.join(A.DATI, 'aggiorna.lock')
+    if os.path.exists(blocco) and time.time() - os.path.getmtime(blocco) < 6 * 3600:
+        print('Un aggiornamento è in corso: riprovo al prossimo avvio.')
+        return
+    cfg = config()
+    if not cfg['attivo'] or cfg['veloce'] == 'tesseract':
+        print('Lettura nuova spenta o motore veloce mancante: niente da fare.')
+        return
+    open(blocco, 'w').write(str(os.getpid()))
+    try:
+        priorita_bassa()
+        rileggi(float(O.A_arg('--minuti', '120')))
+        stato()
+    finally:
+        try:
+            os.remove(blocco)
+        except OSError:
+            pass
+
+
 def stato():
     db = A.apri_db(); db.execute(SCHEMA_PAGINE)
     print('Pagine lette per motore e stato:')

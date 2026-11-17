@@ -18,6 +18,8 @@ Comandi:
                                  (lettura_ocr.py; con "ocr": {"attivo": false} in config.json solo Tesseract)
   python archivio.py rileggi-ocr [--minuti N]   rilegge con i motori nuovi le scansioni lette prima con Tesseract
   python archivio.py stato-ocr   pagine lette per motore e scansioni vecchie che restano
+  python archivio.py ocr-avvio [--minuti N]   come rileggi-ocr, per l'attività all'accesso a Windows (registro,
+                                 priorità bassa, mai insieme ad aggiorna)
   python archivio.py prova-ocr N confronto dei motori su N pagine di cui si conosce il testo (ocr_modelli.py)
   python archivio.py classifica  area, tipo, data, controparte e nome proposto (cartelle + regole; --tutto rifà anche
                                  quelli già classificati da Claude, dal modello sul PC o a mano)
@@ -1295,6 +1297,7 @@ if __name__ == '__main__':
                'prova-ocr': lambda: __import__('ocr_modelli').comando_prova(),
                'rileggi-ocr': lambda: __import__('lettura_ocr').rileggi(),
                'stato-ocr': lambda: __import__('lettura_ocr').stato(),
+               'ocr-avvio': lambda: __import__('lettura_ocr').all_avvio(),
                'nuovi': lambda: __import__('ia_locale').nuovi()}
     if len(sys.argv) < 2 or sys.argv[1] not in comandi:
         print(__doc__)

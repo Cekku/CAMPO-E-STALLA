@@ -29,6 +29,18 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import archivio as A  # noqa: E402
 
+def librerie_utente():
+    """rapidocr, onnxruntime e numpy stanno in ArchivioAzienda/librerie nella cartella dell'utente (pip install --target).
+    Non con 'pip --user': installati dall'app Claude finivano in una cartella AppData che vedono solo i programmi
+    avviati da lì, non le attività di Windows (guasto del 17/11, "No module named 'numpy'")."""
+    p = os.path.join(os.path.expanduser('~'), 'ArchivioAzienda', 'librerie')
+    if os.path.isdir(p) and p not in sys.path:
+        sys.path.insert(0, p)
+
+
+librerie_utente()
+
+
 def piena_velocita():
     """Windows 11 mette i programmi in secondo piano "a risparmio" (core lenti): la lettura di una pagina passava
     da 4 a 20 secondi. Qui si chiede di non rallentare questo processo (vale solo per lui, nessuna impostazione
