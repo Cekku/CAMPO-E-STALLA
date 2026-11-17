@@ -1,0 +1,24 @@
+---
+paths:
+  - "js/conti/automatico.js"
+  - "js/views/conti-automatico.js"
+  - "js/conti/importa.js"
+  - "js/conti/originali.js"
+  - "js/conti/banca.js"
+---
+
+# Conti: documenti dell'archivio caricati da soli
+
+(Spostato da CLAUDE.md il 17/11/2026. Si carica da solo quando si lavora su questi file.)
+
+### Documenti dell'archivio caricati da soli (1.41.0, 17/11/2026) — `conti/automatico.js`, `views/conti-automatico.js`
+
+- Chiesto da Marco: "un programma che in locale automaticamente mi assegna i documenti al proprio posto, anche i prossimi che scaricherò". Scelte di Marco: **solo i file sul PC** (niente accesso ai siti con le sue credenziali), **sicuri salvati subito e dubbi a lui**, **quando apre l'app sul PC** (niente lavoro ad app chiusa).
+- Avvio: `avviaArchivioConti()` in `app.js` dopo `initStore`, ogni 20 s per 5 minuti finché i dati sono scaricati (`sync.status === 'ok'`, niente in attesa) e `contiVisibili()`; poi `AU.avvia()`: al massimo ogni 30 minuti (`ces.auto.ultimo`), solo con il ponte che risponde e senza dati di prova. Si spegne e si sceglie la data di inizio in Conti → `automatico` ("Dall'archivio del PC", voce di `MENU` dopo Carica documenti; pulsante anche in Carica documenti). Impostazioni in `cfg.auto = { attivo, da }`; data predefinita = 1° gennaio del primo anno con fatture.
+- Documenti presi (`daLeggere`): catalogo delle aree 02-05 (`caricaCatalogo`), tipi in `TIPI` (fatture, note, buste paga, bilancini paghe, estratti conto, bonifici, distinte, dichiarazioni IVA, bilanci, elenchi delle fatture), estensione con il punto nel catalogo (".pdf"), dalla data di inizio, impronta non nota (`note()`: registrazioni, `do-`, `au-`, `imp` dei pagamenti). Ordine: estratti conto (i più grandi prima), fatture, paghe, bonifici, il resto.
+- Per ogni documento (`uno`): PDF di cortesia di una fattura già caricata riconosciuto dai dati del catalogo (`giaCaricata`, `puntiFattura` ≥ 8 con il numero, entro 40 giorni) → solo collegamento `ar-`; altrimenti `leggiDocumento` come Carica documenti. Sicuri: fatture XML/P7M; PDF con controllo OK, data letta e anno entro ±1 dalla data del catalogo e nessuna fattura uguale (stessa P.IVA e totale entro 60 giorni); cedolini e bilancini paghe con il mese; elenchi con l'anno; IVA di un anno che non l'ha. Dubbi: bilancini del commercialista (sostituiscono il CE), Excel, IVA già presente, fatture PDF che non tornano. Movimenti (`rigaSicura`): banca, F24/contributi/fondo, stipendi con dipendente certo (niente omonimi né nuovi), fatture per "numero e importo" o "nome e importo"; gli altri riconosciuti vanno in `dubbi` (righe snelle salvate nel record) e si rivedono con `rivediRighe` di `views/conti.js` nella tabella di Carica documenti; `salvaImport` chiama `AU.chiudi(imp)`.
+- Doppioni fra estratti: `intestazione()` legge IBAN e periodo dalla prima pagina; il periodo si ricorda solo per gli estratti **completi** (almeno 8 movimenti e meno dell'85% spese della banca: la "lista movimenti" filtrata con le sole commissioni del 2024 altrimenti copriva tutto l'anno); i movimenti nei giorni coperti dello stesso conto si saltano; le spese della banca già salvate con stessa data, importo e verso si saltano anche da estratti parziali (contate una a una). Contabili e distinte nei giorni coperti da un estratto: saltate; se illeggibili e coperte → `ignorato`. Gli estratti caricati prima a mano (impronta nota) ricevono solo il periodo (`periodoDiUnoGiaCaricato`).
+- Originale: `do-<imp>` con `copia: false` e il numero del catalogo (niente copia su Supabase Storage). Record `au-<imp>` in `econfig` (schema in testa al modulo).
+- Altre correzioni nella stessa versione: `pareEstratto` riconosce anche la lista movimenti con la sola colonna IMPORTO e il saldo contabile in testa; `pareBanca` esclude "PRELIEVO SOCI" (non è una spesa della banca).
+- Prova a secco sui documenti veri (modulo caricato come blob nella pagina pubblicata con salvataggi e collegamenti sostituiti da funzioni finte, server locale con CORS solo per la prova; niente scritto nei dati): 889 documenti dal 2024, circa 10 minuti. 33 fatture nuove (30 del 2026), 125 già presenti, 21 PDF di cortesia collegati alla fattura; cedolini di tutto il 2024 e 5 bilancini paghe; 65 stipendi 2024 pagati da contabili con il dipendente certo; 263 spese di banca (estratto 2024 con le sole commissioni e conto PSR 2026). Da controllare: 3 bilancini, 4 fatture PDF, 12 stipendi (omonimi, nuovi) e 1 pagamento di più fatture. Non letti: soprattutto PDF di buste paga della colf con il nome "Fattura" nel catalogo, note di addebito e fatture non elettroniche, contabili e distinte in un formato che l'app non legge (queste ora "lasciate fuori"). 19 file spostati dopo l'ultima scansione (410): si riprovano al giro dopo.
+- Prima versione della prova trovata e corretta: l'estratto 2024 "filtrato" (solo commissioni) copriva tutto il 2024 e faceva saltare contabili e un futuro estratto completo.

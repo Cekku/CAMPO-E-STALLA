@@ -1,3 +1,11 @@
+---
+paths:
+  - "js/conti/elenco.js"
+  - "js/conti/rls.js"
+  - "js/conti/originali.js"
+  - "js/views/conti-verifiche.js"
+---
+
 # Conti: fatture mancanti e reddito lordo standard (dalla 1.16.0)
 
 ## Fatture mancanti — `js/conti/elenco.js`, `vMancanti` in `js/views/conti-verifiche.js`
