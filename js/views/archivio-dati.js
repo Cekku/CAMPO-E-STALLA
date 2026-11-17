@@ -67,6 +67,24 @@ export async function scaricaFile(id, { tempo = 60000 } = {}) {
     return new File([buf], nome, { type: r.headers.get('Content-Type') || '' });
   } finally { clearTimeout(t); }
 }
+/** Testo intero di un documento già letto dall'archivio (GET /testo, ponte versione 3), o null se non c'è o il ponte è spento. */
+/** Vale la pena chiedere al PC? Sì su un computer (mouse), no su telefono e tablet: lì il ponte non c'è e Chrome
+ *  chiederebbe il permesso per la rete locale. Con il ponte già risultato collegato sì comunque. */
+export const pcVicino = () => stato.v === 'ok' || !(typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches);
+export async function testoIntero(imp, { tempo = 15000 } = {}) {
+  if (conf().prova || !imp || !pcVicino()) return null;
+  try { const r = await chiama('/testo/' + encodeURIComponent(imp), { tempo }); return (r && r.testo) || null; } catch (e) { return null; }
+}
+const base64 = b => { let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+/** Lettura ottica di un PDF con PP-OCR sul PC (POST /ocr, ponte versione 3): pagine con le parole e la posizione,
+ *  come ocrPagine di conti/ocr-testo.js. null se il ponte è spento, di una versione vecchia o senza il motore:
+ *  allora l'app legge da sola con Tesseract. Il ponte non salva il file. */
+export async function ocrSulPC(bytes, { tempo = 15 * 60000 } = {}) {
+  if (conf().prova || !pcVicino()) return null;
+  let s; try { s = await chiama('/stato', { tempo: 2500 }); } catch (e) { return null; }
+  if (!s || !(s.versione >= 3)) return { vecchio: true };
+  return chiama('/ocr', { metodo: 'POST', corpo: { dati: base64(new Uint8Array(bytes)) }, tempo });
+}
 /** Elenco di documenti dal ponte senza passare dalla memoria della vista. */
 export const cerca = (filtri, tempo = 15000) => chiama('/documenti' + qs(filtri), { tempo });
 /** correzioni nel formato del ponte: { "<id>": { a, t, d, c, p, x, n } }; {} = confermato così com'è */

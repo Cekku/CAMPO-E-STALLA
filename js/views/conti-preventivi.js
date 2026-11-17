@@ -304,6 +304,10 @@ async function testoFile(file) {
   const { leggiPdf, testoPagina } = await import('../conti/pdftext.js');
   const pp = await leggiPdf(b); let testo = pp.map(testoPagina).join('\n');
   if (testo.replace(/\s/g, '').length < 40 * Math.max(1, pp.length)) {
+    // già letto dall'archivio del PC? (stessa impronta SHA-256 del file)
+    const { impronta } = await import('../conti/originali.js');
+    const giaLetto = await AD.testoIntero(await impronta(b));
+    if (giaLetto && giaLetto.replace(/\s/g, '').length >= 40) { toast('Testo preso dall\'archivio del PC'); return { b, testo: giaLetto }; }
     toast('PDF fatto di immagini: lo leggo con la lettura ottica, ci vuole qualche secondo');
     const { ocrPagine } = await import('../conti/ocr-testo.js'); const oc = await ocrPagine(b);
     testo = oc.map(pg => { const ws = [...pg.words].sort((x, y) => x.top - y.top || x.x0 - y.x0); const L = []; for (const w of ws) { const l = L[L.length - 1]; if (l && Math.abs(l.top - w.top) < 4) l.w.push(w); else L.push({ top: w.top, w: [w] }); } return L.map(l => l.w.sort((x, y) => x.x0 - y.x0).map(w => w.text).join(' ')).join('\n'); }).join('\n');
@@ -322,7 +326,7 @@ async function caricaFile(c, oid, file) {
 }
 async function testoOfferta(o) {
   if (o.testo) return o.testo;
-  if (o.archivio && o.archivio.imp) { const d = await AD.aspetta('/documenti/' + o.archivio.imp); const t = (d.testo && d.testo.inizio) || ''; if (!t) throw new Error(d.testo && d.testo.riservato ? 'Il documento è segnato come riservato nell\'archivio: il testo non si legge.' : 'L\'archivio non ha il testo di questo documento (forse è una foto non ancora letta).'); return t; }
+  if (o.archivio && o.archivio.imp) { const intero = await AD.testoIntero(o.archivio.imp); if (intero) return intero.slice(0, 15000); const d = await AD.aspetta('/documenti/' + o.archivio.imp); const t = (d.testo && d.testo.inizio) || ''; if (!t) throw new Error(d.testo && d.testo.riservato ? 'Il documento è segnato come riservato nell\'archivio: il testo non si legge.' : 'L\'archivio non ha il testo di questo documento (forse è una foto non ancora letta).'); return t; }
   throw new Error('Carica prima il PDF del preventivo');
 }
 async function sceltaLettura(c, o) {

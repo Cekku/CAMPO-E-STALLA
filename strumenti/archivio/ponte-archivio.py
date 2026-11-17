@@ -16,6 +16,9 @@ Richieste (risposte JSON, contratto descritto in CLAUDE.md, sezione "Archivio do
   POST /correzioni            {"123": {"a": "02.3", "t": "F24", ...}} come "archivio.py applica", fatte dall'utente
   GET  /file/<id o impronta>  il contenuto del file (solo documenti: PDF, XML, P7M, ZIP, Excel, CSV, testo, foto; mai
                               i riservati), per farlo leggere all'app (Conti: estratti conto, contabili, fatture)
+  GET  /testo/<id o impronta> il testo intero già letto dall'archivio (mai i riservati)
+  POST /ocr                   {"dati": "<PDF in base64>"} lettura ottica con PP-OCR di un PDF fatto di immagini che
+                              l'app sta caricando: parole con la posizione, pagina per pagina. Non salva niente.
 
 Avvio: doppio clic su "Archivio - ponte.bat" (oppure: python ponte-archivio.py).
 """
@@ -26,12 +29,13 @@ import re
 import socketserver
 import subprocess
 import sys
+import threading
 import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import archivio as A  # noqa: E402
 
-VERSIONE = 2
+VERSIONE = 3
 PORTA = 1236
 ORIGINI = {
     'https://cekku.github.io',
@@ -48,6 +52,11 @@ DA_LEGGERE = {'.pdf': 'application/pdf', '.xml': 'application/xml', '.p7m': 'app
               '.csv': 'text/csv', '.txt': 'text/plain', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png'}
 MAX_FILE = 30 * 1024 * 1024
 TESTO_SCHEDA = 6000
+# lettura ottica per l'app (POST /ocr): PDF fino a 30 MB, al massimo 60 pagine, una lettura alla volta
+OCR_PAGINE = 60
+OCR_DPI = 200
+OCR_MOTORE = 'v6s'
+OCR_PIXEL = 40_000_000             # al massimo 40 milioni di pixel per pagina (un A4 a 200 dpi ne ha 3,9)
 
 
 def _config():
@@ -395,10 +404,114 @@ def file_doc(id_):
     return os.path.basename(p), tipo, dati
 
 
+def testo_doc(id_):
+    """Testo intero di un documento del catalogo (per l'app: preventivi e documenti fatti di immagini)."""
+    db = _db()
+    try:
+        r = A.trova_contenuto(db, id_)
+        if not r:
+            raise Errore(404, 'documento non trovato')
+        if r['stato'] == 'riservato':
+            raise Errore(403, 'documento riservato (contiene password): il ponte non passa il testo')
+        t = db.execute('SELECT esito, metodo, pagine, caratteri, testo FROM testi WHERE impronta=?', (r['impronta'],)).fetchone()
+    finally:
+        db.close()
+    if not t or t['esito'] == 'riservato':
+        raise Errore(404, "l'archivio non ha il testo di questo documento")
+    return {'impronta': r['impronta'], 'esito': t['esito'], 'metodo': t['metodo'], 'pagine': t['pagine'],
+            'caratteri': t['caratteri'], 'testo': t['testo'] or ''}
+
+
+_OCR_LOCK = threading.Lock()
+
+
+def _parole_casella(testo, casella, parole, s):
+    """Parole di una casella di PP-OCR in punti PDF; se il motore non dà le parole, le divide in proporzione."""
+    out = []
+    for p in parole or ():
+        try:
+            w, _voto, b = p[0], p[1], p[2]
+        except (IndexError, TypeError):
+            continue
+        w = str(w).strip()
+        if not w:
+            continue
+        xs = [q[0] for q in b]; ys = [q[1] for q in b]
+        out.append({'text': w, 'x0': round(min(xs) / s, 2), 'x1': round(max(xs) / s, 2),
+                    'top': round(min(ys) / s, 2), 'bottom': round(max(ys) / s, 2)})
+    if out:
+        return out
+    xs = [q[0] for q in casella]; ys = [q[1] for q in casella]
+    x0, x1, top, bot = min(xs), max(xs), min(ys), max(ys)
+    pezzi = str(testo or '').split()
+    tot = sum(len(w) + 1 for w in pezzi) or 1
+    x = x0
+    for w in pezzi:
+        dx = (x1 - x0) * (len(w) + 1) / tot
+        out.append({'text': w, 'x0': round(x / s, 2), 'x1': round((x + dx * len(w) / (len(w) + 1)) / s, 2),
+                    'top': round(top / s, 2), 'bottom': round(bot / s, 2)})
+        x += dx
+    return out
+
+
+def ocr_file(corpo):
+    """Lettura ottica di un PDF mandato dall'app: per ogni pagina {width, height, words: [{text, x0, x1, top, bottom}]}
+    in punti PDF, la stessa forma della lettura dell'app (js/conti/ocr-testo.js). Il file non si salva da nessuna parte."""
+    import base64
+    import binascii
+    import time
+    if not isinstance(corpo, dict) or not isinstance(corpo.get('dati'), str):
+        raise Errore(400, 'manca il file ("dati" in base64)')
+    try:
+        dati = base64.b64decode(corpo['dati'], validate=True)
+    except (binascii.Error, ValueError):
+        raise Errore(400, 'file non valido (base64)')
+    if len(dati) > MAX_FILE:
+        raise Errore(413, 'file troppo grande (oltre 30 MB)')
+    if not dati.startswith(b'%PDF'):
+        raise Errore(415, 'serve un PDF')
+    t0 = time.time()
+    with _OCR_LOCK:                    # una lettura alla volta: il motore usa già tutti i core
+        try:
+            import ocr_modelli as M    # PP-OCR (rapidocr + onnxruntime nella cartella delle librerie dell'archivio)
+            import numpy as np
+            import pypdfium2 as pdfium
+            motore = M._rapid(OCR_MOTORE)
+        except Exception as e:
+            sys.stdout.write(f'Lettura ottica non disponibile: {type(e).__name__}: {e}\n')
+            raise Errore(503, 'lettura ottica non disponibile sul PC')
+        try:
+            doc = pdfium.PdfDocument(dati)
+        except Exception:
+            raise Errore(415, 'PDF non leggibile')
+        try:
+            n = len(doc)
+            if n > OCR_PAGINE:
+                raise Errore(413, f'troppe pagine ({n}, al massimo {OCR_PAGINE})')
+            pagine = []
+            for i in range(n):
+                pg = doc[i]
+                w, h = pg.get_size()
+                s = min(OCR_DPI / 72, (OCR_PIXEL / max(1.0, w * h)) ** 0.5)   # pagine enormi: meno dpi
+                img = pg.render(scale=s, grayscale=True).to_pil()
+                pg.close()
+                r = motore(np.array(img.convert('RGB')), return_word_box=True)
+                parole = []
+                if r.boxes is not None:
+                    wr = getattr(r, 'word_results', None) or [None] * len(r.txts)
+                    for testo, casella, pw in zip(r.txts, r.boxes.tolist(), wr):
+                        parole += _parole_casella(testo, casella, pw, s)
+                pagine.append({'width': w, 'height': h, 'words': parole})
+        finally:
+            doc.close()
+    return {'motore': 'ppocr' + OCR_MOTORE, 'secondi': round(time.time() - t0, 1), 'pagine': pagine}
+
+
 # ---------------------------------------------------------------- server
 
 LETTURE = {'/stato': stato, '/aree': aree, '/valori': valori, '/documenti': documenti, '/registro': registro}
-SCRITTURE = {'/apri': apri, '/correzioni': correzioni}
+SCRITTURE = {'/apri': apri, '/correzioni': correzioni, '/ocr': ocr_file}
+MAX_CORPO = {'/ocr': MAX_FILE * 4 // 3 + 4096}     # il PDF arriva in base64
 
 
 class Ponte(http.server.BaseHTTPRequestHandler):
@@ -486,6 +599,9 @@ class Ponte(http.server.BaseHTTPRequestHandler):
         m = re.fullmatch(r'/file/([0-9a-f]{64}|\d{1,9})', u.path)
         if m:
             return self._file(origine, m[1])
+        m = re.fullmatch(r'/testo/([0-9a-f]{64}|\d{1,9})', u.path)
+        if m:
+            return self._esegui(origine, testo_doc, m[1])
         fn = LETTURE.get(u.path)
         if not fn:
             return self._json(404, {'errore': 'richiesta sconosciuta'}, origine)
@@ -495,13 +611,17 @@ class Ponte(http.server.BaseHTTPRequestHandler):
         origine = self._controlli()
         if not origine:
             return
-        fn = SCRITTURE.get(urllib.parse.urlsplit(self.path).path)
+        percorso = urllib.parse.urlsplit(self.path).path
+        fn = SCRITTURE.get(percorso)
         if not fn:
             return self._json(404, {'errore': 'richiesta sconosciuta'}, origine)
         if not (self.headers.get('Content-Type') or '').lower().startswith('application/json'):
             return self._json(415, {'errore': 'serve Content-Type: application/json'}, origine)
-        n = int(self.headers.get('Content-Length') or 0)
-        if n > 2_000_000:
+        try:
+            n = int(self.headers.get('Content-Length') or 0)
+        except ValueError:
+            return self._json(400, {'errore': 'Content-Length non valido'}, origine)
+        if n < 0 or n > MAX_CORPO.get(percorso, 2_000_000):
             return self._json(413, {'errore': 'richiesta troppo grande'}, origine)
         try:
             corpo = json.loads(self.rfile.read(n) or b'null')
