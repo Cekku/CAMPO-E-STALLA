@@ -14,7 +14,11 @@ Comandi:
   python archivio.py scansiona   legge le cartelle e aggiorna il catalogo (solo lettura sui file)
   python archivio.py doppioni    riepilogo dei doppioni e foglio Excel "doppioni.xlsx"
   python archivio.py leggi       estrae il testo dei contenuti non ancora letti (una volta per impronta)
-  python archivio.py ocr         legge con Tesseract le scansioni e le foto (--prova N per provarne N)
+  python archivio.py ocr         legge le scansioni e le foto: motore veloce + modello preciso sulle pagine dubbie
+                                 (lettura_ocr.py; con "ocr": {"attivo": false} in config.json solo Tesseract)
+  python archivio.py rileggi-ocr [--minuti N]   rilegge con i motori nuovi le scansioni lette prima con Tesseract
+  python archivio.py stato-ocr   pagine lette per motore e scansioni vecchie che restano
+  python archivio.py prova-ocr N confronto dei motori su N pagine di cui si conosce il testo (ocr_modelli.py)
   python archivio.py classifica  area, tipo, data, controparte e nome proposto (cartelle + regole; --tutto rifà anche
                                  quelli già classificati da Claude, dal modello sul PC o a mano)
   python archivio.py lotti / applica N file.json [chi]   revisione a lotti (vedi le funzioni)
@@ -435,7 +439,15 @@ def _ocr(lavoro):
 
 
 def leggi_scansioni(solo_nuove=False):
-    """OCR dei contenuti segnati 'da_ocr'. Prima quelli fuori dall'archivio principale. --prova N per provarne N.
+    """OCR dei contenuti segnati 'da_ocr': con i motori nuovi (lettura_ocr) se attivi, altrimenti Tesseract."""
+    import lettura_ocr
+    if lettura_ocr.config()['attivo']:
+        return lettura_ocr.scansioni_nuove(solo_nuove)
+    return leggi_scansioni_tesseract(solo_nuove)
+
+
+def leggi_scansioni_tesseract(solo_nuove=False):
+    """OCR con Tesseract dei contenuti segnati 'da_ocr'. Prima quelli fuori dall'archivio principale. --prova N per provarne N.
     solo_nuove: salta quelli già tentati senza successo (es. troppo lenti), per l'aggiornamento automatico."""
     from concurrent.futures import ProcessPoolExecutor
     cfg = carica_config()
@@ -1034,7 +1046,20 @@ def aggiorna():
         db.close()
         print('\n--- 1. Scansione'); scansiona()
         print('\n--- 2. Testo'); leggi()
-        print('\n--- 3. Lettura ottica'); leggi_scansioni(solo_nuove=True)
+        import lettura_ocr
+        print('\n--- 3. Lettura ottica')
+        try:
+            leggi_scansioni(solo_nuove=True)
+        except Exception as e:                 # un guasto della lettura non deve fermare il resto
+            print(f'  lettura ottica interrotta: {type(e).__name__}: {str(e)[:200]}')
+        ocfg = lettura_ocr.config()
+        # 3b è lungo: --senza-llm (giro veloce, senza i lavori pesanti) lo salta
+        if ocfg['attivo'] and ocfg['minuti_arretrati'] > 0 and '--senza-llm' not in sys.argv:
+            print('\n--- 3b. Scansioni vecchie con i motori nuovi')
+            try:
+                lettura_ocr.rileggi(ocfg['minuti_arretrati'], riclassifica=False)
+            except Exception as e:
+                print(f'  rilettura interrotta: {type(e).__name__}: {str(e)[:200]}')
         db = apri_db()
         cambiati = {r[0] for r in db.execute(
             "SELECT DISTINCT impronta FROM registro WHERE id > ? AND impronta IS NOT NULL "
@@ -1043,7 +1068,7 @@ def aggiorna():
         nomi_ricerca(db, cambiati); db.commit()
         nuovi = db.execute('SELECT COUNT(*) FROM contenuti').fetchone()[0] - prima
         db.close()
-        da_fare = cambiati | senza
+        da_fare = cambiati | senza | lettura_ocr.CAMBIATI   # anche i testi migliorati dalla lettura ottica
         print(f'\n--- 4. Classificazione ({len(da_fare)} contenuti nuovi o cambiati)')
         classificati = classifica_tutto(solo=da_fare) if da_fare else 0
         al_modello = 0
@@ -1267,6 +1292,9 @@ if __name__ == '__main__':
                'correzioni-excel': correzioni_excel,
                'modelli': lambda: __import__('ia_locale').mostra_modelli(),
                'prova-ia': lambda: __import__('ia_locale').comando_prova(),
+               'prova-ocr': lambda: __import__('ocr_modelli').comando_prova(),
+               'rileggi-ocr': lambda: __import__('lettura_ocr').rileggi(),
+               'stato-ocr': lambda: __import__('lettura_ocr').stato(),
                'nuovi': lambda: __import__('ia_locale').nuovi()}
     if len(sys.argv) < 2 or sys.argv[1] not in comandi:
         print(__doc__)
