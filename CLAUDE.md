@@ -8,7 +8,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.42.1** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.43.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -17,6 +17,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 - Stato: `js/state.js` (`S` = raccolte in memoria, `UI` = filtri e navigazione, `COLS` = elenco delle raccolte).
 - Archivio: `js/store.js` — IndexedDB locale (un'unica tabella `records`), sincronizzazione facoltativa con **Supabase** (tabella `records` con RLS). Funzioni: `put`, `remove`, `bulkPut`, `cloudConfig`, `schemaVersion`.
 - UI: `js/ui.js` (`openSheet`, `closeSheet`, `toast`, `arm` conferma in due tocchi, `tabs`, `empty`), `js/icons.js` (Lucide).
+- **Guida** d'uso nell'app (dalla 1.43.0): `js/guida.js` (testi, una scheda per pagina: `cosa`, `passi`, `consigli`, `parole`, `vai`) e `js/views/guida.js` (ricerca senza accenti, scelta dell'area, `guVai` apre la pagina nella sua area); voce "Guida" in fondo a ogni area del menu. Schede di Conti e Archivio solo per il titolare.
 - Aree: **Campagna** (campi, mappa, attività, magazzino, mezzi, meteo, note), **Stalla** (capi, eventi, latte, razioni, box/silos), **Conti** e **Archivio** (documenti sul PC, dalla 1.27.0; tutte e due riservate al titolare).
 - Mappa: `js/map.js` (Leaflet + Geoman, sfondi Ortofoto FVG / Stradale / Rilievo, catasto AdE WMS, NDVI Sentinel-2), `js/geo.js` (aree, centroidi, import KML/GeoJSON/shapefile).
 - Blocco con codice: `js/lock.js` (PIN con PBKDF2 in localStorage `ces.lock`).
@@ -46,7 +47,7 @@ Le note lunghe di ogni area sono in `.claude/rules/`: ognuna si carica da sola q
 | Archivio nell'app | `archivio-app.md` | pagine dell'Archivio e collegamenti dei documenti |
 | Organizzazione | `organizzazione.md` | chi fa cosa fra i modelli (sempre caricata) |
 
-Quando aggiungi una funzione nuova: le note vanno nel file della sua area (e i file nuovi nei suoi `paths:`); qui solo se cambia qualcosa che vale per tutto il progetto. Un'area nuova = un file nuovo in `.claude/rules/` e una riga in questa tabella.
+Quando aggiungi una funzione nuova: le note vanno nel file della sua area (e i file nuovi nei suoi `paths:`); qui solo se cambia qualcosa che vale per tutto il progetto. **E aggiorna sempre la Guida** (`js/guida.js`, chiesto da Marco il 17/11/2026): una scheda nuova per una pagina nuova, i passi cambiati per una funzione nuova o cambiata, parole chiave per la ricerca. Un'area nuova = un file nuovo in `.claude/rules/` e una riga in questa tabella.
 
 Supabase in breve: progetto `vamcoyvunyjqgzxujsal`, URL e chiave anon in `js/config.js`, i dati li proteggono le regole RLS (dettagli in `supabase-dati.md`).
 

@@ -29,34 +29,35 @@ import { render as vImp, authUI } from './views/impostazioni.js';
 import { avviaBlocco, blocca, salvaBloccoDaForm, disattivaDaForm } from './lock.js';
 import { render as vConti, onAct as contiAct, onChange as contiChange, onDrop as contiDrop, setRerender, contiVisibili, esportaTutto, GRUPPI as GRUPPI_CONTI } from './views/conti.js';
 import { render as vArchivio, arAct, arInput, arChange, vediDoc } from './views/archivio.js';
+import { render as vGuida } from './views/guida.js';
 import { initChiedi, apri as apriChiedi, alterna as alternaChiedi } from './chiedi/pannello.js';
 
-const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, impostazioni: vImp, conti: vConti, archivio: vArchivio };
-const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio' };
+const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida };
+const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida' };
 const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'stalla', 'magazzino', 'mezzi', 'conti']);
 // Voci del menu: [tab, sub, icona, etichetta]
 const MENU = {
   campagna: [
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['campi', 'elenco', 'sprout', 'Campi'], ['mappa', null, 'map', 'Mappa'], ['attivita', null, 'notebook-pen', 'Attività'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino'], ['magazzino', 'movimenti', 'package', 'Carichi e scarichi']]],
     ['Agronomia', [['meteo', null, 'cloud-sun', 'Meteo'], ['campi', 'costi', 'euro', 'Costi e margini'], ['note', null, 'pencil', 'Note']]],
-    ['Gestione', [['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
+    ['Gestione', [['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['guida', null, 'info', 'Guida']]],
   ],
   stalla: [
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['stalla', 'mandria', 'cow', 'Mandria'], ['stalla', 'stalle', 'layout-grid', 'Stalle e silos'], ['stalla', 'indici', 'gauge', 'Indici e benessere'], ['stalla', 'riproduzione', 'heart-pulse', 'Riproduzione'], ['stalla', 'latte', 'milk', 'Latte'], ['stalla', 'progetto', 'warehouse', 'Progetto stalla 3D']]],
     ['Alimentazione e salute', [['stalla', 'razioni', 'wheat', 'Razioni'], ['stalla', 'tracciabilita', 'clipboard-list', 'Tracciabilità alimenti'],['stalla', 'sanitario', 'syringe', 'Sanitario'], ['meteo', null, 'thermometer', 'Meteo e caldo'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino']]],
-    ['Gestione', [['note', null, 'pencil', 'Note'], ['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
+    ['Gestione', [['note', null, 'pencil', 'Note'], ['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['guida', null, 'info', 'Guida']]],
   ],
   conti: [
     ['Principale', [['conti', 'panoramica', 'layout-dashboard', 'Panoramica'], ['conti', 'fatture', 'receipt', 'Fatture'], ['conti', 'mancanti', 'scan-search', 'Fatture mancanti'], ['conti', 'importa', 'file-up', 'Carica documenti'], ['conti', 'automatico', 'folder-open', "Dall'archivio del PC"]]],
     ['Acquisti e vendite', [['conti', 'fornitori', 'truck', 'Fornitori'], ['conti', 'clienti', 'handshake', 'Clienti'], ['conti', 'prodotti', 'package', 'Prodotti e prezzi'], ['conti', 'preventivi', 'clipboard-list', 'Preventivi e contratti'], ['conti', 'categorie', 'tags', 'Categorie'], ['conti', 'mensile', 'calendar-range', 'Andamento mensile'], ['conti', 'latte', 'milk', 'Latte venduto']]],
     ['Bilancio', [['conti', 'salute', 'heart-pulse', "Salute dell'azienda"], ['conti', 'grafici', 'chart-column', 'Grafici e confronti'], ['conti', 'ce', 'scale', 'Conto economico'], ['conti', 'rica', 'scale', 'Bilancino e fatture (RICA)'], ['conti', 'sp', 'landmark', 'Stato patrimoniale'], ['conti', 'indici', 'gauge', 'Indici di bilancio'], ['conti', 'centri', 'chart-pie', 'Centri di costo'], ['conti', 'rls', 'gauge', 'Reddito lordo standard'], ['conti', 'analisi', 'cow', 'Analisi della stalla'], ['conti', 'iva', 'percent', 'Dichiarazioni IVA'], ['conti', 'cespiti', 'tractor', 'Beni e ammortamenti'], ['conti', 'controlli', 'shield-check', 'Controlli']]],
     ['Personale', [['conti', 'personale', 'users', 'Riepilogo del personale'], ['conti', 'dipendenti', 'id-card', 'Dipendenti'], ['conti', 'cedolini', 'file-text', 'Cedolini e bilancini paghe'], ['conti', 'pagamenti', 'banknote', 'Pagamenti'], ['conti', 'prestiti', 'hand-coins', 'Anticipi e prestiti'], ['conti', 'verifica', 'shield-check', 'Verifica pagamenti']]],
-    ['Gestione', [['conti', 'regole', 'list-checks', 'Regole delle categorie'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
+    ['Gestione', [['conti', 'regole', 'list-checks', 'Regole delle categorie'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['guida', null, 'info', 'Guida']]],
   ],
   // Archivio documenti: catalogo dei file sul PC, letto dal ponte locale (js/views/archivio.js)
   archivio: [
     ['Principale', [['archivio', 'scaffale', 'book-open', 'Scaffale'], ['archivio', 'raccoglitore', 'box', 'Raccoglitori'], ['archivio', 'cerca', 'search', 'Cerca'], ['archivio', 'rivedere', 'list-checks', 'Da rivedere']]],
-    ['Gestione', [['archivio', 'ponte', 'smartphone', 'Collegamento al PC'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
+    ['Gestione', [['archivio', 'ponte', 'smartphone', 'Collegamento al PC'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['guida', null, 'info', 'Guida']]],
   ],
 };
 const TAB_OF = { campo: 'campi', capo: 'stalla', prodotto: 'magazzino', mezzo: 'mezzi', struttura: 'stalla' };
@@ -143,8 +144,8 @@ if (window.ResizeObserver) new ResizeObserver(([e]) => document.documentElement.
 
 function render() {
   derive();
-  if (UI.area === 'conti' && (!contiVisibili() || !['conti', 'impostazioni'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'conti'; }
-  if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'impostazioni'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
+  if (UI.area === 'conti' && (!contiVisibili() || !['conti', 'impostazioni', 'guida'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'conti'; }
+  if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'impostazioni', 'guida'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
   if (UI.area !== 'conti' && UI.tab === 'conti') UI.area = 'conti';
   if (UI.area !== 'archivio' && UI.tab === 'archivio') UI.area = 'archivio';
   document.body.dataset.area = UI.area;
@@ -387,6 +388,7 @@ document.addEventListener('click', async e => {
       case 'drawerClose': return drawer(false);
       case 'tnMenu': { const dd = b.parentElement, open = !dd.classList.contains('open'); closeTn(); dd.classList.toggle('open', open); b.setAttribute('aria-expanded', open); return; }
       case 'nav': case 'tab': return setTab(d.tab, d.sub);
+      case 'guVai': UI.area = d.area; saveUI(); return setTab(d.tab, d.sub);   // dalla Guida alla pagina, nella sua area
       case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'conti' ? 'conti' : d.area === 'archivio' ? 'archivio' : 'oggi');
       case 'sub': if (d.tab && UI.tab !== d.tab) { UI.tab = d.tab; UI.detail = null; UI.hist = []; } UI.sub[d.sec] = d.sub; saveUI(); render(); return window.scrollTo(0, 0);
       case 'open': if (sheetOpen()) closeSheet(); return openDetail(d.type, d.id);

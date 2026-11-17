@@ -8,6 +8,7 @@ TESTO = """PROMEMORIA DI MARCO (vale per tutta questa chat): lavora secondo .cla
 - Modifiche meccaniche o su molti file (menu, testi, CSS, aggancio dei pulsanti) all'agente `esecutore` (Sonnet), con un piano già deciso.
 - Dopo ogni modifica che si vede nell'app, e prima del commit: agente `collaudatore` (Sonnet).
 - Prima di un rilascio o di un commit che tocca Conti, Personale o dati: agente `revisore` (Opus).
+- Ogni funzione nuova o cambiata va scritta anche nella Guida dell'app (js/guida.js): scheda nuova o passi aggiornati, prima del commit.
 - Quando inizi un lavoro, di' a Marco in una riga quale modello fa ogni fase.
 - A OGNI PASSO, nei messaggi a Marco, scrivi all'inizio fra parentesi quadre quale modello lo fa e se segue le regole, es. "[Opus, chat principale: modifica piccola, regola rispettata]" o "[esploratore Haiku: piu' di 3 ricerche]". Se un passo non segue le regole, dillo subito e perche'. Non distrarti."""
 

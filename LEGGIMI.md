@@ -24,6 +24,10 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.43: la Guida dentro l'app
+
+In fondo al menu di ogni area c'è **Guida**: una scheda per ogni pagina, con a cosa serve e come si usa. In alto c'è una barra di ricerca (scrivi per esempio "fatture" o "latte") e i pulsanti per guardare una sola area. Il pulsante "Apri la pagina" ti porta direttamente alla pagina. La guida viene aggiornata a ogni novità dell'app.
+
 ## Novità della versione 1.41: i documenti dell'archivio vanno al loro posto da soli
 
 Scarica i documenti come fai sempre (cassetto fiscale, banca, consulente del lavoro) e lasciali sul PC: l'archivio li trova e li classifica ogni giorno. Quando apri l'app **sul PC con il ponte dell'archivio acceso**, l'app prende da sola quelli dei Conti che non ha ancora e li mette al loro posto: fatture, cedolini, bilancini paghe, estratti conto, contabili dei bonifici, dichiarazioni IVA, elenchi delle fatture.

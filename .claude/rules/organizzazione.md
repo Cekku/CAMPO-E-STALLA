@@ -36,7 +36,7 @@ Ogni messaggio a Marco che accompagna un passo comincia con una nota fra parente
 3. Chat principale: piano breve; scrive lei le parti difficili, passa all'`esecutore` quelle meccaniche.
 4. `collaudatore` → se trova difetti, la chat principale li corregge (o li ripassa all'esecutore) e si riprova una volta.
 5. `revisore` se è un rilascio.
-6. Chat principale: versione (`js/version.js`, `VERSION` in `sw.js`, `SHELL`), CLAUDE.md, commit, push, controllo di GitHub Pages.
+6. Chat principale: versione (`js/version.js`, `VERSION` in `sw.js`, `SHELL`), CLAUDE.md, **Guida dell'app (`js/guida.js`) aggiornata con la novità**, commit, push, controllo di GitHub Pages.
 
 ## Risparmio di token (regole per tutti)
 
