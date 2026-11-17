@@ -84,17 +84,32 @@ function ivaBene(b) {
   return { iva: N(b.costo) * aliq / 100, stimata: true, aliq };
 }
 
+/** Anno della prima fattura collegata a un bene (null se non ha fatture). */
+function annoFatture(b) {
+  let m = null;
+  for (const l of b.fatture || []) { const f = S.fatture.find(x => x.id === l.fid); const y = f ? yearOf(f.data) : null; if (y && (m === null || y < m)) m = y; }
+  return m;
+}
+
 /** Rettifica da pagare se dal 1° gennaio dell'anno Y si passa al regime speciale. */
 export function rettifica(Y) {
   const c = conf(); const inizio = N(c.inizio) || 0;
   const righeB = [];
   for (const b of beni()) {
     if (b.cat === 'terreni' || N(b.costo) < SOGLIA_BENE) continue;
-    const ya = yearOf(b.data); if (!ya || ya >= Y) continue;
-    if (b.fine && yearOf(b.fine) < Y) continue;          // già venduto
-    if (inizio && ya < inizio) continue;                  // comprato quando l'IVA non si detraeva
+    const ya = yearOf(b.data); if (!ya) continue;
     const per = b.cat === 'fabbricati' ? 10 : 5;
-    const res = per - (Y - ya); if (res <= 0) continue;
+    let res;
+    if (ya >= Y) {
+      // entra in funzione dopo il cambio ma è stato fatturato (e l'IVA detratta) prima: si restituisce tutta
+      const af = annoFatture(b); if (!af || af >= Y) continue;
+      if (inizio && af < inizio) continue;
+      res = per;
+    } else {
+      if (b.fine && yearOf(b.fine) < Y) continue;          // già venduto
+      if (inizio && ya < inizio) continue;                  // comprato quando l'IVA non si detraeva
+      res = per - (Y - ya); if (res <= 0) continue;
+    }
     const x = ivaBene(b);
     righeB.push({ id: b.id, nome: b.nome, cat: (CATEGORIE[b.cat] || {}).nome || b.cat, anno: ya, per, residui: res, iva: r2(x.iva), stimata: x.stimata, quota: r2(x.iva * res / per), libero: ya + per });
   }
@@ -126,7 +141,10 @@ export function scenario(Y, B = base()) {
   if (!B) return null;
   const inv = conf().inv || [];
   const anniS = [Y, Y + 1, Y + 2].map(a => {
-    const ivaInvP = inv.filter(i => N(i.anno) === a).reduce((t, i) => t + N(i.imp) * N(i.aliq) / 100, 0);
+    // investimenti di quell'anno: scritti qui come previsti, oppure già nel registro dei beni con la data di quell'anno
+    // e senza fatture di prima del cambio (quelli già fatturati prima vanno nella rettifica)
+    const ivaInvP = inv.filter(i => N(i.anno) === a).reduce((t, i) => t + N(i.imp) * N(i.aliq) / 100, 0)
+      + beni().filter(b => b.cat !== 'terreni' && yearOf(b.data) === a && !((annoFatture(b) || a) < Y)).reduce((t, b) => t + ivaBene(b).iva, 0);
     const ivaAcq = B.ivaAcqCorr + ivaInvP;
     const ord = B.ivaVen - ivaAcq, spec = Math.max(0, B.ivaVen - B.comp);
     return { anno: a, ivaInvP: r2(ivaInvP), ord: r2(ord), spec: r2(spec), vantaggio: r2(ord - spec) };
