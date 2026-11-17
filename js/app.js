@@ -43,7 +43,7 @@ const MENU = {
   ],
   stalla: [
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['stalla', 'mandria', 'cow', 'Mandria'], ['stalla', 'stalle', 'layout-grid', 'Stalle e silos'], ['stalla', 'indici', 'gauge', 'Indici e benessere'], ['stalla', 'riproduzione', 'heart-pulse', 'Riproduzione'], ['stalla', 'latte', 'milk', 'Latte'], ['stalla', 'progetto', 'warehouse', 'Progetto stalla 3D']]],
-    ['Alimentazione e salute', [['stalla', 'razioni', 'wheat', 'Razioni'], ['stalla', 'sanitario', 'syringe', 'Sanitario'], ['meteo', null, 'thermometer', 'Meteo e caldo'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino']]],
+    ['Alimentazione e salute', [['stalla', 'razioni', 'wheat', 'Razioni'], ['stalla', 'tracciabilita', 'clipboard-list', 'Tracciabilità alimenti'],['stalla', 'sanitario', 'syringe', 'Sanitario'], ['meteo', null, 'thermometer', 'Meteo e caldo'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino']]],
     ['Gestione', [['note', null, 'pencil', 'Note'], ['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda']]],
   ],
   conti: [
@@ -152,7 +152,7 @@ function render() {
   $('#bnav').innerHTML = bnavHTML();
   $('#topnav').innerHTML = topnavHTML();
   syncPill();
-  const years = new Set([new Date().getFullYear(), UI.anno]); S.operazioni.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.eventi.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); if (UI.tab === 'conti') { S.fatture.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.bilanci.forEach(b => { if (+b.id) years.add(+b.id); }); S.paghe.forEach(p => { if (+p.anno) years.add(+p.anno); }); const cy = new Date().getFullYear(); for (let y = Math.min(cy - 4, ...years); y <= cy; y++) years.add(y); }
+  const years = new Set([new Date().getFullYear(), UI.anno]); S.operazioni.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.eventi.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); if (UI.tab === 'conti' || (UI.tab === 'stalla' && UI.sub.stalla === 'tracciabilita')) { S.fatture.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.bilanci.forEach(b => { if (+b.id) years.add(+b.id); }); S.paghe.forEach(p => { if (+p.anno) years.add(+p.anno); }); const cy = new Date().getFullYear(); for (let y = Math.min(cy - 4, ...years); y <= cy; y++) years.add(y); }
   $('#yearSel').innerHTML = [...years].sort((a, b) => b - a).map(y => `<option value="${y}"${y === UI.anno ? ' selected' : ''}>${y}</option>`).join('');
   const isMap = UI.tab === 'mappa';
   document.body.classList.toggle('on-map', isMap);
@@ -483,6 +483,7 @@ document.addEventListener('click', async e => {
       default: if (a.startsWith('ar-')) return arAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('p3d') && a !== 'p3dFile') return import('./views/progetto3d.js').then(x => x.p3dAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('lib-')) return import('./views/libretto.js').then(x => x.libAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+        if (a.startsWith('tr-')) return import('./views/tracciabilita.js').then(x => x.trAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a === 'tsort' || a === 'texp' || a.startsWith('c-')) return contiAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
     }
   } catch (err) { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); }
@@ -502,6 +503,7 @@ document.addEventListener('change', e => {
   if (t.dataset.act === 'memberRole') { store.setMemberRole(t.dataset.id, t.value).then(() => toast('Permessi aggiornati')).catch(err => toast(traduci(err), 'err')).finally(() => render()); return; }
   if (t.dataset.act === 'view') { UI.view = t.dataset.v; saveUI(); return render(); }
   if (t.dataset.act && t.dataset.act.startsWith('ar-')) return arChange(t);
+  if (t.dataset.act && t.dataset.act.startsWith('tr-')) { import('./views/tracciabilita.js').then(x => x.trChange(t)).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); return; }
   if (t.dataset.act && t.dataset.act.startsWith('c-')) { contiChange(t).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); return; }
 });
 ['dragover', 'dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => { if (ev === 'dragleave') { const z = e.target.closest && e.target.closest('#dropzone'); if (z) z.classList.remove('over'); return; } contiDrop(e); }));
@@ -564,6 +566,7 @@ function gpsAzienda() {
 }
 
 setRerender(() => render());
+import('./tracciabilita.js').then(x => x.setRender(() => render())).catch(err => console.warn(err));
 
 // pagine dell'app per i collegamenti nelle risposte della chat (area/tab/sub)
 function pagineChat() {

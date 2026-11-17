@@ -25,6 +25,10 @@ Un agente parte da zero e rilegge quello che gli serve: costa. Conviene solo se 
 - **revisore**: prima di ogni rilascio (cambio di versione) o di un commit che tocca i Conti, il Personale o file con dati. Non per ritocchi di testo o di stile.
 - Lavori indipendenti fra loro (es. esploratore e collaudatore su cose diverse) partono nello stesso messaggio, in parallelo.
 
+## Dirlo a Marco a ogni passo (chiesto il 17/11/2026)
+
+Ogni messaggio a Marco che accompagna un passo comincia con una nota fra parentesi quadre: quale modello fa il passo e se la regola è rispettata, per esempio `[Opus, chat principale: modifica piccola, regola rispettata]` oppure `[esploratore Haiku: più di 3 ricerche]`. Se un passo esce dalle regole, va detto subito, con il motivo. L'hook `SessionStart` (`.claude/hooks/promemoria.py`) lo ricorda all'inizio di ogni chat.
+
 ## Giro tipico di una richiesta
 
 1. Chat principale: capisce la richiesta; se c'è una scelta vera la chiede a Marco (una domanda, con la proposta consigliata per prima).
