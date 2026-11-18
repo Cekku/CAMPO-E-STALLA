@@ -4,7 +4,11 @@
 //     coltura (chiave di VAM), irriguo, prezzo (€ totali), canone (€/ha all'anno), margine (€/ha all'anno, vuoto = dai tuoi campi),
 //     stalla (€/ha all'anno di vantaggio per la stalla), km (vuoto = calcolati), passaggi, forma, accesso,
 //     altre (€/anno: IMU, consorzio…), agev (compra come coltivatore diretto o IAP), mediazione %, mutuo: { quota %, tasso %, anni }, note }
-// Impostazioni in `econfig` id `terreni-conf`: { vam: {coltura: €/ha}, notaio, tassoRif, costoKm, passaggi }.
+// Impostazioni in `econfig` id `terreni-conf`: { vam: {coltura: €/ha}, canone (€/ha di un seminativo in affitto in zona), denaro (% interesse
+//   del mutuo o rendimento dei soldi), riv (% crescita del prezzo della terra all'anno), notaio, costoKm, passaggi }.
+// Dalla 1.52.0 (chiesto da Marco): il "saggio di mercato" = canone di zona ÷ valore di zona sostituisce il 2% scelto a mano (tassoRif, ignorato).
+// Fonti: canoni dei seminativi di pianura in provincia di Udine 300-550 €/ha (tabella CREA 2020, Terra e Vita) → 450 di partenza;
+// la terra rende l'1-2% del suo prezzo e si compra anche perché tiene il valore (CREA 2025, tesi Università di Padova).
 // Valori di riferimento: Valori Agricoli Medi 2025 della provincia di Udine, regione agraria n. 11 (comprende Povoletto),
 // Commissione provinciale n. 2 del 05/05/2025, BUR n. 23 del 04/06/2025. Sono valori di stima, non prezzi di mercato: si cambiano nella pagina.
 import { S } from '../state.js';
@@ -28,12 +32,16 @@ export const COLTURE = [
   { k: 'incolto', nome: 'Incolto produttivo', vam: 12000 },
 ];
 export const FONTE_VAM = 'Valori Agricoli Medi 2025, provincia di Udine, regione agraria n. 11 (Povoletto)';
-const DEF = { notaio: 2500, tassoRif: 2, passaggi: 10 };
+const DEF = { notaio: 2500, passaggi: 10, canone: 450, denaro: 3.5, riv: 2 };
+export const FONTE_CANONE = 'canoni dei seminativi di pianura in provincia di Udine: 300-550 €/ha all\'anno (indagine CREA sugli affitti, tabella 2020)';
 
 export const conf = () => S.econfig.find(x => x.id === 'terreni-conf') || {};
 export async function salvaConf(patch) { const { id, ...c } = conf(); await store.put('econfig', 'terreni-conf', Object.assign({}, c, patch)); }
 const imp = (k, d) => { const v = conf()[k]; return v === undefined || v === null || v === '' ? d : N(v); };
 export const vam = k => { const v = (conf().vam || {})[k]; if (v !== undefined && v !== null && v !== '') return N(v); const c = COLTURE.find(x => x.k === k); return c ? c.vam : 0; };
+export const impostazione = k => imp(k, DEF[k]);
+/** Saggio di mercato (%): quanto rende all'anno, in affitto, un seminativo rispetto al suo prezzo in zona. */
+export const saggioMercato = () => { const v = vam('seminativo'); return v ? imp('canone', DEF.canone) / v * 100 : 1.3; };
 export const nomeColtura = k => (COLTURE.find(x => x.k === k) || {}).nome || k || '—';
 
 export const valutazioni = () => S.econfig.filter(x => x.tipo === 'valutazione' && String(x.id).startsWith('vt-')).sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
@@ -104,6 +112,14 @@ function prezzoDaValore(V, agev, notaio, med) {
   const p = (V - 100 - notaio) / (1.15 + m);
   return Math.max(0, p * 0.15 >= 1000 ? p : (V - 1100 - notaio) / (1 + m));
 }
+/** Prezzo P per cui (P + spese(P)) × interesse − P × crescita = canone di zona; spese(P) = a + b·P (vedi speseAcquisto). */
+function prezzoPareggioAffitto(C, denaro, riv, agev, notaio, med) {
+  const i = N(denaro) / 100, g = N(riv) / 100, m = N(med) / 100;
+  const sol = (a, b) => { const d = i * (1 + b) - g; return d <= 0 ? Infinity : Math.max(0, (C - a * i) / d); };
+  if (agev) return sol(400 + notaio, 0.01 + m);
+  const p = sol(100 + notaio, 0.15 + m);
+  return !isFinite(p) || p * 0.15 >= 1000 ? p : sol(1100 + notaio, m);
+}
 const rata = (F, tasso, anni) => { const i = N(tasso) / 100, n = N(anni); if (!F || !n) return 0; return i ? F * i / (1 - Math.pow(1 + i, -n)) : F / n; };
 
 /** Il calcolo di una valutazione: tutto quello che mostra la pagina. */
@@ -123,8 +139,10 @@ export function calcola(v) {
   const campo = margine === null ? null : margine * (1 - corr) * ha;
   const reddito = campo === null ? null : campo + stalla - viaggi - altre;
   const confina = v.geom ? confinanti(v.geom) : [];
-  const tassoRif = Math.max(0.5, imp('tassoRif', DEF.tassoRif)), notaio = imp('notaio', DEF.notaio);
-  const R = { ha, kc, vamHa, zona, margine, margineCampi: mc, corr, km, kmCalc, passaggi, viaggi, stalla, altre, campo, reddito, confina, tassoRif, avvisi: [] };
+  const saggio = Math.max(0.3, saggioMercato()), notaio = imp('notaio', DEF.notaio);
+  const denaro = imp('denaro', DEF.denaro), riv = imp('riv', DEF.riv);
+  const canoneZonaHa = vamHa * saggio / 100;
+  const R = { ha, kc, vamHa, zona, margine, margineCampi: mc, corr, km, kmCalc, passaggi, viaggi, stalla, altre, campo, reddito, confina, saggio, denaro, riv, canoneZonaHa, canoneZona: canoneZonaHa * ha, avvisi: [] };
   if (!ha) R.avvisi.push('Manca la superficie.');
   if (margine === null) R.avvisi.push('Manca il margine per ettaro: scrivilo tu (nei tuoi campi non ci sono ricavi segnati da usare).');
   if (km === null) R.avvisi.push('Distanza dalla stalla non calcolata: segna la posizione dell\'azienda in La mia azienda o scrivi i km.');
@@ -142,15 +160,29 @@ export function calcola(v) {
   const sp = speseAcquisto(prezzo, v.agev, notaio, v.mediazione);
   R.prezzo = prezzo; R.prezzoHa = ha ? prezzo / ha : 0; R.spese = sp; R.costo = prezzo + sp.tot;
   R.suZona = zona ? prezzo / zona : null;
+  // solo con il reddito delle colture (senza la crescita del prezzo)
   R.rendimento = reddito !== null && R.costo ? reddito / R.costo * 100 : null;
   R.anni = reddito > 0 && R.costo ? R.costo / reddito : null;
-  R.valoreReddito = reddito > 0 && tassoRif ? reddito / (tassoRif / 100) : reddito === null ? null : 0;
+  R.valoreReddito = reddito > 0 ? reddito / (saggio / 100) : reddito === null ? null : 0;   // valore del terreno al saggio di mercato
   R.maxReddito = R.valoreReddito === null ? null : prezzoDaValore(R.valoreReddito, v.agev, notaio, v.mediazione);
-  // prezzo massimo consigliato: quello che si ripaga con il reddito; se confina, fino al valore di zona (accorpamento e prelazione)
-  R.maxConsigliato = R.maxReddito === null ? null : confina.length ? Math.max(R.maxReddito, zona) : R.maxReddito;
+  // con il valore che resta: rendimento totale = (reddito + crescita del prezzo) ÷ costo; le spese dell'atto si recuperano in…
+  R.crescita = prezzo * riv / 100;
+  R.rendTot = reddito !== null && R.costo ? (reddito + R.crescita) / R.costo * 100 : null;
+  R.anniSpese = reddito !== null && reddito + R.crescita > 0 ? sp.tot / (reddito + R.crescita) : null;
+  // comprare o affittare un terreno simile: costo di tenerlo = interessi sul costo − crescita del prezzo, contro il canone di zona
+  R.possesso = R.costo * denaro / 100 - R.crescita;
+  R.controAffitto = R.canoneZona - R.possesso;   // > 0: comprare costa meno che affittare
+  R.maxAffitto = prezzoPareggioAffitto(R.canoneZona, denaro, riv, v.agev, notaio, v.mediazione);   // Infinity = nessun limite
+  // prezzo massimo consigliato: quello a cui comprare costa come affittare; se confina, almeno il valore di zona (accorpamento e prelazione)
+  // da dove viene: affitto (comprare costa come affittare), reddito (la crescita del prezzo supera l'interesse), zona (manca il margine), confina
+  if (isFinite(R.maxAffitto)) { R.maxConsigliato = R.maxAffitto; R.maxFonte = 'affitto'; }
+  else if (R.maxReddito > 0) { R.maxConsigliato = R.maxReddito; R.maxFonte = 'reddito'; }
+  else { R.maxConsigliato = zona; R.maxFonte = 'zona'; }
+  if (confina.length && zona > R.maxConsigliato) { R.maxConsigliato = zona; R.maxFonte = 'confina'; }
   const mu = v.mutuo || {}; const F = R.costo * N(mu.quota) / 100;
   R.mutuo = F ? { F, rata: rata(F, mu.tasso, mu.anni), anni: N(mu.anni) } : null;
   if (R.mutuo && reddito !== null) R.cassa = reddito - R.mutuo.rata;
-  R.esito = !prezzo || R.maxReddito === null ? 'manca' : prezzo <= R.maxConsigliato ? 'verde' : prezzo <= Math.max(zona * 1.1, R.maxConsigliato * 1.15) ? 'giallo' : 'rosso';
+  R.esito = !prezzo || !ha ? 'manca' : prezzo <= R.maxConsigliato ? 'verde' : prezzo <= R.maxConsigliato * 1.15 ? 'giallo' : 'rosso';
+  if (R.esito === 'verde' && reddito !== null && reddito < 0) R.esito = 'giallo';   // costa poco, ma coltivarlo fa perdere
   return R;
 }
