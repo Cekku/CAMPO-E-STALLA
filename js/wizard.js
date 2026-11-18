@@ -14,12 +14,13 @@ const TIPI = [
   ['Trattamento fitosanitario', 'shield-check', 'Difesa da malattie e insetti'], ['Diserbo', 'leaf', 'Controllo delle infestanti'], ['Irrigazione', 'droplets', 'Turni e volumi d\'acqua'],
   ['Sfalcio', 'wheat', 'Fienagione e foraggi'], ['Raccolta', 'wheat', 'Trebbiatura, trinciatura'], ['Altro', 'clipboard-list', 'Qualsiasi altra operazione'],
 ];
-const W = { tipo: null, campi: new Set(), q: '', stato: 'Fatto', pre: {}, scelti: false, primi: new Set() };
+const W = { tipo: null, campi: new Set(), q: '', stato: 'Fatto', pre: {}, scelti: false, primi: new Set(), edit: null };
 
 export function startWizard(pre = {}) {
   W.tipo = pre.tipo || null; W.campi = new Set(pre.campi || (pre.campoId ? [pre.campoId] : [])); W.q = ''; W.stato = pre.stato || 'Fatto'; W.pre = pre.values || {};
   // campi già scelti (dalla scheda del campo o dalla mappa): dopo il tipo di lavoro si va dritti ai dettagli, con "Cambia campi"
   W.scelti = W.campi.size > 0;
+  W.edit = pre.blocco || null; // modifica di un blocco già registrato (le attività con lo stesso `gruppo`)
   if (!S.campi.length) { toast('Prima aggiungi almeno un campo.', 'err'); return; }
   if (W.tipo && W.campi.size) return step3(); if (W.tipo) return step2();
   step1();
@@ -66,8 +67,8 @@ function step3() {
   const vals = Object.assign(SPEC.operazioni.defaults(), W.pre, { tipo: W.tipo, stato: W.stato });
   if (N(vals.dose) > 0 && !N(vals.quantita) && vals.prodottoId) vals.quantita = Math.round(N(vals.dose) * totHa * 100) / 100;
   openForm({
-    title: W.tipo, sub: (W.stato === 'Pianificata' ? 'Da fare · ' : '') + (campi.length === 1 ? campi[0].nome + ' · ' + nf(totHa, 2) + ' ha' : campi.length + ' campi · ' + nf(totHa, 2) + ' ha'),
-    fields, values: vals, saveLabel: W.stato === 'Pianificata' ? 'Pianifica' : 'Registra',
+    title: (W.edit ? 'Modifica · ' : '') + W.tipo, sub: (W.stato === 'Pianificata' ? 'Da fare · ' : '') + (campi.length === 1 ? campi[0].nome + ' · ' + nf(totHa, 2) + ' ha' : campi.length + ' campi · ' + nf(totHa, 2) + ' ha'),
+    fields, values: vals, saveLabel: W.edit ? (campi.length > 1 ? 'Salva tutte' : 'Salva') : W.stato === 'Pianificata' ? 'Pianifica' : 'Registra',
     validate: v => erroreFine(v) || forceOk((FORM && FORM.checks) || []),
     onChange(ch, v) {
       const p = get('prodotti', v.prodottoId);
@@ -78,19 +79,36 @@ function step3() {
     },
     onSave: async v => {
       window.__wzDirty = false;
-      const gruppo = campi.length > 1 ? uid() : null;
+      const ed = W.edit; const usate = new Set();
+      const gruppo = ed ? ed[0].gruppo : campi.length > 1 ? uid() : null;
       for (const c of campi) {
         const share = totHa ? campoHa(c) / totHa : 1 / campi.length;
-        const rec = Object.assign({}, v, { tipo: W.tipo, stato: W.stato, campoId: c.id });
+        // attività già nel blocco per questo campo: si parte dal record vecchio per non perdere i dati fuori dal modulo
+        const ex = ed && ed.find(o => o.campoId === c.id && !usate.has(o.id)); if (ex) usate.add(ex.id);
+        const rec = Object.assign({}, ex || {}, v, { tipo: W.tipo, stato: W.stato, campoId: c.id }); delete rec.id;
         if (gruppo) rec.gruppo = gruppo;
         if (N(v.quantita) > 0) rec.quantita = Math.round(N(v.quantita) * share * 100) / 100;
         if (N(v.ore) > 0 && campi.length > 1) rec.ore = Math.round(N(v.ore) * share * 100) / 100;
         if (N(v.costoExtra) > 0 && campi.length > 1) rec.costoExtra = Math.round(N(v.costoExtra) * share * 100) / 100;
         if (N(v.raccolto) > 0 && campi.length > 1) rec.raccolto = Math.round(N(v.raccolto) * share * 100) / 100;
-        await SPEC.operazioni.save(null, rec);
+        await SPEC.operazioni.save(ex ? ex.id : null, rec);
       }
+      // attività del blocco non riusate (campi tolti o doppioni sullo stesso campo): si eliminano, con lo scarico di magazzino
+      if (ed) for (const o of ed) if (!usate.has(o.id)) await SPEC.operazioni.remove(o);
+      W.edit = null;
     },
   });
-  window.__wzDirty = N(W.pre.quantita) > 0; W.pre = {};
+  // nella modifica di un blocco la quantità si ricalcola se cambi la dose
+  window.__wzDirty = !W.edit && N(W.pre.quantita) > 0; if (!W.edit) W.pre = {};
   if (campi.length) setTimeout(() => { const f = document.getElementById('frm'); if (f) { const s = document.createElement('div'); s.className = 'wz-picked'; s.innerHTML = bar(3) + campi.map(c => `<span class="chip"><i class="dot" style="background:${cropColor(c)}"></i>${esc(c.nome)}</span>`).join('') + '<button type="button" class="linkbtn" data-wz2="campi">Cambia campi</button>'; f.prepend(s); s.querySelector('[data-wz2]').onclick = () => step2(); } }, 0);
+}
+
+// Modifica di tutto un blocco: si riparte dai dettagli con i campi del blocco e le quantità sommate
+export function modificaBlocco(gruppo) {
+  // solo le attività di campi che esistono ancora (quelle di un campo eliminato restano come sono)
+  const ops = S.operazioni.filter(o => o.gruppo === gruppo && get('campi', o.campoId)); if (!ops.length) return;
+  const o0 = ops[0]; const values = Object.assign({}, o0);
+  ['id', 'campoId', 'gruppo', 'tipo', 'stato', 'controlli', 'controllato'].forEach(k => delete values[k]);
+  ['quantita', 'ore', 'costoExtra', 'raccolto'].forEach(k => { const t = ops.reduce((s, o) => s + N(o[k]), 0); values[k] = t ? Math.round(t * 100) / 100 : null; });
+  startWizard({ tipo: o0.tipo, stato: o0.stato, campi: ops.map(o => o.campoId), values, blocco: ops });
 }

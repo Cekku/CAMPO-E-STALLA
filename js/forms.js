@@ -2,7 +2,7 @@
 import { S, D, UI, get } from './state.js';
 import { N, nf, fd, today, byName, okD } from './util.js';
 import * as store from './store.js';
-import { openForm, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
+import { openForm, openSheet, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
 import { COLTURE, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo } from './domain.js';
 import { areaHa } from './geo.js';
 import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
@@ -21,6 +21,9 @@ const oCapi = () => [...S.capi].filter(c => capoI(c).stato !== 'Uscita').sort((a
 const isT = (...t) => v => t.includes(v.tipo);
 const isTr = isT('Trattamento sanitario', 'Vaccinazione');
 const oOperatori = () => S.operatori.map(o => o.nome).filter(Boolean).sort();
+// Raccolta (1.50.0): come è stata fatta e cosa si è ottenuto (si può scrivere anche altro)
+export const MODI_RACCOLTA = ['Trebbiatura', 'Trinciatura', 'Sfalcio', 'Pressatura', 'Altro'];
+export const PRODOTTI_RACCOLTA = ['Granella', 'Pastone di granella', 'Pastone integrale (spiga)', 'Insilato', 'Fieno', 'Fieno-silo (fasciato)', 'Erba verde', 'Paglia', 'Stocchi', 'Altro'];
 export const BBCH = ['00 Seme secco', '09 Emergenza', '10-19 Sviluppo fogliare', '21-29 Accestimento', '30-39 Levata / allungamento', '41-49 Botticella', '51-59 Spigatura / pennacchio', '61-69 Fioritura', '71-79 Sviluppo frutti / granella', '81-89 Maturazione', '91-99 Senescenza', 'Pre-semina', 'Pre-emergenza', 'Post-raccolta'];
 // Riquadro dei controlli, condiviso tra modulo singolo e registrazione guidata
 export function runChecks(v, campi, opId) {
@@ -86,6 +89,8 @@ export const SPEC = {
       { k: 'volumeAcqua', l: 'Volume d\'acqua', t: 'number', half: 1, unit: 'l/ha', show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'vento', l: 'Vento', t: 'seg', opts: ['Assente', 'Debole', 'Moderato', 'Forte'], show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'meteo', l: 'Condizioni meteo', show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. sereno, 18 °C' },
+      { k: 'modoRaccolta', l: 'Tipo di raccolta', t: 'seg', opts: MODI_RACCOLTA, show: isT('Raccolta') },
+      { k: 'prodottoRaccolto', l: 'Cosa hai ottenuto', list: PRODOTTI_RACCOLTA, show: isT('Raccolta', 'Sfalcio'), ph: 'Es. insilato, pastone, granella, fieno' },
       { k: 'raccolto', l: 'Quantità raccolta', t: 'number', half: 1, unit: 't', show: isT('Raccolta', 'Sfalcio') },
       { k: 'prezzoVendita', l: 'Prezzo', t: 'number', half: 1, unit: '€/t', show: isT('Raccolta', 'Sfalcio') },
       { k: 's1', l: 'Mezzi e costi', t: 'section' },
@@ -356,9 +361,21 @@ export const SPEC = {
   },
 };
 
-export function openEdit(c, id, pre) {
+function sceltaBlocco(rec, blocco) {
+  const c0 = get('campi', rec.campoId); const ha = blocco.reduce((t, o) => t + campoHa(get('campi', o.campoId) || {}), 0);
+  const nomi = blocco.map(o => (get('campi', o.campoId) || {}).nome || 'campo eliminato');
+  const b = openSheet('Attività su più campi', `<p>Questa ${esc((rec.tipo || 'attività').toLowerCase())} fa parte di un <b>blocco di ${blocco.length} attività</b> registrate insieme (${nf(ha, 2)} ha):</p>
+  <p class="muted small">${nomi.map(esc).join(' · ')}</p><p>Vuoi modificarle tutte?</p>
+  <div class="btns"><button class="btn primary" data-bl="tutte">Modifica tutte e ${blocco.length}</button><button class="btn ghost" data-bl="una">Solo questa (${esc(c0 ? c0.nome : 'campo eliminato')})</button></div>`);
+  b.onclick = e => { const x = e.target.closest('[data-bl]'); if (!x) return;
+    if (x.dataset.bl === 'una') openEdit('operazioni', rec.id, null, true);
+    else import('./wizard.js').then(m => m.modificaBlocco(rec.gruppo)); };
+}
+export function openEdit(c, id, pre, soloQuesta) {
   const spec = SPEC[c]; const rec = id ? get(c, id) : null;
   if (id && !rec) { toast('Registrazione non trovata', 'err'); return; }
+  // attività registrata su più campi insieme (stesso `gruppo`): chiede se modificare tutto il blocco
+  if (c === 'operazioni' && rec && rec.gruppo && !soloQuesta) { const blocco = S.operazioni.filter(o => o.gruppo === rec.gruppo); if (blocco.length > 1) return sceltaBlocco(rec, blocco); }
   const need = { operazioni: ['campi', 'Prima aggiungi un appezzamento.'], eventi: ['capi', 'Prima aggiungi un capo.'], manutenzioni: ['mezzi', 'Prima aggiungi un mezzo.'], movimenti: ['prodotti', 'Prima aggiungi un prodotto in magazzino.'] }[c];
   if (need && !S[need[0]].length) { toast(need[1], 'err'); return; }
   if (c === 'razioni' && !S.prodotti.some(p => ['Mangime', 'Foraggio', 'Altro'].includes(p.categoria))) { toast('Prima inserisci in magazzino mangimi e foraggi in kg.', 'err'); return; }
