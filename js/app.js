@@ -26,7 +26,7 @@ import { render as vMag } from './views/magazzino.js';
 import { render as vNit, salvaNitrati, resetNitrati } from './views/nitrati.js';
 import { render as vMezzi } from './views/mezzi.js';
 import { moveSheet, misureImport } from './views/stalle.js';
-import { render as vImp, authUI } from './views/impostazioni.js';
+import { render as vImp, authUI, setTema } from './views/impostazioni.js';
 import { avviaBlocco, blocca, salvaBloccoDaForm, disattivaDaForm } from './lock.js';
 import { render as vConti, onAct as contiAct, onChange as contiChange, onDrop as contiDrop, setRerender, contiVisibili, esportaTutto, GRUPPI as GRUPPI_CONTI } from './views/conti.js';
 import { render as vArchivio, arAct, arInput, arChange, vediDoc } from './views/archivio.js';
@@ -520,6 +520,7 @@ document.addEventListener('change', e => {
   if (t.dataset.act === 'misureImport' && t.files[0]) { const f = t.files[0]; t.value = ''; misureImport(f).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'fitoImport' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Lettura della banca dati…'); importFito(f).then(n => toast('Banca dati caricata: ' + n + ' prodotti')).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'authTab') { authUI.tab = t.value; return render(); }
+  if (t.dataset.act === 'tema') { setTema(t.value); return; }
   if (t.dataset.act === 'memberRole') { store.setMemberRole(t.dataset.id, t.value).then(() => toast('Permessi aggiornati')).catch(err => toast(traduci(err), 'err')).finally(() => render()); return; }
   if (t.dataset.act === 'view') { UI.view = t.dataset.v; saveUI(); return render(); }
   if (t.dataset.act && t.dataset.act.startsWith('ar-')) return arChange(t);

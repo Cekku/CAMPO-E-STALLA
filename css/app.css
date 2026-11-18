@@ -19,7 +19,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #15191E; --surface: #1B2027; --sunk: #232932; --ink: #ECE6D8; --ink-2: #CEC7B7; --muted: #9C968A; --line: #2D343D; --line-2: #4D5661; --rule: #1A1F25;
     --brand: #ECE6D8; --brand-ink: #15191E; --brand-soft: #262D36; --accent: #93B9E0;
     --cover: #0E1114; --cover-2: #1B2027; --cover-ink: #ECE6D8;
@@ -29,6 +29,16 @@
     --shadow-2: 0 16px 48px rgba(0, 0, 0, .6);
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+    --bg: #15191E; --surface: #1B2027; --sunk: #232932; --ink: #ECE6D8; --ink-2: #CEC7B7; --muted: #9C968A; --line: #2D343D; --line-2: #4D5661; --rule: #1A1F25;
+    --brand: #ECE6D8; --brand-ink: #15191E; --brand-soft: #262D36; --accent: #93B9E0;
+    --cover: #0E1114; --cover-2: #1B2027; --cover-ink: #ECE6D8;
+    --ok: #8CC79A; --ok-soft: #1E3324; --warn: #E8AE5C; --warn-soft: #382A16; --bad: #F08B78; --bad-soft: #3C1F1A; --info: #93B9E0; --info-soft: #1B2B3B; --hay: #E2B654; --hay-soft: #352B14;
+    --bar: #ECE6D8; --bar-2: #D9D2C2; --bar-ink: #15191E; --bar-soft: #262D36; --action: #C24A32; --fab: #C24A32;
+    --chart-prod: #2E4434; --chart-conf: #8CC79A; --chart-mez: #5E6B63; --chart-extra: #B8952F;
+    --shadow-2: 0 16px 48px rgba(0, 0, 0, .6);
+    color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -420,7 +430,8 @@ tr.tot td { font-weight: 700; background: var(--sunk); border-bottom: 0; }
 .tl + .tl::before { content: ""; position: absolute; left: 28px; top: -10px; height: 20px; width: 2px; background: var(--line); }
 .tl-ic { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--sunk); color: var(--ink-2); flex: none; position: relative; z-index: 1; }
 .tl-ic.t-baby { background: var(--hay-soft); color: var(--hay); } .tl-ic.t-heart-pulse { background: #F7DDE6; color: #A3305A; } .tl-ic.t-syringe { background: var(--bad-soft); color: var(--bad); } .tl-ic.t-scan-search { background: var(--info-soft); color: var(--info); } .tl-ic.t-milk { background: var(--ok-soft); color: var(--ok); }
-@media (prefers-color-scheme: dark) { .tl-ic.t-heart-pulse { background: #3A1C28; color: #F08DB0; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tl-ic.t-heart-pulse { background: #3A1C28; color: #F08DB0; } }
+:root[data-theme="dark"] .tl-ic.t-heart-pulse { background: #3A1C28; color: #F08DB0; }
 .tl-d { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); flex: none; }
 .card.alarm { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
 .card.alarm .card-h h2 .ic { color: var(--bad); }
@@ -1019,9 +1030,11 @@ tr.clk { cursor: pointer; } tr.clk:hover td { background: var(--hover, rgba(0,0,
 
 /* ---------- Conti: fatture, bilancio, analisi ---------- */
 :root { --c-acq: #C7902F; --c-ven: #23794C; --c-diff: #3D7DC0; --c-y1: #CFE3D6; --c-y2: #9DBFA9; --c-y3: #5E9C78; --c-y4: #3F7D5A; --c-y5: #1E4D3A; --zebra: #F6F2E8; }
-@media (prefers-color-scheme: dark) { :root { --c-acq: #E0AE52; --c-ven: #7FCB97; --c-diff: #8DBCE6; --c-y1: #2C4A38; --c-y2: #3E6A50; --c-y3: #5E9C78; --c-y4: #7FCB97; --c-y5: #B6E6C5; --zebra: #1E232A; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-acq: #E0AE52; --c-ven: #7FCB97; --c-diff: #8DBCE6; --c-y1: #2C4A38; --c-y2: #3E6A50; --c-y3: #5E9C78; --c-y4: #7FCB97; --c-y5: #B6E6C5; --zebra: #1E232A; } }
+:root[data-theme="dark"] { --c-acq: #E0AE52; --c-ven: #7FCB97; --c-diff: #8DBCE6; --c-y1: #2C4A38; --c-y2: #3E6A50; --c-y3: #5E9C78; --c-y4: #7FCB97; --c-y5: #B6E6C5; --zebra: #1E232A; }
 body[data-area="conti"] { --bar: #1F4A5A; --bar-2: #1A3F4D; --bar-soft: #E0ECF0; }
-@media (prefers-color-scheme: dark) { body[data-area="conti"] { --bar: #A9CBD6; --bar-2: #95BBC7; --bar-soft: #1C3640; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body[data-area="conti"] { --bar: #A9CBD6; --bar-2: #95BBC7; --bar-soft: #1C3640; } }
+:root[data-theme="dark"] body[data-area="conti"] { --bar: #A9CBD6; --bar-2: #95BBC7; --bar-soft: #1C3640; }
 .chart .zero { stroke: var(--line-2); stroke-width: 1.2; }
 .chart.lines .pt { stroke: var(--surface); stroke-width: 1.5; }
 .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }

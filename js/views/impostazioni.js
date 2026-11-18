@@ -81,6 +81,7 @@ export function render() {
   ${operatoriSection()}
   ${fitoSection()}
   ${aiSection()}${llmSection()}
+  ${temaSection()}
   <section class="card set"><div class="set-h">${ic('map')}<div><h2>Mappe</h2><p>In Friuli Venezia Giulia lo sfondo è l'ortofoto ufficiale della Regione, la più nitida, con i colori ritoccati per somigliare a Google Maps. Fuori regione sotto c'è il satellite Esri. In Livelli mappa puoi scegliere anche Stradale e Rilievo.</p></div></div></section>
   ${catastoSection()}
   ${cloudSection()}
@@ -145,3 +146,17 @@ function catastoSection() {
   <p>Dal collegamento passano solo le richieste di mappe catastali pubbliche (licenza CC BY 4.0), nessun dato dell'azienda.</p></div></details></div></section>`;
 }
 
+
+/* Aspetto: chiaro (Quaderno), scuro (notturno) o come il telefono/computer. Salvato in localStorage ces.tema; lo applica anche lo script in testa a index.html. */
+const temaAtt = () => { try { const t = localStorage.getItem('ces.tema'); return t === 'light' || t === 'dark' ? t : 'auto'; } catch (e) { return 'auto'; } };
+export function setTema(t) {
+  try { if (t === 'light' || t === 'dark') localStorage.setItem('ces.tema', t); else localStorage.removeItem('ces.tema'); } catch (e) { }
+  const r = document.documentElement;
+  if (t === 'light' || t === 'dark') r.dataset.theme = t; else delete r.dataset.theme;
+  document.querySelectorAll('meta[name=theme-color]').forEach(m => { m.content = t === 'dark' ? '#15191E' : t === 'light' ? '#F3EFE4' : (m.media.includes('dark') ? '#15191E' : '#F3EFE4'); });
+}
+function temaSection() {
+  const t = temaAtt(), o = [['light', 'sun', 'Chiaro'], ['dark', 'moon', 'Scuro'], ['auto', 'monitor', 'Come il dispositivo']];
+  return `<section class="card set" id="temaSez"><div class="set-h">${ic('palette')}<div><h2>Aspetto</h2><p>Chiaro è la carta a righe del quaderno, scuro è comodo di sera. "Come il dispositivo" segue il tema del telefono o del computer. La scelta vale solo su questo dispositivo.</p></div></div>
+    <div class="seg wide">${o.map(([v, i, l]) => `<label><input type="radio" name="tema" value="${v}" data-act="tema"${t === v ? ' checked' : ''}><span>${ic(i)}${l}</span></label>`).join('')}</div></section>`;
+}
