@@ -101,6 +101,8 @@ export function controlliOp(v, campi, opId = null) {
     } else if (!m || m.tipo !== 'Irroratrice') add('info', 'Irroratrice non indicata', 'Scegli come mezzo l\'irroratrice usata: il registro riporta il controllo funzionale.');
     if (v.vento === 'Forte') add('bad', 'Vento forte', 'Con vento forte la deriva è elevata: rimanda il trattamento.');
     else if (v.vento === 'Moderato') add('warn', 'Vento moderato', 'Usa ugelli antideriva e rispetta le fasce di rispetto.');
+    if (v.ventoKmh !== null && v.ventoKmh !== undefined && v.ventoKmh !== '' && N(v.ventoKmh) > 18) add('warn', 'Vento oltre 18 km/h', 'Oltre 18 km/h il prodotto va fuori dal campo: meglio rimandare.');
+    if (v.temp !== null && v.temp !== undefined && v.temp !== '' && N(v.temp) > 30) add('warn', 'Caldo', 'Sopra i 30 °C molti prodotti evaporano o fanno danni.');
     const { data: met } = getMeteo();
     if (met && met.daily) {
       const i = met.daily.time.indexOf(data);

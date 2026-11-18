@@ -5,6 +5,7 @@ import * as store from './store.js';
 import { openForm, openSheet, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
 import { COLTURE, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo } from './domain.js';
 import { areaHa } from './geo.js';
+import { meteoAlMomento } from './meteo.js';
 import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
 import { fitoLookup, fitoSearch, fitoMeta } from './fitodb.js';
 import { esc } from './util.js';
@@ -20,6 +21,22 @@ const nInt = c => { const n = parseInt(numCapo(c), 10); return isNaN(n) ? Infini
 const oCapi = () => [...S.capi].filter(c => capoI(c).stato !== 'Uscita').sort((a, b) => nInt(a) - nInt(b) || (a.matricola || '').localeCompare(b.matricola || '')).map(c => [c.id, [nomeCapoLungo(c), c.matricola && numCapo(c) ? c.matricola.slice(-6) : ''].filter(Boolean).join(' · ')]);
 const isT = (...t) => v => t.includes(v.tipo);
 const isTr = isT('Trattamento sanitario', 'Vaccinazione');
+// Meteo del trattamento: compila da solo temperatura, umidità, vento e pioggia se non li ha toccati l'utente
+const CAMPI_METEO = ['temp', 'umidita', 'ventoKmh', 'pioggia24'];
+let meteoSeq = 0;   // conta le richieste: vale solo la risposta dell'ultima
+export async function meteoAuto(ch, v) {
+  const f = FORM; if (!f || !okD(v.data)) return;
+  const toccati = () => CAMPI_METEO.some(k => f.dirty.has(k));
+  if (toccati()) return;
+  if ((ch === null || ch === 'tipo') && CAMPI_METEO.some(k => v[k] !== null && v[k] !== undefined && v[k] !== '')) return;
+  let m = null, errore = false; const mia = ++meteoSeq;
+  try { m = await meteoAlMomento(v.data, v.oraInizio); } catch (e) { errore = true; }
+  if (mia !== meteoSeq || FORM !== f || toccati()) return;
+  if (errore) { if (ch !== null) CAMPI_METEO.forEach(k => setVal(k, '')); setHint('temp', 'Meteo non disponibile senza internet: scrivilo tu'); return; }
+  if (!m) { if (ch !== null) CAMPI_METEO.forEach(k => setVal(k, '')); setHint('temp', 'Meteo non trovato per quel giorno: scrivilo tu'); return; }
+  setVal('temp', m.temp); setVal('umidita', m.umidita); setVal('ventoKmh', m.ventoKmh); setVal('pioggia24', m.pioggia24);
+  setHint('temp', 'Meteo preso da Open-Meteo per le ' + (m.ora || '10:00') + (m.fonte === 'archivio' ? ' (archivio storico)' : '') + ': controllalo');
+}
 const oOperatori = () => S.operatori.map(o => o.nome).filter(Boolean).sort();
 // Raccolta (1.50.0): come è stata fatta e cosa si è ottenuto (si può scrivere anche altro)
 export const MODI_RACCOLTA = ['Trebbiatura', 'Trinciatura', 'Sfalcio', 'Pressatura', 'Altro'];
@@ -88,7 +105,17 @@ export const SPEC = {
       { k: 'oraInizio', l: 'Ora di inizio', t: 'time', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'volumeAcqua', l: 'Volume d\'acqua', t: 'number', half: 1, unit: 'l/ha', show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'vento', l: 'Vento', t: 'seg', opts: ['Assente', 'Debole', 'Moderato', 'Forte'], show: isT('Trattamento fitosanitario', 'Diserbo') },
-      { k: 'meteo', l: 'Condizioni meteo', show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. sereno, 18 °C' },
+      { k: 'temp', l: 'Temperatura', t: 'number', half: 1, unit: '°C', hint: "Si compila da solo dal meteo del giorno e dell'ora di inizio", show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'umidita', l: 'Umidità', t: 'number', half: 1, unit: '%', show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'ventoKmh', l: 'Velocità del vento', t: 'number', half: 1, unit: 'km/h', show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'pioggia24', l: 'Pioggia nelle 24 ore prima', t: 'number', half: 1, unit: 'mm', show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'modoApplicazione', l: 'Modo di distribuzione', t: 'select', opts: ['Barra irroratrice', 'Atomizzatore', 'Localizzato', 'Concia del seme', 'Microgranulato', 'Altro'], blank: 'Scegli', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'livelloInfestazione', l: 'Livello di infestazione', t: 'seg', opts: ['Basso', 'Medio', 'Alto'], show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'sogliaSuperata', l: 'Soglia di intervento superata', t: 'seg', opts: ['Sì', 'No'], show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'autTecnica', l: 'Con autorizzazione o consiglio del tecnico', t: 'seg', opts: ['Sì', 'No'], show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'fasciaRispetto', l: 'Fascia di rispetto lasciata (acque, case, strade)', t: 'seg', opts: ['Sì', 'No'], show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'efficacia', l: 'Efficacia (da segnare dopo)', t: 'seg', opts: ['Buona', 'Media', 'Scarsa'], show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'meteo', l: 'Note sul meteo', show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. sereno, 18 °C' },
       { k: 'modoRaccolta', l: 'Tipo di raccolta', t: 'seg', opts: MODI_RACCOLTA, show: isT('Raccolta') },
       { k: 'prodottoRaccolto', l: 'Cosa hai ottenuto', list: PRODOTTI_RACCOLTA, show: isT('Raccolta', 'Sfalcio'), ph: 'Es. insilato, pastone, granella, fieno' },
       { k: 'raccolto', l: 'Quantità raccolta', t: 'number', half: 1, unit: 't', show: isT('Raccolta', 'Sfalcio') },
@@ -106,6 +133,7 @@ export const SPEC = {
       const p = get('prodotti', v.prodottoId);
       if (ch === null || ch === 'prodottoId') { setUnit('dose', (p ? p.unita : '') + '/ha'); setUnit('quantita', p ? p.unita : ''); setHint('dose', p && N(p.carenza) ? 'Tempo di carenza: ' + p.carenza + ' giorni' : ''); }
       if (!(FORM && FORM.dirty.has('quantita')) && ['dose', 'campoId', 'prodottoId'].includes(ch)) { const c = get('campi', v.campoId); if (c && v.dose !== null) setVal('quantita', Math.round(N(v.dose) * campoHa(c) * 100) / 100); }
+      if (['Trattamento fitosanitario', 'Diserbo'].includes(v.tipo) && [null, 'data', 'oraInizio', 'tipo'].includes(ch)) meteoAuto(ch, v);
       const c0 = get('campi', v.campoId); runChecks(Object.assign({}, v, readForm()), c0 ? [c0] : [], FORM && FORM.id);
     },
     async save(id, v) {

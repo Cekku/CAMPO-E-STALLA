@@ -46,3 +46,24 @@ export function finestraTrattamenti(d, i) {
   if (tmax > 28) return { ok: false, why: 'troppo caldo' };
   return { ok: true, why: 'vento debole, asciutto' };
 }
+
+// Meteo al momento di un trattamento (1.54.0): temperatura, umidità e vento all'ora indicata, pioggia delle 24 ore prima.
+// Ultimi 2 mesi e prossimi giorni dall'API delle previsioni, prima dall'archivio storico (ERA5, pronto dopo ~5 giorni).
+const METEO_ORA = new Map();
+export async function meteoAlMomento(data, ora) {
+  const pos = farmPosition(); if (!pos || !/^\d{4}-\d{2}-\d{2}$/.test(data || '')) return null;
+  const hp = parseInt((ora || '10:00').slice(0, 2), 10); const h = isNaN(hp) ? 10 : Math.min(23, Math.max(0, hp));
+  const prima = new Date(data + 'T12:00:00'); prima.setDate(prima.getDate() - 1); const d0 = prima.toISOString().slice(0, 10);
+  const giorni = (Date.now() - new Date(data + 'T12:00:00').getTime()) / 864e5;
+  if (giorni < -15) return null;   // troppo avanti: niente previsione
+  const host = giorni > 60 ? 'https://archive-api.open-meteo.com/v1/archive' : 'https://api.open-meteo.com/v1/forecast';
+  const u = `${host}?latitude=${pos.lat.toFixed(4)}&longitude=${pos.lon.toFixed(4)}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation&start_date=${d0}&end_date=${data}&timezone=Europe%2FRome&wind_speed_unit=kmh`;
+  let j = METEO_ORA.get(u);
+  if (!j) { const r = await fetch(u); if (!r.ok) throw new Error('Meteo non disponibile (' + r.status + ')'); j = await r.json(); METEO_ORA.set(u, j); }
+  const t = (j.hourly && j.hourly.time) || []; const i = t.indexOf(data + 'T' + String(h).padStart(2, '0') + ':00');
+  if (i < 0) return null;
+  const val = (k, d = 1) => { const v = j.hourly[k][i]; return v === null || v === undefined ? null : Math.round(v * 10 ** d) / 10 ** d; };
+  let pioggia = 0; for (let k = Math.max(0, i - 23); k <= i; k++) pioggia += j.hourly.precipitation[k] || 0;
+  if (val('temperature_2m') === null) return null;
+  return { temp: val('temperature_2m'), umidita: val('relative_humidity_2m', 0), ventoKmh: val('wind_speed_10m'), pioggia24: Math.round(pioggia * 10) / 10, ora: String(h).padStart(2, '0') + ':00', fonte: giorni > 60 ? 'archivio' : 'previsioni' };
+}

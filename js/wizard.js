@@ -5,7 +5,7 @@ import { ic } from './icons.js';
 import { TIPI_OP, campoHa, cropOf, cropColor } from './domain.js';
 import { thumb } from './geo.js';
 import { openSheet, openForm, toast } from './ui.js';
-import { SPEC, runChecks, erroreFine } from './forms.js';
+import { SPEC, runChecks, erroreFine, meteoAuto } from './forms.js';
 import { forceOk } from './checks.js';
 import { FORM, readForm } from './ui.js';
 
@@ -75,6 +75,7 @@ function step3() {
       if (ch === null || ch === 'prodottoId') { const u = document.getElementById('u_dose'); if (u) u.textContent = (p ? p.unita : '') + '/ha'; const u2 = document.getElementById('u_quantita'); if (u2) u2.textContent = p ? p.unita : ''; }
       if (['dose', 'prodottoId'].includes(ch) && v.dose !== null) { const el = document.getElementById('f_quantita'); if (el && !(window.__wzDirty)) el.value = String(Math.round(N(v.dose) * totHa * 100) / 100).replace('.', ','); }
       if (ch === 'quantita') window.__wzDirty = true;
+      if (['Trattamento fitosanitario', 'Diserbo'].includes(W.tipo) && [null, 'data', 'oraInizio'].includes(ch)) meteoAuto(ch, Object.assign({}, v, { tipo: W.tipo }));   // meteo del momento (1.54.0)
       runChecks(Object.assign({}, readForm(), { tipo: W.tipo, stato: W.stato }), campi, null);
     },
     onSave: async v => {
