@@ -8,7 +8,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.52.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.53.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -34,6 +34,7 @@ Le note lunghe di ogni area sono in `.claude/rules/`: ognuna si carica da sola q
 | Chiedi | `chiedi.md` | chat con Claude e IA sul PC, strumenti, funzione Supabase `chiedi` |
 | Mezzi e 3D | `mezzi-3d.md` | libretto dei trattori, stalla del progetto in 3D |
 | Stalla | `stalla.md` | stress da caldo (THI), Si@lleva / AIA |
+| Azoto e nitrati | `nitrati.md` | bilancio dell'azoto per campo e della stalla, limiti ZVN, valori di riferimento (1.53.0) |
 | Tracciabilità | `tracciabilita.md` | registri per il caseificio: approvvigionamenti dalle fatture e alimenti autoprodotti (1.42.0) |
 | Conti | `conti.md` | struttura del modulo, file e raccolte riservate, regime IVA, valuta un terreno (1.49.0, 1.51.0, 1.52.0) |
 | Conti: bilancio | `conti-bilancio.md` | RICA, registro dei beni e ammortamenti, grafici, salute, centri di costo |

@@ -79,7 +79,7 @@ export const SPEC = {
       { k: 'data', l: 'Data (o primo giorno)', t: 'date', req: 1, half: 1 },
       { k: 'dataFine', l: 'Fino al', t: 'date', half: 1, hint: 'Solo se il lavoro dura più giorni' },
       { k: 'campoId', l: 'Appezzamento', t: 'select', opts: oCampi, req: 1, blank: 'Scegli il campo' },
-      { k: 'prodottoId', l: 'Prodotto dal magazzino', t: 'select', opts: oProd(['Fitofarmaco', 'Diserbante', 'Concime', 'Seme', 'Altro', 'Gasolio']), show: isT(...OP_PROD), blank: 'Nessun prodotto' },
+      { k: 'prodottoId', l: 'Prodotto dal magazzino', t: 'select', opts: oProd(['Fitofarmaco', 'Diserbante', 'Concime', 'Effluente', 'Seme', 'Altro', 'Gasolio']), show: isT(...OP_PROD), blank: 'Nessun prodotto' },
       { k: 'dose', l: 'Dose', t: 'number', half: 1, unit: '/ha', show: v => !!v.prodottoId },
       { k: 'quantita', l: 'Quantità totale', t: 'number', half: 1, show: v => !!v.prodottoId, hint: 'Dose × ettari, si scarica dal magazzino' },
       { k: 'avversita', l: 'Avversità o motivo', show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. piralide, infestanti dicotiledoni' },
@@ -113,7 +113,8 @@ export const SPEC = {
       if (FORM && FORM.checks) { const bad = FORM.checks.filter(x => x.lv === 'bad'); v.controlli = bad.length ? bad.map(x => x.t) : null; v.controllato = isFitoOp(v.tipo) ? today() : null; }
       const nid = await store.put('operazioni', id, v);
       const mov = S.movimenti.find(m => m.opId === nid); const c = get('campi', v.campoId);
-      if (v.prodottoId && N(v.quantita) > 0 && v.stato !== 'Pianificata') await store.put('movimenti', mov ? mov.id : null, { data: v.data, prodottoId: v.prodottoId, tipo: 'Scarico', quantita: N(v.quantita), note: (v.tipo || '') + ' · ' + (c ? c.nome : ''), opId: nid });
+      const eff = v.prodottoId && (get('prodotti', v.prodottoId) || {}).categoria === 'Effluente';   // gli effluenti non hanno giacenza
+      if (!eff && v.prodottoId && N(v.quantita) > 0 && v.stato !== 'Pianificata') await store.put('movimenti', mov ? mov.id : null, { data: v.data, prodottoId: v.prodottoId, tipo: 'Scarico', quantita: N(v.quantita), note: (v.tipo || '') + ' · ' + (c ? c.nome : ''), opId: nid });
       else if (mov) await store.remove('movimenti', mov.id);
     },
     async remove(o) { const mov = S.movimenti.find(m => m.opId === o.id); if (mov) await store.remove('movimenti', mov.id); await store.remove('operazioni', o.id); },
@@ -125,11 +126,18 @@ export const SPEC = {
       { k: 'categoria', l: 'Categoria', t: 'select', opts: CATEGORIE, req: 1, half: 1, blank: 'Scegli' },
       { k: 'unita', l: 'Unità di misura', t: 'select', opts: UNITA, req: 1, half: 1, blank: false },
       { k: 'prezzo', l: 'Prezzo per unità', t: 'number', half: 1, unit: '€' },
-      { k: 'giacenzaIniziale', l: 'Giacenza iniziale', t: 'number', half: 1, hint: 'Quantità presente quando inizi a usare l\'app' },
-      { k: 'scortaMin', l: 'Scorta minima', t: 'number', half: 1 },
+      { k: 'giacenzaIniziale', l: 'Giacenza iniziale', t: 'number', half: 1, hint: 'Quantità presente quando inizi a usare l\'app', show: v => v.categoria !== 'Effluente' },
+      { k: 'scortaMin', l: 'Scorta minima', t: 'number', half: 1, show: v => v.categoria !== 'Effluente' },
       { k: 'scadenza', l: 'Scadenza', t: 'date', half: 1 },
       { k: 'nReg', l: 'N. registrazione', half: 1, show: v => ['Fitofarmaco', 'Diserbante', 'Farmaco veterinario'].includes(v.categoria) },
       { k: 'carenza', l: 'Tempo di carenza', t: 'number', half: 1, unit: 'giorni', show: v => ['Fitofarmaco', 'Diserbante'].includes(v.categoria), hint: 'Valore generale: se in etichetta cambia per coltura, indicalo negli impieghi' },
+      { k: 'titN', l: 'Azoto (N)', t: 'number', half: 1, unit: '%', show: v => v.categoria === 'Concime', hint: 'Titolo in etichetta, es. urea 46 - 0 - 0' },
+      { k: 'titP', l: 'Fosforo (P₂O₅)', t: 'number', half: 1, unit: '%', show: v => v.categoria === 'Concime' },
+      { k: 'titK', l: 'Potassio (K₂O)', t: 'number', half: 1, unit: '%', show: v => v.categoria === 'Concime' },
+      { k: 'kgN', l: 'Azoto (N)', t: 'number', half: 1, unit: 'kg per unità', show: v => v.categoria === 'Effluente', hint: 'Kg per m³ o per t: meglio dall\'analisi (liquame bovino circa 3-4 kg/m³, letame circa 5 kg/t)' },
+      { k: 'kgP', l: 'Fosforo (P₂O₅)', t: 'number', half: 1, unit: 'kg per unità', show: v => v.categoria === 'Effluente' },
+      { k: 'kgK', l: 'Potassio (K₂O)', t: 'number', half: 1, unit: 'kg per unità', show: v => v.categoria === 'Effluente' },
+      { k: 'effN', l: 'Azoto efficiente', t: 'number', half: 1, unit: '%', show: v => v.categoria === 'Effluente', hint: 'Parte dell\'azoto che va alla coltura; se vuoto si usa 50%' },
       { k: 'dbbox', t: 'box', show: v => FITO.includes(v.categoria) },
       { k: 'sostanze', l: 'Sostanze attive', show: v => FITO.includes(v.categoria), ph: 'Es. glifosate 360 g/l' },
       { k: 'scadenzaAut', l: 'Autorizzazione valida fino al', t: 'date', half: 1, show: v => FITO.includes(v.categoria) },

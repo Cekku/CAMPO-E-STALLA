@@ -7,8 +7,8 @@ import { isTrattore, riepilogo } from './trattori.js';
 export const COLTURE = ['Mais da granella', 'Mais trinciato', 'Frumento tenero', 'Frumento duro', 'Orzo', 'Triticale', 'Soia', 'Erba medica', 'Prato polifita', 'Loiessa', 'Sorgo', 'Girasole', 'Colza', 'Barbabietola', 'Vite', 'Pomodoro da industria', 'Riposo'];
 export const TIPI_OP = ['Lavorazione terreno', 'Semina', 'Concimazione', 'Trattamento fitosanitario', 'Diserbo', 'Irrigazione', 'Sfalcio', 'Raccolta', 'Altro'];
 export const OP_PROD = ['Semina', 'Concimazione', 'Trattamento fitosanitario', 'Diserbo', 'Irrigazione', 'Altro'];
-export const CATEGORIE = ['Fitofarmaco', 'Diserbante', 'Concime', 'Seme', 'Mangime', 'Foraggio', 'Farmaco veterinario', 'Gasolio', 'Altro'];
-export const UNITA = ['kg', 'l', 'q', 't', 'dosi', 'pz'];
+export const CATEGORIE = ['Fitofarmaco', 'Diserbante', 'Concime', 'Effluente', 'Seme', 'Mangime', 'Foraggio', 'Farmaco veterinario', 'Gasolio', 'Altro'];
+export const UNITA = ['kg', 'l', 'q', 't', 'm³', 'dosi', 'pz'];
 export const TIPI_MEZZO = ['Trattore', 'Mietitrebbia', 'Carro miscelatore', 'Rimorchio', 'Irroratrice', 'Attrezzo', 'Pick-up', 'Altro'];
 export const TIPI_MAN = ['Tagliando', 'Riparazione', 'Controllo', 'Ingrassaggio', 'Pneumatici', 'Revisione', 'Altro'];
 export const RAZZE = ['Frisona', 'Bruna', 'Pezzata Rossa', 'Jersey', 'Simmental', 'Rendena', 'Incrocio', 'Altra'];
@@ -198,6 +198,7 @@ export function allAlerts() {
   extraAlerts.forEach(f => { try { out.push(...f()); } catch (e) { } });
   S.capi.forEach(c => { capoI(c).alerts.forEach(a => out.push({ lv: a.lv, area: 'stalla', t: a.t, s: (c.nome ? c.nome + ' · ' : '') + (c.matricola || '') + ' — ' + a.s, go: { type: 'capo', id: c.id } })); });
   S.prodotti.forEach(p => {
+    if (p.categoria === 'Effluente') return;   // prodotti in stalla, senza giacenza
     const g = giac(p), u = p.unita || '';
     if (g < 0) out.push({ lv: 'bad', area: 'magazzino', t: 'Giacenza negativa: ' + p.nome, s: 'Registra il carico mancante (' + nf(g, 2) + ' ' + u + ')', go: { type: 'prodotto', id: p.id } });
     else if (N(p.scortaMin) > 0 && g < N(p.scortaMin)) out.push({ lv: 'warn', area: 'magazzino', t: 'Scorta bassa: ' + p.nome, s: nf(g, 1) + ' ' + u + ' rimasti, minimo ' + nf(p.scortaMin) + ' ' + u, go: { type: 'prodotto', id: p.id } });

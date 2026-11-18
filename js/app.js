@@ -23,6 +23,7 @@ import { render as vNote } from './views/note.js';
 import { render as vMeteo } from './views/meteo.js';
 import { render as vStalla } from './views/stalla.js';
 import { render as vMag } from './views/magazzino.js';
+import { render as vNit, salvaNitrati, resetNitrati } from './views/nitrati.js';
 import { render as vMezzi } from './views/mezzi.js';
 import { moveSheet, misureImport } from './views/stalle.js';
 import { render as vImp, authUI } from './views/impostazioni.js';
@@ -32,14 +33,14 @@ import { render as vArchivio, arAct, arInput, arChange, vediDoc } from './views/
 import { render as vGuida, schedaDi } from './views/guida.js';
 import { initChiedi, apri as apriChiedi, alterna as alternaChiedi } from './chiedi/pannello.js';
 
-const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida };
-const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida' };
-const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'stalla', 'magazzino', 'mezzi', 'conti']);
+const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida };
+const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida' };
+const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'stalla', 'magazzino', 'mezzi', 'nitrati', 'conti']);
 // Voci del menu: [tab, sub, icona, etichetta]
 const MENU = {
   campagna: [
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['campi', 'elenco', 'sprout', 'Campi'], ['mappa', null, 'map', 'Mappa'], ['attivita', null, 'notebook-pen', 'Attività'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino'], ['magazzino', 'movimenti', 'package', 'Carichi e scarichi']]],
-    ['Agronomia', [['meteo', null, 'cloud-sun', 'Meteo'], ['campi', 'costi', 'euro', 'Costi e margini'], ['note', null, 'pencil', 'Note']]],
+    ['Agronomia', [['meteo', null, 'cloud-sun', 'Meteo'], ['campi', 'costi', 'euro', 'Costi e margini'], ['nitrati', null, 'leaf', 'Azoto e nitrati'], ['note', null, 'pencil', 'Note']]],
     ['Gestione', [['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['guida', null, 'circle-help', 'Guida']]],
   ],
   stalla: [
@@ -427,6 +428,7 @@ document.addEventListener('click', async e => {
       case 'chip': UI.f[d.f] = d.v; return render();
       case 'view': UI.view = d.v; saveUI(); return render();
       case 'collapse': { const k = 'c_' + d.k; UI.f[k] = !UI.f[k]; return render(); }
+      case 'nitReset': return arm(b, 'Conferma: rimetti i valori di partenza', async () => { await resetNitrati(); toast('Rimessi i valori di partenza'); render(); });
       case 'export': return doExport(d.what);
       case 'fitoClear': return arm(b, 'Conferma: rimuovi la banca dati', async () => { await clearFito(); toast('Banca dati rimossa'); });
       case 'exportSheet': return exportSheet();
@@ -552,6 +554,7 @@ document.addEventListener('submit', async e => {
   const btn = f.querySelector('[type=submit]'); if (btn) btn.disabled = true;
   try {
     if (k === 'lockSet') { toast(await salvaBloccoDaForm($)); }
+    if (k === 'nitrati') { await salvaNitrati($); toast('Valori di riferimento salvati'); }
     if (k === 'azienda') { const a = azienda(); await store.put('config', 'azienda', Object.assign({}, a, { nome: $('#az_nome').value.trim(), asl: $('#az_asl').value.trim(), iva: $('#az_iva').value.trim(), indirizzo: ($('#az_ind') || {}).value?.trim?.() || a.indirizzo || '', lat: $('#az_lat').value.trim().replace(',', '.'), lon: $('#az_lon').value.trim().replace(',', '.'), ettari: ($('#az_ha') || {}).value ? N($('#az_ha').value) : a.ettari || null })); toast('Dati aziendali salvati'); }
     if (k === 'llmSave') {
       const url = ($('#llm_url').value.trim() || 'http://localhost:1235').replace(/\/+$/, '');

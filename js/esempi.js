@@ -18,10 +18,11 @@ export function exampleRows() {
   add('campi', 'c2', { nome: 'Brolo', geom: g2, superficie: ha(g2), coltura: 'Erba medica', varieta: 'Secondo anno', colture: [{ anno: Y, coltura: 'Erba medica' }, { anno: Y - 1, coltura: 'Erba medica' }, { anno: Y - 2, coltura: 'Orzo' }], irriguo: 'No', conduzione: 'Affitto', comune: 'Esempio' });
   add('campi', 'c3', { nome: 'Pradone', geom: g3, superficie: ha(g3), coltura: 'Frumento tenero', varieta: 'Panificabile superiore', colture: [{ anno: Y, coltura: 'Frumento tenero', varieta: 'Panificabile superiore', semina: d(3) }, { anno: Y - 1, coltura: 'Mais da granella' }], irriguo: 'No', conduzione: 'Proprietà', comune: 'Esempio', catasto: 'Fg. 11 mapp. 40' });
   add('campi', 'c4', { nome: 'Cascinetta', geom: g4, superficie: ha(g4), coltura: 'Soia', irriguo: 'Sì', conduzione: 'Comodato', comune: 'Esempio' });
-  add('prodotti', 'p1', { nome: 'Urea 46%', categoria: 'Concime', unita: 'q', prezzo: 58, giacenzaIniziale: 60, scortaMin: 20, fornitore: 'Consorzio agrario' });
+  add('prodotti', 'p1', { nome: 'Urea 46%', categoria: 'Concime', unita: 'q', prezzo: 58, titN: 46, titP: 0, titK: 0, giacenzaIniziale: 60, scortaMin: 20, fornitore: 'Consorzio agrario' });
   add('prodotti', 'p2', { nome: 'Seme frumento conciato', categoria: 'Seme', unita: 'kg', prezzo: 0.62, giacenzaIniziale: 2500 });
   add('prodotti', 'p3', { nome: 'Erbicida pre-emergenza', categoria: 'Diserbante', unita: 'l', prezzo: 24, giacenzaIniziale: 30, scortaMin: 10, carenza: 60, nReg: '00000', scadenza: addDays(T, 45), sostanze: 'Sostanza di esempio 400 g/l', scadenzaAut: addDays(T, 400), impieghi: [{ coltura: 'Frumento tenero', doseMin: 1, doseMax: 2, carenza: 60, maxInterventi: 1 }, { coltura: 'Orzo', doseMax: 2, carenza: 60, maxInterventi: 1 }, { coltura: 'Mais', doseMax: 2.5, carenza: 90, maxInterventi: 1 }] });
   add('prodotti', 'p8', { nome: 'Fungicida di esempio', categoria: 'Fitofarmaco', unita: 'l', prezzo: 38, giacenzaIniziale: 10, nReg: '00001', sostanze: 'Sostanza di esempio 250 g/l', scadenzaAut: addDays(T, 700), impieghi: [{ coltura: 'Frumento', doseMax: 1, carenza: 35, maxInterventi: 2, intervallo: 14 }] });
+  add('prodotti', 'p10', { nome: 'Liquame bovino', categoria: 'Effluente', unita: 'm³', kgN: 3.5, kgP: 1.5, kgK: 4, effN: 50 });
   add('prodotti', 'p4', { nome: 'Farina di mais', categoria: 'Mangime', unita: 'kg', prezzo: 0.30, giacenzaIniziale: 4000, scortaMin: 1500 });
   add('prodotti', 'p5', { nome: 'Nucleo proteico soia 44', categoria: 'Mangime', unita: 'kg', prezzo: 0.52, giacenzaIniziale: 900, scortaMin: 500 });
   add('prodotti', 'p6', { nome: 'Silomais trincea 1', categoria: 'Foraggio', unita: 'kg', prezzo: 0.045, giacenzaIniziale: 180000 });
@@ -33,6 +34,8 @@ export function exampleRows() {
   add('mezzi', 'm2', { nome: 'Carro miscelatore 14 m³', tipo: 'Carro miscelatore', anno: 2019, oreIniziali: 3800, costoOra: 30, intervallo: 250, oreUltimoTagliando: 3600 });
   add('manutenzioni', 'mn1', { mezzoId: id('m1'), data: d(180), tipo: 'Tagliando', ore: 5650, costo: 780, descrizione: 'Olio motore, filtri, ingrassaggio', officina: 'Officina meccanica' });
   add('operazioni', 'o1', { data: d(40), campoId: id('c1'), tipo: 'Raccolta', raccolto: 620, prezzoVendita: 42, costoExtra: 2600, operatore: 'Contoterzista', note: 'Trinciatura a contoterzi' });
+  add('operazioni', 'o8', { data: Y + '-03-20', campoId: id('c1'), tipo: 'Concimazione', prodottoId: id('p10'), dose: 40, quantita: Math.round(40 * ha(g1) * 100) / 100, mezzoId: id('m1'), operatore: 'Marco', note: 'Spandimento liquame' });
+  add('operazioni', 'o9', { data: Y + '-05-10', campoId: id('c1'), tipo: 'Concimazione', prodottoId: id('p1'), dose: 2.5, quantita: Math.round(2.5 * ha(g1) * 100) / 100, mezzoId: id('m1'), operatore: 'Marco' });
   add('operazioni', 'o2', { data: d(12), campoId: id('c2'), tipo: 'Sfalcio', raccolto: 18, prezzoVendita: 160, mezzoId: id('m1'), ore: 6, operatore: 'Marco' });
   add('operazioni', 'o3', { data: d(6), campoId: id('c3'), tipo: 'Lavorazione terreno', mezzoId: id('m1'), ore: 9, operatore: 'Marco', note: 'Erpicatura' });
   add('operazioni', 'o4', { data: d(3), campoId: id('c3'), tipo: 'Semina', prodottoId: id('p2'), dose: 200, quantita: 1840, mezzoId: id('m1'), ore: 5, operatore: 'Marco' });
