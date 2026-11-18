@@ -2,7 +2,7 @@
 import { S, D, UI, azienda, get } from '../state.js';
 import { esc, nf, eur, fd, fdShort, fdLong, today, sum, byDate, N, plural, yearOf, diff, okD, addDays } from '../util.js';
 import { ic } from '../icons.js';
-import { allAlerts, campoHa, capoI, giac, cropColor, cropColorName, cropOf, opCosto, mezzoOre, mezzoTagliando } from '../domain.js';
+import { allAlerts, campoHa, capoI, giac, cropColor, cropColorName, cropOf, cropOra, cropColorOra, VUOTO, opCosto, mezzoOre, mezzoTagliando } from '../domain.js';
 import { isTrattore, compDi, stato } from '../trattori.js';
 import { farmSvg, thumb, satSvg } from '../geo.js';
 import { getMeteo, wmo } from '../meteo.js';
@@ -92,7 +92,10 @@ export function render() {
   const ha = sum(S.campi, campoHa); const totHa = N(a.ettari) || 0;
   const crops = new Map(); S.campi.forEach(c => { const k = cropOf(c, Y) || 'Senza coltura'; crops.set(k, (crops.get(k) || 0) + campoHa(c)); });
   const parts = [...crops.entries()].sort((x, y) => y[1] - x[1]);
-  const svg = satSvg(S.campi.map(c => ({ geom: c.geom, color: cropColor(c, Y), title: c.nome })), 900, 360, { fill: .45, stroke: 2, fit: .5 });
+  // adesso nei campi: dopo la raccolta il campo è vuoto (il grafico "Colture" dell'annata resta com'è)
+  const ora = new Map(); S.campi.forEach(c => { const k = cropOra(c, Y) || 'Senza coltura'; ora.set(k, (ora.get(k) || 0) + campoHa(c)); });
+  const partsOra = [...ora.entries()].sort((x, y) => y[1] - x[1]);
+  const svg = satSvg(S.campi.map(c => ({ geom: c.geom, color: cropColorOra(c, Y), title: c.nome })), 900, 360, { fill: .45, stroke: 2, fit: .5 });
   const done = S.operazioni.filter(o => o.stato !== 'Pianificata').sort(byDate).reverse().slice(0, 5);
   const plan = S.operazioni.filter(o => o.stato === 'Pianificata').sort(byDate).slice(0, 4);
   const note = [...S.note].sort(byDate).reverse().slice(0, 6);
@@ -122,10 +125,10 @@ export function render() {
   <section class="hero-map" data-act="nav" data-tab="mappa" role="button" tabindex="0" aria-label="Apri la mappa">
     ${svg || `<div class="hero-empty">${ic('map', 'big')}<span>Disegna i campi sulla mappa per vedere qui la pianta dell'azienda</span></div>`}
     <div class="hm-top"><div><b>${esc(a.nome || 'La tua azienda')}</b><span>${nf(ha, 2)} ha${totHa ? ' su ' + nf(totHa, 2) + ' ha' : ''} · ${plural(S.campi.length, 'campo', 'campi')}</span>${totHa ? `<span class="hm-bar"><i style="width:${Math.min(100, ha / totHa * 100)}%"></i></span>` : ''}</div>${meteoMini()}</div>
-    <div class="crop-chips over">${parts.map(([k, v]) => `<span style="--c:${cropColorName(k === 'Senza coltura' ? '' : k)}">${esc(k)} <b>${nf(ha ? v / ha * 100 : 0, 0)}%</b></span>`).join('')}</div>
+    <div class="crop-chips over">${partsOra.map(([k, v]) => `<span style="--c:${cropColorName(k === 'Senza coltura' ? '' : k)}">${esc(k)} <b>${nf(ha ? v / ha * 100 : 0, 0)}%</b></span>`).join('')}</div>
   </section>
   <div class="kpis">
-    <button class="kpi" data-act="nav" data-tab="campi" data-sub="elenco"><span class="k-l">${ic('sprout')}Superficie</span><span class="k-v">${nf(ha, 1)}<small>ha</small></span><span class="k-s">${plural(S.campi.length, 'campo', 'campi')} · ${plural(parts.filter(([k]) => k !== 'Senza coltura').length, 'coltura', 'colture')}</span><span class="k-bar">${parts.map(([k, v]) => `<i style="flex:${v};background:${cropColorName(k === 'Senza coltura' ? '' : k)}"></i>`).join('')}</span></button>
+    <button class="kpi" data-act="nav" data-tab="campi" data-sub="elenco"><span class="k-l">${ic('sprout')}Superficie</span><span class="k-v">${nf(ha, 1)}<small>ha</small></span><span class="k-s">${plural(S.campi.length, 'campo', 'campi')} · ${plural(partsOra.filter(([k]) => k !== 'Senza coltura' && k !== VUOTO).length, 'coltura', 'colture')}</span><span class="k-bar">${partsOra.map(([k, v]) => `<i style="flex:${v};background:${cropColorName(k === 'Senza coltura' ? '' : k)}"></i>`).join('')}</span></button>
     <button class="kpi" data-act="nav" data-tab="attivita"><span class="k-l">${ic('notebook-pen')}Attività ${Y}</span><span class="k-v">${doneY.length}<small>fatte</small></span>${AP ? confronto(doneY.length, doneP.length, AP.testo) : ''}<span class="k-s">${nf(haLav, 0)} ha lavorati · ${daFare} da fare</span>${doneY.length && AP ? colonneMesi(perMese, AP.mese) : ''}</button>
     ${costoY || !AP ? `<button class="kpi" data-act="nav" data-tab="campi" data-sub="costi"><span class="k-l">${ic('euro')}Costi ${Y}</span><span class="k-v sm">${eur(costoY)}</span>${AP ? confronto(costoY, costoP, AP.testo, false) : ''}<span class="k-s">${ha ? eur(costoY / ha) + ' per ettaro' : 'prodotti, mezzi e lavori'}</span></button>`
       : `<button class="kpi zero" data-act="nav" data-tab="campi" data-sub="costi"><span class="k-l">${ic('euro')}Costi ${Y}</span><span class="k-v">Ancora niente</span><span class="k-s">${costoP ? `nel ${Y - 1}${Y === AP.oggiY ? ' alla stessa data' : ''}: <b class="num">${eur(costoP)}</b>` : 'prodotti, mezzi e lavori'}</span></button>`}

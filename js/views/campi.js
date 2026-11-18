@@ -3,7 +3,7 @@ import { S, UI, get, azienda } from '../state.js';
 import { docsCard } from '../archivio-link.js';
 import { esc, nf, eur, fd, sum, byDate, byName, yearOf, N, addDays, plural } from '../util.js';
 import { ic } from '../icons.js';
-import { campoInfo, campoHa, cropColor, cropColorName, cropOf, colturaOf, storicoColture, rotazione } from '../domain.js';
+import { campoInfo, campoHa, cropColor, cropColorName, cropOf, cropOra, cropColorOra, raccoltaFatta, colturaOf, storicoColture, rotazione } from '../domain.js';
 import { thumb, perimeterM, satSvg } from '../geo.js';
 import { tabs, empty, newBtn, fact, chip, exChip } from '../ui.js';
 import { stackBar, spark } from './charts.js';
@@ -20,7 +20,7 @@ export function render() {
 }
 
 function card(c) {
-  const i = campoInfo(c); const col = cropColor(c); const h = campoHa(c); const crop = cropOf(c);
+  const i = campoInfo(c); const col = cropColorOra(c); const h = campoHa(c); const rf = cropOf(c) && raccoltaFatta(c); const crop = rf ? 'Vuoto · raccolto il ' + fd(rf.data) : cropOra(c);
   if (UI.view === 'lista') return `<div class="row fl" data-act="open" data-type="campo" data-id="${c.id}" role="button" tabindex="0"><span class="op-thumb" style="color:${col}">${thumb(c.geom, 40, col)}</span><span class="r-main"><b>${esc(c.nome)}${exChip(c)}</b><span class="op-crop"><i class="dot" style="background:${col}"></i>${esc(crop || 'Nessuna coltura')}${i.carenza ? ' · carenza al ' + fd(i.carenza.fine) : ''}</span></span><span class="r-side"><span class="chip ha num">${nf(h, 2)} ha</span><span class="small muted">${plural(i.ops.length, 'attività', 'attività')}</span></span></div>`;
   return `<article class="fcard"><button class="fc-img" data-act="open" data-type="campo" data-id="${c.id}" style="--c:${col}" aria-label="Apri ${esc(c.nome)}">${c.geom ? satSvg([{ geom: c.geom, color: col }], 256, 192, { fill: .22, stroke: 2.4 }) : thumb(c.geom, 120, col)}<span class="fc-crop-tag">${esc(crop || 'Nessuna coltura')}</span><span class="fc-ha num">${nf(h, 2)} ha</span>${i.carenza ? `<span class="fc-flag" title="Carenza fino al ${fd(i.carenza.fine)}">${ic('shield-check')}</span>` : ''}</button>
   <div class="fc-txt"><b>${esc(c.nome)}</b>${exChip(c)}<small>${i.last ? 'Ultima: ' + esc(i.last.tipo || '') + ' ' + fd(i.last.data) : 'Nessuna attività'}${i.plan.length ? ' · ' + i.plan.length + ' da fare' : ''}</small></div>
@@ -32,7 +32,7 @@ const RAGG = {
   conduzione: { l: 'Conduzione', k: c => c.conduzione || 'Conduzione non indicata', ord: ['Proprietà', 'Affitto', 'Comodato'] },
   gruppo: { l: 'Gruppo', k: c => (c.gruppo || '').trim() || 'Senza gruppo' },
   comune: { l: 'Comune', k: c => (c.comune || '').trim() || 'Comune non indicato' },
-  coltura: { l: 'Coltura', k: c => cropOf(c) || 'Senza coltura' },
+  coltura: { l: 'Coltura', k: c => cropOra(c) || 'Senza coltura' },
   nessuno: { l: 'Nessuno', k: () => 'Tutti i campi' },
 };
 const ORD = { nome: ['Nome', byName], ha_d: ['Più grandi prima', (a, b) => campoHa(b) - campoHa(a)], ha_c: ['Più piccoli prima', (a, b) => campoHa(a) - campoHa(b)] };
@@ -43,7 +43,7 @@ function elenco() {
   const all = [...S.campi].sort(byName);
   if (!all.length) return `<section class="card">${empty('map', 'Nessun campo', 'Disegna i campi sulla mappa satellitare con il catasto, oppure importa un file KML del fascicolo aziendale.', `<div class="btns center"><button class="btn action" data-act="nav" data-tab="mappa">${ic('map')}Disegna sulla mappa</button><button class="btn" data-act="catSearch">${ic('grid-2x2')}Cerca per foglio e mappale</button>${newBtn('campi', 'Inserisci senza mappa', '', '')}</div>`)}</section>`;
   const ha = sum(all, campoHa); const tot = N(azienda().ettari);
-  const crops = new Map(); all.forEach(c => { const k = cropOf(c) || 'Senza coltura'; crops.set(k, (crops.get(k) || 0) + campoHa(c)); });
+  const crops = new Map(); all.forEach(c => { const k = cropOra(c) || 'Senza coltura'; crops.set(k, (crops.get(k) || 0) + campoHa(c)); });
   const parts = [...crops.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ label: k, v, color: cropColorName(k === 'Senza coltura' ? '' : k) }));
   const q = norm(UI.f.cq || '').trim();
   const rg = RAGG[UI.f.cgrp] ? UI.f.cgrp : 'conduzione'; const R = RAGG[rg];
@@ -88,10 +88,10 @@ function costi() {
 }
 
 function detail(c) {
-  const i = campoInfo(c); const h = campoHa(c); const col = cropColor(c);
+  const i = campoInfo(c); const h = campoHa(c); const col = cropColorOra(c); const rf = cropOf(c) && raccoltaFatta(c);
   const all = S.operazioni.filter(o => o.campoId === c.id).sort(byDate).reverse();
   const st = storicoColture(c); const note = S.note.filter(n => n.campoId === c.id).sort(byDate).reverse();
-  return { title: c.nome, html: `<section class="card detail-hero"><div class="dh-thumb${c.geom ? ' sat' : ''}" style="color:${col}">${c.geom ? satSvg([{ geom: c.geom, color: col }], 240, 240, { fill: .22 }) : thumb(c.geom, 120, col)}</div><div class="dh-body"><span class="eyebrow">${esc(c.conduzione || 'Campo')}${c.comune ? ' · ' + esc(c.comune) : ''}</span><h1>${esc(c.nome)}${exChip(c)}</h1><span class="fc-crop"><i style="background:${col}"></i>${esc(cropOf(c) || 'Nessuna coltura nel ' + UI.anno)}</span>
+  return { title: c.nome, html: `<section class="card detail-hero"><div class="dh-thumb${c.geom ? ' sat' : ''}" style="color:${col}">${c.geom ? satSvg([{ geom: c.geom, color: col }], 240, 240, { fill: .22 }) : thumb(c.geom, 120, col)}</div><div class="dh-body"><span class="eyebrow">${esc(c.conduzione || 'Campo')}${c.comune ? ' · ' + esc(c.comune) : ''}</span><h1>${esc(c.nome)}${exChip(c)}</h1><span class="fc-crop"><i style="background:${col}"></i>${esc(rf ? 'Vuoto · ' + cropOf(c) + ' raccolto il ' + fd(rf.data) : cropOra(c) || 'Nessuna coltura nel ' + UI.anno)}</span>
     <div class="btns">${newBtn('operazioni', 'Registra attività', `data-campo="${c.id}"`, 'action')}<button class="btn sm" data-act="mapFocus" data-id="${c.id}">${ic('map')}${c.geom ? 'Sulla mappa' : 'Disegna confine'}</button><button class="btn sm ghost" data-act="edit" data-form="campi" data-id="${c.id}">${ic('pencil')}Modifica</button></div></div></section>
   <dl class="facts">${fact('Superficie', `<span class="num">${nf(h, 4)} ha</span>`)}${fact('Perimetro', c.geom ? `<span class="num">${nf(perimeterM(c.geom), 0)} m</span>` : '—')}${fact('Irriguo', esc(c.irriguo || '—'))}${fact('Catasto', esc(c.catasto || '—'))}${fact('Costi ' + UI.anno, `<span class="num">${eur(i.tot)}</span> <small>${eur(h ? i.tot / h : 0)}/ha</small>`)}${fact('Ricavi ' + UI.anno, `<span class="num">${eur(i.ricavo)}</span>`)}${fact('Tempo di carenza', i.carenza ? chip('fino al ' + fd(i.carenza.fine), 'info') : 'Nessuno')}</dl>
   <section class="card"><div class="card-h"><h2>${ic('sprout')}Colture per annata</h2><button class="btn sm ok" data-act="coltura" data-id="${c.id}" data-anno="${UI.anno}">${ic('plus')}Coltura</button></div><div class="list">${st.length ? st.map(e => `<button class="row" data-act="coltura" data-id="${c.id}" data-anno="${e.anno}"><span class="yr">${e.anno}</span><span class="r-main"><b><i class="dot" style="background:${cropColorName(e.coltura)}"></i> ${esc(e.coltura)}</b><span>${[e.varieta, e.semina ? 'semina ' + fd(e.semina) : '', N(e.resa) ? 'resa attesa ' + nf(e.resa, 1) + ' t/ha' : '', e.destinazione].filter(Boolean).map(esc).join(' · ') || '—'}</span></span><span class="chip ha num">${nf(h, 2)} ha</span></button>`).join('') : '<div class="empty slim">Nessuna coltura registrata.</div>'}</div></section>

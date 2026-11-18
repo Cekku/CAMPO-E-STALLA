@@ -24,7 +24,7 @@ const CROP = [
   [/sorgo/i, '#E8662A'], [/girasole/i, '#FFD400'], [/colza/i, '#F7EC2E'], [/vite|vigneto/i, '#B03A9A'],
   [/barbabietola/i, '#E2366B'], [/pomodoro/i, '#F2452E'], [/riposo/i, '#C3CCC7'],
 ];
-export const cropColorName = n => { n = n || ''; for (const [re, col] of CROP) if (re.test(n)) return col; return n ? '#1FB5D0' : '#A9B4AE'; };
+export const cropColorName = n => { n = n || ''; if (n === 'Vuoto (raccolto)') return '#A9B4AE'; for (const [re, col] of CROP) if (re.test(n)) return col; return n ? '#1FB5D0' : '#A9B4AE'; };
 // Coltura di un campo in una data annata: storico per anno, altrimenti la coltura in atto
 export function colturaOf(c, anno = UI.anno) {
   if (!c) return null; const st = Array.isArray(c.colture) ? c.colture : [];
@@ -34,6 +34,30 @@ export function colturaOf(c, anno = UI.anno) {
 }
 export const cropOf = (c, anno) => { if (c && !c.id && c.coltura !== undefined && !c.colture) return c.coltura; const e = colturaOf(c, anno); return e ? e.coltura : ''; };
 export const cropColor = (c, anno) => cropColorName(cropOf(c, anno));
+// Campo vuoto dopo la raccolta (chiesto da Marco il 18/11/2026): solo per l'annata in corso, se c'è una Raccolta fatta
+// e dopo non c'è una Semina. Lo storico per annata (cropOf, Rotazioni, registri) resta com'è.
+export const VUOTO = 'Vuoto (raccolto)';
+// Ultima Raccolta e ultima Semina fatte quest'anno (fino a oggi); null se l'annata scelta non è quella in corso
+function raccoltaSemina(c, anno = UI.anno) {
+  const y = new Date().getFullYear(); if (!c || !c.id || +anno !== y) return null;
+  let r = null, s = null;
+  for (const o of S.operazioni) {
+    if (o.campoId !== c.id || o.stato === 'Pianificata' || yearOf(o.data) !== y || o.data > today()) continue;
+    if (o.tipo === 'Raccolta' && (!r || o.data > r.data)) r = o;
+    else if (o.tipo === 'Semina' && (!s || o.data > s.data)) s = o;
+  }
+  return { r, s, dopo: !!(r && s && s.data >= r.data) };
+}
+// Raccolta che ha lasciato il campo vuoto (nessuna Semina dopo; a parità di giorno vince la Semina)
+export function raccoltaFatta(c, anno) { const x = raccoltaSemina(c, anno); return x && x.r && !x.dopo ? x.r : null; }
+// Coltura che c'è adesso nel campo: VUOTO dopo la raccolta; dopo una nuova Semina la coltura dell'annata dopo
+// (es. frumento seminato in autunno), se è già scritta, altrimenti quella dell'annata; '' se non ha coltura
+export const cropOra = (c, anno) => {
+  const k = cropOf(c, anno); const x = raccoltaSemina(c, anno); if (!x || !x.r) return k;
+  if (x.dopo) return cropOf(c, (+anno || UI.anno) + 1) || k;
+  return k ? VUOTO : '';
+};
+export const cropColorOra = (c, anno) => cropColorName(cropOra(c, anno));
 export function storicoColture(c) {
   const m = new Map(); (c.colture || []).forEach(e => m.set(+e.anno, e));
   const y = new Date().getFullYear(); if (c.coltura && !m.has(y)) m.set(y, { anno: y, coltura: c.coltura, varieta: c.varieta || '' });

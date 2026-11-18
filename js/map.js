@@ -3,7 +3,7 @@ import { S, UI, get, azienda } from './state.js';
 import { $, esc, nf, N, fd, lsGet, lsSet, debounce } from './util.js';
 import { ic } from './icons.js';
 import { areaHa, centroid, bbox, perimeterM, parseGeoFile } from './geo.js';
-import { cropColor, cropColorName, cropOf, campoInfo, campoHa, storicoColture } from './domain.js';
+import { cropColor, cropColorName, cropOf, cropOra, VUOTO, campoInfo, campoHa, storicoColture } from './domain.js';
 import { getMeteo, wmo, farmPosition } from './meteo.js';
 import { openSheet, closeSheet } from './ui.js';
 import { diff, today } from './util.js';
@@ -189,14 +189,14 @@ function colorFor(c) {
   if (prefs.colorBy === 'attivita') { const a = lastAge(c); return a === null ? '#A9B4AE' : a <= 7 ? '#22C55E' : a <= 30 ? '#FACC15' : '#EF4444'; }
   if (prefs.colorBy === 'nessuno') return '#FFFFFF';
   if (prefs.colorBy === 'gruppo' || prefs.colorBy === 'comune') return coloriPer(prefs.colorBy).get(chiaveDi(c, prefs.colorBy)) || '#A9B4AE';
-  return cropOf(c) ? cropColor(c) : SENZA_COLTURA;
+  const k = cropOra(c); return k && k !== VUOTO ? cropColorName(k) : SENZA_COLTURA;
 }
 // voce della legenda di un campo (la stessa chiave serve a selezionare tutti i campi di una voce)
 function voceDi(c) {
   if (prefs.colorBy === 'conduzione') return [c.conduzione || 'Non indicata', COND[c.conduzione] || '#8A958F'];
   if (prefs.colorBy === 'attivita') { const a = lastAge(c); return [a === null ? 'Nessuna attività' : a <= 7 ? 'Ultima settimana' : a <= 30 ? 'Ultimo mese' : 'Oltre un mese', colorFor(c)]; }
   if (prefs.colorBy === 'gruppo' || prefs.colorBy === 'comune') return [chiaveDi(c, prefs.colorBy) || (prefs.colorBy === 'gruppo' ? 'Senza gruppo' : 'Comune non indicato'), colorFor(c)];
-  return [cropOf(c) || 'Senza coltura', colorFor(c)];
+  return [cropOra(c) || 'Senza coltura', colorFor(c)];
 }
 function legendItems() {
   const items = new Map();
