@@ -73,6 +73,11 @@ export function exampleRows() {
   add('strutture', 's2', { nome: 'Rimonta', tipo: 'Vitellaia', box: [{ nome: 'Manze', fase: 'Manze', posti: 20 }, { nome: 'Gabbiette', fase: 'Vitelle', posti: 10 }] });
   add('silos', 'si1', { nome: 'Trincea 1', tipo: 'Trincea', prodottoId: id('p6'), capacita: 400 });
   add('silos', 'si2', { nome: 'Silo farina', tipo: 'Silo verticale', prodottoId: id('p4'), capacita: 12 });
+  [['q1', 4], ['q2', 5], ['q3', 11], ['q4', 12]].forEach(([k, g], i) => {
+    const data0 = Y + '-09-' + String(g).padStart(2, '0'); const data = data0 <= T ? data0 : d(14 - g);   // mai nel futuro
+    add('carichi', k, { data, campoId: id('c1'), prodottoRaccolto: 'Insilato', lordo: 32000, tara: 12000, netto: 20000, umidita: 65, siloId: id('si1'), documento: 'ESEMPIO-' + (i + 1), trasportatore: 'Trasporti Esempio', targa: 'AA000AA' });
+    add('movimenti', 'mq' + (i + 1), { data, prodottoId: id('p6'), tipo: 'Carico', quantita: 20000, note: 'Raccolto · Campo della Roggia', caricoId: id(k), autoprodotto: true });
+  });
   rows.forEach(r => { if (r.col !== 'capi') return; const k = r.id.split('-')[1]; r.data.box = id('s' + (k === 'k5' || k === 'k6' ? '2' : '1')) + '|' + ({ k1: 'Box alta', k2: 'Box alta', k3: 'Asciutte', k4: 'Box media', k5: 'Manze', k6: 'Gabbiette' }[k]); r.data.numero = String(100 + +k.slice(1)); });
   // misure giornaliere da sala di mungitura e collari: Luna cala per la mastite
   [['k1', 44, 520], ['k2', 38, 505], ['k4', 31, 490]].forEach(([k, kg, rum]) => { for (let i = 14; i >= 1; i--) { const dd = d(i); const sick = k === 'k2' && i <= 2; rows.push({ col: 'misure', id: id(k) + '_' + dd + '_esempio', data: { capoId: id(k), data: dd, fonte: 'Esempio', latte: +(kg + Math.sin(i) * 1.5 - (sick ? 12 : 0)).toFixed(1), ruminazione: Math.round(rum + Math.cos(i) * 15 - (sick ? 190 : 0)), attivita: Math.round(300 + Math.sin(i * 2) * 25), esempio: true } }); } });

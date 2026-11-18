@@ -75,6 +75,11 @@ function step3() {
       if (ch === null || ch === 'prodottoId') { const u = document.getElementById('u_dose'); if (u) u.textContent = (p ? p.unita : '') + '/ha'; const u2 = document.getElementById('u_quantita'); if (u2) u2.textContent = p ? p.unita : ''; }
       if (['dose', 'prodottoId'].includes(ch) && v.dose !== null) { const el = document.getElementById('f_quantita'); if (el && !(window.__wzDirty)) el.value = String(Math.round(N(v.dose) * totHa * 100) / 100).replace('.', ','); }
       if (ch === 'quantita') window.__wzDirty = true;
+      if (['Raccolta', 'Sfalcio'].includes(W.tipo) && [null, 'data'].includes(ch)) {   // totale delle pesate dei campi scelti (1.56.0)
+        const y = Number(String(v.data || '').slice(0, 4)), ids = new Set(campi.map(c => c.id));
+        const t = S.carichi.filter(x => ids.has(x.campoId) && Number(String(x.data || '').slice(0, 4)) === y).reduce((s, x) => s + N(x.netto), 0) / 1000;
+        const h = document.getElementById('h_raccolto'); if (h) h.textContent = t > 0 ? "Dalle pesate di quest'anno: " + nf(t, 1) + ' t' : ' ';
+      }
       if (['Trattamento fitosanitario', 'Diserbo'].includes(W.tipo) && [null, 'data', 'oraInizio'].includes(ch)) meteoAuto(ch, Object.assign({}, v, { tipo: W.tipo }));   // meteo del momento (1.54.0)
       runChecks(Object.assign({}, readForm(), { tipo: W.tipo, stato: W.stato }), campi, null);
     },

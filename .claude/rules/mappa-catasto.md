@@ -6,6 +6,7 @@ paths:
   - "js/catastomappa.js"
   - "js/ndvi.js"
   - "js/views/campi.js"
+  - "js/views/carichi.js"
   - "js/forms.js"
   - "sw.js"
   - "supabase/functions/catasto/**"
@@ -42,3 +43,5 @@ paths:
   - Scartati: tessere WMS da 512 px (1,7 s sempre, GeoWebCache non le tiene) e la copia nel service worker, impossibile perché il server risponde `no-store` e senza CORS (risposte opache): per questo `sw.js` lascia passare `regione.fvg.it`.
   - `sw.js`, tessere degli altri sfondi: prima rimandava ogni tessera mostrata anche alla rete. Ora una copia con meno di 30 giorni (`x-ces-at`, scritto da `salvaTessera`) si usa e basta; `trim` gira ogni 50 salvataggi invece che a ogni tessera. Provato: 20 tessere Esri riaperte dalla copia, 0 riscaricate.
 - **Trattamenti completi** (1.54.0, chiesto da Marco il 18/11/2026, da xFarm): nei Trattamenti fitosanitari e Diserbi nuovi campi `temp`, `umidita`, `ventoKmh`, `pioggia24`, `modoApplicazione`, `livelloInfestazione`, `sogliaSuperata`, `autTecnica`, `fasciaRispetto`, `efficacia` (`meteo` ora "Note sul meteo"). `meteoAlMomento(data, ora)` in `meteo.js`: API previsioni per gli ultimi 60 giorni, archivio ERA5 prima, ora di inizio o le 10, pioggia = somma delle 24 ore fino a quell'ora, risposte tenute in memoria. `meteoAuto` in `forms.js` riempie i 4 valori (all'apertura, a cambio di data, ora o tipo) solo se non sono stati toccati a mano e, all'apertura, sono vuoti. Avvisi non bloccanti in `checks.js`: vento oltre 18 km/h, caldo sopra 30 °C. Registro (`registro.js`): colonne Meteo e "Distribuzione e scelte" nell'HTML, chiavi `temperatura_c`, `umidita_pct`, `vento_kmh`, `pioggia_24h_mm`, `modo_distribuzione`, `livello_infestazione`, `soglia_superata`, `autorizzazione_tecnico`, `fascia_rispetto`, `efficacia` nel JSON.
+
+- **Pesate del raccolto** (1.56.0, chiesto da Marco il 18/11/2026, da xFarm "Carichi"): raccolta `carichi` (`SPEC.carichi` in `forms.js`): `data`, `campoId`, `prodottoRaccolto`, `lordo`, `tara`, `netto` (si calcola da lordo − tara finché non lo si tocca), `umidita`, `siloId` o `destinazione`, `documento`, `trasportatore`, `targa`, `mezzoId`, `note`. Se il silo ha un `prodottoId` e il netto è > 0, `save` crea/aggiorna un movimento di magazzino `Carico` con `caricoId` e `autoprodotto: true` (quantità = netto ÷ `kgUnita`), altrimenti lo toglie; `remove` lo toglie con la pesata. Nella Raccolta e nello Sfalcio (`SPEC.operazioni.onChange`) sotto "Quantità raccolta" compare "Dalle pesate di quest'anno: x t" (campo e anno della data). Pagina Campagna → Pesate del raccolto (`js/views/carichi.js`, `UI.f.kcol` = filtro coltura): riquadri, tabelle `kar_col`, `kar_campo`, `kar_lista` esportabili con `bottoniExport`; la resa usa gli ettari dei campi con almeno una pesata.

@@ -23,7 +23,8 @@ import { render as vNote } from './views/note.js';
 import { render as vMeteo } from './views/meteo.js';
 import { render as vStalla } from './views/stalla.js';
 import { render as vMag } from './views/magazzino.js';
-import { render as vNit, salvaNitrati, resetNitrati } from './views/nitrati.js';
+import { render as vCar } from './views/carichi.js';
+import { render as vNit,salvaNitrati, resetNitrati } from './views/nitrati.js';
 import { render as vMezzi } from './views/mezzi.js';
 import { moveSheet, misureImport } from './views/stalle.js';
 import { render as vImp, authUI, setTema } from './views/impostazioni.js';
@@ -33,13 +34,13 @@ import { render as vArchivio, arAct, arInput, arChange, vediDoc } from './views/
 import { render as vGuida, schedaDi } from './views/guida.js';
 import { initChiedi, apri as apriChiedi, alterna as alternaChiedi } from './chiedi/pannello.js';
 
-const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida };
-const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida' };
-const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'stalla', 'magazzino', 'mezzi', 'nitrati', 'conti']);
+const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, carichi: vCar, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida };
+const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', carichi: 'Pesate del raccolto', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida' };
+const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'carichi', 'stalla', 'magazzino', 'mezzi', 'nitrati', 'conti']);
 // Voci del menu: [tab, sub, icona, etichetta]
 const MENU = {
   campagna: [
-    ['Principale', [['oggi', null, 'house', 'Dashboard'], ['campi', 'elenco', 'sprout', 'Campi'], ['mappa', null, 'map', 'Mappa'], ['attivita', null, 'notebook-pen', 'Attività'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino'], ['magazzino', 'movimenti', 'package', 'Carichi e scarichi']]],
+    ['Principale', [['oggi', null, 'house', 'Dashboard'], ['campi', 'elenco', 'sprout', 'Campi'], ['mappa', null, 'map', 'Mappa'], ['attivita', null, 'notebook-pen', 'Attività'], ['carichi', null, 'scale', 'Pesate del raccolto'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino'], ['magazzino', 'movimenti', 'package', 'Carichi e scarichi']]],
     ['Agronomia', [['meteo', null, 'cloud-sun', 'Meteo'], ['campi', 'costi', 'euro', 'Costi e margini'], ['nitrati', null, 'leaf', 'Azoto e nitrati'], ['note', null, 'pencil', 'Note']]],
     ['Gestione', [['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['guida', null, 'circle-help', 'Guida']]],
   ],
@@ -155,7 +156,7 @@ function render() {
   $('#topnav').innerHTML = topnavHTML();
   syncPill();
   { const h = $('#helpBtn'), g = schedaDi(UI.tab, UI.sub[UI.tab], UI.area); h.hidden = UI.tab === 'guida' || !g; if (g) h.dataset.id = g.id; }   // ? in alto: la scheda della Guida di questa pagina
-  const years = new Set([new Date().getFullYear(), UI.anno]); S.operazioni.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.eventi.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); if (UI.tab === 'conti' || (UI.tab === 'stalla' && UI.sub.stalla === 'tracciabilita')) { S.fatture.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.bilanci.forEach(b => { if (+b.id) years.add(+b.id); }); S.paghe.forEach(p => { if (+p.anno) years.add(+p.anno); }); const cy = new Date().getFullYear(); for (let y = Math.min(cy - 4, ...years); y <= cy; y++) years.add(y); }
+  const years = new Set([new Date().getFullYear(), UI.anno]); S.operazioni.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.eventi.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.carichi.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); if (UI.tab === 'conti' || (UI.tab === 'stalla' && UI.sub.stalla === 'tracciabilita')) { S.fatture.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.bilanci.forEach(b => { if (+b.id) years.add(+b.id); }); S.paghe.forEach(p => { if (+p.anno) years.add(+p.anno); }); const cy = new Date().getFullYear(); for (let y = Math.min(cy - 4, ...years); y <= cy; y++) years.add(y); }
   $('#yearSel').innerHTML = [...years].sort((a, b) => b - a).map(y => `<option value="${y}"${y === UI.anno ? ' selected' : ''}>${y}</option>`).join('');
   const isMap = UI.tab === 'mappa';
   document.body.classList.toggle('on-map', isMap);
@@ -372,7 +373,7 @@ async function restore(file) {
   } catch (e) { toast(e.message || 'File non valido', 'err'); }
 }
 async function delExamples() {
-  const order = ['movimenti', 'operazioni', 'eventi', 'latte', 'misure', 'razioni', 'note', 'manutenzioni', 'silos', 'strutture', 'capi', 'campi', 'prodotti', 'mezzi', 'operatori'];
+  const order = ['movimenti', 'operazioni', 'eventi', 'latte', 'misure', 'razioni', 'note', 'manutenzioni', 'carichi', 'silos', 'strutture', 'capi', 'campi', 'prodotti', 'mezzi', 'operatori'];
   for (const c of order) for (const x of S[c].filter(x => x.esempio)) await store.remove(c, x.id);
   toast('Dati di esempio eliminati');
 }

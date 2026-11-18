@@ -1,9 +1,9 @@
 // Definizione dei moduli di inserimento e delle loro regole
 import { S, D, UI, get } from './state.js';
-import { N, nf, fd, today, byName, okD } from './util.js';
+import { N, nf, fd, today, byName, okD, yearOf } from './util.js';
 import * as store from './store.js';
 import { openForm, openSheet, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
-import { COLTURE, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo } from './domain.js';
+import { COLTURE, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo, cropOf, kgUnita } from './domain.js';
 import { areaHa } from './geo.js';
 import { meteoAlMomento } from './meteo.js';
 import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
@@ -86,7 +86,7 @@ export const SPEC = {
       { k: 'gruppo', l: 'Gruppo', ph: 'Es. Campi della stalla' },
       { k: 'note', l: 'Note', t: 'textarea' }],
     defaults: () => ({ irriguo: 'No', conduzione: 'Proprietà' }),
-    canDel: c => S.operazioni.some(o => o.campoId === c.id) ? 'Il campo ha operazioni registrate: eliminale prima dal quaderno.' : null,
+    canDel: c => S.operazioni.some(o => o.campoId === c.id) ? 'Il campo ha operazioni registrate: eliminale prima dal quaderno.' : S.carichi.some(k => k.campoId === c.id) ? 'Il campo ha pesate del raccolto: eliminale prima da Pesate del raccolto.' : null,
   },
   operazioni: {
     title: 'Operazione in campo', icon: 'notebook-pen',
@@ -118,7 +118,7 @@ export const SPEC = {
       { k: 'meteo', l: 'Note sul meteo', show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. sereno, 18 °C' },
       { k: 'modoRaccolta', l: 'Tipo di raccolta', t: 'seg', opts: MODI_RACCOLTA, show: isT('Raccolta') },
       { k: 'prodottoRaccolto', l: 'Cosa hai ottenuto', list: PRODOTTI_RACCOLTA, show: isT('Raccolta', 'Sfalcio'), ph: 'Es. insilato, pastone, granella, fieno' },
-      { k: 'raccolto', l: 'Quantità raccolta', t: 'number', half: 1, unit: 't', show: isT('Raccolta', 'Sfalcio') },
+      { k: 'raccolto', l: 'Quantità raccolta', t: 'number', half: 1, unit: 't', show: isT('Raccolta', 'Sfalcio'), hint: ' ' },
       { k: 'prezzoVendita', l: 'Prezzo', t: 'number', half: 1, unit: '€/t', show: isT('Raccolta', 'Sfalcio') },
       { k: 's1', l: 'Mezzi e costi', t: 'section' },
       { k: 'mezzoId', l: 'Mezzo', t: 'select', opts: oMezzi, half: 1, blank: 'Nessuno' },
@@ -134,6 +134,7 @@ export const SPEC = {
       if (ch === null || ch === 'prodottoId') { setUnit('dose', (p ? p.unita : '') + '/ha'); setUnit('quantita', p ? p.unita : ''); setHint('dose', p && N(p.carenza) ? 'Tempo di carenza: ' + p.carenza + ' giorni' : ''); }
       if (!(FORM && FORM.dirty.has('quantita')) && ['dose', 'campoId', 'prodottoId'].includes(ch)) { const c = get('campi', v.campoId); if (c && v.dose !== null) setVal('quantita', Math.round(N(v.dose) * campoHa(c) * 100) / 100); }
       if (['Trattamento fitosanitario', 'Diserbo'].includes(v.tipo) && [null, 'data', 'oraInizio', 'tipo'].includes(ch)) meteoAuto(ch, v);
+      if (['Raccolta', 'Sfalcio'].includes(v.tipo) && [null, 'campoId', 'data', 'tipo'].includes(ch)) { const y = yearOf(v.data), t = S.carichi.filter(x => x.campoId === v.campoId && yearOf(x.data) === y).reduce((s, x) => s + N(x.netto), 0) / 1000; setHint('raccolto', v.campoId && t > 0 ? 'Dalle pesate di quest\'anno: ' + nf(t, 1) + ' t' : ' '); }
       const c0 = get('campi', v.campoId); runChecks(Object.assign({}, v, readForm()), c0 ? [c0] : [], FORM && FORM.id);
     },
     async save(id, v) {
@@ -146,6 +147,37 @@ export const SPEC = {
       else if (mov) await store.remove('movimenti', mov.id);
     },
     async remove(o) { const mov = S.movimenti.find(m => m.opId === o.id); if (mov) await store.remove('movimenti', mov.id); await store.remove('operazioni', o.id); },
+  },
+  carichi: {
+    title: 'Pesata del raccolto', icon: 'scale',
+    fields: () => [
+      { k: 'data', l: 'Data', t: 'date', req: 1, half: 1 },
+      { k: 'campoId', l: 'Campo di provenienza', t: 'select', opts: oCampi, req: 1, blank: 'Scegli il campo' },
+      { k: 'prodottoRaccolto', l: 'Cosa è', list: PRODOTTI_RACCOLTA, ph: 'Es. insilato, granella' },
+      { k: 'lordo', l: 'Peso lordo', t: 'number', half: 1, unit: 'kg' },
+      { k: 'tara', l: 'Tara', t: 'number', half: 1, unit: 'kg' },
+      { k: 'netto', l: 'Peso netto', t: 'number', half: 1, unit: 'kg', req: 1, hint: 'Lordo meno tara: si calcola da solo' },
+      { k: 'umidita', l: 'Umidità', t: 'number', half: 1, unit: '%' },
+      { k: 'siloId', l: 'Dove va', t: 'select', opts: () => [...S.silos].sort(byName).map(s => [s.id, s.nome]), blank: 'Altro (vendita, essiccatoio…)', hint: 'Se il silo è collegato a un prodotto di magazzino, il carico entra in magazzino' },
+      { k: 'destinazione', l: 'Destinazione', show: v => !v.siloId, ph: 'Es. venduto al consorzio' },
+      { k: 's1', l: 'Documento e trasporto', t: 'section' },
+      { k: 'documento', l: 'N. documento (DDT, bolla, scontrino della pesa)', half: 1 },
+      { k: 'trasportatore', l: 'Trasportatore', half: 1 },
+      { k: 'targa', l: 'Targa del mezzo', half: 1 },
+      { k: 'mezzoId', l: 'Mezzo', t: 'select', opts: oMezzi, half: 1, blank: 'Nessuno' },
+      { k: 'note', l: 'Note', t: 'textarea' }],
+    defaults: () => ({ data: today() }),
+    onChange(ch, v) {
+      if (['lordo', 'tara'].includes(ch) && !FORM.dirty.has('netto') && N(v.lordo) > N(v.tara) && v.lordo !== null && v.tara !== null) setVal('netto', Math.round((N(v.lordo) - N(v.tara)) * 100) / 100);
+      if (ch === 'campoId' && !v.prodottoRaccolto) { const col = String(cropOf(get('campi', v.campoId), yearOf(v.data)) || '').toLowerCase(); if (col.includes('trinciato') || col.includes('insilato')) setVal('prodottoRaccolto', 'Insilato'); }
+    },
+    async save(id, v) {
+      const nid = await store.put('carichi', id, v);
+      const mov = S.movimenti.find(m => m.caricoId === nid), silo = get('silos', v.siloId), p = silo ? get('prodotti', silo.prodottoId) : null, c = get('campi', v.campoId);
+      if (p && ['kg', 'q', 't'].includes(p.unita || 'kg') && N(v.netto) > 0) await store.put('movimenti', mov ? mov.id : null, { data: v.data, prodottoId: p.id, tipo: 'Carico', quantita: Math.round(N(v.netto) / kgUnita(p) * 1000) / 1000, note: 'Raccolto · ' + (c ? c.nome : ''), caricoId: nid, autoprodotto: true });
+      else if (mov) await store.remove('movimenti', mov.id);
+    },
+    async remove(o) { const mov = S.movimenti.find(m => m.caricoId === o.id); if (mov) await store.remove('movimenti', mov.id); await store.remove('carichi', o.id); },
   },
   prodotti: {
     title: 'Prodotto', icon: 'package',
@@ -197,7 +229,7 @@ export const SPEC = {
       await store.put('movimenti', id, v);
       if (v.tipo === 'Carico' && N(v.prezzo) > 0) { const p = get('prodotti', v.prodottoId); if (p && N(p.prezzo) !== N(v.prezzo)) await store.put('prodotti', p.id, Object.assign({}, p, { prezzo: N(v.prezzo) })); }
     },
-    canDel: m => m.opId || m.evId ? 'Questo scarico viene da una registrazione: modificala dal quaderno o dalla stalla.' : null,
+    canDel: m => m.caricoId ? 'Questo carico viene da una pesata: modificalo da Pesate del raccolto.' : m.opId || m.evId ? 'Questo scarico viene da una registrazione: modificala dal quaderno o dalla stalla.' : null,
   },
   mezzi: {
     title: 'Mezzo', icon: 'tractor',
