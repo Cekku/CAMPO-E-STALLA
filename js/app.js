@@ -187,6 +187,17 @@ function barre() {
   }
 }
 
+// Tabelle più larghe dello schermo (es. riepilogo per dipendente): la classe .tw-largo dà al riquadro un'altezza massima
+// pari allo schermo e uno scorrimento proprio, così la barra orizzontale resta in vista senza scendere in fondo alla tabella
+// (intestazione fissa in alto). Si ricontrolla a ogni cambio del contenuto (anche nei fogli) e quando cambia la finestra.
+let twT = 0;
+function tabelleLarghe() {
+  for (const w of document.querySelectorAll('.tablewrap, .ch-tab')) w.classList.toggle('tw-largo', w.scrollWidth > w.clientWidth + 2);
+}
+const twDopo = () => { clearTimeout(twT); twT = setTimeout(tabelleLarghe, 80); };
+new MutationObserver(twDopo).observe(document.body, { childList: true, subtree: true });
+window.addEventListener('resize', twDopo, { passive: true });
+
 /* ---------- navigazione ---------- */
 const drawer = open => { document.body.classList.toggle('drawer-open', open); };
 function setTab(t, sub) {
