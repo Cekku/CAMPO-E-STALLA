@@ -142,7 +142,7 @@ export function valuta(y) {
   // irregolarità del personale: senza i pagamenti caricati quasi tutte sarebbero "stipendio non pagato"
   const ign = new Set(cfg().pagheIgnora || []);
   const conPaghe = S.paghe.length > 0 && S.pagamenti.length > 0;
-  const ano = conPaghe ? anomalie().filter(a => !ign.has(a.testo) && (!a.periodo || String(a.periodo).startsWith(String(y)))) : [];
+  const ano = conPaghe ? anomalie().filter(a => !ign.has(a.testo) && a.anno === y) : [];
   const paghe = conPaghe ? ano.filter(a => a.liv === 'err').length + ano.filter(a => a.liv === 'warn').length * 0.25 : null;
   const c = { vacche: T.vacche, latte, lv, plv: F.plv, gg: 365, prezzo: P.prezzo_ft || P.prezzo_ce || 0.5, utile: N(ce[105]), ebitda: N(I.ebitda) };
   const ha = {

@@ -81,7 +81,7 @@ function panoramica() {
   const ivaScaduta = new Date().toISOString().slice(0, 10) > `${y + 1}-04-30`;
   const ivaAnni = S.bilanci.filter(b => b.iva).map(b => +b.id).sort((a, b) => a - b);
   if (!(bilancio(y) || {}).iva && ivaScaduta) todo.push(['percent', `Dichiarazione IVA dell'anno ${y} non caricata`, `È il Modello IVA ${y + 1}, che riguarda le operazioni del ${y}.${ivaAnni.length ? ' Caricate: anni ' + ivaAnni.join(', ') + '.' : ''}`, 'importa']);
-  { const ap = anomaliePaghe().filter(a => a.liv === 'err' && !(cfg().pagheIgnora || []).includes(a.testo)); if (ap.length) todo.push(['users', ap.length === 1 ? '1 irregolarità sul personale' : `${ap.length} irregolarità sul personale`, ap[0].testo, 'verifica']); }
+  { const ap = anomaliePaghe().filter(a => a.liv === 'err' && a.anno === y && !(cfg().pagheIgnora || []).includes(a.testo)); if (ap.length) todo.push(['users', ap.length === 1 ? `1 irregolarità sul personale nel ${y}` : `${ap.length} irregolarità sul personale nel ${y}`, ap[0].testo, 'verifica']); }
   if (c.has.ce && !P.l_vacca) todo.push(['cow', 'Analisi della stalla incompleta', 'Mancano vacche o litri di latte', 'analisi']);
   const trend = anni.length > 1 ? (anni.some(a => calc(a).has.ce)
     ? colonne(anni.map(String), [{ name: 'Valore della produzione', values: anni.map(a => calc(a).ce[26]), color: COL.ven }, { name: 'Costi della produzione', values: anni.map(a => calc(a).ce[78]), color: COL.acq }, { name: 'Utile', values: anni.map(a => calc(a).ce[105]), color: COL.diff }])

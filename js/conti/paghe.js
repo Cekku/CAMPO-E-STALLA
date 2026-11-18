@@ -59,6 +59,8 @@ export function nomeDi(k) {
   return String(k || '').replace(/^N-/, '').replace(/-/g, ' ');
 }
 const periodoOk = p => /^\d{4}-(0[1-9]|1[0-4])$/.test(p || '');
+/** Scadenza nell'anno in corso (o dopo): solo lì si controlla se manca da pagare qualcosa. */
+export const inCorso = scad => String(scad || '').slice(0, 4) >= today().slice(0, 4);
 function calcola() {
   // "è la stessa persona": le chiavi unite a mano puntano al dipendente scelto
   const unioni = new Map(S.paghe.filter(x => x.tipo === 'unione').map(x => [x.da, x.a]));
@@ -105,11 +107,12 @@ function calcola() {
   const ver = abbina(ced, pag);
   const pre = calcolaPrestiti(pag);
   const ano = controlli(ced, bil, tot, pag, ver, dip, per, pre);
-  for (const c of scartati) ano.unshift({ liv: 'err', testo: `Cedolino senza mese o anno: ${c.nome || 'dipendente non letto'}`, det: `Nel file ${c.file || ''} non ho letto il mese. Eliminalo da Cedolini e ricaricalo, oppure mandami il PDF.`, cid: c.id });
+  for (const c of scartati) ano.unshift({ anno: +today().slice(0, 4), liv: 'err', testo: `Cedolino senza mese o anno: ${c.nome || 'dipendente non letto'}`, det: `Nel file ${c.file || ''} non ho letto il mese. Eliminalo da Cedolini e ricaricalo, oppure mandami il PDF.`, cid: c.id });
   for (const d of dip.values()) {
     const v = ver.filter(x => x.dip === d.key);
     Object.assign(d, { mesi: d.ced.length, ore: r2(d.ced.reduce((t, c) => t + N(c.ore), 0)), lordo: r2(d.ced.reduce((t, c) => t + N(c.lordo), 0)), netto: r2(d.ced.reduce((t, c) => t + N(c.netto), 0)), irpef: r2(d.ced.reduce((t, c) => t + N(c.irpef), 0)), ritPrev: r2(d.ced.reduce((t, c) => t + N(c.ritPrev), 0)), pagato: r2(v.reduce((t, x) => t + x.pagato, 0)), dovuto: r2(v.reduce((t, x) => t + x.dovuto, 0)) });
-    d.saldo = r2(d.dovuto - d.pagato);
+    // "da pagare": solo gli stipendi con scadenza nell'anno in corso (gli anni passati non si controllano più)
+    d.saldo = r2(v.filter(x => inCorso(x.scadenza)).reduce((t, x) => t + Math.max(0, x.differenza), 0));
     const ps = pre.filter(x => x.dip === d.key); d.prestiti = ps; d.residuoPrestiti = r2(ps.reduce((t, x) => t + x.residuo, 0));
     d.anticipi = pag.filter(x => x.tipo === 'anticipo' && x.dip === d.key);
     d.anomalie = ano.filter(a => a.dip === d.key);
@@ -244,8 +247,9 @@ function controlli(ced, bil, tot, pag, ver, dip, per, pre) {
   // pagamenti degli stipendi
   for (const v of ver) {
     const nome = (dip.get(v.dip) || {}).nome || v.nome || nomeDi(v.dip);
-    if (v.stato === 'non pagato') add('err', `Stipendio non pagato: ${nome}, ${nomeMese(v.periodo)}`, `Netto ${eu(v.dovuto)}, scadenza ${v.scadenza.split('-').reverse().join('/')}.`, { dip: v.dip, periodo: v.periodo, ver: true });
-    if (v.stato === 'pagato in parte') add('warn', `Stipendio pagato in parte: ${nome}, ${nomeMese(v.periodo)}`, `Netto ${eu(v.dovuto)}, pagato ${eu(v.pagato)}: mancano ${eu(v.differenza)}.`, { dip: v.dip, periodo: v.periodo, ver: true });
+    const ora = inCorso(v.scadenza); // anni passati: non si controlla più cosa manca da pagare
+    if (v.stato === 'non pagato' && ora) add('err', `Stipendio non pagato: ${nome}, ${nomeMese(v.periodo)}`, `Netto ${eu(v.dovuto)}, scadenza ${v.scadenza.split('-').reverse().join('/')}.`, { dip: v.dip, periodo: v.periodo, ver: true });
+    if (v.stato === 'pagato in parte' && ora) add('warn', `Stipendio pagato in parte: ${nome}, ${nomeMese(v.periodo)}`, `Netto ${eu(v.dovuto)}, pagato ${eu(v.pagato)}: mancano ${eu(v.differenza)}.`, { dip: v.dip, periodo: v.periodo, ver: true });
     if (v.stato === 'pagato in più') add('warn', `Pagato più del netto: ${nome}, ${nomeMese(v.periodo)}`, `Netto ${eu(v.dovuto)}, pagato ${eu(v.pagato)} (${eu(-v.differenza)} in più). Se era un anticipo del mese dopo, indica il mese sul pagamento.`, { dip: v.dip, periodo: v.periodo, ver: true });
     if (v.stato === 'senza cedolino') add('warn', `Pagamento senza cedolino: ${nome}, ${nomeMese(v.periodo)}`, `${eu(v.pagato)} pagati, ma non c'è un cedolino per quel mese.`, { dip: v.dip, periodo: v.periodo, ver: true });
     if (v.ultimo && v.ritardo > 0 && v.stato !== 'non pagato') add('info', `Stipendio pagato in ritardo: ${nome}, ${nomeMese(v.periodo)}`, `Pagato il ${v.ultimo.split('-').reverse().join('/')}, ${v.ritardo} giorni dopo il giorno ${cfgPaghe().giornoStipendi} del mese successivo.`, { dip: v.dip, periodo: v.periodo });
@@ -274,12 +278,16 @@ function controlli(ced, bil, tot, pag, ver, dip, per, pre) {
   for (const tt of tot) { const cs = ced.filter(c => c.periodo === tt.periodo); const sN = r2(cs.reduce((t, c) => t + N(c.netto), 0)); if (tt.netto != null && Math.abs(sN - tt.netto) > 0.05) add('warn', `${nomeMese(tt.periodo)}: mancano cedolini rispetto ai totali generali`, `Somma dei netti ${eu(sN)}, totale generale ${eu(tt.netto)}${tt.dipendenti ? ` (${tt.dipendenti} dipendenti)` : ''}.`, { periodo: tt.periodo }); }
   // versamenti: F24 delle ritenute entro il 16 del mese dopo, contributi agricoli per trimestre
   for (const v of versamenti(bil, pag)) {
+    if ((v.stato === 'non pagato' || v.stato === 'pagato in parte') && !inCorso(v.scadenza)) continue;
     if (v.stato === 'non pagato') add('err', `${v.tipoNome} di ${v.nome} non registrato`, `Dovuti ${eu(v.dovuto)} entro il ${v.scadenza.split('-').reverse().join('/')}. Se l'hai pagato, registra il pagamento.`, { periodo: v.periodo, vers: true });
     else if (v.stato === 'pagato in parte') add('warn', `${v.tipoNome} di ${v.nome} pagato in parte`, `Dovuti ${eu(v.dovuto)}, registrati ${eu(v.pagato)}.`, { periodo: v.periodo, vers: true });
     else if (v.ritardo > 0) add('info', `${v.tipoNome} di ${v.nome} pagato in ritardo`, `Pagato il ${v.ultimo.split('-').reverse().join('/')}, scadenza ${v.scadenza.split('-').reverse().join('/')}: verifica il ravvedimento.`, { periodo: v.periodo });
   }
+  // anno di ogni avviso: dal mese del cedolino, dalla data del pagamento, altrimenti l'anno in corso
+  const annoOggi = +t.slice(0, 4);
+  for (const a of A) { const pd = a.pid && (pag.find(p => p.id === a.pid) || {}).data; a.anno = a.periodo ? +String(a.periodo).slice(0, 4) : pd ? +pd.slice(0, 4) : annoOggi; }
   const ord = { err: 0, warn: 1, info: 2 };
-  return A.sort((a, b) => ord[a.liv] - ord[b.liv] || String(b.periodo || '').localeCompare(String(a.periodo || '')));
+  return A.sort((a, b) => b.anno - a.anno || ord[a.liv] - ord[b.liv] || String(b.periodo || '').localeCompare(String(a.periodo || '')));
 }
 
 /** Versamenti dovuti (F24 mensile delle ritenute, contributi agricoli per trimestre, TFR al fondo) e pagamenti registrati. */

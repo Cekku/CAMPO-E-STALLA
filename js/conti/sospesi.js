@@ -118,14 +118,20 @@ export function sospesi() {
   // banca
   const NA = nonAbbinate();
   const vere = NA.righe.filter(x => !x.altrove);
-  const nA = vere.filter(x => x.f.tipo === 'Acquisto'), nV = vere.filter(x => x.f.tipo === 'Vendita');
   const riba = NA.righe.filter(x => x.altrove === 'riba'), conto = NA.righe.filter(x => x.altrove === 'conto');
   const voB = [];
   if (!NA.mesi.size) voB.push({ liv: 'info', t: 'Nessun estratto conto caricato', s: 'Senza i movimenti della banca l\'app non può dire quali fatture hai pagato o incassato.', n: 0, go: { sub: 'importa' } });
-  if (nA.length) voB.push({ liv: 'warn', t: `${nA.length === 1 ? '1 fattura ricevuta' : nA.length + ' fatture ricevute'} senza pagamento in banca`, s: `${eur(nA.reduce((t, x) => t + x.residuo, 0))} da pagare in mesi di cui hai caricato l'estratto conto (${fmtMesi(NA.mesi)}), di ditte che negli estratti compaiono. Pagate in contanti, con assegno, compensate o con un movimento non abbinato.`, n: nA.length, go: { sub: 'sospesi', el: 'ss-banca' } });
-  if (nV.length) voB.push({ liv: 'warn', t: `${nV.length === 1 ? '1 fattura emessa' : nV.length + ' fatture emesse'} senza incasso in banca`, s: `${eur(nV.reduce((t, x) => t + x.residuo, 0))} da incassare in mesi coperti dagli estratti conto, da clienti che negli estratti compaiono.`, n: nV.length, go: { sub: 'sospesi', el: 'ss-banca' } });
-  if (riba.length) voB.push({ liv: 'info', t: `${riba.length === 1 ? '1 fattura pagata' : riba.length + ' fatture pagate'} con RiBa`, s: `${eur(riba.reduce((t, x) => t + x.residuo, 0))}. La banca addebita le RiBa del mese tutte insieme, con un solo movimento senza i numeri delle fatture: per abbinarle serve l'elenco degli effetti pagati (lo dà la banca).`, n: riba.length, go: { sub: 'sospesi', el: 'ss-banca' } });
-  if (conto.length) voB.push({ liv: 'info', t: `${conto.length === 1 ? '1 fattura' : conto.length + ' fatture'} di ditte che negli estratti non compaiono mai`, s: `${eur(conto.reduce((t, x) => t + x.residuo, 0))} (${conto.filter(x => x.f.tipo === 'Vendita').length} emesse, ${conto.filter(x => x.f.tipo === 'Acquisto').length} ricevute). Di solito passano da un altro conto: carica anche l'estratto di quel conto.`, n: conto.length, go: { sub: 'sospesi', el: 'ss-banca' } });
+  // un gruppo di voci per ogni anno (anno del mese in cui la fattura doveva passare dalla banca)
+  const anniB = [...new Set(NA.righe.map(x => +x.atteso.slice(0, 4)))].sort((a, b) => b - a);
+  for (const y of anniB) {
+    const mY = new Set([...NA.mesi].filter(m => m.startsWith(y + '-'))), dY = x => +x.atteso.slice(0, 4) === y;
+    const nA = vere.filter(x => dY(x) && x.f.tipo === 'Acquisto'), nV = vere.filter(x => dY(x) && x.f.tipo === 'Vendita');
+    const rY = riba.filter(dY), cY = conto.filter(dY);
+    if (nA.length) voB.push({ liv: 'warn', t: `${y}: ${nA.length === 1 ? '1 fattura ricevuta' : nA.length + ' fatture ricevute'} senza pagamento in banca`, s: `${eur(nA.reduce((t, x) => t + x.residuo, 0))} da pagare in mesi di cui hai caricato l'estratto conto (${fmtMesi(mY)}), di ditte che negli estratti compaiono. Pagate in contanti, con assegno, compensate o con un movimento non abbinato.`, n: nA.length, go: { sub: 'sospesi', el: 'ss-banca' } });
+    if (nV.length) voB.push({ liv: 'warn', t: `${y}: ${nV.length === 1 ? '1 fattura emessa' : nV.length + ' fatture emesse'} senza incasso in banca`, s: `${eur(nV.reduce((t, x) => t + x.residuo, 0))} da incassare in mesi coperti dagli estratti conto, da clienti che negli estratti compaiono.`, n: nV.length, go: { sub: 'sospesi', el: 'ss-banca' } });
+    if (rY.length) voB.push({ liv: 'info', t: `${y}: ${rY.length === 1 ? '1 fattura pagata' : rY.length + ' fatture pagate'} con RiBa`, s: `${eur(rY.reduce((t, x) => t + x.residuo, 0))}. La banca addebita le RiBa del mese tutte insieme, con un solo movimento senza i numeri delle fatture: per abbinarle serve l'elenco degli effetti pagati (lo dà la banca).`, n: rY.length, go: { sub: 'sospesi', el: 'ss-banca' } });
+    if (cY.length) voB.push({ liv: 'info', t: `${y}: ${cY.length === 1 ? '1 fattura' : cY.length + ' fatture'} di ditte che negli estratti non compaiono mai`, s: `${eur(cY.reduce((t, x) => t + x.residuo, 0))} (${cY.filter(x => x.f.tipo === 'Vendita').length} emesse, ${cY.filter(x => x.f.tipo === 'Acquisto').length} ricevute). Di solito passano da un altro conto: carica anche l'estratto di quel conto.`, n: cY.length, go: { sub: 'sospesi', el: 'ss-banca' } });
+  }
   add('banca', 'Pagamenti delle fatture', 'landmark', voB);
 
   // personale
@@ -134,12 +140,14 @@ export function sospesi() {
   const daPag = S.pagamenti.length ? [] : an.filter(a => /non pagato|non registrat/i.test(a.testo));
   if (daPag.length) an = an.filter(a => !daPag.includes(a));
   const nStip = daPag.filter(a => /non pagato/i.test(a.testo)).length, nVers = daPag.length - nStip;
-  const aE = an.filter(a => a.liv === 'err'), aW = an.filter(a => a.liv !== 'err');
-  add('personale', 'Personale', 'users', [
-    daPag.length && { liv: 'warn', t: 'Pagamenti del personale non ancora caricati', s: `Per questo ${nStip ? (nStip === 1 ? '1 stipendio risulta non pagato' : nStip + ' stipendi risultano non pagati') : ''}${nStip && nVers ? ' e ' : ''}${nVers ? (nVers === 1 ? '1 versamento (F24, INPS, fondo) non registrato' : nVers + ' versamenti (F24, INPS, fondo) non registrati') : ''}. Non sono irregolarità vere: carica le contabili dei bonifici o gli estratti conto e l'app li controlla.`, n: daPag.length, go: { sub: 'pagamenti' } },
-    aE.length && { liv: 'err', t: `${aE.length === 1 ? '1 irregolarità' : aE.length + ' irregolarità'} sul personale`, s: aE[0].testo, n: aE.length, go: { sub: 'verifica' } },
-    aW.length && { liv: 'warn', t: `${aW.length === 1 ? '1 avviso' : aW.length + ' avvisi'} sul personale`, s: aW[0].testo, n: aW.length, go: { sub: 'verifica' } },
-  ]);
+  // irregolarità divise per anno (cosa manca da pagare si controlla solo per l'anno in corso: vedi paghe.js)
+  const voP = [daPag.length && { liv: 'warn', t: 'Pagamenti del personale non ancora caricati', s: `Per questo ${nStip ? (nStip === 1 ? "1 stipendio dell'anno in corso risulta non pagato" : nStip + " stipendi dell'anno in corso risultano non pagati") : ''}${nStip && nVers ? ' e ' : ''}${nVers ? (nVers === 1 ? '1 versamento (F24, INPS, fondo) non registrato' : nVers + ' versamenti (F24, INPS, fondo) non registrati') : ''}. Non sono irregolarità vere: carica le contabili dei bonifici o gli estratti conto e l'app li controlla.`, n: daPag.length, go: { sub: 'pagamenti' } }];
+  for (const y of [...new Set(an.map(a => a.anno || annoOggi))].sort((a, b) => b - a)) {
+    const aY = an.filter(a => (a.anno || annoOggi) === y), aE = aY.filter(a => a.liv === 'err'), aW = aY.filter(a => a.liv !== 'err');
+    if (aE.length) voP.push({ liv: 'err', t: `${y}: ${aE.length === 1 ? '1 irregolarità' : aE.length + ' irregolarità'} sul personale`, s: aE[0].testo, n: aE.length, go: { sub: 'verifica', anno: y } });
+    if (aW.length) voP.push({ liv: 'warn', t: `${y}: ${aW.length === 1 ? '1 avviso' : aW.length + ' avvisi'} sul personale`, s: aW[0].testo, n: aW.length, go: { sub: 'verifica', anno: y } });
+  }
+  add('personale', 'Personale', 'users', voP);
 
   // conto economico e bilancio
   const voC = [];

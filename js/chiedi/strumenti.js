@@ -141,7 +141,7 @@ async function preventivi() {
 }
 async function personale({ anno } = {}) {
   const Pg = await import('../conti/paghe.js'); const y = annoDi(anno);
-  let ano = []; try { ano = Pg.anomalie(); } catch (e) { }
+  let ano = []; try { const { cfg } = await import('../conti/dati.js'); const ig = new Set(cfg().pagheIgnora || []); ano = Pg.anomalie().filter(a => a.anno === y && !ig.has(a.testo)); } catch (e) { }
   const dip = (() => { try { return Pg.dipendenti(); } catch (e) { return []; } })();
   return compatta({ anno: y, costiDalleBustePaga: Pg.costiAnno(y), dipendenti: Array.isArray(dip) ? dip.length : Object.keys(dip || {}).length, irregolarita: ano.length, primeIrregolarita: ano.slice(0, 10).map(a => a.t || a.testo || a.tipo) }, 0, 20);
 }
