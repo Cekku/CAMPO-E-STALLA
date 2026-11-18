@@ -1,6 +1,6 @@
 // Agenda dei prossimi giorni (campagna e stalla insieme) e controllo del registro dei trattamenti digitale
 import { S, get } from './state.js';
-import { esc, fd, fdShort, weekday, today, addDays, diff, okD, N, nf, yearOf } from './util.js';
+import { esc, fd, fdPeriodo, fineDi, fdShort, weekday, today, addDays, diff, okD, N, nf, yearOf } from './util.js';
 import { ic } from './icons.js';
 import { capoI, giac, campoInfo, cropOf, nomeCapoLungo } from './domain.js';
 import { righeTrattamenti } from './registro.js';
@@ -18,7 +18,8 @@ export function agenda(giorni = 14, area = 'tutte') {
   // attività pianificate (anche quelle in ritardo)
   S.operazioni.filter(o => o.stato === 'Pianificata' && okD(o.data) && o.data <= fine).forEach(o => {
     const c = get('campi', o.campoId);
-    add(o.data < T ? T : o.data, 'campi', 'notebook-pen', (o.tipo || 'Attività') + (c ? ' · ' + c.nome : ''), o.data < T ? 'In ritardo: era per il ' + fd(o.data) : (c ? cropOf(c, yearOf(o.data)) || 'da fare' : 'da fare'), { edit: 'operazioni', id: o.id }, o.data < T);
+    const tardi = fineDi(o) < T; // in ritardo solo dopo l'ultimo giorno previsto
+    add(o.data < T ? T : o.data, 'campi', 'notebook-pen', (o.tipo || 'Attività') + (c ? ' · ' + c.nome : ''), tardi ? 'In ritardo: era per il ' + fdPeriodo(o) : (o.dataFine ? 'Fino al ' + fd(o.dataFine) + ' · ' : '') + (c ? cropOf(c, yearOf(o.data)) || 'da fare' : 'da fare'), { edit: 'operazioni', id: o.id }, tardi);
   });
   // fine della carenza: da quando si può raccogliere
   S.campi.forEach(c => { const i = campoInfo(c, yearOf(T)); if (i.carenza && dentro(addDays(i.carenza.fine, 1))) add(addDays(i.carenza.fine, 1), 'campi', 'sprout', 'Raccolta consentita · ' + c.nome, 'Finita la carenza di ' + i.carenza.prodotto, { type: 'campo', id: c.id }); });

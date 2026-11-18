@@ -1,6 +1,6 @@
 // Regole agronomiche e zootecniche: costanti e dati derivati
 import { S, D, UI, get } from './state.js';
-import { N, okD, addDays, diff, today, yearOf, sum, byDate, fd, eta, nf } from './util.js';
+import { N, okD, addDays, diff, today, yearOf, sum, byDate, fd, eta, nf, fineDi } from './util.js';
 import { areaHa } from './geo.js';
 import { isTrattore, riepilogo } from './trattori.js';
 
@@ -42,11 +42,12 @@ function raccoltaSemina(c, anno = UI.anno) {
   const y = new Date().getFullYear(); if (!c || !c.id || +anno !== y) return null;
   let r = null, s = null;
   for (const o of S.operazioni) {
-    if (o.campoId !== c.id || o.stato === 'Pianificata' || yearOf(o.data) !== y || o.data > today()) continue;
-    if (o.tipo === 'Raccolta' && (!r || o.data > r.data)) r = o;
+    if (o.campoId !== c.id || o.stato === 'Pianificata' || yearOf(o.data) !== y || fineDi(o) > today()) continue;
+    // raccolta su più giorni: il campo è vuoto dall'ultimo giorno
+    if (o.tipo === 'Raccolta' && (!r || fineDi(o) > fineDi(r))) r = o;
     else if (o.tipo === 'Semina' && (!s || o.data > s.data)) s = o;
   }
-  return { r, s, dopo: !!(r && s && s.data >= r.data) };
+  return { r, s, dopo: !!(r && s && s.data >= fineDi(r)) };
 }
 // Raccolta che ha lasciato il campo vuoto (nessuna Semina dopo; a parità di giorno vince la Semina)
 export function raccoltaFatta(c, anno) { const x = raccoltaSemina(c, anno); return x && x.r && !x.dopo ? x.r : null; }
@@ -176,7 +177,7 @@ export function campoInfo(c, anno = UI.anno) {
   S.operazioni.forEach(o => {
     if (o.campoId !== c.id || !o.prodottoId || !okD(o.data) || o.stato === 'Pianificata') return;
     const p = get('prodotti', o.prodottoId); if (!p || N(p.carenza) <= 0) return;
-    const f = addDays(o.data, N(p.carenza)); if (f >= T && (!carenza || f > carenza.fine)) carenza = { fine: f, prodotto: p.nome };
+    const f = addDays(fineDi(o), N(p.carenza)); if (f >= T && (!carenza || f > carenza.fine)) carenza = { fine: f, prodotto: p.nome };
   });
   const last = [...S.operazioni].filter(o => o.campoId === c.id && o.stato !== 'Pianificata').sort(byDate).pop() || null;
   return { ops, plan, ...t, carenza, last };

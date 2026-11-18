@@ -76,7 +76,8 @@ export function controlliOp(v, campi, opId = null) {
         if (N(imp.intervallo) > 0 && before) { const gg = diff(before.data, data); if (gg < N(imp.intervallo)) add('bad', pre + 'Intervallo troppo breve', 'Ultimo intervento il ' + fd(before.data) + ' (' + gg + ' giorni fa), servono almeno ' + nf(imp.intervallo, 0) + ' giorni.'); }
         const car = N(imp.carenza) || N(p.carenza);
         if (car > 0) {
-          const fine = addDays(data, car);
+          // trattamento su più giorni: la carenza parte dall'ultimo giorno (come registro e scheda del campo)
+          const fine = addDays(okD(v.dataFine) && v.dataFine > data ? v.dataFine : data, car);
           const rac = S.operazioni.find(o => o.campoId === c.id && /Raccolta|Sfalcio/.test(o.tipo || '') && okD(o.data) && o.data >= data && o.data <= fine);
           if (rac) add('bad', pre + 'Raccolta dentro il tempo di carenza', (rac.stato === 'Pianificata' ? 'Pianificata' : 'Registrata') + ' il ' + fd(rac.data) + ', si può raccogliere dal ' + fd(addDays(fine, 1)) + '.');
         }

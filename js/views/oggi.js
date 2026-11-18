@@ -1,6 +1,6 @@
 // Dashboard: pianta aziendale, colture, attività, avanzamento, note, magazzino (Campagna) o mandria e latte (Stalla)
 import { S, D, UI, azienda, get } from '../state.js';
-import { esc, nf, eur, fd, fdShort, fdLong, today, sum, byDate, N, plural, yearOf, diff, okD, addDays } from '../util.js';
+import { esc, nf, eur, fd, fdPeriodo, fineDi, fdShort, fdLong, today, sum, byDate, N, plural, yearOf, diff, okD, addDays } from '../util.js';
 import { ic } from '../icons.js';
 import { allAlerts, campoHa, capoI, giac, cropColor, cropColorName, cropOf, cropOra, cropColorOra, VUOTO, opCosto, mezzoOre, mezzoTagliando } from '../domain.js';
 import { isTrattore, compDi, stato } from '../trattori.js';
@@ -162,9 +162,9 @@ export function noteCard(n) {
 export function opRow(o) {
   const c = get('campi', o.campoId), p = get('prodotti', o.prodottoId), k = opCosto(o); const pl = o.stato === 'Pianificata';
   const col = c ? cropColor(c, yearOf(o.data) || UI.anno) : 'var(--muted)';
-  const late = pl && o.data < today();
+  const late = pl && fineDi(o) < today();
   const meta = [c ? nf(campoHa(c), 2) + ' ha' : '', !pl && k.tot ? eur(k.tot) : '', o.operatore ? esc(o.operatore) : ''].filter(Boolean);
-  return `<div class="row op${pl ? ' plan' : ''}${late ? ' late' : ''}" data-act="edit" data-form="operazioni" data-id="${o.id}" role="button" tabindex="0"><span class="op-thumb" style="color:${col}">${c ? thumb(c.geom, 40, col) : ''}</span><span class="r-main"><b>${esc(c ? c.nome : 'campo eliminato')}${o.gruppo ? ' <span class="chip ghost">gruppo</span>' : ''}${exChip(o)}</b><span class="op-type">${esc(o.tipo || 'Operazione')}${p ? ' · ' + esc(p.nome) + ' ' + nf(o.quantita, 2) + ' ' + esc(p.unita || '') : ''}${o.avversita ? ' · ' + esc(o.avversita) : ''}</span><span class="op-crop"><i class="dot" style="background:${col}"></i>${esc(c ? cropOf(c, yearOf(o.data)) || 'Nessuna coltura' : '')}${meta.length ? '<span class="op-meta num">' + meta.join(' · ') + '</span>' : ''}</span></span><span class="r-side"><span class="op-date">${fd(o.data)}</span>${pl ? `<span class="chip ${late ? 'bad' : 'warn'}">${late ? 'In ritardo' : 'Da fare'}</span><button class="btn xs" data-act="done" data-id="${o.id}">${ic('check')}Fatta</button>` : `<span class="chip ok">${ic('check')}Fatto</span>`}</span></div>`;
+  return `<div class="row op${pl ? ' plan' : ''}${late ? ' late' : ''}" data-act="edit" data-form="operazioni" data-id="${o.id}" role="button" tabindex="0"><span class="op-thumb" style="color:${col}">${c ? thumb(c.geom, 40, col) : ''}</span><span class="r-main"><b>${esc(c ? c.nome : 'campo eliminato')}${o.gruppo ? ' <span class="chip ghost">gruppo</span>' : ''}${exChip(o)}</b><span class="op-type">${esc(o.tipo || 'Operazione')}${p ? ' · ' + esc(p.nome) + ' ' + nf(o.quantita, 2) + ' ' + esc(p.unita || '') : ''}${o.avversita ? ' · ' + esc(o.avversita) : ''}</span><span class="op-crop"><i class="dot" style="background:${col}"></i>${esc(c ? cropOf(c, yearOf(o.data)) || 'Nessuna coltura' : '')}${meta.length ? '<span class="op-meta num">' + meta.join(' · ') + '</span>' : ''}</span></span><span class="r-side"><span class="op-date">${fdPeriodo(o)}</span>${pl ? `<span class="chip ${late ? 'bad' : 'warn'}">${late ? 'In ritardo' : 'Da fare'}</span><button class="btn xs" data-act="done" data-id="${o.id}">${ic('check')}Fatta</button>` : `<span class="chip ok">${ic('check')}Fatto</span>`}</span></div>`;
 }
 
 function stalla() {

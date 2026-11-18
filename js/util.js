@@ -13,6 +13,9 @@ const utc = s => { const [y, m, d] = String(s || '').split('-').map(Number); ret
 export const addDays = (s, n) => { const t = utc(String(s || '')) + n * 864e5; return isFinite(t) ? new Date(t).toISOString().slice(0, 10) : null; };
 export const diff = (a, b) => Math.round((utc(b) - utc(a)) / 864e5);
 export const fd = s => { if (!okD(s)) return '—'; const [y, m, d] = s.split('-'); return d + '/' + m + '/' + y.slice(2); };
+// Attività su più giorni (1.48.0): `dataFine` facoltativa; fineDi = ultimo giorno, fdPeriodo = "12/10–15/10/26"
+export const fineDi = o => o && okD(o.dataFine) && o.dataFine > o.data ? o.dataFine : (o ? o.data : null);
+export const fdPeriodo = o => { const f = fineDi(o); if (!o || f === o.data) return fd(o && o.data); return (f.slice(0, 4) === o.data.slice(0, 4) ? fd(o.data).slice(0, 5) : fd(o.data)) + '–' + fd(f); };
 const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 const GIORNI = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
 export const fdLong = s => { if (!okD(s)) return '—'; const [y, m, d] = s.split('-').map(Number); return d + ' ' + MESI[m - 1] + ' ' + y; };

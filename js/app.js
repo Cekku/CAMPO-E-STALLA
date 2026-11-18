@@ -378,7 +378,7 @@ async function delExamples() {
 async function markDone(id) {
   const o = get('operazioni', id); if (!o) return;
   const { SPEC } = await import('./forms.js');
-  await SPEC.operazioni.save(id, Object.assign({}, o, { stato: 'Fatto', data: o.data > today() ? today() : o.data }));
+  await SPEC.operazioni.save(id, Object.assign({}, o, { stato: 'Fatto', data: o.data > today() ? today() : o.data, dataFine: o.dataFine && o.dataFine > today() ? today() : o.dataFine || null }));
   toast('Attività segnata come fatta');
 }
 

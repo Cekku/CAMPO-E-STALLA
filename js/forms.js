@@ -1,6 +1,6 @@
 // Definizione dei moduli di inserimento e delle loro regole
 import { S, D, UI, get } from './state.js';
-import { N, nf, fd, today, byName } from './util.js';
+import { N, nf, fd, today, byName, okD } from './util.js';
 import * as store from './store.js';
 import { openForm, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
 import { COLTURE, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo } from './domain.js';
@@ -48,6 +48,8 @@ async function mettiInCoda(eventoId, v) {
   if (FORM) FORM.done = 'Evento salvato e messo in coda per ' + dest.map(d => d === 'moomonitor' ? 'MooMonitor' : 'Si@lleva').join(' e ');
 }
 
+// "Fino al" prima del primo giorno: errore (vuoto o uguale = lavoro di un giorno)
+export const erroreFine = v => okD(v.dataFine) && okD(v.data) && v.dataFine < v.data ? '"Fino al" non può essere prima del primo giorno.' : null;
 export const SPEC = {
   campi: {
     title: 'Appezzamento', icon: 'map',
@@ -71,8 +73,9 @@ export const SPEC = {
     fields: () => [
       { k: 'stato', l: 'Stato', t: 'seg', opts: [['Fatto', 'Fatta'], ['Pianificata', 'Da fare']] },
       { k: 'tipo', l: 'Operazione', t: 'select', opts: TIPI_OP, req: 1, blank: 'Scegli' },
-      { k: 'data', l: 'Data', t: 'date', req: 1, half: 1 },
-      { k: 'campoId', l: 'Appezzamento', t: 'select', opts: oCampi, req: 1, half: 1, blank: 'Scegli il campo' },
+      { k: 'data', l: 'Data (o primo giorno)', t: 'date', req: 1, half: 1 },
+      { k: 'dataFine', l: 'Fino al', t: 'date', half: 1, hint: 'Solo se il lavoro dura più giorni' },
+      { k: 'campoId', l: 'Appezzamento', t: 'select', opts: oCampi, req: 1, blank: 'Scegli il campo' },
       { k: 'prodottoId', l: 'Prodotto dal magazzino', t: 'select', opts: oProd(['Fitofarmaco', 'Diserbante', 'Concime', 'Seme', 'Altro', 'Gasolio']), show: isT(...OP_PROD), blank: 'Nessun prodotto' },
       { k: 'dose', l: 'Dose', t: 'number', half: 1, unit: '/ha', show: v => !!v.prodottoId },
       { k: 'quantita', l: 'Quantità totale', t: 'number', half: 1, show: v => !!v.prodottoId, hint: 'Dose × ettari, si scarica dal magazzino' },
@@ -93,7 +96,7 @@ export const SPEC = {
       { k: 'note', l: 'Note', t: 'textarea' },
       { k: 'controlli', t: 'box' }],
     defaults: () => ({ data: today(), stato: 'Fatto' }),
-    validate: v => forceOk((FORM && FORM.checks) || []),
+    validate: v => erroreFine(v) || forceOk((FORM && FORM.checks) || []),
     onChange(ch, v) {
       const p = get('prodotti', v.prodottoId);
       if (ch === null || ch === 'prodottoId') { setUnit('dose', (p ? p.unita : '') + '/ha'); setUnit('quantita', p ? p.unita : ''); setHint('dose', p && N(p.carenza) ? 'Tempo di carenza: ' + p.carenza + ' giorni' : ''); }
@@ -101,6 +104,7 @@ export const SPEC = {
       const c0 = get('campi', v.campoId); runChecks(Object.assign({}, v, readForm()), c0 ? [c0] : [], FORM && FORM.id);
     },
     async save(id, v) {
+      v.dataFine = okD(v.dataFine) && v.dataFine > v.data ? v.dataFine : null;
       if (FORM && FORM.checks) { const bad = FORM.checks.filter(x => x.lv === 'bad'); v.controlli = bad.length ? bad.map(x => x.t) : null; v.controllato = isFitoOp(v.tipo) ? today() : null; }
       const nid = await store.put('operazioni', id, v);
       const mov = S.movimenti.find(m => m.opId === nid); const c = get('campi', v.campoId);
