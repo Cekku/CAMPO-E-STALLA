@@ -370,25 +370,42 @@ function splitCsv(txt) {
   if (f || r.length) { r.push(f); rows.push(r); }
   return rows.filter(r => r.some(x => String(x).trim()));
 }
-/** Estrae i movimenti in uscita da una tabella di righe (intestazione riconosciuta da sola). */
-export function movimentiDaRighe(rows) {
+/** Estrae i movimenti in uscita da una tabella di righe (intestazione riconosciuta da sola).
+ *  Con { tutti: true } anche le entrate, con l'importo col segno (uscite negative): estratto conto da Carica documenti (1.45.1). */
+export function movimentiDaRighe(rows, { tutti = false } = {}) {
   const low = r => r.map(x => String(x ?? '').toLowerCase().trim());
   const hi = rows.slice(0, 40).findIndex(r => { const l = low(r); return l.some(x => /^data|data (contabile|operazione|valuta)/.test(x)) && l.some(x => /importo|uscit|dare|addebit|avere|entrat|accredit|ammontare/.test(x)); });
   if (hi < 0) throw new Error('Non trovo le colonne: servono almeno "Data" e "Importo" (oppure "Uscite"/"Dare").');
   const h = low(rows[hi]);
   const iData = h.findIndex(x => /data (contabile|operazione)/.test(x)) >= 0 ? h.findIndex(x => /data (contabile|operazione)/.test(x)) : h.findIndex(x => /^data/.test(x));
   const iUsc = h.findIndex(x => /uscit|^dare|addebit/.test(x)), iEnt = h.findIndex(x => /entrat|^avere|accredit/.test(x)), iImp = h.findIndex(x => /importo|ammontare/.test(x));
-  const iDesc = h.map((x, i) => (/descri|causal|benefic|dettagl|operazion|note|ordinante|controparte|motivo/.test(x) && i !== iData && !/^data/.test(x) ? i : -1)).filter(i => i >= 0);
+  // la colonna del codice ABI della causale ("26") non serve nella descrizione
+  const iDesc = h.map((x, i) => (/descri|causal|benefic|dettagl|operazion|note|ordinante|controparte|motivo/.test(x) && !/\babi\b|_abi/.test(x) && i !== iData && !/^data/.test(x) ? i : -1)).filter(i => i >= 0);
   const out = [];
   for (const r of rows.slice(hi + 1)) {
     const data = parseData(r[iData]); if (!data) continue;
+    const descrizione = iDesc.map(i => String(r[i] ?? '').trim()).filter(Boolean).join(' · ').replace(/\s+/g, ' ');
+    // righe del saldo iniziale e finale (es. "Saldo iniziale" nella colonna Avere): non sono movimenti
+    // (solo i saldi veri: "Saldo fattura 45" o "Saldo stipendio" sono movimenti)
+    if (/^saldo\s+(iniziale|finale|contabile|disponibile|liquido|precedente|al\b)/i.test(descrizione)) continue;
     let v = null;
+    if (tutti) {
+      const u = iUsc >= 0 ? parseImp(r[iUsc]) : null, e = iEnt >= 0 ? parseImp(r[iEnt]) : null;
+      if (u) v = -Math.abs(u); else if (e) v = Math.abs(e); else if (iImp >= 0) v = parseImp(r[iImp]);
+      if (!v) continue;
+      out.push({ data, importo: r2(v), descrizione }); continue;
+    }
     if (iUsc >= 0) { const u = parseImp(r[iUsc]); if (u) v = Math.abs(u); else continue; }
     else if (iImp >= 0) { const x = parseImp(r[iImp]); if (x == null || x >= 0) continue; v = -x; }
     if (!v) continue;
-    out.push({ data, importo: r2(v), descrizione: iDesc.map(i => String(r[i] ?? '').trim()).filter(Boolean).join(' · ').replace(/\s+/g, ' ') });
+    out.push({ data, importo: r2(v), descrizione });
   }
   return out;
+}
+/** Movimenti con il segno (entrate e uscite) da un CSV di estratto conto; errore se non ha le colonne di un estratto. */
+export function movimentiCsv(bytes) {
+  let txt = new TextDecoder('utf-8').decode(bytes); if (txt.includes('�')) txt = new TextDecoder('windows-1252').decode(bytes);
+  return movimentiDaRighe(splitCsv(txt.replace(/^﻿/, '')), { tutti: true });
 }
 export async function leggiMovimenti(nome, bytes) {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);

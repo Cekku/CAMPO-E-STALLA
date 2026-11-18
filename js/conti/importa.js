@@ -79,9 +79,17 @@ export async function leggiDocumento(nome, bytes, out = []) {
       for (const f of await leggiFileFattura(nome, bytes)) out.push({ tipo: 'fattura', nome, f });
       return out;
     }
-    // file telematico della dichiarazione IVA
+    // estratto conto in CSV (prima del telematico IVA: i codici dei bonifici possono contenere per caso un codice come "VT123456")
+    if (/\.(csv|tsv|txt)$/.test(low)) {
+      let movs = null; try { movs = (await import('./paghe.js')).movimentiCsv(bytes); } catch (e) { /* non ha le colonne di un estratto */ }
+      if (movs && movs.length) {
+        const B = await import('./banca.js');
+        out.push({ tipo: 'bonifici', etichetta: 'Estratto conto', csv: true, nome, righe: await B.righeEstratto(movs.map(m => B.arricchisci(Object.assign({}, m))), nome) }); return out;
+      }
+    }
+    // file telematico della dichiarazione IVA: almeno 5 campi dei quadri V.. (codice di 8 caratteri seguito dal valore)
     const txt = new TextDecoder('windows-1252').decode(bytes);
-    if (/V[A-Z]\d{6}/.test(txt)) { const r = await leggiDichiarazioneIva(nome, bytes); out.push(Object.assign({}, r, riepilogoIva(r.valori), { tipo: 'iva', fonte: r.tipo, nome, anno: r.anno || annoDaNome(nome) })); return out; }
+    if ((txt.match(/V[A-Z]\d{6}(?=.{16})/g) || []).length >= 5) { const r = await leggiDichiarazioneIva(nome, bytes); out.push(Object.assign({}, r, riepilogoIva(r.valori), { tipo: 'iva', fonte: r.tipo, nome, anno: r.anno || annoDaNome(nome) })); return out; }
     out.push({ tipo: 'errore', nome, errore: 'formato non riconosciuto' });
   } catch (e) { out.push({ tipo: 'errore', nome, errore: e.message || String(e), bytes, forza: true }); }
   return out;

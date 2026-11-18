@@ -58,6 +58,8 @@ export async function daLeggere() {
 /* ---------------- periodi già coperti dagli estratti conto ---------------- */
 /** Conto (IBAN) e periodo dalla prima pagina dell'estratto conto. */
 export async function intestazione(bytes) {
+  // CSV o altro file che non è un PDF: niente intestazione da leggere
+  if (String.fromCharCode(...bytes.subarray(0, 4)) !== '%PDF') return { conto: '', da: '', a: '' };
   const { leggiPdf, testoPagina } = await import('./pdftext.js');
   const pg = await leggiPdf(bytes); const t = pg.slice(0, 1).map(testoPagina).join('\n').replace(/\s+/g, ' ');
   const ib = (t.replace(/(IT\s?\d\d)\s?([A-Z])\s?/g, '$1$2').match(/IT\d{2}[A-Z]\d{10}[0-9A-Z]{12}/) || [])[0] || '';
@@ -144,7 +146,8 @@ async function uno(d) {
       let conto = '';
       // un estratto "filtrato" (per esempio solo commissioni e spese) non copre il periodo: si ricordano solo i periodi
       // degli estratti completi, altrimenti un estratto vero dello stesso anno caricato dopo verrebbe saltato
-      const completo = x.righe.length >= 8 && x.righe.filter(r => r.tipo === 'banca').length / x.righe.length < 0.85;
+      // un CSV scaricato dalla banca è spesso una ricerca (per esempio i soli stipendi) e non dice il conto: mai completo
+      const completo = !x.csv && x.righe.length >= 8 && x.righe.filter(r => r.tipo === 'banca').length / x.righe.length < 0.85;
       if (estratto) { const h = await intestazione(bytes); const ds = x.righe.map(r => r.data).filter(Boolean).sort(); conto = h.conto; extra = completo ? { conto: h.conto, da: h.da || ds[0] || '', a: h.a || ds[ds.length - 1] || '' } : { conto: h.conto, parziale: true }; }
       let saltate = 0;
       // spese della banca già salvate (stessa data, importo e verso), anche da un estratto con le descrizioni scritte diverse
