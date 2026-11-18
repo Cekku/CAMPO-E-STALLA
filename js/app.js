@@ -491,6 +491,8 @@ document.addEventListener('click', async e => {
       case 'catImposta': closeSheet(); UI.tab = 'impostazioni'; UI.detail = null; render(); return setTimeout(() => { const el = document.getElementById('catastoSez'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 200);
       case 'mapNote': return MAP.noteForField(d.id);
       case 'ndviField': return ndviField(d.id, b);
+      case 'campoValuta': { const c = get('campi', d.id); if (!c || !contiVisibili()) return; const m = await import('./views/conti-terreni.js'); await m.daCampo(c); if (UI.tab === 'mappa') MAP.endMode(); UI.area = 'conti'; saveUI(); return setTab('conti', 'terreni'); }
+      case 'vtMappa': UI.area = 'campagna'; saveUI(); setTab('mappa'); return setTimeout(() => MAP.sceltaParticella(), 300);   // la Mappa non si apre nell'area Conti
       case 'ndviMap': setTab('mappa'); return setTimeout(() => MAP.showNdvi(d.id), 250);
       case 'mapFocus': setTab('mappa'); return setTimeout(() => MAP.focusCampo(d.id), 250);
       case 'lockNow': return blocca();

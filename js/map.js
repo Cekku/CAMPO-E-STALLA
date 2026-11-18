@@ -310,6 +310,8 @@ export function toggleLegend() { legendOpen = !legendOpen; renderLegend(); }
 
 export function select(id) {
   selected = id;
+  if (id) { const box = $('#catCard'); if (box && box.querySelector('.vt-scelta')) box.hidden = true; }   // l'invito "Scegli il terreno da valutare" non serve più
+
   restyle();
   renderCard();
 }
@@ -373,6 +375,7 @@ function renderCard() {
   ${(v => v ? `<div class="mc-last">${ic('satellite')}<span>NDVI <b style="color:${ndviColor(v.mean)}">${d2(v.mean)}</b> · ${ndviLabel(v.mean)} · ${fd(v.data)}</span></div>` : '')(campoNdviCached(c).pop())}
   <div class="mc-last">${ic('notebook-pen')}<span>${i.last ? esc(i.last.tipo || 'Attività') + ' il ' + fd(i.last.data) : 'Nessuna attività registrata'}${i.plan.length ? ' · ' + i.plan.length + ' da fare' : ''}${i.carenza ? ' · carenza fino al ' + fd(i.carenza.fine) : ''}</span></div>
   <div class="mc-actions two"><button class="btn sm" data-act="open" data-type="campo" data-id="${c.id}">${ic('list')}Dettagli</button>${ct ? `<a class="btn sm" href="https://www.google.com/maps/dir/?api=1&destination=${ct[1].toFixed(6)},${ct[0].toFixed(6)}" target="_blank" rel="noopener">${ic('navigation')}Indicazioni</a>` : '<span></span>'}</div>
+  ${contiVisibili() ? `<div class="mc-actions"><button class="btn sm" data-act="campoValuta" data-id="${c.id}" title="Valuta se conviene comprarlo o scrivi il prezzo d'acquisto">${ic('landmark')}Valuta o prezzo d'acquisto</button></div>` : ''}
   <button class="btn action wide" data-act="new" data-form="operazioni" data-campo="${c.id}">${ic('plus')}Registra attività</button>
   <div class="mc-actions two"><button class="btn ok sm" data-act="mapNote" data-id="${c.id}">${ic('pencil')}Nuova nota</button><button class="btn sm ghost" data-act="mapEdit" data-id="${c.id}">${ic('pentagon')}Modifica confine</button></div>
   <button class="btn sm ghost wide" data-act="mapMulti" data-id="${c.id}">${ic('square-check')}Seleziona più campi insieme a questo</button>`;
@@ -576,6 +579,13 @@ async function ndviBar() {
   if (!ndviScenes) { el.innerHTML = `<b>${ic('satellite')}NDVI</b><span class="muted small">Cerco le immagini…</span>${leg}`; try { ndviScenes = await s2scene(gs); } catch (e) { el.innerHTML = `<b>${ic('satellite')}NDVI</b><span class="small t-bad">${esc(e.message)}</span>`; ndviScenes = null; return; } }
   el.innerHTML = `<b>${ic('satellite')}NDVI</b><div class="nd-dates"><button data-scene="" class="${!prefs.ndviScene ? 'on' : ''}">Più recente</button>${ndviScenes.map(x => `<button data-scene="${x.id}" class="${prefs.ndviScene === x.id ? 'on' : ''}">${fd(x.data)}${x.nuvole !== null && x.nuvole !== undefined ? `<small>${Math.round(x.nuvole * 100)}% nuvole</small>` : ''}</button>`).join('') || '<span class="muted small">Nessuna immagine serena negli ultimi mesi</span>'}</div>${leg}`;
   el.onclick = e => { const b = e.target.closest('[data-scene]'); if (!b) return; prefs.ndviScene = b.dataset.scene ? +b.dataset.scene : null; savePrefs(); ndviLayer.setScene(prefs.ndviScene); el.querySelectorAll('[data-scene]').forEach(x => x.classList.toggle('on', x === b)); };
+}
+/** Da Conti → Valuta un terreno: accende le particelle (il tocco sulla mappa le cerca solo se sono accese) e dice cosa fare. */
+export function sceltaParticella() {
+  if (!map) return;
+  if (!prefs.particelle) { prefs.particelle = true; savePrefs(); applyLayers(); }
+  const box = $('#catCard'); box.hidden = false;
+  box.innerHTML = `<div class="cc-row vt-scelta">${ic('landmark')}<div><b>Scegli il terreno da valutare</b><span>Avvicinati e tocca la particella${map.getZoom() < 15 ? ' (le particelle si vedono da vicino)' : ''}, oppure cercala con foglio e mappale. Poi premi «Valuta».</span></div><button class="iconbtn ghost" data-act="catClose" aria-label="Chiudi">${ic('x')}</button></div><div class="cc-actions"><button class="btn sm primary" data-act="catSearch">${ic('search')}Cerca con foglio e mappale</button></div>`;
 }
 export function showNdvi(id) { prefs.ndvi = true; savePrefs(); if (map) { applyLayers(); drawFields(); } if (id) setTimeout(() => focusCampo(id), 200); }
 export function applyPanel() {

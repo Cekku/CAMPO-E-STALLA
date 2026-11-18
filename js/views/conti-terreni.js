@@ -23,6 +23,17 @@ export async function daParticella(p) {
   await T.salva(v); UI.f.vt_id = v.id; return v;
 }
 
+/** Un tuo campo (scheda del campo o della mappa → "Valuta"): riapre la sua valutazione o ne crea una con i dati del campo. */
+export async function daCampo(c) {
+  const gia = T.valutazioni().find(x => x.campoId === c.id);
+  if (gia) { UI.f.vt_id = gia.id; return gia; }
+  const { campoHa, cropOf } = await import('../domain.js');
+  const cr = cropOf(c) || c.coltura || '';
+  const cat = String(c.catasto || ''), fg = cat.match(/f(?:o?glio|g)\.?\s*(\w+)/i), pt = cat.match(/(?:mapp?(?:al[ei])?|part(?:icell[ae])?)\.?\s*(\d[\d ,\/-]*)/i);
+  const v = { id: 'vt-' + uid(), tipo: 'valutazione', campoId: c.id, nome: c.nome || 'Campo', data: today(), modo: 'acquisto', comune: c.comune || '', foglio: fg ? fg[1] : '', particella: pt ? pt[1].trim() : fg ? '' : cat, geom: c.geom || null, ha: campoHa(c), coltura: /prat|erb|medic|loiess|loglio|festuc|trifogl|pascol/i.test(cr) ? 'prato' : 'seminativo', irriguo: !!c.irriguo && !/^no/i.test(String(c.irriguo)), agev: true, note: c.conduzione ? 'Conduzione: ' + c.conduzione : '' };
+  await T.salva(v); UI.f.vt_id = v.id; return v;
+}
+
 export function vTerreni() {
   const v = corrente();
   return v ? scheda(v) : elenco();
@@ -30,7 +41,7 @@ export function vTerreni() {
 
 function elenco() {
   const L = T.valutazioni();
-  const nuovo = `<div class="btns"><button class="btn sm primary" data-act="c-vtNuovo" data-modo="acquisto">${ic('plus')}Valuta un acquisto</button><button class="btn sm" data-act="c-vtNuovo" data-modo="affitto">${ic('plus')}Valuta un affitto</button><button class="btn sm ghost" data-act="nav" data-tab="mappa">${ic('map')}Scegli la particella sulla mappa</button></div>`;
+  const nuovo = `<div class="btns"><button class="btn sm primary" data-act="c-vtNuovo" data-modo="acquisto">${ic('plus')}Valuta un acquisto</button><button class="btn sm" data-act="c-vtNuovo" data-modo="affitto">${ic('plus')}Valuta un affitto</button><button class="btn sm ghost" data-act="vtMappa">${ic('map')}Scegli la particella sulla mappa</button></div>`;
   const come = `<section class="card"><div class="card-h"><h2>${ic('info')}Come funziona</h2></div><div class="pad-x">
     <p>Scrivi il prezzo chiesto (o il canone d'affitto) e qualche dato del terreno. L'app lo confronta con il <b>valore di zona</b> e soprattutto con <b>quello che il terreno renderebbe alla tua azienda</b>: il margine dei tuoi campi, il vantaggio per la stalla, meno i viaggi dalla stalla e le spese dell'atto. Alla fine ti dà il <b>prezzo massimo</b> che conviene pagare e un semaforo.</p>
     <p class="muted small">Il modo più comodo: apri la <b>Mappa</b>, tocca la particella (o cercala con foglio e mappale) e premi <b>Valuta</b>: superficie, distanza e confine con i tuoi campi si calcolano da soli. I prezzi e le valutazioni restano riservati al titolare.</p></div></section>`;
