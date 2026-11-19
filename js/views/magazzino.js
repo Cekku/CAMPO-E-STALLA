@@ -8,6 +8,7 @@ import { FITO } from '../checks.js';
 import { fitoLookup } from '../fitodb.js';
 import { contiVisibili } from './conti.js';
 import { sezione, contaDaFare } from './magfatture.js';
+import { docFattura } from '../magfatture.js';
 
 const CAT_IC = { 'Fitofarmaco': 'shield-check', 'Diserbante': 'leaf', 'Concime': 'sprout', 'Seme': 'wheat', 'Mangime': 'wheat', 'Foraggio': 'leaf', 'Farmaco veterinario': 'syringe', 'Gasolio': 'fuel', 'Altro': 'package' };
 
@@ -45,8 +46,8 @@ function prodotti() {
 }
 export function movRow(m) {
   const p = get('prodotti', m.prodottoId); const src = m.opId ? 'dal quaderno' : m.evId ? 'dalla stalla' : m.razioneId ? 'da razione' : m.fattRiga ? 'da fattura' : '';
-  const out = m.tipo === 'Scarico';
-  return `<button class="row" data-act="edit" data-form="movimenti" data-id="${m.id}"><span class="r-icon ${out ? 'out' : 'in'}">${ic(out ? 'upload' : 'download')}</span><span class="r-main"><b>${esc(p ? p.nome : 'prodotto eliminato')}${exChip(m)}</b><span>${fd(m.data)}${m.documento ? ' · ' + esc(m.documento) : ''}${src ? ' · ' + src : ''}${m.note ? ' · ' + esc(m.note) : ''}</span></span><span class="r-side"><span class="num ${out ? 't-bad' : 't-ok'}">${out ? '−' : '+'}${nf(m.quantita, 2)} ${esc(p ? p.unita || '' : '')}</span></span></button>`;
+  const out = m.tipo === 'Scarico'; const df = docFattura(m);
+  return `<button class="row" data-act="edit" data-form="movimenti" data-id="${m.id}"><span class="r-icon ${out ? 'out' : 'in'}">${ic(out ? 'upload' : 'download')}</span><span class="r-main"><b>${esc(p ? p.nome : 'prodotto eliminato')}${exChip(m)}</b><span>${fd(m.data)}${m.documento ? ' · ' + esc(m.documento) : ''}${df ? ' · ' + esc(df) : ''}${src ? ' · ' + src : ''}${m.note ? ' · ' + esc(m.note) : ''}</span></span><span class="r-side"><span class="num ${out ? 't-bad' : 't-ok'}">${out ? '−' : '+'}${nf(m.quantita, 2)} ${esc(p ? p.unita || '' : '')}</span></span></button>`;
 }
 function movimenti() {
   const mv = [...S.movimenti].filter(m => yearOf(m.data) === UI.anno).sort(byDate).reverse();

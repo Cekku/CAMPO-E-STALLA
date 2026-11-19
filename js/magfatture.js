@@ -20,7 +20,6 @@ export const CAT_CAMPAGNA = ['Seme', 'Concime', 'Fitofarmaco', 'Diserbante', 'Ga
 const norm = s => String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const parole = s => norm(s).split(/[^A-Z0-9%]+/).filter(Boolean);
 const r3 = x => Math.round(x * 1000) / 1000;
-const r4 = x => Math.round(x * 10000) / 10000;
 
 let _ridisegna = () => {};
 export const setRender = fn => { _ridisegna = fn; };
@@ -95,27 +94,24 @@ export function elenco() {
   return out;
 }
 
-function documento(x) {
-  const r = x.r; const d = okD(r.data) ? r.data.slice(8, 10) + '/' + r.data.slice(5, 7) + '/' + r.data.slice(0, 4) : '';
-  return ['Fatt. ' + (r.numero || '') + (d ? ' del ' + d : ''), String(r.ddt || '').trim() ? 'DDT ' + x.ddt : '', r.controparte || ''].filter(Boolean).join(' · ');
+/** Fattura, DDT e fornitore di un carico venuto da fattura: si leggono dalle fatture (solo il titolare), non stanno nel movimento. */
+export function docFattura(m) {
+  if (!m || !m.fattRiga || !contiVisibili()) return '';
+  const k = String(m.fattRiga); const j = k.lastIndexOf(':'); const f = S.fatture.find(y => y.id === k.slice(0, j)); if (!f) return '';
+  const r = (f.righe || [])[+k.slice(j + 1)] || {}; const d = okD(f.data) ? f.data.slice(8, 10) + '/' + f.data.slice(5, 7) + '/' + f.data.slice(0, 4) : '';
+  const q = N(m.quantita) > 0 && N(r.importo) > 0 ? ' · ' + (Math.round(N(r.importo) / N(m.quantita) * 100) / 100).toLocaleString('it-IT', { minimumFractionDigits: 2 }) + ' €' : '';
+  return ['Fatt. ' + (f.numero || '') + (d ? ' del ' + d : ''), String(r.ddt || '').trim() ? 'DDT ' + leggiDdt(r.ddt, f.data).num : '', f.controparte || ''].filter(Boolean).join(' · ') + q;
 }
+/** Il movimento non porta prezzo, fornitore né numero di fattura: movimenti e prodotti li vedono anche i collaboratori (scelta di Marco, 19/11/2026). */
 function movimento(x, p, q) {
-  return { tipo: 'Carico', prodottoId: p.id, data: x.data, quantita: r3(q), prezzo: q > 0 ? r4(N(x.r.importo) / q) : 0, documento: documento(x), provenienza: 'Comprato', fattRiga: x.k, note: String(x.r.descrizione || '').slice(0, 200) };
-}
-/** Prezzo del prodotto = quello del carico più recente. */
-function prezzoNuovo(p, movs, extra = {}) {
-  const ult = movs.filter(m => m.prodottoId === p.id && N(m.prezzo) > 0).sort((a, b) => b.data.localeCompare(a.data))[0];
-  const agg = Object.assign({}, extra);
-  if (ult && (!okD(p.prezzoData) || ult.data >= p.prezzoData) && N(p.prezzo) !== N(ult.prezzo)) Object.assign(agg, { prezzo: N(ult.prezzo), prezzoData: ult.data });
-  return Object.keys(agg).length ? agg : null;
+  return { tipo: 'Carico', prodottoId: p.id, data: x.data, quantita: r3(q), provenienza: 'Comprato', fattRiga: x.k, note: String(x.r.descrizione || '').slice(0, 200) };
 }
 
 /** Carica le righe pronte (prodotto già abbinato e quantità chiara). Ritorna quante. */
 export async function caricaPronte() {
   const E = elenco(); if (!E.pronte.length) return 0;
-  const rows = []; const fatti = {}; const movs = [];
-  for (const x of E.pronte) { const id = idMov(x.k); const m = movimento(x, x.prodotto, x.q); movs.push(m); rows.push({ col: 'movimenti', id, data: m }); fatti[x.k] = id; }
-  for (const p of new Set(E.pronte.map(x => x.prodotto))) { const agg = prezzoNuovo(p, movs); if (agg) { const { id, ...d } = p; rows.push({ col: 'prodotti', id, data: Object.assign(d, agg) }); } }
+  const rows = []; const fatti = {};
+  for (const x of E.pronte) { const id = idMov(x.k); rows.push({ col: 'movimenti', id, data: movimento(x, x.prodotto, x.q) }); fatti[x.k] = id; }
   await store.bulkPut(rows);
   await salvaStato({ fatti });
   return E.pronte.length;
@@ -133,7 +129,7 @@ async function abbina1(k, { pid, nuovo, q, ricorda, paroleR }) {
   if (nuovo) {
     const nome = String(nuovo.nome || '').trim(); if (!nome) throw new Error('Scrivi il nome del prodotto.');
     if (S.prodotti.some(y => norm(y.nome) === norm(nome))) throw new Error('C\'è già un prodotto con questo nome: sceglilo dall\'elenco.');
-    const id = uid(); p = { id, nome, categoria: nuovo.categoria || CAT_FATT[x.r.categoria] || 'Altro', unita: nuovo.unita || unitaPer(x.r.um), giacenzaIniziale: 0, fornitore: x.r.controparte || '' };
+    const id = uid(); p = { id, nome, categoria: nuovo.categoria || CAT_FATT[x.r.categoria] || 'Altro', unita: nuovo.unita || unitaPer(x.r.um), giacenzaIniziale: 0 };
   } else { p = get('prodotti', pid); if (!p) throw new Error('Scegli il prodotto.'); p = Object.assign({}, p); }
   if (ricorda) {
     const w = String(paroleR || '').trim() || paroleDa(x.r.descrizione);
@@ -143,7 +139,6 @@ async function abbina1(k, { pid, nuovo, q, ricorda, paroleR }) {
     p.convFatt = cf;
   }
   const m = movimento(x, p, q); const mid = idMov(k);
-  Object.assign(p, prezzoNuovo(p, [m]) || {});
   const { id, ...dp } = p;
   await store.bulkPut([{ col: 'prodotti', id, data: dp }, { col: 'movimenti', id: mid, data: m }]);
   await salvaStato({ fatti: { [k]: mid } });
@@ -152,11 +147,37 @@ async function abbina1(k, { pid, nuovo, q, ricorda, paroleR }) {
 /** "Non caricare" (o rimetti fra quelle da fare). */
 export async function togli(k, si = true) { await (si ? salvaStato({ fatti: { [k]: 'no' } }) : salvaStato({}, [k])); }
 
+/** Toglie prezzo, fornitore e numero di fattura dai carichi fatti con la 1.59.0 (e il prezzo dei prodotti preso allora dalle fatture). */
+let pulito = false;
+async function pulisci() {
+  if (pulito) return; pulito = true;
+  const rows = []; const daF = S.movimenti.filter(m => m.fattRiga);
+  const fornDi = m => { const k = String(m.fattRiga); const f = S.fatture.find(y => y.id === k.slice(0, k.lastIndexOf(':'))); return f ? f.controparte || '' : ''; };
+  // prodotti prima dei movimenti: serve il prezzo dei carichi vecchi per capire se il prezzo del prodotto viene da una fattura
+  for (const p of S.prodotti) {
+    const miei = daF.filter(m => m.prodottoId === p.id); if (!miei.length && !p.prezzoData) continue;
+    const d = Object.assign({}, p); delete d.id; let cambia = false;
+    if (p.prezzoData) {
+      delete d.prezzoData; cambia = true;
+      if (miei.some(m => m.data === p.prezzoData && N(m.prezzo) === N(p.prezzo))) {   // prezzo preso da una fattura: torna quello dell'ultimo carico a mano, se c'è
+        const mano = S.movimenti.filter(m => !m.fattRiga && m.prodottoId === p.id && m.tipo === 'Carico' && N(m.prezzo) > 0).sort((a, b) => (b.data || '').localeCompare(a.data || ''))[0];
+        if (mano) d.prezzo = N(mano.prezzo); else delete d.prezzo;
+      }
+    }
+    if (p.fornitore && miei.some(m => fornDi(m) && fornDi(m) === p.fornitore)) { delete d.fornitore; cambia = true; }
+    if (cambia) rows.push({ col: 'prodotti', id: p.id, data: d });
+  }
+  for (const m of daF) if (m.prezzo !== undefined || m.documento !== undefined) { const { id, prezzo, documento, ...d } = m; rows.push({ col: 'movimenti', id, data: d }); }
+  if (rows.length) await store.bulkPut(rows);
+}
+
 /* ---------------- automatico ---------------- */
 let corre = 0, ultimo = null;
 /** Da chiamare a ogni disegno della pagina: se sono cambiate fatture, prodotti o impostazioni, carica le righe pronte. */
 export function autoSeServe() {
-  if (corre || !contiVisibili() || !S.fatture.length || !S.prodotti.some(p => p.paroleFatt)) return;
+  if (corre || !contiVisibili() || !S.fatture.length) return;
+  if (!pulito) { corre++; pulisci().catch(e => { pulito = false; console.warn(e); }).finally(() => { corre--; ridisegna(); }); return; }
+  if (!S.prodotti.some(p => p.paroleFatt)) return;
   const dep = [S.fatture, S.prodotti, S.econfig]; if (ultimo && dep.every((d, i) => d === ultimo[i])) return; ultimo = dep;
   corre++;
   caricaPronte().then(n => { if (n) ridisegna(); if (n) toast(n === 1 ? 'Caricata in magazzino 1 riga di fattura' : `Caricate in magazzino ${n} righe di fattura`); })
