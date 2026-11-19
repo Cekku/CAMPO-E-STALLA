@@ -47,6 +47,7 @@ Le note lunghe di ogni area sono in `.claude/rules/`: ognuna si carica da sola q
 | Ponte archivio | `archivio-ponte.md` | contratto delle richieste alla porta 1236 |
 | Archivio nell'app | `archivio-app.md` | pagine dell'Archivio e collegamenti dei documenti |
 | Magazzino | `magazzino.md` | carico dalle fatture di sementi, concimi, fitofarmaci e gasolio (1.59.0), scarico automatico delle razioni e avviso "sta per finire" (1.60.0) |
+| Centro automatico | `automazioni.md` | motore delle automazioni (`registra`, giri all'apertura e ogni 30 minuti, diario con annulla, lista Da controllare), pagina Automatico, agganci di archivio Conti, magazzino dalle fatture, fitofarmaci e razioni (19/11/2026) |
 | Organizzazione | `organizzazione.md` | chi fa cosa fra i modelli (sempre caricata) |
 
 Quando aggiungi una funzione nuova: le note vanno nel file della sua area (e i file nuovi nei suoi `paths:`); qui solo se cambia qualcosa che vale per tutto il progetto. **E aggiorna sempre la Guida** (`js/guida.js`, chiesto da Marco il 17/11/2026): una scheda nuova per una pagina nuova, i passi cambiati per una funzione nuova o cambiata, parole chiave per la ricerca. Un'area nuova = un file nuovo in `.claude/rules/` e una riga in questa tabella.

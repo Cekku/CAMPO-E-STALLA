@@ -95,8 +95,17 @@ export function copiaDaFare() {
   return giorni >= ogni && haDatiVeri() ? { giorni, ogni } : null;
 }
 
+// Centro automatico (js/automazioni.js): chi vuole sapere quali record scrive questo dispositivo, con la versione di prima
+// (serve al diario per annullare un giro). Le modifiche che arrivano dal cloud (applyRemote) non passano di qui.
+export const osservatori = new Set();
+function osserva(col, id, deleted) {
+  if (!osservatori.size) return;
+  const prima = (mem[col] && mem[col].get(id)) || null;
+  for (const f of osservatori) { try { f(col, id, prima, deleted); } catch (e) { console.warn(e); } }
+}
 async function writeLocal(col, id, data, deleted) {
   if (soloLettura()) throw new Error(NO_SCRITTURA);
+  osserva(col, id, deleted);
   const k = col + '/' + id; const rec = { k, col, id, data, deleted, ts: Date.now() };
   if (deleted) mem[col].delete(id); else mem[col].set(id, Object.assign({}, data, { id }));
   rebuild([col]); schedule();
@@ -112,6 +121,7 @@ export async function remove(col, id) { await writeLocal(col, id, {}, true); }
 // Importazione in blocco (backup o dati di esempio)
 export async function bulkPut(rows) {
   if (soloLettura()) throw new Error(NO_SCRITTURA);
+  rows.forEach(({ col, id }) => osserva(col, id, false));
   rows.forEach(({ col, id, data }) => mem[col].set(id, Object.assign({}, data, { id })));
   rebuild(); schedule();
   if (!idb) return;
