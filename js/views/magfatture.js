@@ -19,7 +19,7 @@ export const contaDaFare = () => MF.elenco().daFare.length;
 export function sezione() {
   const E = MF.elenco();
   const fatte = S.movimenti.filter(m => m.fattRiga && m.data >= E.da).sort((a, b) => b.data.localeCompare(a.data));
-  const testa = `<section class="card"><div class="card-h"><h2>${ic('file-down')}Carico dalle fatture</h2></div>
+  const testa = `<section class="card"><div class="card-h"><h2>${ic('file-down')}Carico dalle fatture</h2><button class="btn sm primary" data-act="mf-controlla">${ic('refresh-cw')}Controlla le fatture</button></div>
     <p class="muted small">Le righe delle fatture di sementi, concimi, fitofarmaci e gasolio entrano in magazzino come carichi. La prima volta abbini tu la riga a un prodotto (o ne crei uno nuovo): dalle fatture dopo, quel prodotto si carica da solo.</p>
     <label class="fld"><span class="flabel">Carica le fatture dal</span><input class="inp" type="date" data-act="mf-da" value="${esc(E.da)}"><small>Le fatture più vecchie non entrano, così non diventano doppi i carichi già scritti a mano.</small></label></section>`;
   const daFare = `<section class="card"><div class="card-h"><h2>Da abbinare</h2><span class="count">${E.daFare.length}</span></div><div class="list">${E.daFare.length ? E.daFare.map(x => riga(x,
@@ -58,6 +58,13 @@ const val = id => (document.getElementById(id) || {}).value || '';
 
 export async function mfAct(a, b, d) {
   switch (a) {
+    case 'mf-controlla': {
+      b.disabled = true;
+      try {
+        const n = await MF.controllaOra(); const resta = MF.elenco().daFare.length;
+        return toast((n ? 'Caricate in magazzino ' + quanti(n, 'riga', 'righe') + ' di fattura' : 'Nessuna riga nuova da caricare') + (resta ? ' · ' + quanti(resta, 'riga', 'righe') + ' da abbinare a mano' : ''));
+      } finally { b.disabled = false; }
+    }
     case 'mf-abbina': return foglio(d.k);
     case 'mf-togli': await MF.togli(d.k, true); return toast('Riga tolta: non entra in magazzino');
     case 'mf-rimetti': await MF.togli(d.k, false); return toast('Riga rimessa fra quelle da abbinare');

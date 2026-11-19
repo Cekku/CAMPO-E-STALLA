@@ -173,6 +173,15 @@ async function pulisci() {
 
 /* ---------------- automatico ---------------- */
 let corre = 0, ultimo = null;
+/** Pulsante "Controlla le fatture": scarica le novità dal cloud (se collegato) e carica le righe pronte. Ritorna quante. */
+export async function controllaOra() {
+  if (corre) throw new Error('Sto già controllando: aspetta un momento.');
+  corre++;
+  try {
+    try { await store.syncNow(); } catch (e) { console.warn(e); }   // senza rete si controlla quello che c'è sul dispositivo
+    return await caricaPronte();
+  } finally { corre--; ultimo = null; ridisegna(); }
+}
 /** Da chiamare a ogni disegno della pagina: se sono cambiate fatture, prodotti o impostazioni, carica le righe pronte. */
 export function autoSeServe() {
   if (corre || !contiVisibili() || !S.fatture.length) return;
