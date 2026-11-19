@@ -3,7 +3,7 @@
 import { S, get } from './state.js';
 import { N, okD, addDays, diff, fd, nf, today, yearOf, esc } from './util.js';
 import { ic } from './icons.js';
-import { giac, campoHa, cropOf } from './domain.js';
+import { giac, campoHa, colturaAlla } from './domain.js';
 import { getMeteo } from './meteo.js';
 import { fitoLookup } from './fitodb.js';
 
@@ -62,7 +62,7 @@ export function controlliOp(v, campi, opId = null) {
       const hasImp = Array.isArray(p.impieghi) && p.impieghi.length;
       if (!hasImp) add('warn', 'Impieghi in etichetta non inseriti', 'Aggiungi in ' + p.nome + ' le colture autorizzate con dose massima, carenza e numero di interventi: i controlli diventano completi.');
       campi.forEach(c => {
-        const col = cropOf(c, yearOf(data));
+        const col = (colturaAlla(c, data) || {}).coltura || '';
         const pre = campi.length > 1 ? c.nome + ': ' : '';
         if (!col) { add('warn', pre + 'Coltura non indicata', 'Aggiungi la coltura dell\'annata ' + yearOf(data) + ' al campo per verificare l\'etichetta.'); return; }
         if (!hasImp) return;

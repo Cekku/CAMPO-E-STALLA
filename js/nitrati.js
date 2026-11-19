@@ -2,7 +2,7 @@
 // Valori di partenza indicativi (DM 25/02/2016 e regolamento regionale): l'utente li controlla con il tecnico e li cambia in Impostazioni.
 import { S, get } from './state.js';
 import { N, yearOf } from './util.js';
-import { cropOf, campoHa, capoI, COLTURE } from './domain.js';
+import { cropOf, secondoOf, campoHa, capoI, COLTURE } from './domain.js';
 
 // Limite di azoto da effluenti zootecnici, kg N per ettaro all'anno (media sulla superficie aziendale)
 export const LIMITI = { ZVN: 170, Ordinaria: 340 };
@@ -62,11 +62,12 @@ export function bilancioCampi(anno, cfg = nitConfig()) {
   }
   return S.campi.filter(c => cropOf(c, anno) || per.has(c.id)).map(c => {
     const ha = campoHa(c), t = per.get(c.id) || { n: 0, nEff: 0, nZoo: 0, p: 0, k: 0, nOp: 0 };
-    const coltura = cropOf(c, anno), mas = masDi(coltura, cfg);
+    const coltura = cropOf(c, anno), s2 = secondoOf(c, anno), m1 = masDi(coltura, cfg), m2 = s2 ? masDi(s2.coltura, cfg) : null;
+    const mas = m1 === null && m2 === null ? null : N(m1) + N(m2);
     const effHa = ha ? t.nEff / ha : 0;
     const quota = mas ? effHa / mas : (effHa > 0 && mas === 0 ? Infinity : null);
     const stato = !ha && t.nOp ? 'Manca la superficie' : mas === null ? (effHa > 0 ? 'Coltura senza limite' : '—') : quota === Infinity || quota > 1 ? 'Oltre il limite' : quota > 0.9 ? 'Vicino al limite' : 'Nel limite';
-    return { id: c.id, nome: c.nome, coltura: coltura || '—', ha: Math.round(ha * 100) / 100, nTot: r1(t.n), nEffHa: r1(effHa), nZooHa: r1(ha ? t.nZoo / ha : 0), pHa: r1(ha ? t.p / ha : 0), kHa: r1(ha ? t.k / ha : 0), mas, quota: quota === Infinity ? null : quota, stato, nOp: t.nOp, _nZoo: t.nZoo, _ha: ha };
+    return { id: c.id, nome: c.nome, coltura: (coltura || '—') + (s2 ? ' + ' + s2.coltura : ''), ha: Math.round(ha * 100) / 100, nTot: r1(t.n), nEffHa: r1(effHa), nZooHa: r1(ha ? t.nZoo / ha : 0), pHa: r1(ha ? t.p / ha : 0), kHa: r1(ha ? t.k / ha : 0), mas, quota: quota === Infinity ? null : quota, stato, nOp: t.nOp, _nZoo: t.nZoo, _ha: ha };
   });
 }
 

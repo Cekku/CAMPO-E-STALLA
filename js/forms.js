@@ -3,7 +3,7 @@ import { S, D, UI, get } from './state.js';
 import { N, nf, fd, today, byName, okD, yearOf } from './util.js';
 import * as store from './store.js';
 import { openForm, openSheet, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
-import { COLTURE, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo, cropOf, kgUnita } from './domain.js';
+import { COLTURE, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo, cropOf, kgUnita, colturaAlla } from './domain.js';
 import { areaHa } from './geo.js';
 import { meteoAlMomento } from './meteo.js';
 import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
@@ -118,6 +118,7 @@ export const SPEC = {
       { k: 'meteo', l: 'Note sul meteo', show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. sereno, 18 °C' },
       { k: 'modoRaccolta', l: 'Tipo di raccolta', t: 'seg', opts: MODI_RACCOLTA, show: isT('Raccolta') },
       { k: 'prodottoRaccolto', l: 'Cosa hai ottenuto', list: PRODOTTI_RACCOLTA, show: isT('Raccolta', 'Sfalcio'), ph: 'Es. insilato, pastone, granella, fieno' },
+      { k: 'chiude', l: 'Questa raccolta chiude la coltura?', t: 'seg', opts: [['Sì', 'Sì, il campo resta libero'], ['No', 'No, la coltura continua (altri tagli)']], show: isT('Raccolta') },
       { k: 'raccolto', l: 'Quantità raccolta', t: 'number', half: 1, unit: 't', show: isT('Raccolta', 'Sfalcio'), hint: ' ' },
       { k: 'prezzoVendita', l: 'Prezzo', t: 'number', half: 1, unit: '€/t', show: isT('Raccolta', 'Sfalcio') },
       { k: 's1', l: 'Mezzi e costi', t: 'section' },
@@ -135,6 +136,7 @@ export const SPEC = {
       if (!(FORM && FORM.dirty.has('quantita')) && ['dose', 'campoId', 'prodottoId'].includes(ch)) { const c = get('campi', v.campoId); if (c && v.dose !== null) setVal('quantita', Math.round(N(v.dose) * campoHa(c) * 100) / 100); }
       if (['Trattamento fitosanitario', 'Diserbo'].includes(v.tipo) && [null, 'data', 'oraInizio', 'tipo'].includes(ch)) meteoAuto(ch, v);
       if (['Raccolta', 'Sfalcio'].includes(v.tipo) && [null, 'campoId', 'data', 'tipo'].includes(ch)) { const y = yearOf(v.data), t = S.carichi.filter(x => x.campoId === v.campoId && yearOf(x.data) === y).reduce((s, x) => s + N(x.netto), 0) / 1000; setHint('raccolto', v.campoId && t > 0 ? 'Dalle pesate di quest\'anno: ' + nf(t, 1) + ' t' : ' '); }
+      chiudeAuto(ch, v, v.tipo, v.campoId);
       const c0 = get('campi', v.campoId); runChecks(Object.assign({}, v, readForm()), c0 ? [c0] : [], FORM && FORM.id);
     },
     async save(id, v) {
@@ -169,7 +171,7 @@ export const SPEC = {
     defaults: () => ({ data: today() }),
     onChange(ch, v) {
       if (['lordo', 'tara'].includes(ch) && !FORM.dirty.has('netto') && N(v.lordo) > N(v.tara) && v.lordo !== null && v.tara !== null) setVal('netto', Math.round((N(v.lordo) - N(v.tara)) * 100) / 100);
-      if (ch === 'campoId' && !v.prodottoRaccolto) { const col = String(cropOf(get('campi', v.campoId), yearOf(v.data)) || '').toLowerCase(); if (col.includes('trinciato') || col.includes('insilato')) setVal('prodottoRaccolto', 'Insilato'); }
+      if (ch === 'campoId' && !v.prodottoRaccolto) { const col = String((colturaAlla(get('campi', v.campoId), v.data) || {}).coltura || '').toLowerCase(); if (col.includes('trinciato') || col.includes('insilato')) setVal('prodottoRaccolto', 'Insilato'); }
     },
     async save(id, v) {
       const nid = await store.put('carichi', id, v);
@@ -469,6 +471,21 @@ export function openEdit(c, id, pre, soloQuesta) {
   });
 }
 
+// Seconda coltura dell'annata: campi s_… del modulo <-> oggetto `secondo` della riga
+function secondoValori(s) { return s ? { s_uso: s.uso || 'Secondo raccolto', s_coltura: s.coltura, s_varieta: s.varieta, s_semina: s.semina, s_resa: s.resa, s_destinazione: s.destinazione } : { s_uso: 'Secondo raccolto' }; }
+function secondoDa(v) {
+  if (!v.s_coltura) return null;
+  return { coltura: v.s_coltura, varieta: v.s_varieta || '', semina: v.s_semina || '', resa: v.s_resa, destinazione: v.s_destinazione || '', uso: v.s_uso || 'Secondo raccolto' };
+}
+
+// Raccolta: "chiude la coltura?" si propone da solo (No per medica, prato e simili) se non è già scelto
+export function chiudeAuto(ch, v, tipo, campoId) {
+  if (tipo !== 'Raccolta' || ![null, 'campoId', 'data', 'tipo'].includes(ch)) return;
+  if ((ch === null && v.chiude) || (FORM && FORM.dirty.has('chiude'))) return;   // valore già salvato o scelto a mano
+  const c = get('campi', campoId); const col = c && v.data ? (colturaAlla(c, v.data) || {}).coltura || '' : '';
+  setVal('chiude', /medica|prato|loiessa|loietto|erba|trifoglio/i.test(col) ? 'No' : 'Sì');
+}
+
 // Coltura di un'annata dentro la scheda del campo
 export function openColtura(campoId, anno) {
   const c = get('campi', campoId); if (!c) return;
@@ -484,11 +501,21 @@ export function openColtura(campoId, anno) {
       { k: 'varieta', l: 'Varietà o ibrido', half: 1 },
       { k: 'semina', l: 'Data di semina o trapianto', t: 'date', half: 1 },
       { k: 'resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha' },
-      { k: 'destinazione', l: 'Destinazione', half: 1, ph: 'Es. trinciato aziendale' }],
-    values: Object.assign({ anno: String(y) }, cur || {}, { anno: String(y) }),
+      { k: 'destinazione', l: 'Destinazione', half: 1, ph: 'Es. trinciato aziendale' },
+      { k: 's_sez', l: 'Dopo questa coltura, nello stesso anno', t: 'section' },
+      { k: 's_uso', l: "Che cos'è", t: 'seg', opts: ['Secondo raccolto', 'Coltura di copertura'] },
+      { k: 's_coltura', l: 'Seconda coltura', half: 1, list: COLTURE, ph: 'Es. soia, loiessa, sorgo' },
+      { k: 's_varieta', l: 'Varietà', half: 1 },
+      { k: 's_semina', l: 'Data di semina', t: 'date', half: 1 },
+      { k: 's_resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha' },
+      { k: 's_destinazione', l: 'Destinazione', half: 1 }],
+    values: Object.assign({ anno: String(y) }, cur || {}, { anno: String(y) }, secondoValori(cur && cur.secondo)),
     onSave: async v => {
       const list = (Array.isArray(c.colture) ? c.colture : []).filter(x => +x.anno !== +v.anno);
-      list.push(Object.assign({}, v, { anno: +v.anno }));
+      const riga = Object.assign({}, v, { anno: +v.anno }); const sec = secondoDa(v);
+      Object.keys(riga).forEach(k => { if (k.startsWith('s_')) delete riga[k]; });
+      delete riga.secondo; if (sec) riga.secondo = sec;
+      list.push(riga);
       const upd = Object.assign({}, c, { colture: list.sort((a, b) => b.anno - a.anno) });
       if (+v.anno === new Date().getFullYear()) { upd.coltura = v.coltura; upd.varieta = v.varieta; }
       await store.put('campi', c.id, upd);
@@ -538,7 +565,7 @@ export function openColturaGruppo(ids, anno) {
     onSave: async v => {
       const a = +v.anno; const riga = Object.assign({}, v, { anno: a });
       const rows = campi.map(c => {
-        const list = (Array.isArray(c.colture) ? c.colture : []).filter(x => +x.anno !== a); list.push(Object.assign({}, riga));
+        const prec = (Array.isArray(c.colture) ? c.colture : []).find(x => +x.anno === a); const list = (Array.isArray(c.colture) ? c.colture : []).filter(x => +x.anno !== a); list.push(Object.assign({}, riga, prec && prec.secondo ? { secondo: prec.secondo } : {}));
         const upd = Object.assign({}, c, { colture: list.sort((p, q) => q.anno - p.anno) });
         if (a === oggi) { upd.coltura = v.coltura; upd.varieta = v.varieta; }
         return { col: 'campi', id: c.id, data: upd };

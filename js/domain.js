@@ -37,25 +37,61 @@ export const cropColor = (c, anno) => cropColorName(cropOf(c, anno));
 // Campo vuoto dopo la raccolta (chiesto da Marco il 18/11/2026): solo per l'annata in corso, se c'è una Raccolta fatta
 // e dopo non c'è una Semina. Lo storico per annata (cropOf, Rotazioni, registri) resta com'è.
 export const VUOTO = 'Vuoto (raccolto)';
-// Ultima Raccolta e ultima Semina fatte quest'anno (fino a oggi); null se l'annata scelta non è quella in corso
+// Seconda coltura dell'annata (1.58.0, da xFarm): secondo raccolto o coltura di copertura, salvata nella stessa riga
+// dell'annata come `secondo: { coltura, varieta, semina, resa, destinazione, uso }`. Tutto il resto dell'app continua a
+// leggere la coltura principale con colturaOf/cropOf; colturaAlla(c, data) dà quella giusta per un giorno preciso.
+export const secondoOf = (c, anno) => { const e = colturaOf(c, anno); return e && e.secondo && e.secondo.coltura ? e.secondo : null; };
+export const coltureAnno = (c, anno) => { const e = colturaOf(c, anno); return e ? [e].concat(secondoOf(c, anno) ? [Object.assign({ anno: e.anno }, e.secondo)] : []) : []; };
+// Una Raccolta chiude la coltura salvo "No" (es. tagli della medica)
+export const chiudeColtura = o => o.tipo === 'Raccolta' && o.chiude !== 'No';
+// Prima Raccolta che chiude la coltura principale in un'annata (anche futura rispetto a oggi, per le date dei registri)
+// Contano solo le raccolte dopo la semina della principale (data della coltura o prima Semina dell'anno): una loiessa
+// seminata l'anno prima e raccolta in aprile, prima del mais, non è la "prima raccolta"
+function inizioPrincipale(c, y) {
+  const e = colturaOf(c, y); if (e && okD(e.semina)) return e.semina;
+  let s = null; for (const o of S.operazioni) if (o.campoId === c.id && o.stato !== 'Pianificata' && o.tipo === 'Semina' && yearOf(o.data) === y && (!s || o.data < s)) s = o.data;
+  return s;
+}
+function primaRaccolta(c, y) { const da = inizioPrincipale(c, y); let r = null; for (const o of S.operazioni) if (o.campoId === c.id && o.stato !== 'Pianificata' && yearOf(o.data) === y && chiudeColtura(o) && (!da || fineDi(o) >= da) && (!r || fineDi(o) < fineDi(r))) r = o; return r; }
+// Coltura del campo in un giorno: la seconda dalla sua semina (o, se manca la data, dal giorno dopo la prima raccolta)
+export function colturaAlla(c, data) {
+  const y = yearOf(data); const e = colturaOf(c, y); const s2 = secondoOf(c, y); if (!e || !s2) return e;
+  let da = okD(s2.semina) ? s2.semina : null;
+  if (!da) { const r = primaRaccolta(c, y); da = r ? addDays(fineDi(r), 1) : null; }
+  return da && data >= da ? Object.assign({ anno: e.anno, secondo: true }, s2) : e;
+}
+// Raccolte che chiudono la coltura e semine fatte quest'anno (fino a oggi), in ordine; null se l'annata scelta non è quella in corso
 function raccoltaSemina(c, anno = UI.anno) {
   const y = new Date().getFullYear(); if (!c || !c.id || +anno !== y) return null;
-  let r = null, s = null;
+  const R = [], Se = [];
   for (const o of S.operazioni) {
     if (o.campoId !== c.id || o.stato === 'Pianificata' || yearOf(o.data) !== y || fineDi(o) > today()) continue;
     // raccolta su più giorni: il campo è vuoto dall'ultimo giorno
-    if (o.tipo === 'Raccolta' && (!r || fineDi(o) > fineDi(r))) r = o;
-    else if (o.tipo === 'Semina' && (!s || o.data > s.data)) s = o;
+    if (chiudeColtura(o)) R.push(o); else if (o.tipo === 'Semina') Se.push(o);
   }
-  return { r, s, dopo: !!(r && s && s.data >= fineDi(r)) };
+  R.sort((a, b) => fineDi(a).localeCompare(fineDi(b))); Se.sort((a, b) => a.data.localeCompare(b.data));
+  const r = R[R.length - 1] || null, s = Se[Se.length - 1] || null;
+  return { r, s, dopo: !!(r && s && s.data >= fineDi(r)), R, Se };
 }
 // Raccolta che ha lasciato il campo vuoto (nessuna Semina dopo; a parità di giorno vince la Semina)
 export function raccoltaFatta(c, anno) { const x = raccoltaSemina(c, anno); return x && x.r && !x.dopo ? x.r : null; }
-// Coltura che c'è adesso nel campo: VUOTO dopo la raccolta; dopo una nuova Semina la coltura dell'annata dopo
+// Coltura che c'è adesso nel campo. Con una seconda coltura: dopo la prima raccolta il campo è vuoto finché non c'è
+// una Semina, poi c'è la seconda coltura; dopo la sua raccolta di nuovo vuoto, e una Semina ancora dopo porta
+// alla coltura dell'annata dopo. Senza seconda coltura: VUOTO dopo la raccolta, poi la coltura dell'annata dopo
 // (es. frumento seminato in autunno), se è già scritta, altrimenti quella dell'annata; '' se non ha coltura
 export const cropOra = (c, anno) => {
   const k = cropOf(c, anno); const x = raccoltaSemina(c, anno); if (!x || !x.r) return k;
-  if (x.dopo) return cropOf(c, (+anno || UI.anno) + 1) || k;
+  const y = +anno || UI.anno, s2 = secondoOf(c, y);
+  if (s2) {
+    const da = inizioPrincipale(c, y), R1 = x.R.filter(o => !da || fineDi(o) >= da);
+    if (!R1.length) return k;   // la principale è seminata e non ancora raccolta
+    const r1 = R1[0], dopo1 = x.Se.filter(o => o.data >= fineDi(r1));
+    if (!dopo1.length) return k ? VUOTO : '';
+    const sem2 = dopo1[0], r2 = R1.find(o => fineDi(o) > sem2.data);
+    if (!r2) return s2.coltura;
+    return x.Se.some(o => o.data >= fineDi(r2)) ? cropOf(c, y + 1) || s2.coltura : VUOTO;
+  }
+  if (x.dopo) return cropOf(c, y + 1) || k;
   return k ? VUOTO : '';
 };
 export const cropColorOra = (c, anno) => cropColorName(cropOra(c, anno));

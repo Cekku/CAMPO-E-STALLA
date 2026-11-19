@@ -18,7 +18,7 @@ Legenda "In Campo e Stalla": **Sì** / **In parte** / **No**.
 | Gruppi di campi | es. proprietà / affitto, filtro per gruppo | Sì | `js/views/campi.js` | — |
 | Clona colture | copia le colture di un anno sull'anno dopo, per più campi insieme | No | — | Media |
 | Configurazione multipla | cambia coltura o dati a più campi insieme | In parte (selezione di più campi sulla mappa) | `js/map.js` | Media |
-| Più colture nello stesso anno | coltura principale o di copertura, periodo di inizio (primavera/autunno), "sotto unità" su una parte del campo | No (una coltura per annata) | `js/views/campi.js` | Alta |
+| Più colture nello stesso anno | coltura principale o di copertura, periodo di inizio (primavera/autunno), "sotto unità" su una parte del campo | Sì (1.58.0: seconda coltura dell'annata, secondo raccolto o copertura) | `js/domain.js`, `js/forms.js` | Alta |
 | Dati della coltura | varietà, resa prevista, destinazione d'uso, filiera, OGM, tipo di lotta (integrata/biologica) | In parte (varietà, resa) | `js/forms.js` | Media |
 | Particelle catastali del campo | elenco particelle collegate | Sì | `js/catasto.js`, `js/catastomappa.js` | — |
 | Analisi del suolo | analisi per campo (tessitura, sostanza organica, elementi) | No | — | Media |
@@ -33,15 +33,15 @@ Legenda "In Campo e Stalla": **Sì** / **In parte** / **No**.
 | Tipi di attività | primarie (difesa, semina, nutrizione, irrigazione, raccolta), combinate, lavorazioni, interventi colturali, allevamento, tipi personalizzati e sottotipi | Sì | `js/forms.js` | — |
 | Attività su più campi e più giorni | blocco di attività, "Fino al" | Sì (1.48.0, 1.50.0) | `js/forms.js` | — |
 | Tipo di raccolta e prodotto ottenuto | | Sì (1.50.0) | `js/forms.js` | — |
-| "Questa attività chiude il ciclo colturale?" | dopo la raccolta il campo torna libero, oppure resta (medica, secondi tagli) | In parte (campo vuoto dopo la raccolta, 1.47.0, ma senza scelta) | `js/forms.js` | Alta |
+| "Questa attività chiude il ciclo colturale?" | dopo la raccolta il campo torna libero, oppure resta (medica, secondi tagli) | Sì (1.58.0: domanda nella Raccolta, No per medica e prati) | `js/forms.js` | Alta |
 | Scelta dei campi con la mappa accanto | il modulo dell'attività ha la mappa a fianco, filtri per coltura, varietà, gruppo | No | — | Media |
 | Stato Fatto / Da fare | attività pianificate | Sì | `js/forms.js`, `js/agenda.js` | — |
 | Ore e ettari lavorati in testa all'elenco | totali dell'elenco filtrato | In parte (solo ore) | `js/views/attivita.js` | Media |
 | Filtri dell'elenco | tipo, operatore, coltura, campo, trattore, attrezzo, fase fenologica, periodo | In parte (campo e tipo) | `js/views/attivita.js` | Media |
 | Esporta elenco attività | Excel | In parte | `js/registro.js` | Media |
 | Verifica delle attività | il titolare approva le attività scritte dai collaboratori | No | — | Bassa |
-| Trattamento: dati di legge | prodotto dal magazzino con n. di registrazione, dose, autorizzazione tecnica, fascia di rispetto, superamento soglia, livello di infestazione, modalità di applicazione, volume d'acqua, efficacia, motivo | In parte (dose, motivo, volume; n. registrazione e carenza sul prodotto) | `js/forms.js` | Alta |
-| Meteo automatico nel trattamento | temperatura, vento, umidità, pioggia 24 h compilati da soli per data e luogo | In parte (vento a scelta, meteo a testo) | `js/forms.js` | Alta |
+| Trattamento: dati di legge | prodotto dal magazzino con n. di registrazione, dose, autorizzazione tecnica, fascia di rispetto, superamento soglia, livello di infestazione, modalità di applicazione, volume d'acqua, efficacia, motivo | Sì (1.54.0) | `js/forms.js`, `js/registro.js` | Alta |
+| Meteo automatico nel trattamento | temperatura, vento, umidità, pioggia 24 h compilati da soli per data e luogo | Sì (1.54.0, da Open-Meteo) | `js/meteo.js`, `js/forms.js` | Alta |
 | Fase fenologica | elenco a scelta | Sì (BBCH) | `js/forms.js` | — |
 | Allegati all'attività | foto, PDF | da verificare | — | Bassa |
 | Attività automatiche (telemetria) | dai trattori collegati | No (a pagamento su xFarm) | — | Bassa |
@@ -55,16 +55,16 @@ Legenda "In Campo e Stalla": **Sì** / **In parte** / **No**.
 | Scarico automatico dalle attività | | Sì | `js/forms.js` | — |
 | Banca dati dei fitofarmaci | elenco nazionale con n. registrazione, sostanze attive, tipo, stato autorizzato/revocato, filtro per coltura e avversità | In parte (CSV del Ministero caricato a mano) | `js/fitodb.js` | Media |
 | Tipi di prodotto | difesa, sementi, nutrizione, medicinali, fecondazione, razione | Sì (in parte divisi fra Campagna e Stalla) | `js/forms.js` | — |
-| Carichi del raccolto | quantità, coltura, campi di origine, magazzino di arrivo, persona, n. documento, trasportatore, targa, data, allegato; statistiche per coltura | No (DDT solo sui movimenti di magazzino) | — | Alta |
-| Silos e trincee per area | capacità, saldo, quota acquistata e quota autoprodotta in % | In parte (autonomia in giorni, avviso) | `js/herd.js` | Alta |
+| Carichi del raccolto | quantità, coltura, campi di origine, magazzino di arrivo, persona, n. documento, trasportatore, targa, data, allegato; statistiche per coltura | Sì (1.56.0: Pesate del raccolto) | `js/views/carichi.js` | Alta |
+| Silos e trincee per area | capacità, saldo, quota acquistata e quota autoprodotta in % | Sì (1.57.0) | `js/herd.js`, `js/views/stalle.js` | Alta |
 | Costo medio delle scorte dalle fatture | | In parte (le fatture sono nei Conti) | `js/conti/` | Media |
 
 ## Nutrizione e irrigazione
 
 | Funzione su xFarm | Cosa fa | In Campo e Stalla | Dove | Priorità |
 |---|---|---|---|---|
-| Bilancio dei nutrienti | per campo e coltura: fabbisogno e apporto di N, P₂O₅, K₂O, SO₃, MgO; mappa colorata per % del fabbisogno coperto | No | — | Alta |
-| Limite azoto (N max) ed esportazione del piano di nutrizione | per la direttiva nitrati | No | — | Alta |
+| Bilancio dei nutrienti | per campo e coltura: fabbisogno e apporto di N, P₂O₅, K₂O, SO₃, MgO; mappa colorata per % del fabbisogno coperto | Sì (1.53.0: Azoto e nitrati) | `js/nitrati.js` | Alta |
+| Limite azoto (N max) ed esportazione del piano di nutrizione | per la direttiva nitrati | Sì (1.53.0) | `js/views/nitrati.js` | Alta |
 | Bilancio idrico e consigli irrigui | da satellite o sensori, calendario delle irrigazioni | No | — | Bassa |
 | Irrigazione automatica | comando di centraline e valvole | No (a pagamento) | — | Bassa |
 
@@ -109,6 +109,8 @@ Legenda "In Campo e Stalla": **Sì** / **In parte** / **No**.
 | Stalle | solo come punto sulla mappa | Sì (area Stalla molto più ampia) | `js/views/` stalla | — |
 
 ## Mancanti, in ordine di priorità
+
+Fatte il 18-19/11/2026, scelte da Marco: le 5 di priorità Alta (1.53.0 azoto e nitrati, 1.54.0 trattamenti con meteo, 1.56.0 pesate del raccolto, 1.57.0 silos comprato/prodotto, 1.58.0 due colture nello stesso anno). Restano le Medie e le Basse.
 
 **Alta**
 1. Bilancio dell'azoto e degli altri nutrienti per campo, con limite N max ed esportazione (nitrati), contando anche liquame e letame della stalla.

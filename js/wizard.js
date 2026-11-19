@@ -5,7 +5,7 @@ import { ic } from './icons.js';
 import { TIPI_OP, campoHa, cropOf, cropColor } from './domain.js';
 import { thumb } from './geo.js';
 import { openSheet, openForm, toast } from './ui.js';
-import { SPEC, runChecks, erroreFine, meteoAuto } from './forms.js';
+import { SPEC, runChecks, erroreFine, meteoAuto, chiudeAuto } from './forms.js';
 import { forceOk } from './checks.js';
 import { FORM, readForm } from './ui.js';
 
@@ -81,6 +81,7 @@ function step3() {
         const h = document.getElementById('h_raccolto'); if (h) h.textContent = t > 0 ? "Dalle pesate di quest'anno: " + nf(t, 1) + ' t' : ' ';
       }
       if (['Trattamento fitosanitario', 'Diserbo'].includes(W.tipo) && [null, 'data', 'oraInizio'].includes(ch)) meteoAuto(ch, Object.assign({}, v, { tipo: W.tipo }));   // meteo del momento (1.54.0)
+      chiudeAuto(ch, v, W.tipo, campi[0] && campi[0].id);
       runChecks(Object.assign({}, readForm(), { tipo: W.tipo, stato: W.stato }), campi, null);
     },
     onSave: async v => {

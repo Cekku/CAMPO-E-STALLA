@@ -2,7 +2,7 @@
 import { S, UI, get } from '../state.js';
 import { esc, nf, N, yearOf } from '../util.js';
 import { ic } from '../icons.js';
-import { campoHa, cropOf } from '../domain.js';
+import { campoHa, colturaAlla } from '../domain.js';
 import { tabella, bottoniExport } from '../conti/tabelle.js';
 import { empty, newBtn } from '../ui.js';
 
@@ -14,7 +14,7 @@ export function render() {
   const nuova = newBtn('carichi', 'Nuova pesata', '', 'primary');
   if (!tutti.length) return { title: 'Pesate del raccolto', html: `<section class="card">${empty('scale', 'Nessuna pesata nel ' + Y, 'Registra ogni carico che arriva dal campo: peso, campo, trincea o silo e documento. Avrai i totali e la resa per ettaro.', nuova)}</section>` };
 
-  const colDi = c => { const campo = get('campi', c.campoId); return (campo && cropOf(campo, Y)) || 'Senza coltura'; };
+  const colDi = c => { const campo = get('campi', c.campoId); return (campo && (colturaAlla(campo, c.data) || {}).coltura) || 'Senza coltura'; };
   const colonne = [...new Set(tutti.map(colDi))].sort((a, b) => a.localeCompare(b, 'it'));
   const f = colonne.includes(UI.f.kcol) ? UI.f.kcol : '';
   const lista = tutti.filter(c => !f || colDi(c) === f);
