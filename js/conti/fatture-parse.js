@@ -474,16 +474,19 @@ export function controlloTotale(totale, imponibile, iva, ritenutaLetta = 0, aggi
 
 /** Totali, controllo di quadratura, segno e chiave univoca (come completa() di estrai_fatture). */
 export function completa(f) {
-  // nota di credito con gli importi già negativi nel documento: si girano qui, poi il segno meno la rende negativa una volta sola
+  // nota di credito con gli importi già negativi nel documento: si girano qui, poi il segno meno la rende negativa una volta sola.
+  // Righe, riepiloghi e totale si guardano ognuno per conto suo (1.63): un documento con il riepilogo negativo e le righe
+  // positive (o il contrario) non deve finire con le righe di segno opposto al totale.
   if (NOTE_CREDITO.has(f.tipoDoc)) {
-    const imp0 = f.riepiloghi.length ? f.riepiloghi.reduce((t, r) => t + (r.imponibile || 0), 0) : f.righe.reduce((t, r) => t + (r.importo || 0), 0);
-    if (imp0 < 0 || (!imp0 && (f.totale || 0) < 0)) {
-      for (const r of f.righe) { r.importo = -(r.importo || 0); if (r.quantita < 0) r.quantita = -r.quantita; }
-      for (const r of f.riepiloghi) { r.imponibile = -(r.imponibile || 0); r.imposta = -(r.imposta || 0); if (r.arr) r.arr = -r.arr; }
-      if (f.totale != null) f.totale = -f.totale;
-      if (f.ritenuta) f.ritenuta = -f.ritenuta;
+    const sR = f.righe.reduce((t, r) => t + (r.importo || 0), 0), sP = f.riepiloghi.reduce((t, r) => t + (r.imponibile || 0), 0);
+    const imp0 = f.riepiloghi.length ? sP : sR;
+    const tutto = imp0 < 0 || (!imp0 && (f.totale || 0) < 0); // tutto il documento è negativo (non solo le righe)
+    if (tutto || sR < 0) {
+      if (sR < 0) for (const r of f.righe) { r.importo = -(r.importo || 0); if (r.quantita < 0) r.quantita = -r.quantita; }
+      if (sP < 0) for (const r of f.riepiloghi) { r.imponibile = -(r.imponibile || 0); r.imposta = -(r.imposta || 0); if (r.arr) r.arr = -r.arr; }
+      if (f.totale != null && f.totale < 0) f.totale = -f.totale;
+      if (tutto) { if (f.ritenuta) f.ritenuta = -f.ritenuta; if (f.scontoDoc) f.scontoDoc = -f.scontoDoc; if (f.arrDoc) f.arrDoc = -f.arrDoc; }
       for (const p of f.pagamenti || []) if (p.importo < 0) p.importo = -p.importo;
-      if (f.scontoDoc) f.scontoDoc = -f.scontoDoc; if (f.arrDoc) f.arrDoc = -f.arrDoc;
       f.avvisi.push('nota di credito con importi negativi nel documento');
     }
   }

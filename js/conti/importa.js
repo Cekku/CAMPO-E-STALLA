@@ -171,8 +171,8 @@ export async function salvaFatture(lette) {
     const old = presenti.get(r.id);
     if (old) {
       if (incompleta(old) && String(r.controllo).startsWith('OK')) {
-        const man = new Map((old.righe || []).filter(x => x.catManuale).map(x => [x.codice + '|' + x.descrizione, x.categoria]));
-        r.righe.forEach(x => { const c = man.get(x.codice + '|' + x.descrizione); if (c) { x.categoria = c; x.catManuale = true; } });
+        const man = new Map((old.righe || []).filter(x => x.catManuale || x.catConfermata).map(x => [x.codice + '|' + x.descrizione, x]));
+        r.righe.forEach(x => { const o = man.get(x.codice + '|' + x.descrizione); if (o) { x.categoria = o.categoria; if (o.catManuale) x.catManuale = true; if (o.catConfermata) x.catConfermata = true; delete x.catAuto; } });
         corrette++; rows.push({ col: 'fatture', id: r.id, data: r });
       } else {
         doppie++;
@@ -195,7 +195,7 @@ export async function riapplicaRegole() {
   for (const f of S.fatture) {
     let cambiata = false;
     const righe = (f.righe || []).map(r => {
-      if (r.catManuale) return r;
+      if (r.catManuale || r.catConfermata) return r; // scelta o confermata da te: le regole non la cambiano più
       const c = classificaConMemoria(r.descrizione, f.controparte, reg, f.tipo, mem);
       if (c.categoria === DA_CLASSIFICARE && r.catAuto === 'ia') return r;
       if (c.categoria === r.categoria) return r;

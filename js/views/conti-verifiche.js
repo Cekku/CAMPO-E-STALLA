@@ -40,7 +40,7 @@ const kpi = (l, v, s, cls = '') => `<div class="kpi static"><span class="k-l">${
 const nomeTipo = t => (t === 'Vendita' ? 'emesse' : 'ricevute');
 
 /* ---------------- fatture mancanti ---------------- */
-const STATI = { manca: ['circle-x', 'ko', 'Manca'], diversa: ['circle-alert', 'wa', 'Da controllare'], ok: ['circle-check', 'ok', 'Caricata'] };
+const STATI = { manca: ['circle-x', 'ko', 'Manca'], diversa: ['circle-alert', 'wa', 'Da controllare'], ok: ['circle-check', 'ok', 'Caricata'], acconto: ['circle-help', 'muted', 'Acconto (non serve)'] };
 /** Riepilogo per la panoramica: elenchi con fatture mancanti. */
 export function mancantiAnno(y) {
   return ['Acquisto', 'Vendita'].map(t => { const el = elenco(t, y); if (!el) return null; const fs = fatture(); return Object.assign({ tipo: t, senza: !fs.some(f => f.tipo === t && f.anno === y) }, confronta(el, fs).conta); }).filter(Boolean);

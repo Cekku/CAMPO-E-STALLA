@@ -41,7 +41,7 @@ export function contiVisibili() {
 
 const PULIZIA = { fatta: false, controlli: false };
 export function render() {
-  if (!PULIZIA.fatta && S.pagamenti.length && contiVisibili()) { PULIZIA.fatta = true; import('../conti/paghe.js').then(m => m.eliminaDoppi()).then(n => { if (n) toast(n === 1 ? 'Eliminato 1 pagamento doppio (stessa data, stesso nome, stesso importo)' : `Eliminati ${n} pagamenti doppi (stessa data, stesso nome, stesso importo)`); }).catch(e => console.warn(e)); }
+  if (!PULIZIA.fatta && S.pagamenti.length && contiVisibili()) { PULIZIA.fatta = true; import('../conti/paghe.js').then(m => m.eliminaDoppi()).then(n => { if (n) toast(n === 1 ? 'Eliminato 1 pagamento registrato due volte (stesso movimento della banca)' : `Eliminati ${n} pagamenti registrati due volte (stesso movimento della banca)`); }).catch(e => console.warn(e)); }
   if (!PULIZIA.controlli && S.fatture.length && contiVisibili()) { PULIZIA.controlli = true; import('../conti/importa.js').then(m => m.aggiornaControlli()).then(n => { if (n) toast(n === 1 ? '1 fattura con ritenuta d\'acconto ora risulta corretta' : `${n} fatture con ritenuta d'acconto ora risultano corrette`); }).catch(e => console.warn(e)); }
   const sub = SUBS[UI.sub.conti] ? UI.sub.conti : 'panoramica';
   if (!contiVisibili()) return { title: 'Conti', html: `<section class="card lock">${ic('shield-check', 'huge')}<h2>Area riservata al titolare</h2><p class="muted">Fatture, bilancio e margini sono visibili solo a chi ha creato l'azienda. Chiedi al titolare se ti servono questi dati.</p></section>` };
@@ -156,8 +156,9 @@ async function salvaImport() {
   for (const x of r.filter(x => x.tipo === 'iva')) { await M.salvaIva(x, +x.anno || null); msg.push(`dichiarazione IVA anno d'imposta ${x.anno}`); }
   if (r.some(x => x.tipo === 'cedolini' || x.tipo === 'bilpaghe')) {
     const PG = await import('../conti/paghe.js'); let n = 0, so = 0;
-    for (const x of r.filter(x => x.tipo === 'cedolini')) { const o = await PG.salvaCedolini(x); n += o.nuovi; so += o.sostituiti; }
+    let att = 0; for (const x of r.filter(x => x.tipo === 'cedolini')) { const o = await PG.salvaCedolini(x); n += o.nuovi; so += o.sostituiti; att += o.inAttesa; }
     if (n || so) msg.push(`${n} cedolini nuovi${so ? ', ' + so + ' sostituiti' : ''}`);
+    if (att) msg.push(att === 1 ? "1 cedolino diverso da quello già salvato: scegli quale tenere in Da controllare" : `${att} cedolini diversi da quelli già salvati: scegli quali tenere in Da controllare`);
     for (const x of r.filter(x => x.tipo === 'bilpaghe')) { await PG.salvaBilancinoPaghe(x); msg.push('bilancino paghe ' + x.mesePer); }
   }
   const bonSel = r.filter(x => x.tipo === 'bonifici').flatMap(x => x.righe.filter(y => y.sel));

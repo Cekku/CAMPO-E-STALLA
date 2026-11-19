@@ -11,23 +11,31 @@ export const pareBonifico = t => /bonific/i.test(t) && /beneficiario/i.test(t) &
 
 /**
  * Mese di competenza dalla causale ("stipendio mese Dicembre 2025", "stip. 12/2025", "tredicesima", "stipendio febbraio").
- * Se l'anno non è scritto si deduce dalla data del pagamento: il mese più vicino alla data (a parità, quello passato).
- * Così "stipendio dicembre" pagato a gennaio è dicembre dell'anno prima, "stipendio febbraio" pagato a fine gennaio è
- * il febbraio successivo (anticipo), mai il febbraio dell'anno prima. Con rigoroso il mese conta solo se vicino a parole
+ * Se l'anno non è scritto si guarda la data del pagamento: valgono solo i mesi da 11 mesi prima a 2 mesi dopo la data
+ * (uno stipendio si paga il mese dopo, a volte in anticipo o in ritardo). "Stipendio dicembre" pagato a gennaio è il
+ * dicembre prima, "stipendio gennaio" pagato il 28 gennaio è quel gennaio. Per i due mesi dopo la data restano due
+ * possibilità ("febbraio" pagato a fine gennaio: il febbraio che viene o quello di 11 mesi prima): competenzeDaCausale
+ * le dà tutte e due (la più vicina per prima), competenzaDaCausale nessuna, e sceglie paghe.js guardando i mesi ancora
+ * da pagare; se restano tutte e due è un dubbio (1.63). Con rigoroso il mese conta solo se vicino a parole
  * come stipendio, mese, saldo, acconto (serve per le descrizioni lunghe dell'estratto conto, con indirizzi e date).
  */
 const MESI_ABBR = { genn: 1, gen: 1, febb: 2, feb: 2, mar: 3, apr: 4, magg: 5, mag: 5, giu: 6, lug: 7, ago: 8, sett: 9, set: 9, ott: 10, nov: 11, dic: 12 };
 const PAROLE_STIP = /(stip|mese|mens|paga|salar|retrib|compet|acconto|anticip|saldo|busta|emolum)/i;
-function annoVicino(m, data) {
-  if (!data) return null;
+// anni possibili per il mese m scritto senza anno: da 11 mesi prima a 2 mesi dopo la data, il più vicino per primo
+function anniPossibili(m, data) {
+  if (!data) return [];
   const [y, pm] = data.split('-').map(Number); const rif = m === 13 ? 12 : m === 14 ? 6 : m;
-  let best = null, bd = Infinity;
-  for (const yy of [y - 1, y, y + 1]) { const d = (yy * 12 + rif) - (y * 12 + pm); const ad = Math.abs(d) + (d > 0 ? 0.1 : 0); if (ad < bd) { bd = ad; best = yy; } }
-  return best;
+  const out = [];
+  for (const yy of [y - 1, y, y + 1]) { const d = (yy * 12 + rif) - (y * 12 + pm); if (d >= -11 && d <= 2) out.push([yy, Math.abs(d) + (d > 0 ? 0.1 : 0)]); }
+  return out.sort((a, b) => a[1] - b[1]).map(x => x[0]);
 }
-export function competenzaDaCausale(c, data = '', rigoroso = false) {
-  c = String(c || ''); if (!c) return '';
-  const fmt = (y, m) => (y ? `${y}-${String(m).padStart(2, '0')}` : '');
+/** Mese di competenza dalla causale, solo se è sicuro (altrimenti ''). */
+export function competenzaDaCausale(c, data = '', rigoroso = false) { const xs = competenzeDaCausale(c, data, rigoroso); return xs.length === 1 ? xs[0] : ''; }
+/** Mesi di competenza possibili dalla causale: [] se non c'è un mese, uno se è sicuro, due se manca l'anno e resta il dubbio. */
+export function competenzeDaCausale(c, data = '', rigoroso = false) {
+  c = String(c || ''); if (!c) return [];
+  const fmt = (y, m) => `${y}-${String(m).padStart(2, '0')}`;
+  const anni = (m, y) => (y ? [y] : anniPossibili(m, data)).map(yy => fmt(yy, m));
   const vicino = (idx) => !rigoroso || PAROLE_STIP.test(c.slice(Math.max(0, idx - 30), idx + 2));
   const nomi = [...MESI_NOMI.map(x => x.toLowerCase()), ...Object.keys(MESI_ABBR)].sort((a, b) => b.length - a.length).join('|');
   const re = new RegExp(`(^|[^A-Za-z0-9])(${nomi})\\.?(?![A-Za-z])(?:\\s*[-/']?\\s*((?:20)\\d{2})(?!\\d)|\\s*'(\\d{2})(?!\\d))?`, 'gi');
@@ -38,14 +46,14 @@ export function competenzaDaCausale(c, data = '', rigoroso = false) {
     if (!vicino(x.index)) continue;
     const w = x[2].toLowerCase(); const m = MESI_NOMI.findIndex(n => n.toLowerCase() === w) + 1 || MESI_ABBR[w];
     if (!m) continue;
-    const y = x[3] ? +x[3] : x[4] ? 2000 + +x[4] : annoVicino(m, data);
-    if (y) return fmt(y, m);
+    const xs = anni(m, x[3] ? +x[3] : x[4] ? 2000 + +x[4] : 0);
+    if (xs.length) return xs;
   }
   x = /\b(tredicesima|quattordicesima|1[34]\s*-?\s*(?:esima|ma|[ªa^°]))(?![A-Za-z])(?:\D{0,12}?((?:20)\d{2})(?!\d))?/i.exec(c);
-  if (x) { const m = /^(tred|13)/i.test(x[1]) ? 13 : 14; const y = x[2] ? +x[2] : annoVicino(m, data); if (y) return fmt(y, m); }
+  if (x) { const m = /^(tred|13)/i.test(x[1]) ? 13 : 14; const xs = anni(m, x[2] ? +x[2] : 0); if (xs.length) return xs; }
   x = /(?:stip|mese|mens|paga|salar|retrib|compet)\D{0,25}\b(0?[1-9]|1[0-2])[/.-]((?:20)?\d{2})(?![\d/.-])/i.exec(c);
-  if (x) { const y = x[2].length === 2 ? 2000 + +x[2] : +x[2]; return fmt(y, +x[1]); }
-  return '';
+  if (x) { const y = x[2].length === 2 ? 2000 + +x[2] : +x[2]; return [fmt(y, +x[1])]; }
+  return [];
 }
 
 /** Legge una contabile o una distinta di bonifici: ritorna l'elenco dei bonifici. */
