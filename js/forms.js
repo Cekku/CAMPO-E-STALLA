@@ -3,7 +3,7 @@ import { S, D, UI, get } from './state.js';
 import { N, nf, fd, today, byName, okD, yearOf } from './util.js';
 import * as store from './store.js';
 import { openForm, openSheet, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
-import { COLTURE, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo, cropOf, kgUnita, colturaAlla } from './domain.js';
+import { COLTURE, coltureNote, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo, cropOf, kgUnita, colturaAlla } from './domain.js';
 import { areaHa } from './geo.js';
 import { meteoAlMomento } from './meteo.js';
 import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
@@ -76,7 +76,7 @@ export const SPEC = {
     fields: () => [
       { k: 'nome', l: 'Nome', req: 1, ph: 'Es. Campo della roggia' },
       { k: 'superficie', l: 'Superficie', t: 'number', req: 1, half: 1, unit: 'ha', hint: 'Calcolata dal confine disegnato, modificabile' },
-      { k: 'coltura', l: 'Coltura in atto', half: 1, list: COLTURE },
+      { k: 'coltura', l: 'Coltura in atto', half: 1, list: coltureNote() },
       { k: 'varieta', l: 'Varietà o ibrido', half: 1 },
       { k: 'irriguo', l: 'Irriguo', t: 'seg', opts: ['Sì', 'No'], half: 1 },
       { k: 's1', l: 'Dati catastali', t: 'section' },
@@ -497,14 +497,14 @@ export function openColtura(campoId, anno) {
     title: cur ? 'Modifica coltura' : 'Aggiungi coltura', sub: c.nome,
     fields: [
       { k: 'anno', l: 'Annata', t: 'select', opts: anni, req: 1, half: 1, blank: false },
-      { k: 'coltura', l: 'Coltura', req: 1, half: 1, list: COLTURE },
+      { k: 'coltura', l: 'Coltura', req: 1, half: 1, list: coltureNote() },
       { k: 'varieta', l: 'Varietà o ibrido', half: 1 },
       { k: 'semina', l: 'Data di semina o trapianto', t: 'date', half: 1 },
       { k: 'resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha' },
       { k: 'destinazione', l: 'Destinazione', half: 1, ph: 'Es. trinciato aziendale' },
       { k: 's_sez', l: 'Dopo questa coltura, nello stesso anno', t: 'section' },
       { k: 's_uso', l: "Che cos'è", t: 'seg', opts: ['Secondo raccolto', 'Coltura di copertura'] },
-      { k: 's_coltura', l: 'Seconda coltura', half: 1, list: COLTURE, ph: 'Es. soia, loiessa, sorgo' },
+      { k: 's_coltura', l: 'Seconda coltura', half: 1, list: coltureNote(), ph: 'Es. soia, loiessa, sorgo' },
       { k: 's_varieta', l: 'Varietà', half: 1 },
       { k: 's_semina', l: 'Data di semina', t: 'date', half: 1 },
       { k: 's_resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha' },
@@ -554,7 +554,7 @@ export function openColturaGruppo(ids, anno) {
     title: 'Coltura su ' + campi.length + (campi.length === 1 ? ' campo' : ' campi'), sub: nf(ha, 2) + ' ha · ' + campi.map(c => c.nome).slice(0, 4).join(', ') + (campi.length > 4 ? ' e altri ' + (campi.length - 4) : ''),
     fields: [
       { k: 'anno', l: 'Annata', t: 'select', opts: anni, req: 1, half: 1, blank: false, hint: avviso(y) },
-      { k: 'coltura', l: 'Coltura', req: 1, half: 1, list: COLTURE },
+      { k: 'coltura', l: 'Coltura', req: 1, half: 1, list: coltureNote() },
       { k: 'varieta', l: 'Varietà o ibrido', half: 1 },
       { k: 'semina', l: 'Data di semina o trapianto', t: 'date', half: 1 },
       { k: 'resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha' },

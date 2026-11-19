@@ -2,7 +2,7 @@
 // Valori di partenza indicativi (DM 25/02/2016 e regolamento regionale): l'utente li controlla con il tecnico e li cambia in Impostazioni.
 import { S, get } from './state.js';
 import { N, yearOf } from './util.js';
-import { cropOf, secondoOf, campoHa, capoI, COLTURE } from './domain.js';
+import { cropOf, secondoOf, campoHa, capoI, COLTURE, coltureNote } from './domain.js';
 
 // Limite di azoto da effluenti zootecnici, kg N per ettaro all'anno (media sulla superficie aziendale)
 export const LIMITI = { ZVN: 170, Ordinaria: 340 };
@@ -84,4 +84,9 @@ export function azotoStalla(anno, cfg = nitConfig()) {
   return { righe, prodotto, sau, limite, carico: sau ? prodotto / sau : 0, haMinimi: prodotto / limite, distribuito, distribuitoHa: sau ? distribuito / sau : 0, zona: cfg.zona };
 }
 
-export const coltureMas = () => [...new Set([...COLTURE, ...Object.keys(nitConfig().mas)])];
+// Colture della tabella dei valori: elenco e colture dei campi, più quelle salvate; doppioni di maiuscole tolti (vince la grafia salvata)
+export const coltureMas = () => {
+  const salvate = Object.keys(nitConfig().mas), chiave = new Map(salvate.map(x => [x.toLowerCase(), x])), out = [];
+  [...coltureNote(), ...salvate].forEach(x => { const k = x.toLowerCase(); x = chiave.get(k) || x; if (!out.some(y => y.toLowerCase() === k)) out.push(x); });
+  return out;
+};

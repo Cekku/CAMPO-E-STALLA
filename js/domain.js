@@ -24,7 +24,22 @@ const CROP = [
   [/sorgo/i, '#E8662A'], [/girasole/i, '#FFD400'], [/colza/i, '#F7EC2E'], [/vite|vigneto/i, '#B03A9A'],
   [/barbabietola/i, '#E2366B'], [/pomodoro/i, '#F2452E'], [/riposo/i, '#C3CCC7'],
 ];
-export const cropColorName = n => { n = n || ''; if (n === 'Vuoto (raccolto)') return '#A9B4AE'; for (const [re, col] of CROP) if (re.test(n)) return col; return n ? '#1FB5D0' : '#A9B4AE'; };
+// Coltura non in elenco: colore ricavato dal nome (sempre lo stesso per lo stesso nome, diverso fra nomi diversi)
+const coloreDaNome = n => {
+  let h = 2166136261; for (const ch of n.trim().toLowerCase()) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  const hue = h % 360, s = (60 + (h >>> 9) % 25) / 100, l = (42 + (h >>> 17) % 16) / 100;
+  const f = k => { const x = (k + hue / 30) % 12, c = l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(x - 3, 9 - x, 1)); return Math.round(c * 255).toString(16).padStart(2, '0'); };
+  return '#' + f(0) + f(8) + f(4);
+};
+export const cropColorName = n => { n = n || ''; if (n === 'Vuoto (raccolto)') return '#A9B4AE'; for (const [re, col] of CROP) if (re.test(n)) return col; return n.trim() ? coloreDaNome(n) : '#A9B4AE'; };
+// Suggerimenti per la coltura: l'elenco fisso più quelle già scritte nei campi (senza doppioni di maiuscole)
+export function coltureNote() {
+  const out = [...COLTURE], vis = new Set(COLTURE.map(x => x.toLowerCase())), extra = [];
+  (S.campi || []).forEach(c => [c.coltura, ...(Array.isArray(c.colture) ? c.colture.flatMap(e => e ? [e.coltura, e.secondo && e.secondo.coltura] : []) : [])].forEach(x => {
+    x = (x || '').trim(); if (!x || x === 'Vuoto (raccolto)' || vis.has(x.toLowerCase())) return; vis.add(x.toLowerCase()); extra.push(x);
+  }));
+  return out.concat(extra.sort((a, b) => a.localeCompare(b, 'it')));
+}
 // Coltura di un campo in una data annata: storico per anno, altrimenti la coltura in atto
 export function colturaOf(c, anno = UI.anno) {
   if (!c) return null; const st = Array.isArray(c.colture) ? c.colture : [];
