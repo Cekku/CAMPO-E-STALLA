@@ -66,6 +66,12 @@ registra({
 | `mag-fatture` | magazzino (solo titolare) | `pulisciSeServe` (in `pronta`, fuori dal diario: annullando non tornano i prezzi della 1.59.0) + `caricaPronte`; dubbi = `elenco().daFare`, Conferma = `abbina(k, { pid: proposto, q, ricorda: true })` se c'è prodotto proposto e quantità | le righe caricate dal giro vanno fra le "non caricare" (`togli`); annullando una conferma la riga torna da fare |
 | `fito-abbina` | magazzino | `abbinaFitoSeServe`; segue prodotti e banca dati | il prodotto torna senza numero e con `nRegAuto`: non si riabbina |
 | `razioni` | stalla | `scaricaRazioni`; segue razioni | `autoFino` non è nel diario: lo scarico annullato non torna |
+| `paghe-controlli` | personale | `dubbiPaghe()` di `conti/dubbi.js` (doppioni incerti, cedolini in attesa `ca-…`, abbinamenti incerti); `esegui` non salva, conta | conferma/alternativa nel diario |
+| `fatture-controlli` | conti | `dubbiFatture()` (segno delle note di credito, righe che non tornano, pagamenti doppi) | conferma/alternativa nel diario |
+
+Dalla 1.63.0 (revisione): una `conferma()` che restituisce `false` (dati cambiati nel frattempo) è un errore, non "Confermato"; `scarta()` gira dentro `cattura` e scrive una riga di diario (motivo `scarta`, campo `dubbio`): annullandola torna quello che lo scarto ha tolto (es. il cedolino in attesa `ca-…`) e l'id esce da `ad-scarti`, così il dubbio ricompare. Conferma, alternativa e scarto usano `cattura(d, true)`: registrano tutto quello che si scrive in quel momento, anche entro i 2 s di un'azione a mano (prima la riga restava vuota e non si annullava).
+
+Dubbi con più scelte (1.63.0): facoltativi `alternative: [{ testo, conferma() }]` (pulsanti accanto a Conferma, azione `au-alt`, funzione `alternativa(id, i)`: va nel diario come una conferma) e `dettagli: [[voce, già salvato, arrivato adesso]]` (tabellina `.au-det` sotto il testo).
 
 In `magfatture.js` aggiunte solo `pulisciSeServe()` e `occupato()` (per il contenitore).
 

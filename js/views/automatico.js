@@ -62,8 +62,8 @@ function daControllare(lett) {
   return `<section class="card" id="auDubbi">${testa}${per.map(([k, l, i, L]) => {
     const tutti = UI.f['au_' + k]; const vedi = tutti ? L : L.slice(0, PER_AREA);
     return `<div class="au-area"><div class="au-ah"><h3>${ic(i)}${esc(l)} <span class="muted num">${L.length}</span></h3></div><div class="list flat">${vedi.map(x => `
-      <div class="row au-d"><span class="r-main"><b>${esc(x.testo || '')}</b>${x.proposta ? `<span>${esc(x.proposta)}</span>` : ''}</span>
-      <span class="au-b">${typeof x.conferma === 'function' ? `<button class="btn sm primary" data-act="au-ok" data-id="${esc(x.id)}"${dis}>${ic('check')}Conferma</button>` : ''}<button class="btn sm ghost" data-act="au-no" data-id="${esc(x.id)}"${dis}>Scarta</button>${x.apri ? `<button class="btn sm ghost" data-act="au-apri" data-id="${esc(x.id)}">Apri</button>` : ''}</span></div>`).join('')}</div>
+      <div class="row au-d"><span class="r-main"><b>${esc(x.testo || '')}</b>${x.proposta ? `<span>${esc(x.proposta)}</span>` : ''}${Array.isArray(x.dettagli) && x.dettagli.length ? `<table class="au-det"><tr><th></th><th>Già salvato</th><th>Arrivato adesso</th></tr>${x.dettagli.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`).join('')}</table>` : ''}</span>
+      <span class="au-b">${typeof x.conferma === 'function' ? `<button class="btn sm primary" data-act="au-ok" data-id="${esc(x.id)}"${dis}>${ic('check')}Conferma</button>` : ''}${(x.alternative || []).map((al, i) => typeof al.conferma === 'function' ? `<button class="btn sm" data-act="au-alt" data-id="${esc(x.id)}" data-i="${i}"${dis}>${esc(al.testo || 'Altra scelta')}</button>` : '').join('')}<button class="btn sm ghost" data-act="au-no" data-id="${esc(x.id)}"${dis}>Scarta</button>${x.apri ? `<button class="btn sm ghost" data-act="au-apri" data-id="${esc(x.id)}">Apri</button>` : ''}</span></div>`).join('')}</div>
       ${L.length > PER_AREA ? `<button class="btn sm ghost au-piu" data-act="au-piu" data-area="${k}">${tutti ? 'Mostra meno' : 'Mostra tutti (' + L.length + ')'}</button>` : ''}</div>`;
   }).join('')}</section>`;
 }
@@ -75,7 +75,7 @@ function diario(lett) {
   return `<section class="card">${testa}${G.map(g => {
     const vive = g.righe.filter(r => !r.annullato && (r.scritti || []).length);
     return `<div class="au-g"><div class="au-gh"><span><b>${esc(ora(g.quando))}</b><small class="muted">${esc(MOTIVI[g.motivo] || '')}</small></span>${vive.length > 1 ? `<button class="btn sm ghost" data-act="au-annGiro" data-g="${esc(g.giro)}"${dis}>${ic('undo-2')}Annulla il giro</button>` : ''}</div>
-    <div class="list flat">${g.righe.map(r => { const n = (r.scritti || []).length; return `<div class="row au-r${r.annullato ? ' au-x' : ''}"><span class="r-main"><b>${esc(r.nome || r.aut)}</b><span class="${r.errore ? 't-bad' : ''}">${esc(r.errore ? 'Errore: ' + r.errore : r.note || '')}</span><small class="muted">${r.annullato ? 'annullato ' + esc(ora(r.annullato)) + (r.esito ? ' · ' + dati(r.esito.fatti) + ' tolti' + (r.esito.cambiati ? ', ' + r.esito.cambiati + ' lasciati perché cambiati dopo' : '') : r.quanti ? ' · ' + dati(r.quanti) : '') : n ? dati(n) + ' scritti' + (r.aMano ? ' · ' + dati(r.aMano) + ' scritti mentre usavi l\'app: non si annullano' : '') : ''}</small></span>${!r.annullato && n ? `<button class="btn sm ghost" data-act="au-ann" data-id="${esc(r.id)}"${dis}>${ic('undo-2')}Annulla</button>` : ''}</div>`; }).join('')}</div></div>`;
+    <div class="list flat">${g.righe.map(r => { const n = (r.scritti || []).length; return `<div class="row au-r${r.annullato ? ' au-x' : ''}"><span class="r-main"><b>${esc(r.nome || r.aut)}</b><span class="${r.errore ? 't-bad' : ''}">${esc(r.errore ? 'Errore: ' + r.errore : r.note || '')}</span><small class="muted">${r.annullato ? 'annullato ' + esc(ora(r.annullato)) + (r.esito ? ' · ' + dati(r.esito.fatti) + ' tolti' + (r.esito.cambiati ? ', ' + r.esito.cambiati + ' lasciati perché cambiati dopo' : '') : r.quanti ? ' · ' + dati(r.quanti) : '') : n ? dati(n) + (n === 1 ? ' scritto' : ' scritti') + (r.aMano ? ' · ' + dati(r.aMano) + (r.aMano === 1 ? ' scritto' : ' scritti') + ' mentre usavi l\'app: non si annullano' : '') : ''}</small></span>${!r.annullato && n ? `<button class="btn sm ghost" data-act="au-ann" data-id="${esc(r.id)}"${dis}>${ic('undo-2')}Annulla</button>` : ''}</div>`; }).join('')}</div></div>`;
   }).join('')}</section>`;
 }
 
@@ -118,6 +118,7 @@ export async function auAct(a, b, d) {
     case 'au-area': b.disabled = true; return esitoGiro(await A.avviaArea(d.area));
     case 'au-una': b.disabled = true; return esitoGiro(await A.avvia(d.id));
     case 'au-ok': b.disabled = true; try { await A.conferma(d.id); toast('Confermato e salvato'); } catch (e) { b.disabled = false; throw e; } return;
+    case 'au-alt': b.disabled = true; try { await A.alternativa(d.id, d.i); toast('Scelta salvata'); } catch (e) { b.disabled = false; throw e; } return;
     case 'au-no': return arm(b, 'Sicuro? Scarta', prova(b, async () => { await A.scarta(d.id); toast('Scartato: non tornerà più'); }));
     case 'au-apri': return A.apri(d.id);
     case 'au-ann': return arm(b, 'Conferma: annulla', prova(b, async () => toast(msgAnnulla(await A.annulla([d.id])))));

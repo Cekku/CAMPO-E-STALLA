@@ -62,6 +62,7 @@ export function dubbiPaghe() {
         proposta: nuovoOk ? 'Tieni quello arrivato adesso (rifatto dal consulente)' : 'Tieni quello già salvato',
         conferma: nuovoOk ? tieniNuovo : tieniVecchio,
         scarta: conScarto(id, 'personale', 'cedolino in attesa', tieniVecchio),
+        apri: { area: 'conti', tab: 'conti', sub: 'cedolini' },
         alternative: [nuovoOk ? { testo: 'Tieni quello già salvato', conferma: tieniVecchio } : { testo: 'Tieni quello arrivato adesso', conferma: tieniNuovo }],
         dettagli,
       });
@@ -72,6 +73,7 @@ export function dubbiPaghe() {
         proposta: 'Salvalo lo stesso (l\'ho controllato sul PDF)',
         conferma: tieniNuovo,
         scarta: conScarto(id, 'personale', 'cedolino non salvato', tieniVecchio),
+        apri: { area: 'conti', tab: 'conti', sub: 'cedolini' },
       });
     }
   }

@@ -80,13 +80,15 @@ let manoN = 0, manoFino = 0;
 export function mano(p) { manoN++; const fine = () => { manoN--; manoFino = Math.max(manoFino, Date.now() + 2000); }; Promise.resolve(p).then(fine, fine); }
 export const segnaMano = () => { manoFino = Math.max(manoFino, Date.now() + 2000); };
 const aMano = () => manoN > 0 || Date.now() < manoFino;
-function cattura(d) {
+// tutto = conferma o scarto toccati da Marco: quello che si scrive in quel momento è la sua scelta, anche se
+// pochi secondi prima ha toccato altro (altrimenti con aMano() la riga del diario resterebbe vuota e non si annullerebbe)
+function cattura(d, tutto = false) {
   const scritti = new Map(); const cap = { scritti, saltati: 0 };
   const f = (col, id, prima) => {
     if (d.raccolte && !d.raccolte.includes(col)) return;
     if ((col === 'econfig' || col === 'config') && String(id).startsWith('ad-')) return;   // il diario stesso
     if (colDi(d) === 'config' && RACC_RISERVATE.includes(col)) return;                     // niente dati riservati nel diario che vedono i collaboratori
-    if (d.propri ? !d.propri(col, String(id)) : aMano()) { cap.saltati++; return; }
+    if (!tutto && (d.propri ? !d.propri(col, String(id)) : aMano())) { cap.saltati++; return; }
     const k = col + '/' + id; if (scritti.has(k)) return;                                  // conta la versione di prima del giro
     if (prima) { const { id: _, ...p } = prima; scritti.set(k, { c: col, id, p }); } else scritti.set(k, { c: col, id, n: 1 });
   };
@@ -104,7 +106,7 @@ async function scriviDiario(d, gid, motivo, cap, es) {
   let tot = JSON.stringify(scritti).length;
   if (tot > MAX_RIGA) for (const s of [...scritti].sort((a, b) => (b.p ? JSON.stringify(b.p).length : 0) - (a.p ? JSON.stringify(a.p).length : 0))) { if (tot <= MAX_RIGA || !s.p) break; tot -= JSON.stringify(s.p).length; delete s.p; }
   const id = 'ad-' + gid + '-' + d.id;
-  await store.put(colDi(d), id, Object.assign({ tipo: 'diario', giro: gid, aut: d.id, nome: d.nome, area: d.area, quando: new Date().toISOString(), motivo, salvati: es.salvati, note: es.note || '', errore: es.errore || '', scritti }, cap.saltati ? { aMano: cap.saltati } : {}));
+  await store.put(colDi(d), id, Object.assign({ tipo: 'diario', giro: gid, aut: d.id, nome: d.nome, area: d.area, quando: new Date().toISOString(), motivo, salvati: es.salvati, note: es.note || '', errore: es.errore || '', scritti }, cap.saltati ? { aMano: cap.saltati } : {}, es.dubbio ? { dubbio: es.dubbio } : {}));
   return id;
 }
 const righeDiario = () => [...S.config, ...(contiVisibili() ? S.econfig : [])].filter(x => x.tipo === 'diario' && String(x.id).startsWith('ad-'));
@@ -243,16 +245,21 @@ export function avviaCentro() {
 
 /* ---------------- conferma, scarta, annulla ---------------- */
 /** Conferma un dubbio: esegue la proposta; quello che scrive va nel diario (si può annullare). */
-export async function conferma(id) {
+export const conferma = id => confermaCon(id, -1);
+/** Sceglie l'altra possibilità di un dubbio (x.alternative[i]): come conferma, va nel diario. */
+export const alternativa = (id, i) => confermaCon(id, Number(i));
+async function confermaCon(id, i) {
   const x = dubbi().find(y => y.id === id); if (!x) throw new Error("Non c'è più: forse è già stato sistemato.");
-  if (typeof x.conferma !== 'function') throw new Error('Questo va controllato nella sua pagina: tocca Apri.');
+  const alt = i >= 0 ? (x.alternative || [])[i] : null;
+  const fn = i >= 0 ? alt && alt.conferma : x.conferma;
+  if (typeof fn !== 'function') throw new Error('Questo va controllato nella sua pagina: tocca Apri.');
   if (STATO.attivo) throw new Error('Aspetta la fine del giro in corso.');
   const d = REG.get(x.aut); STATO.attivo = true;
-  const cap = cattura(d); let errore = '';
-  try { await x.conferma(); } catch (e) { errore = e.message || String(e); } finally { cap.fine(); STATO.attivo = false; }
+  const cap = cattura(d, true); let errore = '';
+  try { if ((await fn()) === false) errore = 'Non è cambiato niente: i dati sono cambiati nel frattempo, controlla nella sua pagina.'; } catch (e) { errore = e.message || String(e); } finally { cap.fine(); STATO.attivo = false; }
   if (errore) throw new Error(errore);
   togliDubbio(x.aut, id);
-  try { await scriviDiario(d, 'c' + nuovoGiro(), 'conferma', cap, { salvati: cap.scritti.size, note: 'Confermato: ' + String(x.testo || '').slice(0, 160) }); } catch (e) { console.warn(e); }
+  try { await scriviDiario(d, 'c' + nuovoGiro(), 'conferma', cap, { salvati: cap.scritti.size, note: (alt ? 'Scelto «' + String(alt.testo || '').slice(0, 80) + '»: ' : 'Confermato: ') + String(x.testo || '').slice(0, 160) }); } catch (e) { console.warn(e); }
   ridisegna();
 }
 /** Scarta un dubbio: non torna più. */
@@ -260,8 +267,12 @@ export async function scarta(id) {
   const x = dubbi().find(y => y.id === id); if (!x) return;
   if (STATO.attivo) throw new Error('Aspetta la fine del giro in corso.');
   const d = REG.get(x.aut); STATO.attivo = true;
-  try { if (typeof x.scarta === 'function') await x.scarta(); await segnaScartato(d, id); }
-  finally { STATO.attivo = false; }
+  // quello che scrive lo scarto (es. un cedolino in attesa tolto) va nel diario: si può annullare
+  const cap = cattura(d, true);
+  try { if (typeof x.scarta === 'function') await x.scarta(); }
+  finally { cap.fine(); }
+  try { await segnaScartato(d, id); } finally { STATO.attivo = false; }
+  try { await scriviDiario(d, 's' + nuovoGiro(), 'scarta', cap, { salvati: 0, note: 'Scartato: ' + String(x.testo || '').slice(0, 160), dubbio: id }); } catch (e) { console.warn(e); }
   togliDubbio(x.aut, id); ridisegna();
 }
 /** Annulla righe del diario: toglie i record nuovi e rimette la versione di prima di quelli cambiati.
@@ -284,6 +295,8 @@ export async function annulla(ids) {
       }
       if (rimetti.length) await store.bulkPut(rimetti);
       for (const s of togli) await store.remove(s.c, s.id);
+      // annullando uno scarto il dubbio torna in Da controllare
+      if (v.motivo === 'scarta' && v.dubbio && d) { const col = colDi(d); const ids = Object.assign({}, scartiIn(col)); if (ids[v.dubbio]) { delete ids[v.dubbio]; await store.put(col, SCARTI, { tipo: 'scarti', ids }); } ver++; }
       if (d && d.annullato) { try { await d.annullato(v, tolti); } catch (e) { console.warn('annullamento di ' + v.aut, e); } }
       const { id, scritti, ...resto } = v;
       for (const k in qui) tot[k] += qui[k];

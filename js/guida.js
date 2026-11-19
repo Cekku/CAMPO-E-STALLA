@@ -28,11 +28,12 @@ export const GUIDA = [
     consigli: ['Il codice lo vede solo il titolare.', 'Fatture, bilancio e paghe li vede sempre solo il titolare.'],
     parole: 'collaboratori dipendenti permessi ruoli invitare titolare solo lettura codice invito utenti' },
   { id: 'centro-automatico', area: 'generale', titolo: 'Automatico: i dati che entrano da soli', icona: 'zap', vai: ['automatico', null],
-    cosa: "Il punto unico delle automazioni: documenti dell'archivio del PC nei Conti, magazzino dalle fatture, fitofarmaci abbinati alla banca dati, scarico giornaliero delle razioni. Partono da sole quando apri l'app e poi ogni 30 minuti finché resta aperta. Un dato non sicuro non si salva mai da solo: va in «Da controllare» con la proposta pronta.",
+    cosa: "Il punto unico delle automazioni: documenti dell'archivio del PC nei Conti, magazzino dalle fatture, fitofarmaci abbinati alla banca dati, scarico giornaliero delle razioni, controlli di paghe, pagamenti e fatture. Partono da sole quando apri l'app e poi ogni 30 minuti finché resta aperta. Un dato non sicuro non si salva mai da solo: va in «Da controllare» con la proposta pronta.",
     passi: [
       "Apri Automatico dal menu (voce in fondo a ogni area), dal riquadro della dashboard o dal fulmine nella barra in alto: il numero rosso dice quanti dati sono da controllare.",
       "«Avvia tutto» fa subito un giro completo; sotto, «Avvia» di un'area o di una sola automazione fa partire solo quella.",
       "In «Da controllare» tocca Conferma per salvare la proposta, Scarta (due tocchi) per non vederla più, Apri per guardarla nella sua pagina.",
+      "Alcuni dubbi hanno anche l'altra scelta (per esempio «Sono due pagamenti veri» o «Tieni quello già salvato»): toccala se la proposta non è giusta. Per i cedolini arrivati di nuovo vedi il vecchio e il nuovo a confronto.",
       "Nel Diario ogni giro dice cosa ha salvato: Annulla (due tocchi) toglie i dati di quel giro. Un dato cambiato a mano dopo il giro resta com'è.",
       "In cima vedi l'ora dell'ultimo giro e se il ponte del PC è acceso: senza ponte i documenti dell'archivio non entrano (sul telefono è normale).",
     ],

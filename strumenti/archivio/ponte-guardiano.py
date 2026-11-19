@@ -1,7 +1,7 @@
 """Guardiano del ponte dell'archivio (porta 1236): lo tiene sempre acceso, senza finestre.
 
 Si avvia con pythonw (attività di Windows "Archivio documenti - ponte", all'accesso) oppure con
-"Archivio - ponte acceso.bat". Cosa fa:
+"Archivio - ponte riaccendi.bat". Cosa fa:
   - un solo guardiano alla volta (mutex di Windows con nome);
   - se la porta 1236 ha già un ponte che risponde (anche aperto a mano con "Archivio - ponte.bat")
     non ne apre un secondo: aspetta e lo riprende quando sparisce;
@@ -167,7 +167,7 @@ def main():
         else:
             pausa = 5
             scrivi('ponte risponde')
-            # finché è vivo e risponde, il giro in cima lo controlla ogni 30 s
+            # finché è vivo e risponde, il giro in cima lo controlla ogni 10 s
             time.sleep(CONTROLLO_S)
 
 

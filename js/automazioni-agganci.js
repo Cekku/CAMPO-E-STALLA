@@ -10,6 +10,7 @@ import * as MF from './magfatture.js';
 import { abbinaFitoSeServe } from './fitoabbina.js';
 import { fitoMeta } from './fitodb.js';
 import { scaricaRazioni } from './razauto.js';
+import * as DZ from './conti/dubbi.js';
 
 /* ---------- documenti dell'archivio del PC nei Conti (conti/automatico.js) ---------- */
 const PAGHE = /^(Busta-paga|Bilancino-paghe)$/;
@@ -119,4 +120,24 @@ registra({
     const n = await scaricaRazioni();
     return { salvati: n, note: n ? `Razioni: ${n} scarichi registrati in magazzino` : 'niente da scaricare' };
   },
+});
+
+/* ---------- controlli di paghe, pagamenti e fatture (conti/dubbi.js, 1.63.0) ---------- */
+// Non salvano niente da sole: raccolgono i dubbi (doppioni incerti, cedolini in attesa, mesi ambigui,
+// note di credito, fatture che non tornano) con la proposta pronta. Conferma e alternative scrivono, e vanno nel diario.
+registra({
+  id: 'paghe-controlli', nome: 'Controlli di paghe e pagamenti', area: 'personale', soloTitolare: true,
+  descr: 'Pagamenti forse doppi, cedolini arrivati di nuovo, stipendi con il mese incerto: li mette da controllare con la proposta pronta',
+  raccolte: ['pagamenti', 'paghe', 'econfig'],
+  pronta: () => (contiVisibili() && (S.paghe.length || S.pagamenti.length) ? true : false),
+  async esegui() { const n = DZ.dubbiPaghe().length; return { salvati: 0, note: n ? n + ' da controllare' : 'tutto a posto' }; },
+  dubbi: () => (contiVisibili() ? DZ.dubbiPaghe() : []),
+});
+registra({
+  id: 'fatture-controlli', nome: 'Controlli delle fatture', area: 'conti', soloTitolare: true,
+  descr: 'Note di credito con il segno sbagliato, totali che non tornano, pagamenti forse doppi: li mette da controllare',
+  raccolte: ['fatture', 'pagamenti', 'econfig'],
+  pronta: () => (contiVisibili() && S.fatture.length ? true : false),
+  async esegui() { const n = DZ.dubbiFatture().length; return { salvati: 0, note: n ? n + ' da controllare' : 'tutto a posto' }; },
+  dubbi: () => (contiVisibili() ? DZ.dubbiFatture() : []),
 });
