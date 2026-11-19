@@ -15,7 +15,8 @@ import { nativa, alTastoIndietro, controllaAggiornamento } from './nativo.js';
 import { VERSION } from './version.js';
 import { exampleRows } from './esempi.js';
 import { stampaRegistro, registroJSON, registroHTML, righeTrattamenti, scarica } from './registro.js';
-import { initFito, importFito, clearFito } from './fitodb.js';
+import { initFito, importFito, clearFito, fitoMeta } from './fitodb.js';
+import { abbinaFitoSeServe } from './fitoabbina.js';
 import { parseLocal, parseAI, aiConfig, canDictate, dictate } from './nlp.js';
 import { render as vOggi } from './views/oggi.js';
 import { render as vCampi } from './views/campi.js';
@@ -148,6 +149,7 @@ if (window.ResizeObserver) new ResizeObserver(([e]) => document.documentElement.
 function render() {
   derive();
   if (S.fatture.length && contiVisibili()) import('./magfatture.js').then(x => x.autoSeServe()).catch(err => console.warn(err));   // carico in magazzino dalle fatture
+  if (S.prodotti.length && fitoMeta.n) abbinaFitoSeServe();   // fitofarmaci senza numero di registrazione: abbinati alla banca dati dal nome
   if (UI.area === 'conti' && (!contiVisibili() || !['conti', 'impostazioni', 'guida'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'conti'; }
   if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'impostazioni', 'guida'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
   if (UI.area !== 'conti' && UI.tab === 'conti') UI.area = 'conti';

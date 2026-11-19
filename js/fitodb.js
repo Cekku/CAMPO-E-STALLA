@@ -52,7 +52,7 @@ async function salva(list, versione) {
     const m = t.objectStore('meta'); m.put(new Date().toISOString(), 'at'); m.put(versione, 'versione'); m.delete('spento');
     t.oncomplete = res; t.onerror = () => rej(t.error);
   });
-  mem.clear(); list.forEach(x => mem.set(normReg(x.nReg), x)); fitoMeta.n = mem.size; fitoMeta.at = new Date().toISOString(); fitoMeta.versione = versione; bus.render();
+  mem.clear(); indice = null; list.forEach(x => mem.set(normReg(x.nReg), x)); fitoMeta.n = mem.size; fitoMeta.at = new Date().toISOString(); fitoMeta.versione = versione; bus.render();
 }
 // Ultima etichetta autorizzata sul sito del Ministero (PDF)
 export const etichettaUrl = x => x && x.etichetta && x.etichetta.id ? 'https://www.fitosanitari.salute.gov.it/fitosanitariws_new/EtichettaServlet?id=' + encodeURIComponent(x.etichetta.id) : '';
@@ -125,5 +125,38 @@ export async function importFito(file) {
 }
 export async function clearFito() {
   if (!db) return; await new Promise(res => { const t = db.transaction(['p', 'meta'], 'readwrite'); t.objectStore('p').clear(); t.objectStore('meta').clear(); t.objectStore('meta').put(true, 'spento'); t.oncomplete = res; });
-  mem.clear(); fitoMeta.n = 0; fitoMeta.at = null; fitoMeta.versione = ''; bus.render();
+  mem.clear(); indice = null; fitoMeta.n = 0; fitoMeta.at = null; fitoMeta.versione = ''; bus.render();
+}
+
+// Abbinamento per nome di un prodotto del magazzino (spesso il nome viene dalla riga di una fattura,
+// es. "MICROTHIOL DISPERSS KG 10 - SACCO") a un prodotto della banca dati. Un prodotto della banca dati è candidato
+// se tutte le parole del suo nome sono nel nome del prodotto (in qualsiasi ordine). Vince il nome più lungo, anche se
+// revocato; a pari lunghezza l'unico ancora autorizzato. Se il nome più lungo è di più prodotti diversi
+// (stesso nome, ditte diverse) non si abbina niente: meglio nessun abbinamento che uno sbagliato.
+const parole = s => String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
+const CONF = new Set('KG G GR L LT LITRI ML CC CONF CONFEZIONE PZ X SACCO SACCHI TANICA TANICHE FL FLACONE BOTTIGLIA BARATTOLO SECCHIO FUSTO BIDONE CF NR N DA'.split(' '));
+let indice = null; // si rifà a ogni cambio della banca dati (salva, clearFito)
+const senzaConf = t => t.filter(w => !/^\d/.test(w) && !CONF.has(w)).join(' ').length;
+function indiceNomi() {
+  if (indice) return indice;
+  indice = new Map();
+  for (const x of mem.values()) {
+    const t = [...new Set(parole(x.nome))]; if (!t.length) continue; const c = { t, x, len: t.join(' ').length, sig: senzaConf(t) };
+    t.forEach(w => { const l = indice.get(w) || []; l.push(c); indice.set(w, l); });
+  }
+  return indice;
+}
+export function fitoAbbina(nome) {
+  const P = new Set(parole(nome)); if (!P.size || !mem.size) return null;
+  const idx = indiceNomi(), visti = new Set(), cand = [];
+  for (const w of P) for (const c of idx.get(w) || []) { if (visti.has(c)) continue; visti.add(c); if (c.t.every(v => P.has(v))) cand.push(c); }
+  // nomi corti ("RAME", "LUMAX") solo se sono tutto il nome, tolti numeri e confezioni ("LUMAX KG 5")
+  // (numeri e confezioni non contano: "CF 125" o "TOP 90" non bastano a dire che è quel prodotto)
+  const tutto = senzaConf([...P]);
+  const ok = cand.filter(c => c.sig >= 6 || (c.sig > 0 && c.sig === tutto)); if (!ok.length) return null;
+  // vince il nome più lungo anche se revocato (una giacenza vecchia non prende il numero di un altro prodotto);
+  // a pari lunghezza l'unico ancora autorizzato, altrimenti nessuno
+  const best = Math.max(...ok.map(c => c.len)); let hit = ok.filter(c => c.len === best);
+  if (hit.length > 1) hit = hit.filter(c => !c.x.revocato);
+  return hit.length === 1 ? hit[0].x : null;
 }
