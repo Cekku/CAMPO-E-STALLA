@@ -146,6 +146,7 @@ if (window.ResizeObserver) new ResizeObserver(([e]) => document.documentElement.
 
 function render() {
   derive();
+  if (S.fatture.length && contiVisibili()) import('./magfatture.js').then(x => x.autoSeServe()).catch(err => console.warn(err));   // carico in magazzino dalle fatture
   if (UI.area === 'conti' && (!contiVisibili() || !['conti', 'impostazioni', 'guida'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'conti'; }
   if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'impostazioni', 'guida'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
   if (UI.area !== 'conti' && UI.tab === 'conti') UI.area = 'conti';
@@ -505,6 +506,7 @@ document.addEventListener('click', async e => {
         if (a.startsWith('p3d') && a !== 'p3dFile') return import('./views/progetto3d.js').then(x => x.p3dAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('lib-')) return import('./views/libretto.js').then(x => x.libAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('tr-')) return import('./views/tracciabilita.js').then(x => x.trAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+        if (a.startsWith('mf-')) return import('./views/magfatture.js').then(x => x.mfAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a === 'tsort' || a === 'texp' || a.startsWith('c-')) return contiAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
     }
   } catch (err) { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); }
@@ -525,6 +527,7 @@ document.addEventListener('change', e => {
   if (t.dataset.act === 'memberRole') { store.setMemberRole(t.dataset.id, t.value).then(() => toast('Permessi aggiornati')).catch(err => toast(traduci(err), 'err')).finally(() => render()); return; }
   if (t.dataset.act === 'view') { UI.view = t.dataset.v; saveUI(); return render(); }
   if (t.dataset.act && t.dataset.act.startsWith('ar-')) return arChange(t);
+  if (t.dataset.act && t.dataset.act.startsWith('mf-')) { import('./views/magfatture.js').then(x => x.mfChange(t)).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); return; }
   if (t.dataset.act && t.dataset.act.startsWith('tr-')) { import('./views/tracciabilita.js').then(x => x.trChange(t)).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); return; }
   if (t.dataset.act && t.dataset.act.startsWith('c-')) { contiChange(t).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); return; }
 });
@@ -590,6 +593,7 @@ function gpsAzienda() {
 
 setRerender(() => render());
 import('./tracciabilita.js').then(x => x.setRender(() => render())).catch(err => console.warn(err));
+import('./magfatture.js').then(x => x.setRender(() => render())).catch(err => console.warn(err));
 
 // pagine dell'app per i collegamenti nelle risposte della chat (area/tab/sub)
 function pagineChat() {

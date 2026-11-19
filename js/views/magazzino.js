@@ -6,14 +6,16 @@ import { CATEGORIE, giac } from '../domain.js';
 import { tabs, empty, newBtn, fact, chip, exChip } from '../ui.js';
 import { FITO } from '../checks.js';
 import { fitoLookup } from '../fitodb.js';
+import { contiVisibili } from './conti.js';
+import { sezione, contaDaFare } from './magfatture.js';
 
 const CAT_IC = { 'Fitofarmaco': 'shield-check', 'Diserbante': 'leaf', 'Concime': 'sprout', 'Seme': 'wheat', 'Mangime': 'wheat', 'Foraggio': 'leaf', 'Farmaco veterinario': 'syringe', 'Gasolio': 'fuel', 'Altro': 'package' };
 
 export function render() {
   if (UI.detail && UI.detail.type === 'prodotto') { const p = get('prodotti', UI.detail.id); if (p) return detail(p); UI.detail = null; }
-  const sub = UI.sub.magazzino;
-  const t = tabs('magazzino', [['prodotti', 'Prodotti', S.prodotti.length], ['movimenti', 'Movimenti']], sub);
-  return { title: 'Magazzino', html: `<header class="pagehead"><h1>Magazzino</h1><div class="btns"><button class="btn sm" data-act="new" data-form="movimenti" data-tipo="Scarico">${ic('upload')}Scarico</button>${newBtn('movimenti', 'Carico', 'data-tipo="Carico"')}</div></header>` + t + (sub === 'movimenti' ? movimenti() : prodotti()) };
+  const conti = contiVisibili(); let sub = UI.sub.magazzino; if (sub === 'fatture' && !conti) sub = 'prodotti';
+  const t = tabs('magazzino', [['prodotti', 'Prodotti', S.prodotti.length], ['movimenti', 'Movimenti'], ...(conti ? [['fatture', 'Da fatture', contaDaFare() || undefined]] : [])], sub);
+  return { title: 'Magazzino', html: `<header class="pagehead"><h1>Magazzino</h1><div class="btns"><button class="btn sm" data-act="new" data-form="movimenti" data-tipo="Scarico">${ic('upload')}Scarico</button>${newBtn('movimenti', 'Carico', 'data-tipo="Carico"')}</div></header>` + t + (sub === 'movimenti' ? movimenti() : sub === 'fatture' ? sezione() : prodotti()) };
 }
 
 function chips(p) {
@@ -42,7 +44,7 @@ function prodotti() {
   <section class="card"><div class="list">${list.length ? list.map(p => { const g = giac(p); return `<button class="row" data-act="open" data-type="prodotto" data-id="${p.id}"><span class="r-icon">${ic(CAT_IC[p.categoria] || 'package')}</span><span class="r-main"><b>${esc(p.nome)}${exChip(p)}</b><span>${esc(p.categoria || '')}${p.nReg ? ' · reg. ' + esc(p.nReg) : ''}${N(p.prezzo) ? ' · ' + eur(p.prezzo, 2) + '/' + esc(p.unita || '') : ''}${N(p.carenza) ? ' · carenza ' + p.carenza + ' gg' : ''}</span>${level(p)}</span><span class="r-side"><span class="qty"><b class="num">${nf(g, 1)}</b> ${esc(p.unita || '')}</span><span class="chips">${chips(p)}</span></span></button>`; }).join('') : empty('search', 'Nessun prodotto', 'Nessun prodotto corrisponde al filtro.')}</div></section>`;
 }
 export function movRow(m) {
-  const p = get('prodotti', m.prodottoId); const src = m.opId ? 'dal quaderno' : m.evId ? 'dalla stalla' : m.razioneId ? 'da razione' : '';
+  const p = get('prodotti', m.prodottoId); const src = m.opId ? 'dal quaderno' : m.evId ? 'dalla stalla' : m.razioneId ? 'da razione' : m.fattRiga ? 'da fattura' : '';
   const out = m.tipo === 'Scarico';
   return `<button class="row" data-act="edit" data-form="movimenti" data-id="${m.id}"><span class="r-icon ${out ? 'out' : 'in'}">${ic(out ? 'upload' : 'download')}</span><span class="r-main"><b>${esc(p ? p.nome : 'prodotto eliminato')}${exChip(m)}</b><span>${fd(m.data)}${m.documento ? ' · ' + esc(m.documento) : ''}${src ? ' · ' + src : ''}${m.note ? ' · ' + esc(m.note) : ''}</span></span><span class="r-side"><span class="num ${out ? 't-bad' : 't-ok'}">${out ? '−' : '+'}${nf(m.quantita, 2)} ${esc(p ? p.unita || '' : '')}</span></span></button>`;
 }
