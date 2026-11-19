@@ -92,3 +92,30 @@ export { addDays };
 
 extraAlerts.push(() => S.capi.filter(c => capoI(c).stato !== 'Uscita').flatMap(c => benessere(c).filter(a => a.lv !== 'info').map(a => ({ lv: a.lv, area: 'stalla', t: a.t + ': ' + (c.nome || c.matricola), s: a.s, go: { type: 'capo', id: c.id } }))));
 extraAlerts.push(() => S.silos.map(s => ({ s, i: siloInfo(s) })).filter(x => x.i.giorni !== null && x.i.giorni < 15).map(x => ({ lv: x.i.giorni < 7 ? 'bad' : 'warn', area: 'stalla', t: 'Silo in esaurimento: ' + x.s.nome, s: 'circa ' + Math.round(x.i.giorni) + ' giorni con le razioni attuali', go: { form: 'movimenti' } })));
+
+// Quota del contenuto di un silo prodotta in azienda o comprata (1.57.0, da xFarm).
+// Il silo è come un mucchio mescolato: i carichi aggiungono la loro parte, gli scarichi tolgono in proporzione;
+// quando la giacenza arriva a zero il conto riparte. La giacenza iniziale del prodotto non ha provenienza ("non indicata").
+// Prodotto in azienda = movimenti delle pesate (caricoId) o segnati come autoprodotti / "Prodotto in azienda".
+export const isAuto = m => !!(m.caricoId || m.autoprodotto || m.provenienza === 'Prodotto in azienda');
+export function quotaSilo(s) {
+  const p = get('prodotti', s && s.prodottoId); if (!p) return null;
+  let auto = 0, acq = 0, nd = Math.max(0, N(p.giacenzaIniziale));
+  // Nello stesso giorno: prima gli scarichi se il silo li copriva già (svuotato e poi ricaricato), altrimenti prima i carichi
+  const giorni = new Map();
+  for (const m of S.movimenti) if (m.prodottoId === p.id) { const d = m.data || ''; if (!giorni.has(d)) giorni.set(d, []); giorni.get(d).push(m); }
+  const carica = m => { const q = Math.max(0, N(m.quantita)); if (isAuto(m)) auto += q; else acq += q; };
+  const scarica = m => {
+    const q = Math.max(0, N(m.quantita)), tot = auto + acq + nd; if (tot <= 0) return;
+    const k = Math.max(0, tot - q) / tot; auto *= k; acq *= k; nd *= k;
+    if (auto + acq + nd < 1e-9) { auto = acq = nd = 0; }
+  };
+  for (const d of [...giorni.keys()].sort()) {
+    const ms = giorni.get(d), car = ms.filter(m => m.tipo === 'Carico'), sca = ms.filter(m => m.tipo !== 'Carico');
+    const prima = sca.reduce((t, m) => t + Math.max(0, N(m.quantita)), 0) <= auto + acq + nd + 1e-9;
+    if (prima) { sca.forEach(scarica); car.forEach(carica); } else { car.forEach(carica); sca.forEach(scarica); }
+  }
+  const tot = auto + acq + nd, u = kgUnita(p), g = giac(p);   // le quote valgono sulla giacenza vera del magazzino
+  if (tot <= 0 || g <= 0) return { auto: 0, acq: 0, nd: 0, pAuto: null, pAcq: null, pNd: null };
+  return { auto: auto / tot * g * u, acq: acq / tot * g * u, nd: nd / tot * g * u, pAuto: auto / tot, pAcq: acq / tot, pNd: nd / tot };
+}

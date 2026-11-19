@@ -41,6 +41,7 @@ export function exampleRows() {
   add('operazioni', 'o4', { data: d(3), campoId: id('c3'), tipo: 'Semina', prodottoId: id('p2'), dose: 200, quantita: 1840, mezzoId: id('m1'), ore: 5, operatore: 'Marco' });
   add('operazioni', 'o5', { data: d(1), campoId: id('c3'), tipo: 'Diserbo', prodottoId: id('p3'), dose: 1.5, quantita: 13.8, avversita: 'Infestanti graminacee e dicotiledoni', bbch: 'Pre-emergenza', oraInizio: '07:30', volumeAcqua: 250, vento: 'Debole', meteo: 'Sereno', mezzoId: id('m3'), ore: 3, operatore: 'Marco' });
   add('movimenti', 'mv1', { data: d(3), prodottoId: id('p2'), tipo: 'Scarico', quantita: 1840, note: 'Semina · Pradone', opId: id('o4') });
+  add('movimenti', 'mv9', { data: d(20), prodottoId: id('p6'), tipo: 'Carico', quantita: 10000, provenienza: 'Comprato', documento: 'DDT ESEMPIO', note: 'Insilato comprato' });
   add('movimenti', 'mv2', { data: d(1), prodottoId: id('p3'), tipo: 'Scarico', quantita: 13.8, note: 'Diserbo · Pradone', opId: id('o5') });
   add('capi', 'k1', { matricola: 'IT012000845121', nome: 'Stella', razza: 'Frisona', sesso: 'F', nascita: '2020-02-11', gruppo: 'Alta produzione', lattazioniPrecedenti: 3 });
   add('capi', 'k2', { matricola: 'IT012000845377', nome: 'Luna', razza: 'Frisona', sesso: 'F', nascita: '2021-09-03', gruppo: 'Alta produzione', lattazioniPrecedenti: 1 });

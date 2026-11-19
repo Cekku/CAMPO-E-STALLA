@@ -27,3 +27,10 @@ paths:
 - `pianoImport(S, reports, uid)`: abbina per matricola; crea capi nuovi, aggiunge numero/razza/nome solo se mancano, crea eventi Parto, Messa in asciutta e Controllo funzionale (id `aia-…`, niente doppioni entro 7 giorni o stessa data), allinea `lattazioniPrecedenti` al n. lattazione AIA, salva `capo.aia` (stato, prossima operazione, EVM, ANA, LS…) e lo storico in `config/aia.storia`. Testato in Node con i PDF veri (332 vacche, controllo 29/09/2026) e reimportazione senza modifiche.
 - `domain.capoInfo`: se non ci sono fecondazioni nell'app dopo l'ultimo parto usa `capo.aia` riferito a quel parto (G = gravida, parto previsto da prossima operazione P, o A + 60 gg; G/F/parcheggiata tolgono "Da fecondare"; V = vuota). `agenda` aggiunge le operazioni AIA F e D.
 - UI: `views/aia-view.js` (scheda in Stalla → Indici e benessere con caricamento di più PDF, anteprima, andamento e tabella esportabile; riquadro "Controllo funzionale AIA" nella scheda del capo).
+
+## Silos: prodotto in azienda e comprato (1.57.0)
+
+- `quotaSilo(s)` in `herd.js`: per i silos collegati a un prodotto del magazzino divide il contenuto in prodotto in azienda, comprato e non indicato (kg e quote 0-1). Il contenuto è un mucchio mescolato: gli scarichi tolgono in proporzione alle quote del momento; quando il silo si svuota il conto riparte da zero. Nello stesso giorno prima gli scarichi se la giacenza li copriva (svuotato e ricaricato), altrimenti prima i carichi; con giacenza del magazzino a zero o sotto niente quote. La giacenza iniziale conta come non indicata.
+- `isAuto(m)`: un carico è prodotto in azienda se ha `caricoId` (da una pesata), `autoprodotto` o `provenienza === 'Prodotto in azienda'`; altrimenti è comprato.
+- Campo `provenienza` (Comprato / Prodotto in azienda, vuoto = Comprato) nei movimenti di tipo Carico (`SPEC.movimenti` in `forms.js`).
+- `siloCard` (`views/stalle.js`) mostra la barretta a due colori e il testo; la dashboard Stalla (`views/oggi.js`) aggiunge "in azienda X%" accanto a ogni silo. Stili `.silo-quota`, `.sq-bar` in fondo a `css/app.css`.

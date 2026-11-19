@@ -4,7 +4,7 @@ import { esc, nf, eur, fd, byName, N, today, diff, plural } from '../util.js';
 import { ic } from '../icons.js';
 import { capoI } from '../domain.js';
 import { empty, newBtn, chip, exChip, openSheet, closeSheet, toast } from '../ui.js';
-import { capiIn, boxKey, siloInfo, indici, benessere, misureDi, CAMPI_MISURE, guessMap, matchCapo, allBoxes } from '../herd.js';
+import { capiIn, boxKey, siloInfo, quotaSilo, indici, benessere, misureDi, CAMPI_MISURE, guessMap, matchCapo, allBoxes } from '../herd.js';
 import { parseCSV, decode, isoDate } from '../fitodb.js';
 import { RIF, RIF_MANDRIA as RM } from '../conti/riferimenti.js';
 import { spark } from './charts.js';
@@ -34,7 +34,9 @@ export function stalle() {
   };
   const siloCard = s => {
     const i = siloInfo(s);
-    return `<button class="silo" data-act="edit" data-form="silos" data-id="${s.id}"><span class="silo-tank"><i style="height:${i.pct ?? 0}%" class="${i.pct !== null && i.pct < 15 ? 'low' : ''}"></i></span><span class="r-main"><b>${esc(s.nome)}${exChip(s)}</b><span>${esc(s.tipo || '')}${i.p ? ' · ' + esc(i.p.nome) : ''}</span><span class="num">${nf(i.kg / 1000, 1)} t${i.cap ? ' su ' + nf(i.cap / 1000, 0) + ' t' : ''}${i.pct !== null ? ' · ' + nf(i.pct, 0) + '%' : ''}</span></span><span class="r-side">${i.giorni !== null ? chip(nf(i.giorni, 0) + ' giorni', i.giorni < 10 ? 'bad' : i.giorni < 30 ? 'warn' : 'ok') : '<span class="muted small">consumo non noto</span>'}</span></button>`;
+    const q = quotaSilo(s); const pct = x => nf(x * 100, 0) + '%';
+    const quota = q && q.pAuto !== null ? `<span class="silo-quota"><span class="sq-bar"><i class="sq-auto" style="width:${q.pAuto * 100}%"></i><i class="sq-acq" style="width:${q.pAcq * 100}%"></i></span><span class="small muted">Prodotto in azienda ${pct(q.pAuto)} · Comprato ${pct(q.pAcq)}${q.pNd > 0.005 ? ' · non indicato ' + pct(q.pNd) : ''}</span></span>` : '';
+    return `<button class="silo" data-act="edit" data-form="silos" data-id="${s.id}"><span class="silo-tank"><i style="height:${i.pct ?? 0}%" class="${i.pct !== null && i.pct < 15 ? 'low' : ''}"></i></span><span class="r-main"><b>${esc(s.nome)}${exChip(s)}</b><span>${esc(s.tipo || '')}${i.p ? ' · ' + esc(i.p.nome) : ''}</span><span class="num">${nf(i.kg / 1000, 1)} t${i.cap ? ' su ' + nf(i.cap / 1000, 0) + ' t' : ''}${i.pct !== null ? ' · ' + nf(i.pct, 0) + '%' : ''}</span>${quota}</span><span class="r-side">${i.giorni !== null ? chip(nf(i.giorni, 0) + ' giorni', i.giorni < 10 ? 'bad' : i.giorni < 30 ? 'warn' : 'ok') : '<span class="muted small">consumo non noto</span>'}</span></button>`;
   };
   return `<div class="toolbar"><p class="muted small">Disponi i capi nei box: ogni stalla mostra occupazione, composizione e indici.</p><span class="sp"></span>${newBtn('silos', 'Silo', '', '')}${newBtn('strutture', 'Stalla')}</div>
   ${ss.length ? `<div class="stall-grid">${ss.map(struttCard).join('')}</div>` : `<section class="card">${empty('layout-grid', 'Nessuna stalla', 'Crea le stalle con i loro box (lattazione, asciutta, preparto, infermeria…) e assegna i capi: vedrai a colpo d\'occhio chi è dove e quanto è piena ogni stalla.', newBtn('strutture', 'Crea la prima stalla'))}</section>`}

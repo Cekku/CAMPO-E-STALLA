@@ -222,6 +222,7 @@ export const SPEC = {
       { k: 'quantita', l: 'Quantità', t: 'number', req: 1, half: 1 },
       { k: 'prezzo', l: 'Prezzo unitario', t: 'number', half: 1, unit: '€', show: isT('Carico'), hint: 'Aggiorna il prezzo del prodotto' },
       { k: 'documento', l: 'DDT o fattura', half: 1, show: isT('Carico') },
+      { k: 'provenienza', l: 'Provenienza', t: 'seg', opts: ['Comprato', 'Prodotto in azienda'], show: isT('Carico'), hint: 'Per i silos: quanto del contenuto è prodotto in azienda e quanto comprato' },
       { k: 'note', l: 'Note', t: 'textarea' }],
     defaults: () => ({ data: today(), tipo: 'Carico' }),
     onChange(ch, v) { if (ch === null || ch === 'prodottoId') { const p = get('prodotti', v.prodottoId); setUnit('quantita', p ? p.unita : ''); } },
