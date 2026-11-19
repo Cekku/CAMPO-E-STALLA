@@ -14,6 +14,7 @@ import { indici, siloInfo, quotaSilo, capiIn } from '../herd.js';
 import { agendaCard, registroCard } from '../agenda.js';
 import { caldoCard } from '../caldo.js';
 import { exChip } from '../ui.js';
+import { autoCard } from './automatico.js';
 
 const AREA = { stalla: ['cow', 'Stalla'], magazzino: ['package', 'Magazzino'], mezzi: ['tractor', 'Mezzi'], campi: ['sprout', 'Campi'], latte: ['milk', 'Latte'], dati: ['history', 'Dati'] };
 const NOTE_COL = { verde: '#4FA05A', giallo: '#E0B12E', rossa: '#D2553C', blu: '#3D7DC0' };
@@ -144,6 +145,7 @@ export function render() {
     </div>
     <div class="col">
       <div id="avvisi" class="o2">${alertsCard(x => x.area !== 'stalla' && x.area !== 'latte', 'Avvisi')}</div>
+      <div class="o2">${autoCard()}</div>
       ${(() => { const mz = mezziCard(); return mz ? `<div class="o2">${mz}</div>` : ''; })()}
       <div class="o3">${registroCard(Y)}</div>
       <section class="card o5"><div class="card-h"><h2>${ic('chart-column')}Colture ${Y}</h2><span class="muted small">ettari</span></div>${parts.length ? `<div class="chartbox">${columns(parts.map(([k, v]) => ({ label: k, v, color: cropColorName(k === 'Senza coltura' ? '' : k) })))}</div>` : empty('chart-column', 'Nessuna coltura', 'Aggiungi la coltura dell\'annata ai tuoi campi.')}
@@ -187,7 +189,7 @@ function stalla() {
   </div>
   ${caldoCard()}
   ${(() => { const I = indici(); const ss = [...S.strutture]; const sil = [...S.silos]; if (!ss.length && !sil.length && !S.misure.length) return ''; return `<section class="card"><div class="card-h"><h2>${ic('layout-grid')}Stalle e silos</h2><button class="btn sm ghost" data-act="nav" data-tab="stalla" data-sub="stalle">Apri</button></div><div class="mini-stalls">${ss.map(s => { const n = capiIn(s.id).length, p = (s.box || []).reduce((t, b) => t + N(b.posti), 0); return `<button data-act="open" data-type="struttura" data-id="${s.id}"><b>${esc(s.nome)}</b><span class="num">${n}${p ? '/' + p : ''} capi</span>${p ? `<span class="occ"><i style="width:${Math.min(100, n / p * 100)}%" class="${n > p ? 'over' : ''}"></i></span>` : ''}</button>`; }).join('')}${sil.map(x => { const i = siloInfo(x); const q = quotaSilo(x); return `<button data-act="nav" data-tab="stalla" data-sub="stalle"><b>${ic('cylinder')}${esc(x.nome)}</b><span class="num">${i.pct !== null ? nf(i.pct, 0) + '%' : nf(i.kg / 1000, 1) + ' t'}${i.giorni !== null ? ' · ' + nf(i.giorni, 0) + ' gg' : ''}${q && q.pAuto !== null ? ' · in azienda ' + nf(q.pAuto * 100, 0) + '%' : ''}</span><span class="occ silo-l"><i style="width:${i.pct ?? 0}%" class="${i.giorni !== null && i.giorni < 10 ? 'over' : ''}"></i></span></button>`; }).join('')}<button data-act="nav" data-tab="stalla" data-sub="indici"><b>${ic('activity')}Benessere</b><span class="${I.benessere ? 't-bad' : ''}">${I.benessere ? I.benessere + ' allarmi' : 'tutto nella norma'}</span><span class="muted small">DIM ${I.dim === null ? '—' : nf(I.dim, 0)} · IOFC ${I.iofc === null ? '—' : eur(I.iofc, 2)}</span></button></div></section>`; })()}
-  <div class="grid-2"><div class="col">${agendaCard('stalla')}${alertsCard(x => ['stalla', 'latte'].includes(x.area) || (x.area === 'magazzino' && x.go && ['Mangime', 'Foraggio', 'Farmaco veterinario'].includes((get('prodotti', x.go.id) || {}).categoria)), 'Da fare in stalla')}
+  <div class="grid-2"><div class="col">${agendaCard('stalla')}${alertsCard(x => ['stalla', 'latte'].includes(x.area) || (x.area === 'magazzino' && x.go && ['Mangime', 'Foraggio', 'Farmaco veterinario'].includes((get('prodotti', x.go.id) || {}).categoria)), 'Da fare in stalla')}${autoCard()}
     ${parti.length ? `<section class="card"><div class="card-h"><h2>${ic('baby')}Parti in arrivo</h2></div><div class="list">${parti.map(capoRow).join('')}</div></section>` : ''}</div>
   <div class="col"><section class="card"><div class="card-h"><h2>${ic('milk')}Latte, ultimi 30 giorni</h2>${newBtn('latte', 'Registra', '', 'ghost')}</div>${ch ? `<div class="chartbox">${ch.svg}</div><div class="legend"><span><i class="sw conf"></i>conferiti</span><span><i class="sw prod"></i>non conferiti</span><span class="sp"></span><span>media <b class="num">${nf(ch.avg, 0)} l/giorno</b></span></div>` : empty('milk', 'Nessuna registrazione', 'Registra ogni giorno litri prodotti e conferiti.')}</section>
   ${S.note.length ? `<section class="card"><div class="card-h"><h2>${ic('pencil')}Note</h2><button class="btn sm ghost" data-act="nav" data-tab="note">Vedi tutte</button></div><div class="note-strip">${[...S.note].sort(byDate).reverse().slice(0, 4).map(noteCard).join('')}</div></section>` : ''}</div></div>` };

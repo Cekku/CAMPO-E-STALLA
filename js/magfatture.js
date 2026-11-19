@@ -208,3 +208,7 @@ export function autoSeServe() {
   caricaPronte().then(n => { if (n) ridisegna(); if (n) toast(n === 1 ? 'Caricata in magazzino 1 riga di fattura' : `Caricate in magazzino ${n} righe di fattura`); })
     .catch(e => console.warn(e)).finally(() => { corre--; });
 }
+/** Per il Centro automatico (js/automazioni-agganci.js): la sistemazione dei carichi della 1.59.0 (una volta sola)
+ *  e se c'è un abbinamento a mano in corso. */
+export async function pulisciSeServe() { if (!pulito) await pulisci().catch(e => { pulito = false; throw e; }); }
+export const occupato = () => corre > 0;
