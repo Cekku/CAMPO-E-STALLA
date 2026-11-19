@@ -8,6 +8,7 @@ import { sync, onSync } from './store.js';
 import { openSheet, closeSheet, sheetOpen, toast, arm, addLine, formDelete } from './ui.js';
 import { openEdit, openColtura, openColturaGruppo, openDatiGruppo } from './forms.js';
 import { startWizard } from './wizard.js';
+import { avviaScaricoRazioni } from './razauto.js';
 import * as MAP from './map.js';
 import { promptInstall, canInstall } from './install.js';
 import { nativa, alTastoIndietro, controllaAggiornamento } from './nativo.js';
@@ -624,7 +625,7 @@ function pagineChat() {
   const q = new URLSearchParams(location.search).get('azione');
   render();
   initFito();
-  store.initStore().then(() => { if (q === 'operazione') startWizard(); else if (q === 'latte') openEdit('latte'); else if (q === 'evento') openEdit('eventi'); avviaArchivioConti(); });
+  store.initStore().then(() => { if (q === 'operazione') startWizard(); else if (q === 'latte') openEdit('latte'); else if (q === 'evento') openEdit('eventi'); avviaArchivioConti(); avviaScaricoRazioni(k => toast('Razioni: ' + k + ' scarichi registrati in magazzino')); });
   window.addEventListener('online', () => { syncPill(); schedule(); });
   window.addEventListener('offline', () => { syncPill(); schedule(); });
   alTastoIndietro(puoTornare => {

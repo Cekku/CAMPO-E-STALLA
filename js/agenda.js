@@ -8,6 +8,7 @@ import { isTrattore, compDi, stato } from './trattori.js';
 import { vociAgenda } from './archivio-link.js';
 import { vociAgenda as vociPreventivi } from './conti/preventivi.js';
 import { contiVisibili } from './views/conti.js';
+import { previsione } from './razauto.js';
 
 // Ogni voce: { data, area: 'campi'|'stalla'|'mezzi'|'magazzino', icn, t, s, go, late }
 export function agenda(giorni = 14, area = 'tutte') {
@@ -45,6 +46,9 @@ export function agenda(giorni = 14, area = 'tutte') {
   S.mezzi.filter(isTrattore).forEach(m => compDi(m).forEach(c => { const st = stato(m, c.id); if (st.prossData && st.prossData <= fine && (st.restOre === null || st.restOre > 0)) add(st.prossData < T ? T : st.prossData, 'mezzi', 'wrench', c.nome + ' · ' + m.nome, st.prossData < T ? 'Scaduto il ' + fd(st.prossData) : 'Manutenzione a calendario', { type: 'mezzo', id: m.id }, st.prossData < T); }));
   S.operatori.forEach(o => { if (dentro(o.scadenzaPatentino)) add(o.scadenzaPatentino, 'campi', 'id-card', 'Patentino · ' + o.nome, 'Scadenza del patentino fitosanitario', { edit: 'operatori', id: o.id }); });
   S.prodotti.forEach(p => { if (dentro(p.scadenza) && giac(p) > 0) add(p.scadenza, 'magazzino', 'package', 'Scade · ' + p.nome, nf(giac(p), 1) + ' ' + (p.unita || '') + ' in magazzino', { type: 'prodotto', id: p.id }); });
+
+  // alimenti delle razioni: giorno in cui finiscono con il consumo di adesso (1.60.0)
+  S.prodotti.forEach(p => { const v = previsione(p); if (!v || giac(p) <= 0) return; const d = addDays(T, Math.floor(v.giorni)); if (dentro(d)) add(d, 'magazzino', 'package', 'Finisce · ' + p.nome, 'Con il consumo delle razioni (' + nf(v.cons, v.cons < 10 ? 2 : 0) + ' ' + (p.unita || '') + ' al giorno)', { type: 'prodotto', id: p.id }); });
 
   // scadenze messe da un documento dell'archivio (solo per il titolare)
   vociAgenda(T, fine).forEach(x => out.push(x));

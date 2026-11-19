@@ -1,6 +1,6 @@
 // Definizione dei moduli di inserimento e delle loro regole
 import { S, D, UI, get } from './state.js';
-import { N, nf, fd, today, byName, okD, yearOf } from './util.js';
+import { N, nf, fd, today, addDays, byName, okD, yearOf } from './util.js';
 import * as store from './store.js';
 import { openForm, openSheet, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
 import { COLTURE, coltureNote, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo, cropOf, kgUnita, colturaAlla } from './domain.js';
@@ -10,6 +10,7 @@ import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
 import { fitoLookup, fitoSearch, fitoMeta } from './fitodb.js';
 import { esc } from './util.js';
 import { FASI_BOX, allBoxes } from './herd.js';
+import { scaricaRazioni } from './razauto.js';
 import { CATALOGO, GRUPPI_COMP, OPZ_MODELLI, MODELLI, isTrattore } from './trattori.js';
 import { boxAllegati, salvaAllegati } from './views/libretto.js';
 
@@ -428,7 +429,18 @@ export const SPEC = {
       { k: 'gruppo', l: 'Gruppo', t: 'select', opts: GRUPPI, half: 1 },
       { k: 'capi', l: 'Numero di capi', t: 'number', half: 1, hint: 'Vuoto: conta i capi del gruppo' },
       { k: 'ingredienti', l: 'Alimenti, kg tal quale per capo al giorno', t: 'lines', opts: oProd(['Mangime', 'Foraggio', 'Altro']), req: 1 },
+      { k: 'autoDal', l: 'Scarico automatico dal', t: 'date', hint: 'Ogni giorno toglie dal magazzino i kg per capo × i capi, anche per i giorni in cui l\'app è rimasta chiusa. Vuoto: niente scarico automatico' },
       { k: 'note', l: 'Note', t: 'textarea' }],
+    // cambiando la data di partenza lo scarico riparte da lì (i giorni già scaricati non si ripetono)
+    // riattivato dopo una pausa (prima senza data, ma già scaricato in passato): riparte da oggi, non recupera i giorni fermi
+    async save(id, v) {
+      const old = id ? get('razioni', id) : null;
+      // togliendo la data autoFino resta (serve a riconoscere la ripresa); cambiandola lo scarico riparte dalla data nuova
+      if (old && (old.autoDal || '') !== (v.autoDal || '') && v.autoDal) v.autoFino = !old.autoDal && old.autoFino ? addDays(today(), -1) : null;
+      const nid = await store.put('razioni', id, v);
+      if (okD(v.autoDal)) { try { const k = await scaricaRazioni(); if (k) setTimeout(() => toast('Razioni: ' + k + ' scarichi registrati in magazzino'), 1800); } catch (e) { console.warn('scarico delle razioni', e); } }
+      return nid;
+    },
   },
 };
 
