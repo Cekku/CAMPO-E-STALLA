@@ -193,7 +193,7 @@ async function righeEstratto0(movs, file) {
     let r = null;
     if (m.importo < 0 && m.tipoOp !== 'spese bancarie') r = P.riconosci({ descrizione: m.descrizione, beneficiario: m.beneficiario, iban: m.iban }, dips);
     if (r && r.tipo === 'stipendio' && !r.dip && !r.ambigui) r = m.beneficiario ? { tipo: 'stipendio', dip: P.chiaveDip({ nome: m.beneficiario }), nuovo: true } : null;
-    if (r) return Object.assign(base, r, { sel: !base.gia && !(P.CON_DIP.has(r.tipo) && !r.dip) });
+    if (r) return Object.assign(base, r, { sel: !base.gia && !(P.CON_DIP.has(r.tipo) && !r.dip) && !r.incerto });
     const c = m.tipoOp === 'spese bancarie' ? { scelte: [], proposte: [] } : candidateFatture(m, gia);
     base.proposte = c.proposte;
     if (c.scelte.length) {

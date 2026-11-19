@@ -75,12 +75,12 @@ function rigaSicura(r, CON_DIP) {
   if (r.gia || r.altro || r.stessoGiorno || r.doppio) return false;
   if (r.tipo === 'banca') return true;
   if (['f24', 'contributi', 'fondo'].includes(r.tipo)) return true;
-  if (CON_DIP.has(r.tipo)) return !!r.dip && !r.ambigui && !r.nuovo;
+  if (CON_DIP.has(r.tipo)) return !!r.dip && !r.ambigui && !r.nuovo && !r.incerto;
   if (r.tipo === 'fattura') return (r.fatt || []).length > 0 && MOTIVI_SICURI.has(r.motivo);
   return false;
 }
 // i campi che servono per rivedere una riga più tardi (tabellaMovimenti e salvaRighe)
-const CAMPI_RIGA = ['id', 'data', 'importo', 'entrata', 'descrizione', 'beneficiario', 'iban', 'causale', 'fonte', 'imp', 'tipo', 'dip', 'ambigui', 'nuovo', 'fatt', 'proposte', 'motivo', 'comp', 'modalita', 'voce'];
+const CAMPI_RIGA = ['id', 'data', 'importo', 'entrata', 'descrizione', 'beneficiario', 'iban', 'causale', 'fonte', 'imp', 'tipo', 'dip', 'ambigui', 'nuovo', 'incerto', 'fatt', 'proposte', 'motivo', 'comp', 'modalita', 'voce'];
 const snella = r => Object.fromEntries(CAMPI_RIGA.filter(k => r[k] !== undefined && r[k] !== '').map(k => [k, r[k]]));
 
 function fatturaSimile(f) {
@@ -124,13 +124,16 @@ async function uno(d) {
         const sim = fatturaSimile(f);
         if (sim) { fatti.push(`copia di una fattura già caricata (n. ${sim.numero})`); continue; }
         const annoOk = !!f.data && (!d.data || Math.abs(+String(f.data).slice(0, 4) - +String(d.data).slice(0, 4)) <= 1);
+        // nota di credito letta da un PDF (riconosciuta dal testo): il segno va controllato, non si salva da sola (1.63)
+        if (/^TD0[48]$/.test(f.tipoDoc || '')) { dubbi.push(`nota di credito${f.numero ? ' n. ' + f.numero : ''} letta da un PDF: controlla che sia davvero una nota e il segno`); continue; }
         if (!String(f.controllo || '').startsWith('OK') || !annoOk) { dubbi.push(`fattura${f.numero ? ' n. ' + f.numero : ''}${f.data ? ' del ' + f.data : ''}: ${!f.data ? 'data non letta' : !annoOk ? "l'anno letto non torna con la data del documento" : f.controllo}`); continue; }
       }
       const o = await M.salvaFatture([f]); salvato = true; fatti.push(o.nuove ? `fattura n. ${f.numero}` : 'fattura già presente');
       if (o.ids && o.ids.length) OR.collegaDaSolo(o.ids).catch(() => { });
       continue;
     }
-    if (x.tipo === 'cedolini') { if (!x.anno || !x.mese) { dubbi.push('cedolini: mese non letto'); continue; } const o = await PG.salvaCedolini(x); salvato = true; fatti.push(`cedolini ${x.mesePer} (${o.nuovi} nuovi${o.sostituiti ? ', ' + o.sostituiti + ' sostituiti' : ''})`); continue; }
+    // cedolini (1.63): si salvano da soli solo quelli che passano i controlli; gli altri restano in attesa in Da controllare
+    if (x.tipo === 'cedolini') { if (!x.anno || !x.mese) { dubbi.push('cedolini: mese non letto'); continue; } const o = await PG.salvaCedolini(x, { auto: true }); if (o.nuovi || o.sostituiti || o.uguali) salvato = true; fatti.push(`cedolini ${x.mesePer} (${o.nuovi} nuovi${o.sostituiti ? ', ' + o.sostituiti + ' sostituiti' : ''}${o.uguali ? ', ' + o.uguali + ' già salvati' : ''}${o.inAttesa ? ', ' + o.inAttesa + ' in Da controllare' : ''})`); continue; }
     if (x.tipo === 'bilpaghe') { if (!x.bil || !x.bil.anno) { dubbi.push('bilancino paghe: mese non letto'); continue; } await PG.salvaBilancinoPaghe(x); salvato = true; fatti.push('bilancino paghe ' + x.mesePer); continue; }
     if (x.tipo === 'elenco') { if (!+x.anno) { dubbi.push("elenco delle fatture: anno non letto"); continue; } const EL = await import('./elenco.js'); x.anno = +x.anno; await EL.salvaElenco(x); salvato = true; fatti.push(`elenco fatture ${x.anno}`); continue; }
     if (x.tipo === 'iva') {

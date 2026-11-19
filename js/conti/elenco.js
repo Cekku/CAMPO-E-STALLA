@@ -47,7 +47,7 @@ export function trovaElenco(fogli, nome = '') {
       if (!numero && !nomeC) continue;
       const tipologia = testoCella(g('tipologia'));
       out.push({
-        riga: r, tipologia, nc: /nota\s+di\s+credito|^td0?4$/i.test(tipologia), numero, data: dataCella(g('data')), piva: testoCella(g('piva')), cf: testoCella(g('cf')), nome: nomeC,
+        riga: r, tipologia, nc: /nota\s+di\s+credito|^td0?[48]\b/i.test(tipologia), numero, data: dataCella(g('data')), piva: testoCella(g('piva')), cf: testoCella(g('cf')), nome: nomeC,
         totale: numCella(g('totale')), imponibile: col.imponibile ? numCella(g('imponibile')) : null, scadenza: dataCella(g('scadenza')), pagata: testoCella(g('pagata')), residuo: col.residuo ? numCella(g('residuo')) : null, modalita: testoCella(g('modalita')),
       });
     }
@@ -86,6 +86,8 @@ const chiaveCp = (piva, cf) => { const p = soloCifre(piva); return p.length >= 1
 /** Numero di fattura senza spazi, barre e trattini: "1257 /FT-A" = "1257FTA". */
 export const numNorm = s => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const numCifre = s => soloCifre(s).replace(/^0+/, '');
+/** Riga dell'elenco che è un acconto o un anticipo su fattura (tipo documento TD02). */
+export const eAcconto = e => /^\s*TD0?2\b|accont|anticip/i.test(String(e.tipologia || ''));
 
 /**
  * Confronta l'elenco con le fatture caricate dello stesso tipo.
@@ -108,7 +110,8 @@ export function confronta(el, fattureCaricate) {
     if (!p) p = prova(e, p => cp && p.cp === cp && p.f.data === e.data && stessoImporto(p));
     if (!p) p = prova(e, p => n && p.n === n && p.f.data === e.data && stessoImporto(p));
     const r = Object.assign({}, e, { fid: null, stato: 'manca', note: [] });
-    if (!p) return r;
+    // acconto o anticipo su fattura (TD02): non è una fattura da caricare (arriva poi la fattura di saldo), non è fra le mancanti
+    if (!p) { if (eAcconto(e)) { r.stato = 'acconto'; r.note.push('acconto (TD02): non serve caricarlo'); } return r; }
     p.usata = true; r.fid = p.f.id; r.caricata = p.f; r.stato = 'ok';
     if (p.tot > 0 && Math.abs(p.tot - tot) > 0.05) { r.stato = 'diversa'; r.note.push(`totale caricato ${p.tot.toLocaleString('it-IT', { minimumFractionDigits: 2 })} €`); }
     if (!(p.tot > 0)) r.note.push('totale non letto nella fattura caricata');
@@ -120,7 +123,7 @@ export function confronta(el, fattureCaricate) {
   const inPiu = pool.filter(p => !p.usata && p.anno === el.anno).map(p => p.f);
   const somma = a => r2(a.reduce((t, x) => t + Math.abs(N(x.totale)), 0));
   const man = out.filter(r => r.stato === 'manca'), div = out.filter(r => r.stato === 'diversa');
-  return { righe: out, inPiu, conta: { tot: out.length, ok: out.filter(r => r.stato === 'ok').length, manca: man.length, mancaEuro: somma(man), diversa: div.length, inPiu: inPiu.length, inPiuEuro: somma(inPiu) } };
+  return { righe: out, inPiu, conta: { tot: out.length, ok: out.filter(r => r.stato === 'ok').length, manca: man.length, mancaEuro: somma(man), diversa: div.length, acconto: out.filter(r => r.stato === 'acconto').length, inPiu: inPiu.length, inPiuEuro: somma(inPiu) } };
 }
 
 /* ---------------- spiegazioni per le fatture da controllare e quelle non nell'elenco ---------------- */

@@ -2,9 +2,10 @@
 import { S } from '../state.js';
 import * as store from '../store.js';
 import { N, okD, today, addDays, diff } from '../util.js';
-import { MESI_NOMI } from './paghe-parse.js';
+import { MESI_NOMI, verificaCedolino } from './paghe-parse.js';
 import { candidateFatture } from './banca.js';
-import { competenzaDaCausale } from './bonifici-parse.js';
+import { competenzaDaCausale, competenzeDaCausale } from './bonifici-parse.js';
+import { scartato } from './scarti.js';
 
 const r2 = v => Math.round(v * 100) / 100;
 export const periodo = (anno, mese) => `${anno}-${String(mese).padStart(2, '0')}`;
@@ -25,12 +26,18 @@ export const CON_DIP = new Set(['stipendio', 'anticipo', 'prestito', 'rimborso']
 // come si recupera un anticipo / come rientra una rata di prestito
 export const RECUPERO = { stipendio: 'Lo tolgo io dal bonifico dello stipendio', busta: 'Lo trattiene il consulente in busta paga' };
 export const COME_RIMB = { stipendio: 'Tolta dal bonifico dello stipendio', busta: 'Trattenuta in busta paga', versato: 'Restituita dal dipendente (bonifico o contanti)' };
-export const compCausale = p => competenzaDaCausale(p.causale, p.data) || competenzaDaCausale(p.descrizione, p.data, true);
+/** Mese di competenza scritto nella causale; se l'anno manca e restano due mesi possibili, quello scelto dall'abbinamento. */
+export const compCausale = p => { dati(); return RIS.get(p.id) || competenzaDaCausale(p.causale, p.data) || competenzaDaCausale(p.descrizione, p.data, true); };
 /** I movimenti che contano come stipendio pagato: bonifici, anticipi e rate tolte dal bonifico. */
 const contaComeStipendio = p => p.dip && (p.tipo === 'stipendio' || (p.tipo === 'anticipo' && p.recupero !== 'busta') || (p.tipo === 'rimborso' && p.come === 'stipendio'));
-// mese di competenza: quello indicato; altrimenti quello scritto nella causale (l'anno, se manca, si ricava dalla data);
-// per gli anticipi il mese del pagamento, per le rate tolte dallo stipendio il mese prima
-const compDi = p => p.comp || ((p.tipo === 'stipendio' || p.tipo === 'anticipo' || p.tipo === 'rimborso') && (competenzaDaCausale(p.causale, p.data) || competenzaDaCausale(p.descrizione, p.data, true))) || (p.tipo === 'anticipo' ? (p.data || '').slice(0, 7) : p.tipo === 'rimborso' && p.data ? mesePrec(p.data.slice(0, 7)) : '');
+// mesi possibili dalla causale (o dalla descrizione dell'estratto): uno se è sicuro, due se manca l'anno ed è ambiguo
+const compCand = p => { if (!(p.tipo === 'stipendio' || p.tipo === 'anticipo' || p.tipo === 'rimborso')) return []; const a = competenzeDaCausale(p.causale, p.data); return a.length ? a : competenzeDaCausale(p.descrizione, p.data, true); };
+// mese scelto dall'abbinamento per i pagamenti con la causale ambigua (si rifà a ogni calcolo)
+let RIS = new Map();
+// mese di competenza: quello indicato; altrimenti quello scritto nella causale (se manca l'anno e restano due mesi, quello
+// scelto dall'abbinamento); per gli anticipi il mese del pagamento, per le rate tolte dallo stipendio il mese prima
+const compRipiego = p => (p.tipo === 'anticipo' ? (p.data || '').slice(0, 7) : p.tipo === 'rimborso' && p.data ? mesePrec(p.data.slice(0, 7)) : '');
+const compDi = p => { if (p.comp) return p.comp; const a = compCand(p); return (a.length === 1 ? a[0] : a.length ? RIS.get(p.id) || a[0] : '') || compRipiego(p); };
 export const MODALITA = { bonifico: 'Bonifico', assegno: 'Assegno', contanti: 'Contanti', carta: 'Carta / altro mezzo tracciabile' };
 export const cfgPaghe = () => Object.assign({ giornoStipendi: 20, giornoF24: 16 }, ((S.econfig.find(x => x.id === 'cfg') || {}).paghe) || {});
 
@@ -48,9 +55,11 @@ export const anomalie = () => dati().ano;
 export const periodi = () => dati().per;
 export const pagamenti = () => dati().pag;
 export const prestiti = () => dati().pre;
+/** Pagamenti abbinati agli stipendi in modo non sicuro (eccedenza, mese pagato in parte, mese della causale ambiguo). */
+export const dubbiAbbinamento = () => dati().dab;
 export const anniPaghe = () => [...new Set(dati().per.map(p => +p.slice(0, 4)))].sort();
 
-// nome confrontabile: parole maiuscole in ordine alfabetico ("Singh Gurinder" = "GURINDER SINGH")
+// nome confrontabile: parole maiuscole in ordine alfabetico ("Rossi Mario" = "MARIO ROSSI")
 export const nomeChiave = n => String(n || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(Boolean).sort().join(' ');
 /** Nome di un dipendente dalla chiave, anche se non ha ancora cedolini (dal beneficiario dei bonifici). */
 export function nomeDi(k) {
@@ -62,6 +71,7 @@ const periodoOk = p => /^\d{4}-(0[1-9]|1[0-4])$/.test(p || '');
 /** Scadenza nell'anno in corso (o dopo): solo lì si controlla se manca da pagare qualcosa. */
 export const inCorso = scad => String(scad || '').slice(0, 4) >= today().slice(0, 4);
 function calcola() {
+  RIS = new Map();
   // "è la stessa persona": le chiavi unite a mano puntano al dipendente scelto
   const unioni = new Map(S.paghe.filter(x => x.tipo === 'unione').map(x => [x.da, x.a]));
   const mk = k => { let n = 0; while (k && unioni.has(k) && n++ < 10) k = unioni.get(k); return k; };
@@ -85,7 +95,9 @@ function calcola() {
   for (const d of dip.values()) { const e = extra.get(d.key) || {}; d.omonimo = perCed.get(nomeChiave(d.nomeCed)).length > 1; d.etichetta = e.etichetta || ''; d.nome = e.etichetta || (d.omonimo ? `${d.nomeCed} (${d.nascita ? 'nato nel ' + d.nascita.slice(0, 4) : 'matr. ' + (d.matricola || '?')})` : d.nomeCed); }
   const perNome = new Map([...perCed].filter(([, ds]) => ds.length === 1).map(([k, ds]) => [k, ds[0].key]));
   for (const d of dip.values()) for (const a of String(d.alias || '').split(',')) if (a.trim()) perNome.set(nomeChiave(a), d.key);
-  const perIban = new Map(); for (const p of S.pagamenti) if (p.iban && p.dip && dip.has(p.dip)) perIban.set(p.iban, p.dip);
+  // IBAN usato per un solo dipendente (un conto cointestato a due dipendenti non riconosce nessuno)
+  const perIban0 = new Map(); for (const p of S.pagamenti) if (p.iban && p.dip && dip.has(p.dip)) perIban0.set(p.iban, (perIban0.get(p.iban) || new Set()).add(p.dip));
+  const perIban = new Map([...perIban0].filter(([, ks]) => ks.size === 1).map(([i, ks]) => [i, [...ks][0]]));
   // la tabella dei nomi vince sui pagamenti importati (non su quelli assegnati a mano dalla scheda del pagamento)
   const tok = n => String(n || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
   const alias = [...dip.values()].flatMap(d => aliasDi(d).map(a => ({ k: nomeChiave(a), ws: tok(a), key: d.key })));
@@ -104,9 +116,10 @@ function calcola() {
     const k = perNome.get(nomeChiave(p.beneficiario || u.replace(/^N-/, ''))) || (p.iban && perIban.get(p.iban));
     return Object.assign({}, p, { dip: k || u });
   }).sort((a, b) => (a.data || '').localeCompare(b.data || ''));
-  const ver = abbina(ced, pag);
+  const dab = []; const ver = abbina(ced, pag, dab);
   const pre = calcolaPrestiti(pag);
   const ano = controlli(ced, bil, tot, pag, ver, dip, per, pre);
+  for (const a of S.paghe.filter(x => x.tipo === 'cedolinoAttesa')) ano.unshift({ anno: +String(a.periodo || '').slice(0, 4) || +today().slice(0, 4), liv: 'warn', testo: `Cedolino da controllare: ${(a.cedolino || {}).nome || ''}, ${periodoOk(a.periodo) ? nomeMese(a.periodo) : ''}`, det: a.motivo === 'diverso' ? "Ne è arrivato uno diverso da quello salvato per lo stesso mese: confrontali e scegli in Da controllare." : `Non passa i controlli (${(a.problemi || []).join('; ')}): confermalo o scartalo in Da controllare.`, dip: a.dip, periodo: a.periodo });
   for (const c of scartati) ano.unshift({ anno: +today().slice(0, 4), liv: 'err', testo: `Cedolino senza mese o anno: ${c.nome || 'dipendente non letto'}`, det: `Nel file ${c.file || ''} non ho letto il mese. Eliminalo da Cedolini e ricaricalo, oppure mandami il PDF.`, cid: c.id });
   for (const d of dip.values()) {
     const v = ver.filter(x => x.dip === d.key);
@@ -118,7 +131,7 @@ function calcola() {
     d.anomalie = ano.filter(a => a.dip === d.key);
     d.stato = d.cessazione && d.cessazione < today() ? 'Cessato' : d.scadTD && d.scadTD < today() ? 'Termine scaduto' : 'In forza';
   }
-  return { ced, bil, tot, per, dip: [...dip.values()].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')), pag, ver, ano, pre };
+  return { ced, bil, tot, per, dip: [...dip.values()].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')), pag, ver, ano, pre, dab };
 }
 
 /* ---------------- prestiti ai dipendenti ---------------- */
@@ -137,6 +150,21 @@ function calcolaPrestiti(pag) {
 
 /* ---------------- pagamenti doppi ---------------- */
 const giorni = (a, b) => Math.abs(diff(a, b));
+// documento da cui viene un pagamento: l'impronta del file, altrimenti il nome del file (non per quelli scritti a mano)
+const origine = p => p.imp || (p.fonte && p.fonte !== 'a mano' ? p.fonte : '');
+const idSenzaSpazi = s => String(s || '').replace(/\s/g, '').toUpperCase();
+/** Due pagamenti uguali sono di sicuro lo stesso movimento: stesso identificativo della banca (CRO/TRN), oppure
+ *  l'identificativo della contabile è scritto nella descrizione dell'estratto conto. */
+export function stessoMovimento(a, b) {
+  if (a.idBanca && b.idBanca) return idSenzaSpazi(a.idBanca) === idSenzaSpazi(b.idBanca);
+  const dentro = (x, y) => idSenzaSpazi(x.idBanca).length >= 8 && idSenzaSpazi([y.descrizione, y.causale].join(' ')).includes(idSenzaSpazi(x.idBanca));
+  return dentro(a, b) || dentro(b, a);
+}
+/** Due pagamenti uguali sono di sicuro due pagamenti veri: righe diverse dello stesso documento (lo stesso estratto
+ *  o la stessa distinta li elenca tutti e due), oppure identificativi della banca diversi. */
+export const pagamentiDistinti = (a, b) => (a.id !== b.id && !!origine(a) && origine(a) === origine(b)) || (!!a.idBanca && !!b.idBanca && idSenzaSpazi(a.idBanca) !== idSenzaSpazi(b.idBanca));
+/** Codice di una coppia di pagamenti forse doppi (lo stesso in qualunque ordine). */
+export const idCoppia = (a, b) => 'pg-doppio-' + [a.id, b.id].sort().join('+');
 /** Coppie di pagamenti che sembrano lo stesso movimento: stesso tipo e dipendente, stesso importo, date entro 5 giorni, fonti diverse o stessa data. */
 export function doppi(pag) {
   const out = []; const ps = pag.filter(p => p.dip && CON_DIP.has(p.tipo) && p.data).sort((a, b) => a.data.localeCompare(b.data));
@@ -144,6 +172,7 @@ export function doppi(pag) {
     const a = ps[i], b = ps[j]; if (giorni(a.data, b.data) > 5) break;
     if (a.tipo !== b.tipo || a.dip !== b.dip || Math.abs(N(a.importo) - N(b.importo)) > 0.01) continue;
     if (a.comp && b.comp && a.comp !== b.comp) continue;
+    if (pagamentiDistinti(a, b) || scartato(idCoppia(a, b))) continue; // due pagamenti veri (anche detto da te in Da controllare)
     if (a.data === b.data || (a.fonte || 'a mano') !== (b.fonte || 'a mano') || (a.idBanca && a.idBanca === b.idBanca)) out.push([a, b]);
   }
   return out;
@@ -156,8 +185,10 @@ export function segnaDoppi(righe) {
   const visti = [];
   for (const r of righe) {
     if (r.entrata || r.tipo === 'fattura' || r.tipo === 'ignora') { visti.push(r); continue; }
-    const giaP = !r.gia && salvati.find(p => p.id !== r.id && CON_DIP.has(p.tipo) && stesso(r, p));
-    const giaR = visti.find(x => !x.entrata && stesso(r, x));
+    // due righe dello stesso documento sono due pagamenti veri (1.63): non si segnano come doppie
+    const stessoDoc = (a, b) => !!origine(a) && origine(a) === origine(b);
+    const giaP = !r.gia && salvati.find(p => p.id !== r.id && CON_DIP.has(p.tipo) && stesso(r, p) && !stessoDoc(r, p) && !pagamentiDistinti(r, p));
+    const giaR = visti.find(x => !x.entrata && stesso(r, x) && !stessoDoc(r, x));
     if (giaP || giaR) { r.gia = true; r.sel = false; r.stessoGiorno = (giaP || giaR).data === r.data; r.doppio = giaP ? `già registrato il ${String(giaP.data).split('-').reverse().join('/')} da ${giaP.fonte || 'inserimento a mano'}` : 'uguale a un altro movimento di questo caricamento'; }
     visti.push(r);
   }
@@ -172,43 +203,90 @@ export function segnaDoppi(righe) {
 // Da quando uno stipendio si può pagare: dal mese dopo; la tredicesima da dicembre, la quattordicesima da giugno.
 export const pagabileDa = p => { const [y, m] = p.split('-').map(Number); if (m === 13) return `${y}-12-01`; if (m === 14) return `${y}-06-01`; return meseSucc(p) + '-01'; };
 // 1) I pagamenti con il mese indicato (a mano, dalla causale, anticipi) vanno a quel mese, e si contano per primi.
+// 1b) Quelli con il mese nella causale ma senza l'anno, quando restano due mesi possibili (1.63): vale il mese ancora da
+//     pagare. Un mese è possibile se ha il cedolino non ancora saldato, oppure se non ha il cedolino ma viene dopo l'ultimo
+//     cedolino del dipendente (non è ancora arrivato). Se restano tutti e due, il più vicino alla data, ed è un dubbio.
 // 2) Gli altri, in ordine di data, vanno ai mesi già maturati alla data del pagamento e non ancora saldati:
 //    prima quello con il residuo uguale all'importo, poi dal più vecchio. Un pagamento non va mai a un mese
 //    che alla sua data non era ancora pagabile, salvo che non ci sia nient'altro da saldare (anticipo).
 // 3) Quello che avanza va all'ultimo mese saldato con quel pagamento (pagato in più).
-function abbina(ced, pag) {
-  const righe = [];
-  for (const c of ced) { const o = righe.find(r => r.dip === c.dip && r.periodo === c.periodo); if (o) { o.dovuto = r2(o.dovuto + N(c.netto)); continue; } righe.push({ dip: c.dip, nome: c.nome, periodo: c.periodo, dovuto: r2(N(c.netto)), pagato: 0, pag: [], cid: c.id }); }
+// In `dubbi` (1.63) i pagamenti abbinati in modo non sicuro: eccedenza messa su un mese, mese lasciato pagato in parte
+// o mese della causale ambiguo; solo per le scadenze dell'anno in corso, e non quelli confermati (`abbOk` = firma).
+const scadDi = (periodo, g = cfgPaghe().giornoStipendi) => `${meseSucc(meseRif(periodo))}-${String(Math.min(28, g)).padStart(2, '0')}`;
+const firmaAbb = mesi => mesi.map(m => `${m.periodo}:${r2(m.v)}`).join(',');
+function abbina(ced, pag, dubbi = []) {
+  const nuoveRighe = () => { const righe = []; for (const c of ced) { const o = righe.find(r => r.dip === c.dip && r.periodo === c.periodo); if (o) { o.dovuto = r2(o.dovuto + N(c.netto)); continue; } righe.push({ dip: c.dip, nome: c.nome, periodo: c.periodo, dovuto: r2(N(c.netto)), pagato: 0, pag: [], cid: c.id }); } return righe; };
   const ord = (a, b) => pagabileDa(a.periodo).localeCompare(pagabileDa(b.periodo)) || a.periodo.localeCompare(b.periodo);
-  const extra = [];
-  const senza = (p, periodo, v, voce) => { const o = extra.find(e => e.dip === p.dip && e.periodo === periodo); if (o) { o.pagato = r2(o.pagato + v); o.pag.push(voce(v)); } else extra.push({ dip: p.dip, nome: p.beneficiario || '', periodo, dovuto: 0, pagato: v, pag: [voce(v)], senzaCedolino: true }); };
+  const aperta = r => r.pagato < r.dovuto - 0.005;
+  const perData = (a, b) => (a.data || '').localeCompare(b.data || '') || String(a.id).localeCompare(String(b.id));
   const sp = pag.filter(contaComeStipendio);
-  const conMese = sp.filter(p => compDi(p)), auto = sp.filter(p => !compDi(p)).sort((a, b) => (a.data || '').localeCompare(b.data || '') || String(a.id).localeCompare(String(b.id)));
-  for (const p of [...conMese, ...auto]) {
-    let resto = r2(N(p.importo)); if (resto <= 0) continue; const comp = compDi(p);
-    const voce = v => ({ id: p.id, data: p.data, importo: v, modalita: p.modalita, tot: N(p.importo), tipo: p.tipo });
-    const metti = (r, v) => { r.pagato = r2(r.pagato + v); r.pag.push(voce(v)); resto = r2(resto - v); };
-    if (comp) { const r = righe.find(r => r.dip === p.dip && r.periodo === comp); if (r) metti(r, resto); else senza(p, comp, resto, voce); continue; }
-    const data = p.data || today();
-    const mie = righe.filter(r => r.dip === p.dip).sort(ord);
-    const aperta = r => r.pagato < r.dovuto - 0.005;
-    const maturate = mie.filter(r => pagabileDa(r.periodo) <= data && aperta(r));
-    let lista;
-    if (maturate.length) { const es = maturate.find(r => Math.abs(r2(r.dovuto - r.pagato) - resto) < 0.01); lista = es ? [es, ...maturate.filter(r => r !== es)] : maturate; }
-    else { const prossima = mie.find(r => aperta(r) && pagabileDa(r.periodo) > data); lista = prossima ? [prossima] : []; }
-    let ultima = null;
-    for (const r of lista) { if (resto <= 0.005) break; metti(r, Math.min(resto, r2(r.dovuto - r.pagato))); ultima = r; }
-    if (resto > 0.005) {
-      // nessun mese da saldare: è lo stipendio del mese prima della data (se il suo cedolino non c'è, "senza cedolino")
-      const naturale = mesePrec(data.slice(0, 7));
-      const dove = ultima || mie.find(r => r.periodo === naturale);
-      if (dove) metti(dove, resto); else senza(p, naturale, resto, voce);
+  const cand = new Map(sp.map(p => [p.id, p.comp ? [p.comp] : compCand(p)]));
+  const conMese = sp.filter(p => cand.get(p.id).length === 1 || (!cand.get(p.id).length && compRipiego(p)));
+  const ambigui = sp.filter(p => cand.get(p.id).length > 1).sort(perData);
+  const auto = sp.filter(p => !cand.get(p.id).length && !compRipiego(p)).sort(perData);
+  const ultimoCed = new Map(); for (const c of ced) if (!ultimoCed.has(c.dip) || c.periodo > ultimoCed.get(c.dip)) ultimoCed.set(c.dip, c.periodo);
+  // un giro di abbinamento sulle righe date; `scelte` = mese deciso per i pagamenti con il mese ambiguo
+  const giro = (righe, lista, scelte) => {
+    const extra = [], tracce = [];
+    const senza = (p, periodo, v, voce) => { const o = extra.find(e => e.dip === p.dip && e.periodo === periodo); if (o) { o.pagato = r2(o.pagato + v); o.pag.push(voce(v)); } else extra.push({ dip: p.dip, nome: p.beneficiario || '', periodo, dovuto: 0, pagato: v, pag: [voce(v)], senzaCedolino: true }); };
+    for (const p of lista) {
+      let resto = r2(N(p.importo)); if (resto <= 0) continue;
+      const voce = v => ({ id: p.id, data: p.data, importo: v, modalita: p.modalita, tot: N(p.importo), tipo: p.tipo });
+      const t = { p, mesi: [], eccedenza: 0 };
+      const metti = (r, v) => { r.pagato = r2(r.pagato + v); r.pag.push(voce(v)); resto = r2(resto - v); t.mesi.push({ r, periodo: r.periodo, v }); };
+      const cs = cand.get(p.id); let comp = '';
+      if (cs.length === 1) comp = cs[0];
+      else if (cs.length > 1) { const s = scelte.get(p.id); comp = s.comp; if (!s.sicuro) t.mese = { cand: cs, scelta: comp }; }
+      else if (compRipiego(p)) comp = compRipiego(p);
+      if (comp) { const r = righe.find(r => r.dip === p.dip && r.periodo === comp); if (r) metti(r, resto); else senza(p, comp, resto, voce); if (t.mese) tracce.push(t); continue; }
+      const data = p.data || today();
+      const mie = righe.filter(r => r.dip === p.dip).sort(ord);
+      const maturate = mie.filter(r => pagabileDa(r.periodo) <= data && aperta(r));
+      let lista2;
+      if (maturate.length) { const es = maturate.find(r => Math.abs(r2(r.dovuto - r.pagato) - resto) < 0.01); lista2 = es ? [es, ...maturate.filter(r => r !== es)] : maturate; }
+      else { const prossima = mie.find(r => aperta(r) && pagabileDa(r.periodo) > data); lista2 = prossima ? [prossima] : []; }
+      let ultima = null;
+      for (const r of lista2) { if (resto <= 0.005) break; metti(r, Math.min(resto, r2(r.dovuto - r.pagato))); ultima = r; }
+      if (resto > 0.005) {
+        // nessun mese da saldare: è lo stipendio del mese prima della data (se il suo cedolino non c'è, "senza cedolino")
+        const naturale = mesePrec(data.slice(0, 7));
+        const dove = ultima || mie.find(r => r.periodo === naturale);
+        if (dove) { t.eccedenza = resto; metti(dove, resto); } else senza(p, naturale, resto, voce);
+      }
+      if (t.mesi.length) tracce.push(t);
+    }
+    return { extra, tracce };
+  };
+  // mese ambiguo: prima un giro di prova senza quei pagamenti, per sapere quali mesi restano davvero da pagare;
+  // sicuro solo se resta un mese possibile ed è il più vicino alla data (altrimenti è un dubbio)
+  const scelte = new Map();
+  if (ambigui.length) {
+    const prova = nuoveRighe(); giro(prova, [...conMese, ...auto], scelte);
+    for (const p of ambigui) {
+      const cs = cand.get(p.id); const ultimo = ultimoCed.get(p.dip) || '';
+      const poss = cs.filter(P => { const r = prova.find(r => r.dip === p.dip && r.periodo === P); return r ? aperta(r) : P > ultimo; });
+      const comp = poss[0] || cs[0]; scelte.set(p.id, { comp, sicuro: poss.length === 1 && comp === cs[0] }); RIS.set(p.id, comp);
     }
   }
+  const righe = nuoveRighe();
+  const { extra, tracce } = giro(righe, [...conMese, ...ambigui, ...auto], scelte);
   const g = cfgPaghe().giornoStipendi;
+  // abbinamenti non sicuri: si guardano alla fine, quando tutti i pagamenti sono al loro posto
+  for (const t of tracce) {
+    // un mese per riga (l'eccedenza messa sullo stesso mese si somma)
+    const mesi = []; for (const m of t.mesi) { const o = mesi.find(x => x.periodo === m.periodo); if (o) o.v = r2(o.v + m.v); else mesi.push({ periodo: m.periodo, v: m.v }); }
+    const tipo = t.mese ? 'mese' : t.eccedenza > 0.005 ? 'eccedenza' : t.mesi.some(m => m.r.pagato < m.r.dovuto - 0.005) ? 'parziale' : '';
+    if (!tipo) continue;
+    const periodoP = t.mese ? t.mese.scelta : t.mesi[t.mesi.length - 1].periodo;
+    if (!(t.mese ? t.mese.cand : [periodoP]).some(x => inCorso(scadDi(x, g)))) continue; // mese ambiguo: basta che uno dei due sia dell'anno in corso
+    const firma = t.mese ? 'mese:' + t.mese.cand.join('|') : firmaAbb(mesi);
+    if (t.p.abbOk && t.p.abbOk === firma) continue;
+    const r = t.mesi.find(m => m.periodo === periodoP);
+    dubbi.push({ tipo, pid: t.p.id, dip: t.p.dip, data: t.p.data, importo: r2(N(t.p.importo)), mesi, eccedenza: r2(t.eccedenza), firma, periodo: periodoP, residuo: r ? r2(r.r.dovuto - r.r.pagato) : null, ...(t.mese ? { cand: t.mese.cand, scelta: t.mese.scelta } : {}) });
+  }
   const out = [...righe, ...extra].map(r => {
     const diffV = r2(r.dovuto - r.pagato);
-    const scad = `${meseSucc(meseRif(r.periodo))}-${String(Math.min(28, g)).padStart(2, '0')}`;
+    const scad = scadDi(r.periodo, g);
     const ultimo = r.pag.map(x => x.data).sort().pop() || null;
     let stato;
     if (r.senzaCedolino || (r.dovuto === 0 && r.pagato > 0)) stato = 'senza cedolino';
@@ -340,18 +418,83 @@ export function costiAnno(y) {
 }
 
 /* ---------------- salvataggio ---------------- */
-export async function salvaCedolini(x) {
-  const rows = []; const nuovi = [], sostituiti = [];
-  const presenti = new Set(S.paghe.map(p => p.id));
-  for (const c of x.cedolini) {
-    const dip = chiaveDip(c); const id = `c-${periodo(c.anno, c.mese)}-${dip}`;
-    (presenti.has(id) ? sostituiti : nuovi).push(c.nome);
-    rows.push({ col: 'paghe', id, data: Object.assign({ tipo: 'cedolino', dip, file: x.nome, ...(x.imp ? { imp: x.imp } : {}), caricato: today() }, c) });
-  }
-  if (x.totali) rows.push({ col: 'paghe', id: `t-${periodo(x.totali.anno, x.totali.mese)}`, data: Object.assign({ tipo: 'totali', file: x.nome, ...(x.imp ? { imp: x.imp } : {}) }, x.totali) });
-  if (rows.length) await store.bulkPut(rows);
-  return { nuovi: nuovi.length, sostituiti: sostituiti.length };
+// numeri che dicono se due cedolini sono lo stesso (lo stesso PDF caricato due volte)
+const NUMERI_CED = ['netto', 'lordo', 'totComp', 'totTratt', 'ore', 'irpef', 'ritPrev'];
+const ugualeCed = (a, b) => (a.cf || '') === (b.cf || '') && NUMERI_CED.every(k => Math.abs(N(a[k]) - N(b[k])) < 0.005);
+const cedDelMese = per => S.paghe.filter(p => p.tipo === 'cedolino' && periodo(p.anno, p.mese) === per);
+/**
+ * I cedolini di un mese contro il bilancino paghe dello stesso mese: true se lordi e netti tornano, false se non tornano
+ * e i cedolini sono tanti quanti i dipendenti del bilancino, null se non si può dire (niente bilancino, cedolini mancanti).
+ */
+export function quadraBilancino(per, cs) {
+  const b = S.paghe.find(x => x.tipo === 'bilancino' && periodo(x.anno, x.mese) === per); if (!b) return null;
+  const sN = r2(cs.reduce((t, c) => t + N(c.netto), 0)), sL = r2(cs.reduce((t, c) => t + N(c.lordo), 0));
+  const ok = (!N(b.netto) || Math.abs(sN - N(b.netto)) <= 0.05) && (!N(b.lordo) || Math.abs(sL - N(b.lordo)) <= 0.05);
+  if (ok) return true;
+  return b.nDip && cs.length === b.nDip ? false : null;
 }
+/** Cedolini arrivati ma non salvati: diversi da quello già salvato per lo stesso mese, o che non passano i controlli. */
+export const cedoliniInAttesa = () => S.paghe.filter(x => x.tipo === 'cedolinoAttesa');
+/**
+ * Salva i cedolini letti (1.63: senza perdere né rovinare quelli già salvati).
+ * - lo stesso cedolino già salvato (stessi numeri): niente da fare;
+ * - un cedolino diverso per lo stesso dipendente e mese lo sostituisce solo se passa i controlli (verificaCedolino) ed è
+ *   davvero un rifacimento: quello salvato non li passava, oppure con il nuovo il mese torna con il bilancino paghe e con
+ *   il vecchio no. Altrimenti resta "in attesa" (paghe, id ca-<mese>-<dipendente>) con i due a confronto in Da controllare;
+ * - un cedolino nuovo si salva; con { auto: true } (automatico dei documenti) solo se passa i controlli e il mese non
+ *   litiga con il bilancino, altrimenti resta in attesa.
+ * Ritorna { nuovi, sostituiti, uguali, inAttesa }.
+ */
+export async function salvaCedolini(x, { auto = false } = {}) {
+  const rows = []; let uguali = 0; const attesa = []; const togli = new Set();
+  const presenti = new Map(S.paghe.filter(p => p.tipo === 'cedolino').map(p => [p.id, p]));
+  const scelte = [];
+  for (const c of x.cedolini) {
+    const dip = chiaveDip(c); const per = periodo(c.anno, c.mese); const id = `c-${per}-${dip}`;
+    const old = presenti.get(id); const v = verificaCedolino(c);
+    const data = Object.assign({ tipo: 'cedolino', dip, file: x.nome, ...(x.imp ? { imp: x.imp } : {}), caricato: today() }, c);
+    const s = { id, dip, per, c: data, old, v };
+    // lo stesso cedolino: i numeri non cambiano, si aggiornano solo gli altri campi letti (scadenze, voci, impronta)
+    if (old && ugualeCed(old, c)) { uguali++; const { id: _i, ...vecchi } = old; rows.push({ col: 'paghe', id, data: Object.assign(vecchi, data, { caricato: old.caricato || data.caricato, ...(old.imp && !x.imp ? { imp: old.imp } : {}) }) }); togli.add(`ca-${per}-${dip}`); continue; }
+    if (old) {
+      // il mese con il nuovo al posto del vecchio, e con il vecchio
+      const altri = cedDelMese(per).filter(p => p.id !== id);
+      const conNuovo = quadraBilancino(per, [...altri, data]), conVecchio = quadraBilancino(per, [...altri, old]);
+      const rifacimento = v.ok && (!verificaCedolino(old).ok || (conNuovo === true && conVecchio !== true));
+      if (rifacimento) scelte.push(Object.assign(s, { sost: true })); else attesa.push(Object.assign(s, { motivo: 'diverso' }));
+      continue;
+    }
+    if (v.ok || !auto) scelte.push(s); else attesa.push(Object.assign(s, { motivo: 'controlli' }));
+  }
+  // automatico: se con i nuovi il mese non torna con il bilancino (e ci sono tutti), niente di quel mese si salva da solo
+  if (auto) for (const per of [...new Set(scelte.map(s => s.per))]) {
+    const delMese = scelte.filter(s => s.per === per); const ids = new Set(delMese.map(s => s.id));
+    if (quadraBilancino(per, [...cedDelMese(per).filter(p => !ids.has(p.id)), ...delMese.map(s => s.c)]) !== false) continue;
+    for (const s of delMese) { scelte.splice(scelte.indexOf(s), 1); attesa.push(Object.assign(s, { motivo: s.old ? 'diverso' : 'controlli', bilancino: true })); }
+  }
+  for (const s of scelte) { rows.push({ col: 'paghe', id: s.id, data: s.c }); togli.add(`ca-${s.per}-${s.dip}`); }
+  for (const s of attesa) {
+    const problemi = [...s.v.problemi, ...(s.bilancino ? ['i totali dei cedolini del mese non tornano con il bilancino paghe'] : [])];
+    rows.push({ col: 'paghe', id: `ca-${s.per}-${s.dip}`, data: { tipo: 'cedolinoAttesa', dip: s.dip, periodo: s.per, motivo: s.motivo, problemi, avvisi: s.v.avvisi, vecchio: s.old ? s.id : '', vecchioNum: s.old ? Object.fromEntries([...NUMERI_CED, 'cf'].map(k => [k, s.old[k] ?? null])) : null, file: x.nome, ...(x.imp ? { imp: x.imp } : {}), caricato: today(), cedolino: s.c } });
+  }
+  // i totali generali del PDF solo se almeno un suo cedolino è salvato (o era già uguale)
+  if (x.totali && (scelte.length || uguali)) rows.push({ col: 'paghe', id: `t-${periodo(x.totali.anno, x.totali.mese)}`, data: Object.assign({ tipo: 'totali', file: x.nome, ...(x.imp ? { imp: x.imp } : {}) }, x.totali) });
+  // un cedolino salvato chiude l'attesa dello stesso dipendente e mese (non deve poterlo sovrascrivere dopo)
+  for (const s of attesa) togli.delete(`ca-${s.per}-${s.dip}`);
+  if (rows.length) await store.bulkPut(rows);
+  for (const id of togli) if (S.paghe.some(p => p.id === id)) await store.remove('paghe', id);
+  return { nuovi: scelte.filter(s => !s.sost).length, sostituiti: scelte.filter(s => s.sost).length, uguali, inAttesa: attesa.length };
+}
+/** Conferma un cedolino in attesa: prende il posto di quello salvato per lo stesso dipendente e mese. */
+export async function confermaCedolino(idAttesa) {
+  const a = S.paghe.find(x => x.id === idAttesa && x.tipo === 'cedolinoAttesa'); if (!a || !a.cedolino) return false;
+  // solo se il cedolino salvato è ancora quello di quando è nata l'attesa (nessuno, o lo stesso di allora)
+  const ora = S.paghe.find(x => x.id === `c-${a.periodo}-${a.dip}` && x.tipo === 'cedolino');
+  if (a.vecchio ? !ora || !a.vecchioNum || !ugualeCed(ora, a.vecchioNum) : !!ora) return false;
+  await store.put('paghe', `c-${a.periodo}-${a.dip}`, a.cedolino); await store.remove('paghe', idAttesa); return true;
+}
+/** Scarta un cedolino in attesa: resta quello già salvato. */
+export async function scartaCedolino(idAttesa) { await store.remove('paghe', idAttesa); }
 export async function salvaBilancinoPaghe(x) {
   const { voci, ...b } = x.bil;
   await store.put('paghe', `b-${periodo(b.anno, b.mese)}`, Object.assign({ tipo: 'bilancino', file: x.nome, ...(x.imp ? { imp: x.imp } : {}), caricato: today(), voci }, b));
@@ -429,23 +572,43 @@ export async function leggiMovimenti(nome, bytes) {
   let txt = new TextDecoder('utf-8').decode(b); if (txt.includes('�')) txt = new TextDecoder('windows-1252').decode(b);
   return movimentiDaRighe(splitCsv(txt.replace(/^﻿/, '')));
 }
-/** Riconosce dalla descrizione a chi o a cosa va un movimento. */
 export const aliasDi = d => String((d && d.alias) || '').split(',').map(a => a.trim()).filter(Boolean);
+// codice fiscale di una persona scritto in una causale o in una descrizione
+const CF_RE = /\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b/g;
+/**
+ * Riconosce dalla descrizione a chi o a cosa va un movimento (1.63: mai un dipendente a caso).
+ * Il codice fiscale scritto nel movimento vince su tutto. Più dipendenti possibili → `ambigui` (da scegliere);
+ * nome trovato solo in parte nella descrizione, o codice fiscale di un'altra persona → `incerto` (da controllare).
+ */
 export function riconosci(m, dips = dipendenti()) {
-  const amb = ds => ({ tipo: 'stipendio', dip: '', ambigui: ds.map(d => d.key) });
+  const amb = ds => ({ tipo: 'stipendio', dip: '', ambigui: [...new Set(ds.map(d => d.key || d))] });
   const nc = d => nomeChiave(d.nomeCed || d.nome);
+  // 0) codice fiscale del dipendente nella causale o nella descrizione
+  const cfs = [...new Set(String([m.beneficiario, m.descrizione, m.causale].filter(Boolean).join(' ')).toUpperCase().match(CF_RE) || [])];
+  if (cfs.length) { const ds = dips.filter(d => d.cf && cfs.includes(d.cf)); if (ds.length === 1) return { tipo: 'stipendio', dip: ds[0].key, daCf: true }; if (ds.length > 1) return amb(ds); }
+  // c'è un codice fiscale che non è di nessun dipendente: il nome da solo non basta per esserne sicuri
+  const ok = r => (r && r.dip && cfs.length ? Object.assign(r, { incerto: true }) : r);
   // 1) nome scritto esattamente come uno dei nomi associati nella tabella (vince sempre)
   if (m.beneficiario) {
     const k = nomeChiave(m.beneficiario);
-    const a = dips.filter(d => aliasDi(d).some(x => nomeChiave(x) === k)); if (a.length === 1) return { tipo: 'stipendio', dip: a[0].key };
+    const a = dips.filter(d => aliasDi(d).some(x => nomeChiave(x) === k)); if (a.length === 1) return ok({ tipo: 'stipendio', dip: a[0].key }); if (a.length > 1) return amb(a);
   }
-  // 2) IBAN già usato per un dipendente (solo se il nome non è di un omonimo diverso)
-  if (m.iban) { const p = S.pagamenti.find(x => x.iban === m.iban && x.dip && x.tipo === 'stipendio'); if (p) { const d = dips.find(d => d.key === p.dip) || dips.find(d => !d.omonimo && nc(d) === nomeChiave(p.beneficiario)); if (d) return { tipo: 'stipendio', dip: d.key }; } }
+  // 2) IBAN già usato per un solo dipendente, e il nome non è di un altro dipendente
+  if (m.iban) {
+    const ks = [...new Set(S.pagamenti.filter(x => x.iban === m.iban && x.dip && x.tipo === 'stipendio').map(p => (dips.find(d => d.key === p.dip) || dips.find(d => !d.omonimo && nc(d) === nomeChiave(p.beneficiario)) || {}).key).filter(Boolean))];
+    const altro = m.beneficiario && dips.some(d => !ks.includes(d.key) && nc(d) === nomeChiave(m.beneficiario));
+    if (ks.length === 1 && !altro) return ok({ tipo: 'stipendio', dip: ks[0] });
+    if (ks.length > 1) { const n = m.beneficiario ? ks.filter(k => { const d = dips.find(d => d.key === k); return d && !d.omonimo && nc(d) === nomeChiave(m.beneficiario); }) : []; return n.length === 1 ? ok({ tipo: 'stipendio', dip: n[0] }) : amb(ks); }
+  }
   // 3) nome uguale a quello del cedolino
-  if (m.beneficiario) { const k = nomeChiave(m.beneficiario); const n = dips.filter(d => nc(d) === k); if (n.length === 1) return { tipo: 'stipendio', dip: n[0].key }; if (n.length > 1) return amb(n); }
-  // 3b) nome già usato in un pagamento registrato (anche di chi non ha ancora cedolini)
-  if (m.beneficiario) { const k = nomeChiave(m.beneficiario); const p = S.pagamenti.find(x => x.dip && CON_DIP.has(x.tipo) && x.beneficiario && nomeChiave(x.beneficiario) === k); if (p && !(dips.find(d => d.key === p.dip) || {}).omonimo) return { tipo: 'stipendio', dip: p.dip }; }
-  // 4) nome dentro la descrizione: i nomi della tabella contano anche le iniziali (es. "SINGH AMARJIT G")
+  if (m.beneficiario) { const k = nomeChiave(m.beneficiario); const n = dips.filter(d => nc(d) === k); if (n.length === 1) return ok({ tipo: 'stipendio', dip: n[0].key }); if (n.length > 1) return amb(n); }
+  // 3b) nome già usato in un pagamento registrato (anche di chi non ha ancora cedolini): solo se sempre per la stessa persona
+  if (m.beneficiario) {
+    const k = nomeChiave(m.beneficiario); const ks = [...new Set(S.pagamenti.filter(x => x.dip && CON_DIP.has(x.tipo) && x.beneficiario && nomeChiave(x.beneficiario) === k).map(x => x.dip))];
+    if (ks.length === 1 && !(dips.find(d => d.key === ks[0]) || {}).omonimo) return ok({ tipo: 'stipendio', dip: ks[0] });
+    if (ks.length > 1) return amb(ks);
+  }
+  // 4) nome dentro la descrizione: i nomi della tabella contano anche le iniziali (es. "ROSSI MARIO G")
   const d = ' ' + String([m.beneficiario, m.descrizione].filter(Boolean).join(' ')).toUpperCase().replace(/[^A-Z0-9]+/g, ' ') + ' ';
   const parole = (n, min) => String(n || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(w => w.length >= min);
   const punti = new Map();
@@ -457,7 +620,8 @@ export function riconosci(m, dips = dipendenti()) {
     if (sc) punti.set(p, sc);
   }
   const max = Math.max(0, ...punti.values()); const migliori = [...punti].filter(([, v]) => v === max).map(([p]) => p);
-  if (migliori.length === 1) return { tipo: 'stipendio', dip: migliori[0].key };
+  // nome intero (o della tabella) = sicuro; solo alcune parole del nome = da controllare
+  if (migliori.length === 1) return ok(Object.assign({ tipo: 'stipendio', dip: migliori[0].key }, max < 10 ? { incerto: true } : {}));
   if (migliori.length > 1) return amb(migliori);
   if (/\bF24\b|DELEGA|AGENZIA ENTRATE|TRIBUT/.test(d)) return { tipo: 'f24' };
   if (/\bINPS\b|CONTRIBUT|PAGOPA.*INPS/.test(d)) return { tipo: 'contributi' };
@@ -471,16 +635,17 @@ export { mesePrec, meseSucc, inizioPeriodo, finePeriodo };
 /** Pagamenti da registrare a partire dalle contabili di bonifico lette. */
 export function righeBonifici(bon, file) { return segnaDoppi(righeBonifici0(bon, file)); }
 function righeBonifici0(bon, file) {
-  const presenti = new Set([...S.pagamenti.map(p => p.id), ...S.fatture.flatMap(f => (f.pagamentiBanca || []).map(p => p.mov))]); const dips = dipendenti(); const gia = new Map();
+  const presenti = new Set([...S.pagamenti.map(p => p.id), ...S.fatture.flatMap(f => (f.pagamentiBanca || []).map(p => p.mov))]); const dips = dipendenti(); const gia = new Map(); const visti = new Set();
   return bon.map(b => {
     const m = { data: b.data, importo: r2(b.importo), descrizione: [b.beneficiario, b.causale].filter(Boolean).join(' · '), beneficiario: b.beneficiario, iban: b.iban };
     let r = riconosci(m, dips);
     if ((!r || (r.tipo === 'stipendio' && !r.dip && !r.ambigui)) && b.stipendio) r = { tipo: 'stipendio', dip: 'N-' + slug(b.beneficiario) };
-    const id = b.id ? 'b' + idPagamento({ data: b.id, importo: 0, descrizione: '' }).slice(1) : idPagamento(m);
+    // due bonifici uguali nella stessa distinta (senza identificativo) sono due righe: il secondo ha una x in fondo
+    let id = b.id ? 'b' + idPagamento({ data: b.id, importo: 0, descrizione: '' }).slice(1) : idPagamento(m); while (visti.has(id)) id += 'x'; visti.add(id);
     let fatt = [], proposte = [], motivo = '';
     if (!r) { const c = candidateFatture({ id, data: b.data || today(), importo: -b.importo, descrizione: [b.beneficiario, b.causale].join(' ') }, gia); proposte = c.proposte; if (c.scelte.length) { r = { tipo: 'fattura' }; fatt = c.scelte; motivo = c.motivo; c.scelte.forEach(f => gia.set(f, (gia.get(f) || 0) + b.importo)); } }
     if (!r) r = { tipo: 'ignora' };
-    return Object.assign(m, r, { id, comp: b.comp || '', modalita: 'bonifico', idBanca: b.id || '', fonte: file, gia: presenti.has(id), sel: !presenti.has(id) && r.tipo !== 'ignora' && !(r.ambigui && !r.dip), causale: b.causale, fatt, proposte, motivo, nuovo: r.dip && r.dip.startsWith('N-') && !dips.some(d => d.key === r.dip) });
+    return Object.assign(m, r, { id, comp: b.comp || '', modalita: 'bonifico', idBanca: b.id || '', fonte: file, gia: presenti.has(id), sel: !presenti.has(id) && r.tipo !== 'ignora' && !(r.ambigui && !r.dip) && !r.incerto, causale: b.causale, fatt, proposte, motivo, nuovo: r.dip && r.dip.startsWith('N-') && !dips.some(d => d.key === r.dip) });
   });
 }
 /** Campi del pagamento da salvare. */
@@ -534,24 +699,67 @@ export async function imparaNomi(righe) {
 }
 
 /**
- * Elimina i pagamenti doppi: stesso dipendente (o stesso beneficiario), stesso tipo, stesso importo e stessa data
- * sono lo stesso pagamento, anche se arrivano da file caricati più volte o da file diversi (contabile ed estratto).
- * Si tiene quello inserito a mano o con il mese indicato, altrimenti il primo; vale anche per i pagamenti segnati sulle fatture.
+ * Pagamenti forse doppi (1.63): stesso tipo, stesso dipendente (o stesso beneficiario), stesso importo e stessa data.
+ * - certi: lo stesso movimento (stessoMovimento: stesso CRO/TRN, o il CRO della contabile nella descrizione dell'estratto)
+ *   → si tiene quello inserito a mano o con il mese indicato, altrimenti il primo, con i dati che mancano presi dall'altro;
+ * - due pagamenti veri (pagamentiDistinti: righe diverse dello stesso documento, CRO diversi) → si tengono tutti e due;
+ * - gli altri → dubbi, da confermare in Da controllare (scartato = sono due pagamenti veri, non si ripropone).
+ * Sulle fatture: lo stesso movimento segnato due volte (stesso `mov`) è certo; due movimenti diversi con la stessa data e lo
+ * stesso importo sono un dubbio.
  */
-export async function eliminaDoppi() {
+export function analizzaDoppi() {
   const risolti = new Map(pagamenti().map(p => [p.id, p]));
   const chiave = p => { const r = risolti.get(p.id) || p; const chi = CON_DIP.has(p.tipo) ? (r.dip || nomeChiave(p.beneficiario)) : ''; return CON_DIP.has(p.tipo) && !chi ? null : [p.tipo, chi, r2(N(p.importo)), p.data].join('|'); };
   const peso = p => (p.dipManuale || p.fonte === 'a mano' ? 0 : 2) + (p.comp ? 0 : 1);
   const gruppi = new Map(); for (const p of S.pagamenti) { if (!p.data) continue; const k = chiave(p); if (!k) continue; gruppi.set(k, [...(gruppi.get(k) || []), p]); }
-  const via = []; for (const g of gruppi.values()) if (g.length > 1) { g.sort((a, b) => peso(a) - peso(b) || String(a.id).localeCompare(String(b.id))); via.push(...g.slice(1)); }
-  for (const p of via) await store.remove('pagamenti', p.id);
-  // fatture: lo stesso movimento segnato due volte
-  const rows = []; let nf = 0;
+  const certi = [], dubbi = [];
+  for (const g of gruppi.values()) {
+    if (g.length < 2) continue;
+    g.sort((a, b) => peso(a) - peso(b) || String(a.id).localeCompare(String(b.id)));
+    const tieni = [g[0]];
+    for (const x of g.slice(1)) {
+      const t = tieni.find(t => stessoMovimento(t, x)); if (t) { certi.push({ tieni: t, via: x }); continue; }
+      const altro = tieni.find(t => !pagamentiDistinti(t, x));
+      if (altro) { const id = idCoppia(altro, x); if (!scartato(id)) dubbi.push({ id, tieni: altro, via: x, dip: (risolti.get(x.id) || x).dip }); }
+      tieni.push(x);
+    }
+  }
+  const fatCerte = [], fatDubbi = [];
   for (const f of S.fatture) {
     const pb = f.pagamentiBanca || []; if (pb.length < 2) continue;
-    const visti = new Set(); const tieni = pb.filter(x => { const k = x.data + '|' + r2(Math.abs(N(x.importo))); if (visti.has(k)) return false; visti.add(k); return true; });
-    if (tieni.length < pb.length) { nf += pb.length - tieni.length; const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { pagamentiBanca: tieni }) }); }
+    const visti = new Set(); const tieni = pb.filter(x => { if (!x.mov) return true; if (visti.has(x.mov)) return false; visti.add(x.mov); return true; });
+    if (tieni.length < pb.length) fatCerte.push({ f, tieni });
+    for (let i = 0; i < tieni.length; i++) for (let j = i + 1; j < tieni.length; j++) {
+      const a = tieni[i], b = tieni[j];
+      if (a.data !== b.data || Math.abs(Math.abs(N(a.importo)) - Math.abs(N(b.importo))) > 0.005) continue;
+      const id = `ft-doppio-${f.id}-${[a.mov || i, b.mov || j].sort().join('+')}`;
+      if (!scartato(id)) fatDubbi.push({ id, f, a, b });
+    }
   }
+  return { certi, dubbi, fatCerte, fatDubbi };
+}
+/** Tiene `tieni` e toglie `via` (lo stesso pagamento registrato due volte): i dati che mancano si prendono da `via`. */
+export async function unisciPagamenti(tieniId, viaId) {
+  const a = S.pagamenti.find(p => p.id === tieniId), b = S.pagamenti.find(p => p.id === viaId); if (!a || !b || a === b) return false;
+  const { id, ...data } = a; let cambiato = false;
+  for (const k of ['idBanca', 'iban', 'causale', 'beneficiario', 'imp', 'comp']) if (!data[k] && b[k]) { data[k] = b[k]; cambiato = true; }
+  if (cambiato) await store.put('pagamenti', id, data);
+  await store.remove('pagamenti', b.id); return true;
+}
+/** Toglie da una fattura il pagamento di banca `x` segnato due volte: quello con lo stesso movimento, o l'ultimo con la stessa data e importo. */
+export async function togliPagamentoFattura(fid, x) {
+  const f = S.fatture.find(y => y.id === fid); if (!f || !x) return false;
+  const pb = f.pagamentiBanca || []; const uguale = y => y.data === x.data && Math.abs(Math.abs(N(y.importo)) - Math.abs(N(x.importo))) < 0.005 && (!x.mov || y.mov === x.mov);
+  const conta = pb.filter(y => y.data === x.data && Math.abs(Math.abs(N(y.importo)) - Math.abs(N(x.importo))) < 0.005).length; if (conta < 2) return false;
+  let i = -1; for (let j = pb.length - 1; j >= 0; j--) if (uguale(pb[j])) { i = j; break; } if (i < 0) return false;
+  const { id, ...data } = f; await store.put('fatture', id, Object.assign(data, { pagamentiBanca: pb.filter((_, j) => j !== i) })); return true;
+}
+/** Elimina solo i pagamenti doppi certi (vedi analizzaDoppi); gli altri restano e sono dubbi. Ritorna quanti ne ha tolti. */
+export async function eliminaDoppi() {
+  const { certi, fatCerte } = analizzaDoppi(); let n = 0;
+  for (const c of certi) if (await unisciPagamenti(c.tieni.id, c.via.id)) n++;
+  const rows = [];
+  for (const { f, tieni } of fatCerte) { n += (f.pagamentiBanca || []).length - tieni.length; const { id, ...data } = f; rows.push({ col: 'fatture', id, data: Object.assign(data, { pagamentiBanca: tieni }) }); }
   if (rows.length) await store.bulkPut(rows);
-  return via.length + nf;
+  return n;
 }

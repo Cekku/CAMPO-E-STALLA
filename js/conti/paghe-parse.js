@@ -119,6 +119,36 @@ export function controlliCedolino(c) {
   return out;
 }
 
+/**
+ * Controlli che un cedolino deve passare per essere salvato da solo (automatico, sostituzioni):
+ * mese, anno, nome e codice fiscale letti; competenze − trattenute ± arrotondamenti = netto; somma delle voci di
+ * competenza = totale competenze; ore del mese plausibili e, per la voce delle ore, ore × paga = importo.
+ * Ritorna { ok, problemi: [...], avvisi: [...] } (gli avvisi non bloccano: la somma delle trattenute dipende dal modulo).
+ */
+export function verificaCedolino(c) {
+  const P = [], A = []; const num = v => typeof v === 'number' && isFinite(v); const eu = v => v.toFixed(2).replace('.', ',');
+  if (!c || typeof c !== 'object') return { ok: false, problemi: ['cedolino vuoto'], avvisi: [] };
+  if (!c.mese || !c.anno) P.push('mese o anno non letti');
+  if (!c.nome) P.push('nome del dipendente non letto');
+  if (!/^[A-Z0-9]{16}$/.test(c.cf || '')) P.push('codice fiscale non letto');
+  if (!num(c.netto) || c.netto <= 0) P.push('netto non letto o a zero');
+  if (!num(c.totComp) || !num(c.totTratt)) P.push('totali delle competenze e delle trattenute non letti');
+  else if (num(c.netto)) {
+    const atteso = r2(c.totComp - c.totTratt - (c.arrPrec || 0) + (c.arrCorr || 0));
+    if (Math.abs(atteso - c.netto) > 0.02) P.push(`competenze − trattenute non danno il netto (differenza ${eu(c.netto - atteso)} €)`);
+  }
+  const voci = Array.isArray(c.voci) ? c.voci : [];
+  if (!voci.length) P.push('voci del cedolino non lette');
+  else if (num(c.totComp)) { const sc = r2(voci.reduce((t, v) => t + (v.competenza || 0), 0)); if (Math.abs(sc - c.totComp) > 0.02) P.push(`la somma delle voci (${eu(sc)} €) non dà il totale delle competenze (${eu(c.totComp)} €)`); }
+  if (num(c.ore) && (c.ore < 0 || c.ore > 320)) P.push(`ore del mese non plausibili (${c.ore})`);
+  // la voce delle ore lavorate (stesse ore del mese): ore × paga oraria = importo
+  if (num(c.ore) && c.ore > 0) for (const v of voci.filter(v => num(v.tempo) && Math.abs(v.tempo - c.ore) < 0.005 && num(v.unitario) && v.unitario > 0 && num(v.competenza) && v.competenza > 0)) {
+    const att = r2(v.tempo * v.unitario); if (Math.abs(att - v.competenza) > Math.max(0.02, v.competenza * 0.001)) P.push(`${v.descrizione || 'voce ' + v.codice}: ${v.tempo} ore × ${eu(v.unitario)} € non fa ${eu(v.competenza)} €`);
+  }
+  if (voci.length && num(c.totTratt) && num(c.ritPrev) && num(c.irpef)) { const st = r2(voci.reduce((t, v) => t + (v.trattenuta || 0), 0) + c.ritPrev + Math.max(0, c.irpef)); if (Math.abs(st - c.totTratt) > 0.05) A.push('voci di trattenuta + contributi + IRPEF diverse dal totale delle trattenute'); }
+  return { ok: !P.length, problemi: P, avvisi: A };
+}
+
 /** Legge un PDF di cedolini: { cedolini: [...], totali: {...} | null, mese, anno }. */
 export async function leggiCedolini(bytes, pagine) {
   pagine = pagine || await leggiPdf(bytes);
