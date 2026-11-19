@@ -5,10 +5,10 @@ import { ic } from '../icons.js';
 import { CATEGORIE, giac } from '../domain.js';
 import { tabs, empty, newBtn, fact, chip, exChip } from '../ui.js';
 import { FITO } from '../checks.js';
-import { fitoLookup } from '../fitodb.js';
+import { fitoLookup, etichettaUrl } from '../fitodb.js';
 import { contiVisibili } from './conti.js';
 import { sezione, contaDaFare } from './magfatture.js';
-import { docFattura } from '../magfatture.js';
+import { docFattura, prezziAcquisto } from '../magfatture.js';
 import { previsione, giorniTxt } from '../razauto.js';
 
 const CAT_IC = { 'Fitofarmaco': 'shield-check', 'Diserbante': 'leaf', 'Concime': 'sprout', 'Seme': 'wheat', 'Mangime': 'wheat', 'Foraggio': 'leaf', 'Farmaco veterinario': 'syringe', 'Gasolio': 'fuel', 'Altro': 'package' };
@@ -38,7 +38,7 @@ function prodotti() {
   const cat = UI.f.cat || '', q = (UI.f.pq || '').toLowerCase().trim();
   const cnt = {}; S.prodotti.forEach(p => (cnt[p.categoria] = (cnt[p.categoria] || 0) + 1));
   const list = [...S.prodotti].filter(p => (!cat || p.categoria === cat) && (!q || (p.nome || '').toLowerCase().includes(q))).sort(byName);
-  const valore = sum(S.prodotti, p => Math.max(0, giac(p)) * N(p.prezzo));
+  const PA = prezziAcquisto(); const valore = sum(S.prodotti, p => Math.max(0, giac(p)) * (PA.get(p.id) ?? N(p.prezzo)));
   const sotto = S.prodotti.filter(p => N(p.scortaMin) > 0 && giac(p) < N(p.scortaMin)).length;
   return `<div class="kpis three"><div class="kpi static"><span class="k-l">Valore giacenze</span><span class="k-v">${eur(valore)}</span><span class="k-s">al prezzo di carico</span></div><div class="kpi static"><span class="k-l">Prodotti</span><span class="k-v">${S.prodotti.length}</span><span class="k-s">${Object.keys(cnt).length} categorie</span></div><div class="kpi static"><span class="k-l">Sotto scorta</span><span class="k-v ${sotto ? 't-warn' : ''}">${sotto}</span><span class="k-s">${sotto ? 'da riordinare' : 'tutto in regola'}</span></div></div>
   <div class="toolbar"><div class="search">${ic('search')}<input class="inp" id="prodq" data-filter="pq" placeholder="Cerca prodotto" value="${esc(UI.f.pq || '')}" autocomplete="off"></div><span class="sp"></span>${newBtn('prodotti', 'Prodotto', '', '')}</div>
@@ -58,7 +58,8 @@ function movimenti() {
 function detail(p) {
   const g = giac(p); const mv = S.movimenti.filter(m => m.prodottoId === p.id).sort(byDate).reverse();
   return { title: p.nome, html: `<section class="card detail-hero"><div class="big-icon">${ic(CAT_IC[p.categoria] || 'package')}</div><div class="dh-body"><span class="eyebrow">${esc(p.categoria || 'Prodotto')}</span><h1>${esc(p.nome)}${exChip(p)}</h1><div class="big-num">${nf(g, 2)}<small>${esc(p.unita || '')} in magazzino</small></div><div class="chips">${chips(p)}</div><div class="btns"><button class="btn sm" data-act="new" data-form="movimenti" data-tipo="Scarico" data-prodotto="${p.id}">${ic('upload')}Scarico</button>${newBtn('movimenti', 'Carico', `data-tipo="Carico" data-prodotto="${p.id}"`)}<button class="btn sm ghost" data-act="edit" data-form="prodotti" data-id="${p.id}">${ic('pencil')}Modifica</button></div></div></section>
-  <dl class="facts">${fact('Prezzo', N(p.prezzo) ? `<span class="num">${eur(p.prezzo, 2)}</span> <small>/${esc(p.unita || '')}</small>` : '—')}${fact('Valore', `<span class="num">${eur(Math.max(0, g) * N(p.prezzo))}</span>`)}${fact('Scorta minima', N(p.scortaMin) ? nf(p.scortaMin) + ' ' + esc(p.unita || '') : '—')}${(v => v ? fact('Consumo dalle razioni', nf(v.cons, v.cons < 10 ? 2 : 1) + ' ' + esc(p.unita || '') + '/giorno' + (v.auto ? ' · scarico automatico' : '')) + fact('Basta per', `<span class="${v.giorni < 7 ? 't-bad' : v.giorni < 20 ? 't-warn' : ''}">circa ${giorniTxt(v.giorni)}</span>`) : '')(previsione(p))}${fact('Scadenza', fd(p.scadenza))}${fact('N. registrazione', esc(p.nReg || '—'))}${FITO.includes(p.categoria) ? fact('Sostanze attive', esc(p.sostanze || '—')) + fact('Autorizzato fino al', fd(p.scadenzaAut || (fitoLookup(p.nReg) || {}).scadenza)) : ''}${fact('Carenza', N(p.carenza) ? p.carenza + ' giorni' : '—')}${p.categoria === 'Farmaco veterinario' ? fact('Sospensione', (N(p.sospLatte) || 0) + ' gg latte · ' + (N(p.sospCarne) || 0) + ' gg carne') : ''}${fact('Fornitore', esc(p.fornitore || '—'))}</dl>
+  <dl class="facts">${fact('Prezzo', N(p.prezzo) ? `<span class="num">${eur(p.prezzo, 2)}</span> <small>/${esc(p.unita || '')}</small>` : '—')}${fact('Valore', `<span class="num">${eur(Math.max(0, g) * (prezziAcquisto().get(p.id) ?? N(p.prezzo)))}</span>`)}${fact('Scorta minima', N(p.scortaMin) ? nf(p.scortaMin) + ' ' + esc(p.unita || '') : '—')}${(v => v ? fact('Consumo dalle razioni', nf(v.cons, v.cons < 10 ? 2 : 1) + ' ' + esc(p.unita || '') + '/giorno' + (v.auto ? ' · scarico automatico' : '')) + fact('Basta per', `<span class="${v.giorni < 7 ? 't-bad' : v.giorni < 20 ? 't-warn' : ''}">circa ${giorniTxt(v.giorni)}</span>`) : '')(previsione(p))}${fact('Scadenza', fd(p.scadenza))}${fact('N. registrazione', esc(p.nReg || '—'))}${FITO.includes(p.categoria) ? fact('Sostanze attive', esc(p.sostanze || '—')) + fact('Autorizzato fino al', fd(p.scadenzaAut || (fitoLookup(p.nReg) || {}).scadenza)) : ''}${fact('Carenza', N(p.carenza) ? p.carenza + ' giorni' : '—')}${p.categoria === 'Farmaco veterinario' ? fact('Sospensione', (N(p.sospLatte) || 0) + ' gg latte · ' + (N(p.sospCarne) || 0) + ' gg carne') : ''}${fact('Fornitore', esc(p.fornitore || '—'))}</dl>
+  ${FITO.includes(p.categoria) && etichettaUrl(fitoLookup(p.nReg)) ? (e => `<div class="btns"><a class="btn sm" href="${etichettaUrl(e)}" target="_blank" rel="noopener">${ic('file-text')}Etichetta del Ministero${e.etichetta.data ? ' (' + fd(e.etichetta.data) + ')' : ''}</a></div>`)(fitoLookup(p.nReg)) : ''}
   ${FITO.includes(p.categoria) ? impieghiCard(p) : ''}
   ${p.note ? `<section class="card note">${esc(p.note)}</section>` : ''}
   <section class="card"><div class="card-h"><h2>Movimenti</h2><span class="count">${mv.length}</span></div><div class="list">${mv.length ? mv.map(movRow).join('') : '<div class="empty slim">Nessun movimento: la giacenza è quella iniziale.</div>'}</div></section>` };

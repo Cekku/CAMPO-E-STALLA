@@ -7,7 +7,7 @@ import { COLTURE, coltureNote, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, T
 import { areaHa } from './geo.js';
 import { meteoAlMomento } from './meteo.js';
 import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
-import { fitoLookup, fitoSearch, fitoMeta } from './fitodb.js';
+import { fitoLookup, fitoSearch, fitoMeta, etichettaUrl } from './fitodb.js';
 import { esc } from './util.js';
 import { FASI_BOX, allBoxes } from './herd.js';
 import { scaricaRazioni } from './razauto.js';
@@ -540,8 +540,8 @@ export function openColtura(campoId, anno) {
 function dbBox(v) {
   const box = document.getElementById('box_dbbox'); if (!box) return;
   const hit = fitoLookup(v.nReg);
-  const status = hit ? `<div class="db-hit ${hit.revocato ? 'bad' : 'ok'}"><b>${esc(hit.nome)}</b><span>reg. ${esc(hit.nReg)} · ${esc(hit.impresa || '')}${hit.scadenza ? ' · autorizzato fino al ' + fd(hit.scadenza) : ''}${hit.stato ? ' · ' + esc(hit.stato) : ''}</span></div>` : '';
-  if (!fitoMeta.n) { box.innerHTML = `<div class="db-box"><p class="muted small" style="margin:0">Carica la banca dati del Ministero in <b>La mia azienda → Banca dati fitofarmaci</b> per compilare questa scheda in automatico e sapere se il prodotto è ancora autorizzato.</p></div>`; return; }
+  const status = hit ? `<div class="db-hit ${hit.revocato ? 'bad' : 'ok'}"><b>${esc(hit.nome)}</b><span>reg. ${esc(hit.nReg)} · ${esc(hit.impresa || '')}${hit.scadenza ? ' · autorizzato fino al ' + fd(hit.scadenza) : ''}${hit.stato ? ' · ' + esc(hit.stato) : ''}</span>${etichettaUrl(hit) ? `<a class="btn sm ghost" href="${etichettaUrl(hit)}" target="_blank" rel="noopener">Apri l'etichetta${hit.etichetta.data ? ' del ' + fd(hit.etichetta.data) : ''}</a>` : ''}</div>` : '';
+  if (!fitoMeta.n) { box.innerHTML = `<div class="db-box"><p class="muted small" style="margin:0">La banca dati del Ministero arriva da sola quando l'app è collegata a internet (oppure si carica in <b>La mia azienda → Banca dati fitofarmaci</b>): serve a compilare questa scheda e a sapere se il prodotto è ancora autorizzato.</p></div>`; return; }
   box.innerHTML = `<div class="db-box"><div class="search">${'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'}<input class="inp" id="dbq" placeholder="Cerca nella banca dati (${fitoMeta.n} prodotti): nome, n. registrazione o sostanza" autocomplete="off"></div><div id="dbres" class="db-res"></div>${status}</div>`;
   const q = box.querySelector('#dbq'), res = box.querySelector('#dbres');
   q.oninput = () => { const r = fitoSearch(q.value, 12); res.innerHTML = r.map(x => `<button type="button" class="db-row${x.revocato ? ' rev' : ''}" data-reg="${esc(x.nReg)}"><b>${esc(x.nome)}</b><span>reg. ${esc(x.nReg)} · ${esc(x.sostanze || x.attivita || '')}${x.revocato ? ' · non autorizzato' : ''}</span></button>`).join('') || (q.value.trim().length > 1 ? '<div class="muted small">Nessun prodotto trovato.</div>' : ''); };

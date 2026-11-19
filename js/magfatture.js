@@ -102,6 +102,22 @@ export function docFattura(m) {
   const q = N(m.quantita) > 0 && N(r.importo) > 0 ? ' · ' + (Math.round(N(r.importo) / N(m.quantita) * 100) / 100).toLocaleString('it-IT', { minimumFractionDigits: 2 }) + ' €' : '';
   return ['Fatt. ' + (f.numero || '') + (d ? ' del ' + d : ''), String(r.ddt || '').trim() ? 'DDT ' + leggiDdt(r.ddt, f.data).num : '', f.controparte || ''].filter(Boolean).join(' · ') + q;
 }
+/** Solo per il titolare: prezzo dell'ultimo carico di ogni prodotto, a mano (prezzo scritto) o da fattura (importo senza IVA ÷ quantità).
+ *  Map id prodotto → prezzo. Ai collaboratori Map vuota: resta il prezzo scritto sul prodotto. */
+export function prezziAcquisto() {
+  const out = new Map(); if (!contiVisibili()) return out;
+  const fat = new Map(S.fatture.map(f => [f.id, f])); const ult = new Map();
+  for (const m of S.movimenti) {
+    if (m.tipo !== 'Carico' || !m.prodottoId || !(N(m.quantita) > 0)) continue;
+    let pr = 0;
+    if (m.fattRiga) { const k = String(m.fattRiga); const j = k.lastIndexOf(':'); const f = fat.get(k.slice(0, j)); const r = f && (f.righe || [])[+k.slice(j + 1)]; if (r) pr = N(r.importo) / N(m.quantita); }
+    else pr = N(m.prezzo);
+    if (!(pr > 0)) continue;
+    const d = m.data || ''; const u = ult.get(m.prodottoId);
+    if (!u || d >= u) { ult.set(m.prodottoId, d); out.set(m.prodottoId, pr); }
+  }
+  return out;
+}
 /** Il movimento non porta prezzo, fornitore né numero di fattura: movimenti e prodotti li vedono anche i collaboratori (scelta di Marco, 19/11/2026). */
 function movimento(x, p, q) {
   return { tipo: 'Carico', prodottoId: p.id, data: x.data, quantita: r3(q), provenienza: 'Comprato', fattRiga: x.k, note: String(x.r.descrizione || '').slice(0, 200) };

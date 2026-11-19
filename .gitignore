@@ -17,3 +17,6 @@ xfarm-*.csv
 xfarm-*.geojson
 prova-*.html
 campo-e-stalla-*.json
+
+# indice di lavoro dello scarico delle etichette dei fitosanitari
+strumenti/fitosanitari/etichette-indice.json

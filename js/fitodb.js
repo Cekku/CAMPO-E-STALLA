@@ -1,4 +1,5 @@
-// Banca dati dei prodotti fitosanitari del Ministero della Salute (file open data CSV caricato dall'utente).
+// Banca dati dei prodotti fitosanitari del Ministero della Salute: arriva da sola con l'app (data/fitosanitari.json,
+// con il numero dell'ultima etichetta) oppure da un file open data CSV caricato dall'utente.
 // Resta solo su questo dispositivo: serve a compilare le schede prodotto e a segnalare prodotti revocati o scaduti.
 import { bus } from './state.js';
 import { today } from './util.js';
@@ -17,9 +18,44 @@ export async function initFito() {
     const t = db.transaction(['p', 'meta'], 'readonly');
     const [all, at] = await Promise.all([req(t.objectStore('p').getAll()), req(t.objectStore('meta').get('at'))]);
     all.forEach(x => mem.set(normReg(x.nReg), x)); fitoMeta.n = mem.size; fitoMeta.at = at || null;
+    fitoMeta.versione = (await req(db.transaction('meta', 'readonly').objectStore('meta').get('versione'))) || '';
   } catch (e) { console.warn('banca dati fitofarmaci non disponibile', e); }
   fitoMeta.ready = true; bus.render();
+  autoFito();
 }
+
+// Elenco già pronto pubblicato con l'app (data/fitosanitari.json, fatto da strumenti/fitosanitari/scarica_fitosanitari.py):
+// si carica da solo quando è più nuovo di quello sul dispositivo.
+async function autoFito() {
+  if (!db || !navigator.onLine) return;
+  const oggi = today(); let k = null;
+  try { k = localStorage.getItem('ces.fito.ctl'); } catch (e) { }
+  if (k === oggi && fitoMeta.n) return; // al massimo un controllo al giorno
+  try {
+    if (await req(db.transaction('meta', 'readonly').objectStore('meta').get('spento'))) return; // tolta a mano: non torna da sola
+    try { localStorage.setItem('ces.fito.ctl', oggi); } catch (e) { }
+    const r = await fetch('data/fitosanitari.json', { cache: 'no-cache' }); if (!r.ok) return;
+    const j = await r.json(); if (!j || !Array.isArray(j.prodotti) || !j.prodotti.length) return;
+    // stessa versione, o elenco del dispositivo di un giorno più recente (es. CSV caricato a mano): resta quello.
+    // Un elenco rifatto lo stesso giorno (più etichette) si carica.
+    const v = String(fitoMeta.versione || ''), a = String(j.aggiornato || '');
+    if (v && (v === a || v.slice(0, 10) > a.slice(0, 10))) return;
+    const T = today();
+    await salva(j.prodotti.map(x => Object.assign(x, { revocato: fuori(x, T) })), j.aggiornato);
+  } catch (e) { console.warn('aggiornamento della banca dati fitofarmaci non riuscito', e); }
+}
+const fuori = (x, T) => /revoc|sospes|non autorizz|ritirat|scadut/i.test(x.stato || '') || (!!x.scadenza && x.scadenza < T) ? 1 : 0;
+async function salva(list, versione) {
+  if (!db) db = await open();
+  await new Promise((res, rej) => {
+    const t = db.transaction(['p', 'meta'], 'readwrite'); const st = t.objectStore('p'); st.clear(); list.forEach(x => st.put(x));
+    const m = t.objectStore('meta'); m.put(new Date().toISOString(), 'at'); m.put(versione, 'versione'); m.delete('spento');
+    t.oncomplete = res; t.onerror = () => rej(t.error);
+  });
+  mem.clear(); list.forEach(x => mem.set(normReg(x.nReg), x)); fitoMeta.n = mem.size; fitoMeta.at = new Date().toISOString(); fitoMeta.versione = versione; bus.render();
+}
+// Ultima etichetta autorizzata sul sito del Ministero (PDF)
+export const etichettaUrl = x => x && x.etichetta && x.etichetta.id ? 'https://www.fitosanitari.salute.gov.it/fitosanitariws_new/EtichettaServlet?id=' + encodeURIComponent(x.etichetta.id) : '';
 
 const normReg = s => { const d = String(s || '').replace(/\D/g, ''); return d ? d.replace(/^0+/, '') || '0' : ''; };
 export function fitoLookup(nReg) { const k = normReg(nReg); return k ? mem.get(k) || null : null; }
@@ -27,7 +63,7 @@ export function fitoSearch(q, max = 30) {
   const n = String(q || '').toLowerCase().trim(); if (n.length < 2) return [];
   const reg = normReg(n); const out = [];
   for (const x of mem.values()) {
-    if ((reg && reg.length >= 3 && normReg(x.nReg).startsWith(reg)) || x.nome.toLowerCase().includes(n) || (x.sostanze || '').toLowerCase().includes(n)) { out.push(x); if (out.length >= 300) break; }
+    if ((reg && (normReg(x.nReg) === reg || (reg.length >= 3 && normReg(x.nReg).startsWith(reg)))) || x.nome.toLowerCase().includes(n) || (x.sostanze || '').toLowerCase().includes(n)) { out.push(x); if (out.length >= 300) break; }
   }
   return out.sort((a, b) => (a.revocato - b.revocato) || (a.nome.toLowerCase().startsWith(n) ? -1 : 0) - (b.nome.toLowerCase().startsWith(n) ? -1 : 0) || a.nome.localeCompare(b.nome)).slice(0, max);
 }
@@ -82,17 +118,12 @@ export async function importFito(file) {
     if (iSost >= 0) { const s = String(r[iSost] || '').trim(); if (s && !x.sostanze.toLowerCase().split(', ').includes(s.toLowerCase())) x.sostanze = x.sostanze ? x.sostanze + ', ' + s : s; }
     by.set(reg, x);
   }
-  const list = [...by.values()].map(x => Object.assign(x, { revocato: /revoc|sospes|non autorizz|ritirat/i.test(x.stato) || (!!x.scadenza && x.scadenza < T) ? 1 : 0 }));
+  const list = [...by.values()].map(x => { const v = fitoLookup(x.nReg); return Object.assign(x, { revocato: fuori(x, T) }, v && v.etichetta ? { etichetta: v.etichetta } : {}); });
   if (!list.length) throw new Error('Nessun prodotto trovato nel file.');
-  if (!db) db = await open();
-  await new Promise((res, rej) => {
-    const t = db.transaction(['p', 'meta'], 'readwrite'); const st = t.objectStore('p'); st.clear(); list.forEach(x => st.put(x)); t.objectStore('meta').put(new Date().toISOString(), 'at');
-    t.oncomplete = res; t.onerror = () => rej(t.error);
-  });
-  mem.clear(); list.forEach(x => mem.set(normReg(x.nReg), x)); fitoMeta.n = mem.size; fitoMeta.at = new Date().toISOString(); bus.render();
+  await salva(list, T);
   return list.length;
 }
 export async function clearFito() {
-  if (!db) return; await new Promise(res => { const t = db.transaction(['p', 'meta'], 'readwrite'); t.objectStore('p').clear(); t.objectStore('meta').clear(); t.oncomplete = res; });
-  mem.clear(); fitoMeta.n = 0; fitoMeta.at = null; bus.render();
+  if (!db) return; await new Promise(res => { const t = db.transaction(['p', 'meta'], 'readwrite'); t.objectStore('p').clear(); t.objectStore('meta').clear(); t.objectStore('meta').put(true, 'spento'); t.oncomplete = res; });
+  mem.clear(); fitoMeta.n = 0; fitoMeta.at = null; fitoMeta.versione = ''; bus.render();
 }
