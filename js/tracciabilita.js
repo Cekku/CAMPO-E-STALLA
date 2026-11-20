@@ -3,8 +3,8 @@
 // e le fatture nuove entrano da sole. Raccolta `tracciabilita` (non riservata: niente prezzi né importi).
 import { S, get, azienda } from './state.js';
 import * as store from './store.js';
-import { N, okD, addDays, uid, yearOf, esc, nf, today } from './util.js';
-import { cropOf } from './domain.js';
+import { N, okD, addDays, uid, yearOf, esc, nf, today, fineDi } from './util.js';
+import { colturaAlla } from './domain.js';
 import { righe } from './conti/dati.js';
 import { umNorm, convertiQ } from './conti/preventivi.js';
 import { scriviGriglia, leggiXlsx, serialeAData } from './conti/xlsx.js';
@@ -191,37 +191,146 @@ export function autoprodotti(anno, tutti = false) {
     .sort((a, b) => String(a.data || '').localeCompare(String(b.data || '')) || String(a.prodotto || '').localeCompare(String(b.prodotto || ''), 'it'))
     .map((r, i) => Object.assign({}, r, { n: i + 1 }));
 }
-async function salvaAuto(rr) { await store.put(COL, ID_AUTO, { tipo: 'autoprodotti', righe: JSON.parse(JSON.stringify(rr)) }); }
+const recAuto = () => S[COL].find(x => x.id === ID_AUTO) || {};
+const tolteAuto = () => new Set(recAuto().tolte || []);
+/** Salva tutte le righe; `tolte` = origini delle righe dalla campagna tolte a mano (non tornano da sole). */
+async function salvaAuto(rr, tolte) {
+  await store.put(COL, ID_AUTO, { tipo: 'autoprodotti', righe: JSON.parse(JSON.stringify(rr)), tolte: [...(tolte || tolteAuto())] });
+}
 export async function aggiungiAuto(anno, dati = {}) {
   const t = today(); const rr = autoprodottiTutti();
   rr.push(Object.assign({ id: uid().slice(0, 8), prodotto: '', data: yearOf(t) === anno ? t : `${anno}-01-01`, qta: 0, conforme: 'SI', zona: 'Trincea', num: '', inizio: '', fine: '' }, dati));
   await salvaAuto(rr);
 }
+/** Campi che l'aggiornamento dalla campagna riscrive, se non sono stati corretti a mano (`toccati`). */
+const CAMPI_SYNC = ['prodotto', 'data', 'qta', 'zona'];
 export async function modificaAuto(id, campo, valore) {
   if (!CAMPI_AUTO.includes(campo)) throw new Error('Campo non valido.');
   if (campo === 'qta') { const v = numIt(valore); valore = v ?? 0; }
   if (['data', 'inizio', 'fine'].includes(campo) && valore && !okD(valore)) throw new Error('Data non valida.');
-  const rr = autoprodottiTutti(); const r = rr.find(x => x.id === id); if (!r) throw new Error('Riga non trovata.');
-  r[campo] = valore ?? ''; await salvaAuto(rr);
+  const rr = autoprodottiTutti().map(r => Object.assign({}, r)); const r = rr.find(x => x.id === id); if (!r) throw new Error('Riga non trovata.');
+  r[campo] = valore ?? '';
+  if (r.origine && CAMPI_SYNC.includes(campo)) r.toccati = [...new Set([...(r.toccati || []), campo])];
+  await salvaAuto(rr);
 }
-export async function togliAuto(id) { await salvaAuto(autoprodottiTutti().filter(r => r.id !== id)); }
-/** Proposte dalle raccolte e sfalci fatti nell'anno: una per coltura, quantità in quintali (t × 10), data dell'ultima raccolta. */
-export function proposteRaccolte(anno) {
-  const g = new Map();
+export async function togliAuto(id) {
+  const rr = autoprodottiTutti(); const r = rr.find(x => x.id === id); const tolte = tolteAuto();
+  if (r && r.origine) tolte.add(r.origine);
+  await salvaAuto(rr.filter(x => x.id !== id), tolte);
+}
+
+/* ---------------- dalla campagna (raccolte, sfalci e pesate) ---------------- */
+// Solo quello che resta in azienda: si tolgono le pesate verso "Altro" con una destinazione di vendita e le colture
+// con destinazione di vendita nell'annata (scelta di Marco del 20/11/2026: il prezzo €/t della raccolta non conta).
+const VENDITA = /vend|consorz|cedut|client|commerc|ammass|cooperativ/i;
+const vendutaColt = e => !!(e && VENDITA.test(e.destinazione || ''));
+const nomeAuto = (coltura, prod) => !prod ? coltura : norm(prod).includes(norm(coltura)) ? prod : `${coltura} – ${String(prod).trim().toLowerCase()}`;
+const chiaveColt = (anno, coltura) => `racc:${anno}:${norm(coltura)}`;   // senza "|": righe del vecchio "Prendi dalle raccolte"
+/** Righe calcolate dalla campagna per l'anno: una per coltura e prodotto ottenuto (insilato, granella, fieno…).
+ *  Campo per campo: quantità = (raccolto delle attività o, se maggiore, somma delle pesate) − pesate vendute, in quintali.
+ *  Su un campo le voci senza prodotto prendono il prodotto principale di quel campo (niente raccolto contato due volte). */
+export function daCampagna(anno) {
+  const campi = new Map();   // campo|coltura → voci
+  const voce = (c, coltura) => { const k = (c ? c.id : '') + '|' + norm(coltura); let x = campi.get(k); if (!x) { x = { coltura, voci: [] }; campi.set(k, x); } return x; };
   for (const o of S.operazioni) {
     if (!['Raccolta', 'Sfalcio'].includes(o.tipo) || o.stato === 'Pianificata' || yearOf(o.data) !== anno || !(N(o.raccolto) > 0)) continue;
-    const c = get('campi', o.campoId); const coltura = (c && cropOf(c, anno)) || 'Raccolto';
-    const x = g.get(coltura) || { prodotto: coltura, data: '', qta: 0, origine: `racc:${anno}:${norm(coltura)}` };
-    x.qta += N(o.raccolto) * 10; if (o.data > x.data) x.data = o.data; g.set(coltura, x);
+    const c = get('campi', o.campoId); const e = c ? colturaAlla(c, o.data) : null; if (vendutaColt(e)) continue;
+    voce(c, (e && e.coltura) || 'Raccolto').voci.push({ tipo: 'att', prod: String(o.prodottoRaccolto || '').trim(), t: N(o.raccolto), data: fineDi(o) });
   }
-  const gia = new Set(autoprodottiTutti().map(r => r.origine).filter(Boolean));
-  return [...g.values()].filter(x => !gia.has(x.origine)).map(x => Object.assign(x, { qta: Math.round(x.qta) }));
+  for (const k of S.carichi || []) {
+    if (yearOf(k.data) !== anno || !(N(k.netto) > 0)) continue;
+    const c = get('campi', k.campoId); const e = c ? colturaAlla(c, k.data) : null; if (vendutaColt(e)) continue;
+    const silo = k.siloId ? get('silos', k.siloId) : null;
+    voce(c, (e && e.coltura) || 'Raccolto').voci.push({ tipo: 'pes', prod: String(k.prodottoRaccolto || '').trim(), t: N(k.netto) / 1000, data: k.data,
+      silo: silo ? silo.nome : '', vend: !silo && VENDITA.test(k.destinazione || '') });
+  }
+  const g = new Map();
+  for (const { coltura, voci } of campi.values()) {
+    const peso = new Map(); voci.forEach(v => { if (v.prod) peso.set(norm(v.prod), (peso.get(norm(v.prod)) || 0) + v.t); });
+    const princ = [...peso].sort((a, b) => b[1] - a[1])[0];
+    const nomePrinc = princ ? voci.find(v => norm(v.prod) === princ[0]).prod : '';
+    const perProd = new Map();
+    for (const v of voci) {
+      const prod = v.prod || nomePrinc; const kp = norm(prod);
+      const p = perProd.get(kp) || { prod, att: 0, pes: 0, vend: 0, data: '', silos: new Map() }; perProd.set(kp, p);
+      if (v.tipo === 'att') p.att += v.t; else { p.pes += v.t; if (v.vend) p.vend += v.t; if (v.silo) p.silos.set(v.silo, (p.silos.get(v.silo) || 0) + v.t); }
+      if (v.data > p.data) p.data = v.data;
+    }
+    for (const p of perProd.values()) {
+      const k = chiaveColt(anno, coltura) + '|' + norm(p.prod);
+      const x = g.get(k) || { origine: k, coltura, prodotto: nomeAuto(coltura, p.prod), data: '', q: 0, vend: 0, silos: new Map() }; g.set(k, x);
+      x.q += Math.max(p.att, p.pes) - p.vend; x.vend += p.vend; if (p.data > x.data) x.data = p.data;
+      p.silos.forEach((t, s) => x.silos.set(s, (x.silos.get(s) || 0) + t));
+    }
+  }
+  return [...g.values()].map(x => ({
+    origine: x.origine, coltura: x.coltura, prodotto: x.prodotto, data: x.data,
+    qta: Math.max(0, Math.round(x.q * 10)), venduto: Math.round(x.vend * 10),
+    zona: ([...x.silos].sort((a, b) => b[1] - a[1])[0] || ['Trincea'])[0],
+  }));
 }
+/** La coltura è già nel registro dell'anno in un altro modo: riga a mano o dal vecchio Excel che la nomina,
+ *  oppure riga del vecchio pulsante (una per coltura) corretta a mano o tolta. Allora non si aggiunge niente da sola. */
+function coperta(rr, tolte, anno, coltura) {
+  const n = norm(coltura); const vecchia = chiaveColt(anno, coltura);
+  return rr.some(r => !r.origine && yearOf(r.data) === anno && norm(r.prodotto).includes(n))
+    || tolte.has(vecchia) || rr.some(r => r.origine === vecchia && (r.toccati || []).length);
+}
+/** Righe della campagna non ancora nel registro (anche quelle tolte a mano): per il pulsante "Prendi dalle raccolte". */
+export function proposteRaccolte(anno) {
+  const rr = autoprodottiTutti(); const gia = new Set(rr.map(r => r.origine).filter(Boolean));
+  return daCampagna(anno).filter(x => x.qta > 0 && !gia.has(x.origine) && !coperta(rr, new Set(), anno, x.coltura));
+}
+const rigaNuova = x => ({ id: uid().slice(0, 8), prodotto: x.prodotto, data: x.data, qta: x.qta, conforme: 'SI', zona: x.zona, num: '', inizio: '', fine: '', origine: x.origine });
 export async function aggiungiProposte(anno) {
   const pp = proposteRaccolte(anno); if (!pp.length) return 0;
-  const rr = autoprodottiTutti();
-  pp.forEach(x => rr.push({ id: uid().slice(0, 8), prodotto: x.prodotto, data: x.data, qta: x.qta, conforme: 'SI', zona: 'Trincea', num: '', inizio: '', fine: '', origine: x.origine }));
-  await salvaAuto(rr); return pp.length;
+  const rr = autoprodottiTutti(); const tolte = tolteAuto();
+  pp.forEach(x => { rr.push(rigaNuova(x)); tolte.delete(x.origine); tolte.delete(chiaveColt(anno, x.coltura)); });
+  await salvaAuto(rr, tolte); return pp.length;
+}
+/** Aggiornamento automatico (Centro automatico) per l'anno in corso e quello prima: aggiunge le righe nuove, aggiorna
+ *  quantità, data, prodotto e zona non corretti a mano, toglie le righe non toccate rimaste senza raccolto in azienda
+ *  (anche quelle del vecchio pulsante, sostituite dalle righe per prodotto). Non rimette le righe tolte a mano. */
+export async function aggiornaDaCampagna(anni) {
+  const y = new Date().getFullYear(); anni = anni || [y - 1, y];
+  const rr = autoprodottiTutti().map(r => Object.assign({}, r)); const tolte = tolteAuto();
+  let nuove = 0, cambiate = 0, tolteOra = 0;
+  for (const anno of anni) {
+    const calc = daCampagna(anno); const viste = new Set(calc.map(x => x.origine));
+    for (let i = rr.length - 1; i >= 0; i--) {   // raccolte cancellate dalla campagna e righe del vecchio pulsante non corrette
+      const r = rr[i];
+      if (r.origine && r.origine.startsWith(`racc:${anno}:`) && !viste.has(r.origine) && !(r.toccati || []).length) { rr.splice(i, 1); tolteOra++; }
+    }
+    for (const x of calc) {
+      if (tolte.has(x.origine)) continue;
+      const r = rr.find(r => r.origine === x.origine); const tocc = new Set((r && r.toccati) || []);
+      if (!r) {
+        if (x.qta > 0 && !coperta(rr, tolte, anno, x.coltura)) { rr.push(rigaNuova(x)); nuove++; }
+        continue;
+      }
+      if (!(x.qta > 0) && !tocc.size) { rr.splice(rr.indexOf(r), 1); tolteOra++; continue; }
+      let cambia = false;
+      for (const f of CAMPI_SYNC) if (!tocc.has(f) && x[f] !== '' && r[f] !== x[f]) { r[f] = x[f]; cambia = true; }
+      if (cambia) cambiate++;
+    }
+  }
+  const n = nuove + cambiate + tolteOra;
+  if (n) await salvaAuto(rr, tolte);
+  return { n, nuove, cambiate, tolte: tolteOra };
+}
+/** Dopo "Annulla" nel diario: le righe che l'annullamento ha tolto non tornano; quelle rimesse e i valori rimessi
+ *  diventano correzioni a mano, così il giro dopo non rifà quello che è stato annullato. */
+export async function dopoAnnulla(tolti) {
+  const t = (tolti || []).find(x => x.c === COL && x.id === ID_AUTO); if (!t) return;
+  const ora = autoprodottiTutti().map(r => Object.assign({}, r)); const tolte = tolteAuto(); const prima = new Map();
+  ((t.rec && t.rec.righe) || []).forEach(r => { if (r.origine) prima.set(r.origine, r); });
+  for (const [o] of prima) if (!ora.some(r => r.origine === o)) tolte.add(o);
+  for (const r of ora) {
+    if (!r.origine) continue; const p = prima.get(r.origine);
+    const diversi = p ? CAMPI_SYNC.filter(f => p[f] !== r[f]) : CAMPI_SYNC;
+    if (diversi.length) r.toccati = [...new Set([...(r.toccati || []), ...diversi])];
+  }
+  await salvaAuto(ora, tolte);
 }
 
 /* ---------------- dai vecchi registri in Excel ---------------- */

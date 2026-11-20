@@ -11,6 +11,7 @@ import { abbinaFitoSeServe } from './fitoabbina.js';
 import { fitoMeta } from './fitodb.js';
 import { scaricaRazioni } from './razauto.js';
 import * as DZ from './conti/dubbi.js';
+import * as TR from './tracciabilita.js';
 
 /* ---------- documenti dell'archivio del PC nei Conti (conti/automatico.js) ---------- */
 const PAGHE = /^(Busta-paga|Bilancino-paghe)$/;
@@ -140,4 +141,22 @@ registra({
   pronta: () => (contiVisibili() && S.fatture.length ? true : false),
   async esegui() { const n = DZ.dubbiFatture().length; return { salvati: 0, note: n ? n + ' da controllare' : 'tutto a posto' }; },
   dubbi: () => (contiVisibili() ? DZ.dubbiFatture() : []),
+});
+
+/* ---------- registro degli alimenti autoprodotti dalla campagna (tracciabilita.js, 1.64.0) ---------- */
+// Raccolte, sfalci e pesate dell'anno in corso e di quello prima, tolto il venduto: aggiorna le righe che non sono state
+// corrette a mano. Le righe tolte a mano non tornano (anche dopo Annulla).
+registra({
+  id: 'tracciabilita-autoprodotti', nome: 'Registro degli autoprodotti', area: 'campagna',
+  descr: 'Mette nel registro della tracciabilità i raccolti rimasti in azienda (raccolte, sfalci e pesate, tolto il venduto)',
+  raccolte: ['tracciabilita'],
+  propri: (c, id) => c === 'tracciabilita' && id === TR.ID_AUTO,
+  segui: ['operazioni', 'carichi', 'campi', 'silos'],
+  pronta: () => (S.operazioni.some(o => ['Raccolta', 'Sfalcio'].includes(o.tipo)) || (S.carichi || []).length || TR.autoprodottiTutti().some(r => r.origine) ? true : 'Nessuna raccolta registrata.'),
+  async esegui() {
+    const r = await TR.aggiornaDaCampagna();
+    const parti = [r.nuove && r.nuove + ' nuove', r.cambiate && r.cambiate + ' aggiornate', r.tolte && r.tolte + ' tolte'].filter(Boolean);
+    return { salvati: r.n, note: parti.length ? 'Autoprodotti: righe ' + parti.join(', ') : 'niente da cambiare' };
+  },
+  async annullato(riga, tolti) { await TR.dopoAnnulla(tolti); },
 });
