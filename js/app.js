@@ -183,7 +183,11 @@ function render() {
   const t = UI.detail || UI.tab === 'conti' || UI.tab === 'archivio' ? r.title : (UI.tab === 'oggi' && UI.area === 'stalla' ? 'Stalla' : TITLES[UI.tab] || r.title);
   $('#abTitle').textContent = t;
   document.title = (t ? t + ' · ' : '') + 'Campo e Stalla';
+  // Le tabelle con scorrimento proprio restano dov'erano (1.64.3): prima dopo ogni casella salvata tornavano tutte a sinistra
+  const scorr = [...$('#view').querySelectorAll('.tablewrap, .ch-tab')].map(w => [w.scrollLeft, w.scrollTop]);
   $('#view').innerHTML = r.html;
+  tabelleLarghe();   // subito, non 80 ms dopo: per un attimo le tabelle lunghe si aprivano a tutta altezza e la pagina lampeggiava
+  if (scorr.some(s => s[0] || s[1])) { const ws = $('#view').querySelectorAll('.tablewrap, .ch-tab'); if (ws.length === scorr.length) ws.forEach((w, i) => { w.scrollLeft = scorr[i][0]; w.scrollTop = scorr[i][1]; }); }
   if (fid) { const el = document.getElementById(fid); if (el) { el.focus(); if (sel) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { } } }
   barre();
 }
