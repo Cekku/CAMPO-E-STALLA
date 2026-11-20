@@ -9,6 +9,7 @@ import { meteoAlMomento } from './meteo.js';
 import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
 import { fitoLookup, fitoSearch, fitoMeta, etichettaUrl } from './fitodb.js';
 import { esc } from './util.js';
+import { haTrattati } from './registro.js';
 import { FASI_BOX, allBoxes } from './herd.js';
 import { scaricaRazioni } from './razauto.js';
 import { CATALOGO, GRUPPI_COMP, OPZ_MODELLI, MODELLI, isTrattore } from './trattori.js';
@@ -97,6 +98,7 @@ export const SPEC = {
       { k: 'data', l: 'Data (o primo giorno)', t: 'date', req: 1, half: 1 },
       { k: 'dataFine', l: 'Fino al', t: 'date', half: 1, hint: 'Solo se il lavoro dura più giorni' },
       { k: 'campoId', l: 'Appezzamento', t: 'select', opts: oCampi, req: 1, blank: 'Scegli il campo' },
+      { k: 'haTrattati', l: 'Superficie trattata', t: 'number', half: 1, unit: 'ha', show: isT('Trattamento fitosanitario', 'Diserbo'), hint: 'Solo se hai trattato una parte del campo: vuoto = tutto il campo' },
       { k: 'prodottoId', l: 'Prodotto dal magazzino', t: 'select', opts: oProd(['Fitofarmaco', 'Diserbante', 'Concime', 'Effluente', 'Seme', 'Altro', 'Gasolio']), show: isT(...OP_PROD), blank: 'Nessun prodotto' },
       { k: 'dose', l: 'Dose', t: 'number', half: 1, unit: '/ha', show: v => !!v.prodottoId },
       { k: 'quantita', l: 'Quantità totale', t: 'number', half: 1, show: v => !!v.prodottoId, hint: 'Dose × ettari, si scarica dal magazzino' },
@@ -134,7 +136,7 @@ export const SPEC = {
     onChange(ch, v) {
       const p = get('prodotti', v.prodottoId);
       if (ch === null || ch === 'prodottoId') { setUnit('dose', (p ? p.unita : '') + '/ha'); setUnit('quantita', p ? p.unita : ''); setHint('dose', p && N(p.carenza) ? 'Tempo di carenza: ' + p.carenza + ' giorni' : ''); }
-      if (!(FORM && FORM.dirty.has('quantita')) && ['dose', 'campoId', 'prodottoId'].includes(ch)) { const c = get('campi', v.campoId); if (c && v.dose !== null) setVal('quantita', Math.round(N(v.dose) * campoHa(c) * 100) / 100); }
+      if (!(FORM && FORM.dirty.has('quantita')) && ['dose', 'campoId', 'prodottoId', 'haTrattati'].includes(ch)) { const c = get('campi', v.campoId); if (c && v.dose !== null) setVal('quantita', Math.round(N(v.dose) * haTrattati(v, c) * 100) / 100); }
       if (['Trattamento fitosanitario', 'Diserbo'].includes(v.tipo) && [null, 'data', 'oraInizio', 'tipo'].includes(ch)) meteoAuto(ch, v);
       if (['Raccolta', 'Sfalcio'].includes(v.tipo) && [null, 'campoId', 'data', 'tipo'].includes(ch)) { const y = yearOf(v.data), t = S.carichi.filter(x => x.campoId === v.campoId && yearOf(x.data) === y).reduce((s, x) => s + N(x.netto), 0) / 1000; setHint('raccolto', v.campoId && t > 0 ? 'Dalle pesate di quest\'anno: ' + nf(t, 1) + ' t' : ' '); }
       chiudeAuto(ch, v, v.tipo, v.campoId);

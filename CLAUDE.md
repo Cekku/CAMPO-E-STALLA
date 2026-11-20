@@ -8,7 +8,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.64.3** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.65.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -46,6 +46,7 @@ Le note lunghe di ogni area sono in `.claude/rules/`: ognuna si carica da sola q
 | Archivio sul PC | `archivio-pc.md` | catalogo Python, OCR, classificazione, nomi, IA sul PC (LM Studio), lavori fuori dall'app |
 | Ponte archivio | `archivio-ponte.md` | contratto delle richieste alla porta 1236 |
 | Archivio nell'app | `archivio-app.md` | pagine dell'Archivio e collegamenti dei documenti |
+| Quaderno di campagna | `quaderno.md` | norma (Reg. UE 2023/564, digitale dal 1/1/2027), codici EPPO, superficie trattata, quaderno automatico nel Centro (1.65.0) |
 | Magazzino | `magazzino.md` | carico dalle fatture di sementi, concimi, fitofarmaci e gasolio (1.59.0), scarico automatico delle razioni e avviso "sta per finire" (1.60.0) |
 | Centro automatico | `automazioni.md` | motore delle automazioni (`registra`, giri all'apertura e ogni 30 minuti, diario con annulla, lista Da controllare), pagina Automatico, agganci di archivio Conti, magazzino dalle fatture, fitofarmaci, razioni e controlli di paghe e fatture (1.63.0, 19/11/2026) |
 | Organizzazione | `organizzazione.md` | chi fa cosa fra i modelli (sempre caricata) |

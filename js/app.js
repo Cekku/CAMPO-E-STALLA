@@ -21,6 +21,7 @@ import { parseLocal, parseAI, aiConfig, canDictate, dictate } from './nlp.js';
 import { render as vOggi } from './views/oggi.js';
 import { render as vCampi } from './views/campi.js';
 import { render as vAtt } from './views/attivita.js';
+import { render as vQuad, qdAct } from './views/quaderno.js';
 import { render as vNote } from './views/note.js';
 import { render as vMeteo } from './views/meteo.js';
 import { render as vStalla } from './views/stalla.js';
@@ -37,13 +38,13 @@ import { render as vGuida, schedaDi } from './views/guida.js';
 import { render as vAuto, auAct } from './views/automatico.js';
 import { initChiedi, apri as apriChiedi, alterna as alternaChiedi } from './chiedi/pannello.js';
 
-const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, carichi: vCar, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida, automatico: vAuto };
-const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', carichi: 'Pesate del raccolto', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida', automatico: 'Automatico' };
-const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'carichi', 'stalla', 'magazzino', 'mezzi', 'nitrati', 'conti']);
+const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, quaderno: vQuad, carichi: vCar, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida, automatico: vAuto };
+const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', quaderno: 'Quaderno', carichi: 'Pesate del raccolto', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida', automatico: 'Automatico' };
+const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'quaderno', 'carichi', 'stalla', 'magazzino', 'mezzi', 'nitrati', 'conti']);
 // Voci del menu: [tab, sub, icona, etichetta]
 const MENU = {
   campagna: [
-    ['Principale', [['oggi', null, 'house', 'Dashboard'], ['campi', 'elenco', 'sprout', 'Campi'], ['mappa', null, 'map', 'Mappa'], ['attivita', null, 'notebook-pen', 'Attività'], ['carichi', null, 'scale', 'Pesate del raccolto'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino'], ['magazzino', 'movimenti', 'package', 'Carichi e scarichi']]],
+    ['Principale', [['oggi', null, 'house', 'Dashboard'], ['campi', 'elenco', 'sprout', 'Campi'], ['mappa', null, 'map', 'Mappa'], ['attivita', null, 'notebook-pen', 'Attività'], ['quaderno', null, 'book-open', 'Quaderno di campagna'], ['carichi', null, 'scale', 'Pesate del raccolto'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino'], ['magazzino', 'movimenti', 'package', 'Carichi e scarichi']]],
     ['Agronomia', [['meteo', null, 'cloud-sun', 'Meteo'], ['campi', 'costi', 'euro', 'Costi e margini'], ['nitrati', null, 'leaf', 'Azoto e nitrati'], ['note', null, 'pencil', 'Note']]],
     ['Gestione', [['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
   ],
@@ -130,7 +131,7 @@ function bnavHTML() {
 // [tab, sub, etichetta]; sub vuoto = l'ultima scheda aperta di quella pagina; sub numero = gruppo di pagine dei Conti (GRUPPI_CONTI).
 // Le voci meno usate restano nella tendina dell'ultima sezione di MENU ("Gestione").
 const TOP = {
-  campagna: [['oggi', null, 'Dashboard'], ['campi', null, 'Campi'], ['mappa', null, 'Mappa'], ['attivita', null, 'Attività'], ['magazzino', null, 'Magazzino'], ['meteo', null, 'Meteo'], ['note', null, 'Note']],
+  campagna: [['oggi', null, 'Dashboard'], ['campi', null, 'Campi'], ['mappa', null, 'Mappa'], ['attivita', null, 'Attività'], ['quaderno', null, 'Quaderno'], ['magazzino', null, 'Magazzino'], ['meteo', null, 'Meteo'], ['note', null, 'Note']],
   stalla: [['oggi', null, 'Dashboard'], ['stalla', null, 'Mandria e latte'], ['meteo', null, 'Meteo e caldo'], ['magazzino', null, 'Magazzino']],
   conti: [['conti', 'panoramica', 'Panoramica'], ['conti', 0, 'Fatture'], ['conti', 1, 'Bilancio'], ['conti', 2, 'Personale'], ['conti', 'importa', 'Carica documenti']],
   archivio: [['archivio', 'scaffale', 'Scaffale'], ['archivio', 'raccoglitore', 'Raccoglitori'], ['archivio', 'cerca', 'Cerca'], ['archivio', 'rivedere', 'Da rivedere']],
@@ -361,7 +362,7 @@ function doExport(what) {
   if (what === 'registro') { stampaRegistro(y); closeSheet(); return; }
   if (what === 'registroHtml') { scarica(`quaderno-campagna-${y}.html`, registroHTML(y), 'text/html'); return; }
   if (what === 'registroJson') { download(`registro-trattamenti-${y}.json`, JSON.stringify(registroJSON(y), null, 2), 'application/json'); toast('File pronto'); return; }
-  if (what === 'quaderno') { const ops = S.operazioni.filter(o => yearOf(o.data) === y && o.stato !== 'Pianificata').sort(byDate); const car = new Map(righeTrattamenti(y).map(r => [r.o.id, r])); download(`quaderno-campagna-${y}.csv`, csv(['Data', 'Ora', 'Appezzamento', 'Superficie ha', 'Coltura', 'Catasto', 'Operazione', 'Prodotto', 'N. registrazione', 'Sostanze attive', 'Dose/ha', 'Quantità', 'Unità', 'Avversità', 'BBCH', 'Fase', 'Carenza gg', 'Raccolta dal', 'Mezzo', 'Ore', 'Operatore', 'Patentino', 'Note'], ops.map(o => { const c = get('campi', o.campoId) || {}, p = get('prodotti', o.prodottoId) || {}, m = get('mezzi', o.mezzoId) || {}; const r = car.get(o.id); return [o.data, o.oraInizio, c.nome, it(campoHa(c)), cropOf(c, y), c.catasto, o.tipo, p.nome, p.nReg, p.sostanze, it(o.dose), it(o.quantita), p.unita, o.avversita, o.bbch, o.fase, r ? it(r.car) : it(p.carenza), r ? r.raccoltaDal : '', m.nome, it(o.ore), o.operatore, r && r.op ? r.op.patentino : '', o.note]; }))); }
+  if (what === 'quaderno') { const ops = S.operazioni.filter(o => yearOf(o.data) === y && o.stato !== 'Pianificata').sort(byDate); const car = new Map(righeTrattamenti(y).map(r => [r.o.id, r])); download(`quaderno-campagna-${y}.csv`, csv(['Data', 'Ora', 'Appezzamento', 'Superficie ha', 'Coltura', 'Catasto', 'Operazione', 'Prodotto', 'N. registrazione', 'Sostanze attive', 'Dose/ha', 'Quantità', 'Unità', 'Avversità', 'BBCH', 'Fase', 'Carenza gg', 'Raccolta dal', 'Mezzo', 'Ore', 'Operatore', 'Patentino', 'Note'], ops.map(o => { const c = get('campi', o.campoId) || {}, p = get('prodotti', o.prodottoId) || {}, m = get('mezzi', o.mezzoId) || {}; const r = car.get(o.id); return [o.data, o.oraInizio, c.nome, it((r ? r.ha : campoHa(c))), cropOf(c, y), c.catasto, o.tipo, p.nome, p.nReg, p.sostanze, it(o.dose), it(o.quantita), p.unita, o.avversita, o.bbch, o.fase, r ? it(r.car) : it(p.carenza), r ? r.raccoltaDal : '', m.nome, it(o.ore), o.operatore, r && r.op ? r.op.patentino : '', o.note]; }))); }
   if (what === 'trattamenti') { const ev = S.eventi.filter(e => (e.tipo === 'Trattamento sanitario' || e.tipo === 'Vaccinazione') && yearOf(e.data) === y).sort(byDate); download(`registro-trattamenti-${y}.csv`, csv(['Data', 'Matricola', 'Nome', 'Tipo', 'Farmaco', 'Diagnosi', 'Quantità', 'Sosp. latte gg', 'Fine sosp. latte', 'Sosp. carne gg', 'Fine sosp. carne', 'Ricetta', 'Veterinario', 'Note'], ev.map(e => { const c = get('capi', e.capoId) || {}, p = get('prodotti', e.prodottoId); return [e.data, c.matricola, c.nome, e.tipo, p ? p.nome : e.farmaco, e.motivo, it(e.quantita), it(e.sospLatte), N(e.sospLatte) ? addDays(e.data, N(e.sospLatte)) : '', it(e.sospCarne), N(e.sospCarne) ? addDays(e.data, N(e.sospCarne)) : '', e.ricetta, e.veterinario, e.note]; }))); }
   if (what === 'latte') { const L = D.latte.filter(l => yearOf(l.data) === y); download(`latte-${y}.csv`, csv(['Data', 'Vacche', 'Litri prodotti', 'Litri conferiti', 'Litri scartati', 'Prezzo €/l', 'Grasso %', 'Proteine %', 'Cellule', 'CBT', 'Note'], L.map(l => [l.data, it(l.vacche), it(l.litri), it(l.conferiti), it(l.scartati), it(l.prezzo), it(l.grasso), it(l.proteine), it(l.cellule), it(l.cbt), l.note]))); }
   if (what === 'movimenti') { const mv = S.movimenti.filter(m => yearOf(m.data) === y).sort(byDate); download(`movimenti-magazzino-${y}.csv`, csv(['Data', 'Prodotto', 'Categoria', 'Tipo', 'Quantità', 'Unità', 'Prezzo', 'Documento', 'Note'], mv.map(m => { const p = get('prodotti', m.prodottoId) || {}; return [m.data, p.nome, p.categoria, m.tipo, it(m.quantita), p.unita, it(m.prezzo), m.documento, m.note]; }))); }
@@ -524,6 +525,7 @@ async function clic(e) {
         if (a.startsWith('ar-')) return arAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('p3d') && a !== 'p3dFile') return import('./views/progetto3d.js').then(x => x.p3dAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('lib-')) return import('./views/libretto.js').then(x => x.libAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+        if (a.startsWith('qd-')) return qdAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('tr-')) return import('./views/tracciabilita.js').then(x => x.trAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('mf-')) return import('./views/magfatture.js').then(x => x.mfAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a === 'tsort' || a === 'texp' || a.startsWith('c-')) return contiAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
