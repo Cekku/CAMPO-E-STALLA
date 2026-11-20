@@ -75,10 +75,20 @@ const chiaveLinea = r => r.fid + ':' + r.i;
 
 /** Righe di acquisto con data di arrivo nell'anno: per prodotto (vince il prodotto con più parole che combaciano),
  *  quelle tolte a mano da ogni prodotto, e le righe di mangimi e foraggi non assegnate a nessun prodotto. */
+let _assegna = null;   // ultimo calcolo: le righe di tutte le fatture costano ~90 ms a ogni disegno della pagina
 export function assegna(anno) {
-  const ps = prodotti(); const cerc = ps.map(p => [p, cercatore(p)]);
+  const ps = prodotti(); const vis = contiVisibili();
+  const firma = JSON.stringify(ps.map(p => [p.id, p.nome, p.parole, p.linee]));
+  const c = _assegna;
+  if (c && c.anno === anno && c.vis === vis && c.fatture === S.fatture && c.econfig === S.econfig && c.firma === firma) return c.A;
+  const A = assegnaCalcola(anno, ps, vis);
+  _assegna = { anno, vis, fatture: S.fatture, econfig: S.econfig, firma, A };
+  return A;
+}
+function assegnaCalcola(anno, ps, vis) {
+  const cerc = ps.map(p => [p, cercatore(p)]);
   const per = new Map(ps.map(p => [p.id, []])); const tolte = new Map(ps.map(p => [p.id, []])); const libere = [];
-  for (const r of (contiVisibili() ? righe() : [])) {   // le fatture solo al titolare
+  for (const r of (vis ? righe() : [])) {   // le fatture solo al titolare
     if (r.tipo !== 'Acquisto' || r.rett || r.tipoDoc === 'TD04' || !(N(r.quantita) > 0) || N(r.importo) < 0) continue;
     const a = leggiDdt(r.ddt, r.data); if (yearOf(a.data) !== anno) continue;
     const k = chiaveLinea(r); const x = { r, k, ddt: a.num, data: a.data };

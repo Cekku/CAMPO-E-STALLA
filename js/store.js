@@ -308,6 +308,8 @@ async function pull() {
   }
   if (maxTs) { sync.lastSync = maxTs; await metaSet('lastSync', maxTs); }
 }
+// JSON con le chiavi in ordine: il database (jsonb) può restituire le chiavi in un altro ordine
+const stabile = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, c) => { o[c] = x[c]; return o; }, {}) : x));
 async function applyRemote(rows) {
   if (!idb) return;
   const pend = new Set((await getAll('outbox')).map(r => r.k));
@@ -315,6 +317,10 @@ async function applyRemote(rows) {
   const recs = [];
   rows.forEach(r => {
     if (!mem[r.col]) return; const k = r.col + '/' + r.id; if (pend.has(k)) return;
+    // Uguale a quello che c'è già (di solito il ritorno di quello appena salvato da qui): niente da fare né da ridisegnare.
+    // Prima ogni casella salvata faceva ridisegnare la pagina altre due volte un secondo dopo (1.64.2).
+    const cur = mem[r.col].get(r.id);
+    if (r.deleted ? !cur : (cur && stabile(cur) === stabile(Object.assign({}, r.data, { id: r.id })))) return;
     if (r.deleted) mem[r.col].delete(r.id); else mem[r.col].set(r.id, Object.assign({}, r.data, { id: r.id }));
     touched.add(r.col); recs.push({ k, col: r.col, id: r.id, data: r.data, deleted: !!r.deleted, ts: Date.parse(r.updated_at) || Date.now() });
   });

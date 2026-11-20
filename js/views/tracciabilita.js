@@ -8,10 +8,12 @@ import { empty, openSheet, closeSheet, toast, arm } from '../ui.js';
 import * as T from '../tracciabilita.js';
 
 const att = (o) => Object.entries(o).map(([k, v]) => ` ${k}="${esc(v)}"`).join('');
-const siNo = (v, a) => `<select class="inp"${att(a)}>${['SI', 'NO'].map(x => `<option value="${x}"${String(v).toUpperCase() === x ? ' selected' : ''}>${x === 'SI' ? 'Sì' : 'No'}</option>`).join('')}</select>`;
-const testo = (v, a, extra = '') => `<input class="inp" type="text" value="${esc(v ?? '')}"${att(a)}${extra}>`;
-const data = (v, a) => `<input class="inp" type="date" value="${esc(v || '')}"${att(a)}>`;
-const qtaIn = (v, a) => `<input class="inp" type="text" inputmode="decimal" value="${v || v === 0 ? esc(nf(v, 2)) : ''}"${att(a)}>`;
+// id della casella: dopo un ridisegno l'app rimette il cursore nella casella con lo stesso id (prima andava perso)
+const idCella = a => (a['data-k'] ? ` id="${esc(('trc-' + (a['data-id'] || a['data-key'] || '') + '-' + a['data-k']).replace(/[^\w-]/g, c => '_' + c.charCodeAt(0).toString(36)))}"` : '');
+const siNo = (v, a) => `<select class="inp"${idCella(a)}${att(a)}>${['SI', 'NO'].map(x => `<option value="${x}"${String(v).toUpperCase() === x ? ' selected' : ''}>${x === 'SI' ? 'Sì' : 'No'}</option>`).join('')}</select>`;
+const testo = (v, a, extra = '') => `<input class="inp" type="text" value="${esc(v ?? '')}"${idCella(a)}${att(a)}${extra}>`;
+const data = (v, a) => `<input class="inp" type="date" value="${esc(v || '')}"${idCella(a)}${att(a)}>`;
+const qtaIn = (v, a) => `<input class="inp" type="text" inputmode="decimal" value="${v || v === 0 ? esc(nf(v, 2)) : ''}"${idCella(a)}${att(a)}>`;
 
 export function render() {
   return UI.f.tr_p && T.prodotto(UI.f.tr_p) ? paginaProdotto(T.prodotto(UI.f.tr_p)) : paginaPrincipale();
@@ -158,8 +160,13 @@ export async function trAct(a, b, d) {
   }
 }
 
-export async function trChange(t) {
+export async function trChange(t, ora = false) {
   const a = t.dataset.act; const d = t.dataset;
+  // Date scritte a mano: il browser manda "change" già mentre si scrive l'anno; si salva quando si esce dalla casella
+  if (!ora && t.type === 'date' && ['tr-cella', 'tr-autoCella'].includes(a) && document.activeElement === t) {
+    if (!t._attesa) { t._attesa = true; t.addEventListener('blur', () => { t._attesa = false; trChange(t, true).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); }, { once: true }); }
+    return;
+  }
   switch (a) {
     case 'tr-programma': return T.salvaImpostazioni({ programma: t.value.trim() });
     case 'tr-file': {
