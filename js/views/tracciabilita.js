@@ -69,7 +69,7 @@ function cardAuto(anno) {
     <button class="btn sm" data-act="tr-autoStampa">${ic('printer')}Stampa / PDF</button>
     ${nProp ? `<button class="btn sm" data-act="tr-autoRaccolte" title="Rimette anche le righe tolte">${ic('download')}Prendi dalle raccolte (${nProp})</button>` : ''}
     <button class="btn primary sm" data-act="tr-autoNuova">${ic('plus')}Aggiungi riga</button></div></div>
-    <p class="muted" style="margin:0 0 8px">Le raccolte, gli sfalci e le pesate della Campagna entrano da soli (solo quello che resta in azienda: le pesate e le colture con destinazione di vendita non contano). Quello che correggi a mano resta tuo; una riga tolta non torna.</p>${tab}</section>`;
+    <p class="muted" style="margin:0;padding:0 18px 10px">Le raccolte, gli sfalci e le pesate della Campagna entrano da soli (solo quello che resta in azienda: le pesate e le colture con destinazione di vendita non contano). Quello che correggi a mano resta tuo; una riga tolta non torna.</p>${tab}</section>`;
 }
 
 /* ---------------- pagina di un prodotto ---------------- */

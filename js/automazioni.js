@@ -205,6 +205,9 @@ async function automatico(motivo) {
 /* ---------------- ripartenza quando cambiano i dati (segui) ---------------- */
 const firme = new Map(); const inAttesa = new Set(); let tCambio = 0, partito = false;
 const depsDi = d => (typeof d.segui === 'function' ? d.segui() : d.segui.map(c => S[c]));
+// Uguali anche due oggetti semplici nuovi ma con lo stesso contenuto (es. lo stato vuoto `{}` del magazzino dalle fatture,
+// ricreato a ogni chiamata): prima ogni disegno sembrava un cambio e il giro ripartiva ogni 2 secondi, facendo lampeggiare la pagina.
+const uguale = (x, y) => x === y || (!!x && !!y && typeof x === 'object' && typeof y === 'object' && !Array.isArray(x) && !Array.isArray(y) && (() => { try { return JSON.stringify(x) === JSON.stringify(y); } catch (e) { return false; } })());
 /** Da chiamare dopo ogni disegno della pagina (app.js): fa ripartire le automazioni con "segui" i cui dati sono cambiati. */
 export function dopoDisegno() {
   if (!partito || !pronto() || store.soloLettura()) return;
@@ -212,7 +215,7 @@ export function dopoDisegno() {
     if (!d.segui) continue;
     let dep; try { dep = depsDi(d); } catch (e) { continue; }
     const v = firme.get(d.id); firme.set(d.id, dep);
-    if (!v || (v.length === dep.length && v.every((x, i) => x === dep[i]))) continue;
+    if (!v || (v.length === dep.length && v.every((x, i) => uguale(x, dep[i])))) continue;
     inAttesa.add(d.id); clearTimeout(tCambio); tCambio = setTimeout(corriCambi, 1500);
   }
 }

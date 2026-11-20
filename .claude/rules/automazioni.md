@@ -46,6 +46,7 @@ registra({
 ## Ritmo e blocco
 
 - `avviaCentro()` (dal boot di `app.js`, dopo `initStore`): aspetta i dati pronti (`UI.loaded` e, con l'azienda collegata, sincronizzazione `ok` senza modifiche in attesa), poi giro completo se l'ultimo ha più di 5 minuti; poi controlla ogni minuto e rifà il giro dopo 30 minuti (`ces.centro.ultimo` in localStorage, per dispositivo). `dopoDisegno()` (in `render()`) fa ripartire, 1,5 s dopo, le automazioni con `segui` i cui dati sono cambiati.
+- `segui` (1.64.1): due valori sono uguali anche se sono oggetti semplici nuovi con lo stesso contenuto (`uguale` in `automazioni.js`). Prima `MF.stato()` senza record dava un `{}` nuovo a ogni disegno: il giro ripartiva ogni ~2 s e la pagina lampeggiava (le caselle perdevano il cursore). Un `segui` deve dare valori stabili fra un disegno e l'altro.
 - Un solo giro alla volta (`STATO.attivo`), anche per conferma e annulla. Sola lettura (`lettore`): niente parte.
 - Ha sostituito: `avviaArchivioConti` (15 s e poi ogni 20 s, in `app.js`), `autoSeServe` e `abbinaFitoSeServe` a ogni disegno, `avviaScaricoRazioni` (ogni ora). Le funzioni restano nei loro file. Il controllo dei 30 minuti di `conti/automatico.js` (`avvia`, `ces.auto.ultimo`) non si usa più: il contenitore chiama `esegui` con le stesse condizioni (attivo, sincronizzato, niente dati di prova, ponte acceso).
 
