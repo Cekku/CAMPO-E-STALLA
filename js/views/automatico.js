@@ -50,7 +50,7 @@ function automazioni(lett) {
   if (!vis.length) return '';
   return `<section class="card"><div class="card-h"><h2>${ic('zap')}Automazioni</h2></div>${A.AREE.filter(([k]) => vis.some(d => d.area === k)).map(([k, l, i]) => `
     <div class="au-area"><div class="au-ah"><h3>${ic(i)}${esc(l)}</h3><button class="btn sm" data-act="au-area" data-area="${k}"${dis}>${ic('refresh-cw')}Avvia ${esc(l)}</button></div>
-    <div class="list flat">${vis.filter(d => d.area === k).map(d => { const e = A.STATO.esiti[d.id]; return `<div class="row au-r"><span class="r-main"><b>${esc(d.nome)}</b><span>${esc(d.descr || '')}</span><small class="${e && e.errore ? 't-bad' : 'muted'}">${esc(esitoTxt(e))}</small></span><button class="btn sm ghost" data-act="au-una" data-id="${esc(d.id)}"${dis}>Avvia</button></div>`; }).join('')}</div></div>`).join('')}</section>`;
+    <div class="list flat">${vis.filter(d => d.area === k).map(d => { const e = A.STATO.esiti[d.id]; return `<div class="row au-r"><span class="r-main"><b>${esc(d.nome)}</b><span>${esc(d.descr || '')}</span><small class="${e && e.errore ? 't-bad' : 'muted'}">${esc(esitoTxt(e))}</small></span><span class="au-b">${d.apriPagina ? `<button class="btn sm ghost" data-act="nav" data-tab="${esc(d.apriPagina.tab)}"${d.apriPagina.sub ? ` data-sub="${esc(d.apriPagina.sub)}"` : ''}>Apri</button>` : ''}<button class="btn sm ghost" data-act="au-una" data-id="${esc(d.id)}"${dis}>Avvia</button></span></div>`; }).join('')}</div></div>`).join('')}</section>`;
 }
 
 function daControllare(lett) {

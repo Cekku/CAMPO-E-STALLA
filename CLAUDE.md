@@ -49,6 +49,7 @@ Le note lunghe di ogni area sono in `.claude/rules/`: ognuna si carica da sola q
 | Quaderno di campagna | `quaderno.md` | norma (Reg. UE 2023/564, digitale dal 1/1/2027), codici EPPO, superficie trattata, quaderno automatico nel Centro (1.65.0) |
 | Magazzino | `magazzino.md` | carico dalle fatture di sementi, concimi, fitofarmaci e gasolio (1.59.0), scarico automatico delle razioni e avviso "sta per finire" (1.60.0) |
 | Centro automatico | `automazioni.md` | motore delle automazioni (`registra`, giri all'apertura e ogni 30 minuti, diario con annulla, lista Da controllare), pagina Automatico, agganci di archivio Conti, magazzino dalle fatture, fitofarmaci, razioni e controlli di paghe e fatture (1.63.0, 19/11/2026) |
+| Report del mese | `report.md` | pagina Report del mese con controllo di completezza, istantanee salvate dal Centro (`report-mese`), esportazione, aggancio `aggiungiSezione` per le altre parti (20/11/2026) |
 | Organizzazione | `organizzazione.md` | chi fa cosa fra i modelli (sempre caricata) |
 
 Quando aggiungi una funzione nuova: le note vanno nel file della sua area (e i file nuovi nei suoi `paths:`); qui solo se cambia qualcosa che vale per tutto il progetto. **E aggiorna sempre la Guida** (`js/guida.js`, chiesto da Marco il 17/11/2026): una scheda nuova per una pagina nuova, i passi cambiati per una funzione nuova o cambiata, parole chiave per la ricerca. Un'area nuova = un file nuovo in `.claude/rules/` e una riga in questa tabella.

@@ -72,6 +72,8 @@ registra({
 
 Dalla 1.63.0 (revisione): una `conferma()` che restituisce `false` (dati cambiati nel frattempo) è un errore, non "Confermato"; `scarta()` gira dentro `cattura` e scrive una riga di diario (motivo `scarta`, campo `dubbio`): annullandola torna quello che lo scarto ha tolto (es. il cedolino in attesa `ca-…`) e l'id esce da `ad-scarti`, così il dubbio ricompare. Conferma, alternativa e scarto usano `cattura(d, true)`: registrano tutto quello che si scrive in quel momento, anche entro i 2 s di un'azione a mano (prima la riga restava vuota e non si annullava).
 
+Facoltativo `apriPagina: { tab, sub }` (dal report del mese, `js/auto-report.js`): nella pagina Automatico la riga dell'automazione ha anche il pulsante Apri.
+
 Dubbi con più scelte (1.63.0): facoltativi `alternative: [{ testo, conferma() }]` (pulsanti accanto a Conferma, azione `au-alt`, funzione `alternativa(id, i)`: va nel diario come una conferma) e `dettagli: [[voce, già salvato, arrivato adesso]]` (tabellina `.au-det` sotto il testo).
 
 In `magfatture.js` aggiunte solo `pulisciSeServe()` e `occupato()` (per il contenitore).
