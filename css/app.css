@@ -1858,7 +1858,8 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 .au-d .r-main b, .au-r .r-main b { white-space: normal; overflow-wrap: anywhere; }
 .au-d .r-main > span { white-space: normal; }
 .au-b { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; flex: none; }
-.au-det { margin-top: 6px; font-size: .85em; border-collapse: collapse; }
+.au-det { margin-top: 6px; font-size: .85em; border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; }
+.au-det td:first-child { white-space: normal; min-width: 8em; }
 .au-det th, .au-det td { padding: 2px 8px 2px 0; text-align: left; white-space: nowrap; }
 .au-det th { font-weight: 600; color: var(--muted, inherit); }
 .au-piu { margin-top: 6px; }

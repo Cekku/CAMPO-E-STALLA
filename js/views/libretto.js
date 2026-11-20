@@ -8,6 +8,8 @@ import * as store from '../store.js';
 import { openSheet, closeSheet, toast, chip, exChip, fact, tabs, FORM, setVal } from '../ui.js';
 import { CATALOGO, COMP, GRUPPI_COMP, MODELLI, compDi, intervallo, stato, riepilogo, modelloDi, isTrattore, ultimo, trovaMezzo, JD_CATALOGO, AGCO_PARTS, PONTE_FATTURE } from '../trattori.js';
 import * as ALL from '../allegati.js';
+import { consumoTesto } from '../gasolio.js';
+const consumoFact = m => { const c = consumoTesto(S, m); return fact('Consumo gasolio', c ? `<span class="num">${nf(c.lh, 1)} l/h</span> <small>${esc(c.nota)}</small>` : '—'); };
 
 const oreTxt = h => nf(h, 0) + ' h';
 const trattori = () => S.mezzi.filter(isTrattore).sort(byName);
@@ -88,7 +90,7 @@ function scadenze(m, ore) {
   comps.sort((a, b) => peso(a) - peso(b));
   const altre = (m.scadenze || []).slice().sort((a, b) => String(a.data).localeCompare(String(b.data)));
   return `<section class="card"><div class="card-h"><h2>Scadenze del mezzo</h2><button class="btn sm" data-act="lib-scad" data-id="${m.id}">${ic('plus')}Aggiungi</button></div>
-  <dl class="facts inner">${fact('Revisione', fd(m.scadenzaRevisione))}${fact('Assicurazione', fd(m.scadenzaAssicurazione))}${altre.map(x => fact(x.titolo, fd(x.data) + (x.mesi ? ` <small>ogni ${x.mesi} mesi</small>` : ''))).join('')}</dl>
+  <dl class="facts inner">${consumoFact(m)}${fact('Revisione', fd(m.scadenzaRevisione))}${fact('Assicurazione', fd(m.scadenzaAssicurazione))}${altre.map(x => fact(x.titolo, fd(x.data) + (x.mesi ? ` <small>ogni ${x.mesi} mesi</small>` : ''))).join('')}</dl>
   ${altre.length ? `<div class="list">${altre.map((x, i) => `<button class="row" data-act="lib-scad" data-id="${m.id}" data-i="${(m.scadenze || []).indexOf(x)}"><span class="r-icon">${ic('calendar')}</span><span class="r-main"><b>${esc(x.titolo)}</b><span>${fd(x.data)}${x.note ? ' · ' + esc(x.note) : ''}</span></span>${ic('pencil', 'chev')}</button>`).join('')}</div>` : ''}
   <p class="muted small lib-pad">Revisione e assicurazione si cambiano da <b>Modifica</b>. Per la revisione delle macchine agricole controlla con l'officina o la motorizzazione le date in vigore per l'anno di immatricolazione.</p></section>
   <section class="card"><div class="card-h"><h2>Prossime manutenzioni</h2><span class="count">${comps.length}</span></div><div class="list">${comps.length ? comps.slice(0, 12).map(({ c, s }) => { const [tx, lv] = testoStato(s); return `<button class="row" data-act="lib-comp" data-id="${m.id}" data-c="${c.id}"><span class="r-icon st-${s.lv}">${ic('wrench')}</span><span class="r-main"><b>${esc(c.nome)}</b><span>${[s.prossOre !== null ? 'a ' + oreTxt(s.prossOre) : '', s.prossData ? 'entro il ' + fd(s.prossData) : ''].filter(Boolean).join(' o ')}</span></span><span class="r-side chips">${chip(tx, lv)}</span></button>`; }).join('') : '<div class="empty slim">Registra gli interventi per vedere le prossime scadenze.</div>'}</div></section>`;
