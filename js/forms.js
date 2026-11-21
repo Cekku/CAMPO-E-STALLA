@@ -313,7 +313,7 @@ export const SPEC = {
     fields: () => [
       { k: 'nome', l: 'Nome', req: 1, ph: 'Es. Trincea 1' },
       { k: 'tipo', l: 'Tipo', t: 'seg', opts: ['Trincea', 'Silo verticale', 'Fienile', 'Serbatoio'] },
-      { k: 'prodottoId', l: 'Contenuto (dal magazzino)', t: 'select', opts: oProd(['Foraggio', 'Mangime', 'Altro']), blank: 'Non collegato', hint: 'Collegato al magazzino, il livello segue carichi, scarichi e razioni' },
+      { k: 'prodottoId', l: 'Contenuto (dal magazzino)', t: 'select', opts: oProd(['Foraggio', 'Mangime', 'Integratore', 'Altro']), blank: 'Non collegato', hint: 'Collegato al magazzino, il livello segue carichi, scarichi e razioni' },
       { k: 'capacita', l: 'Capacità', t: 'number', half: 1, unit: 't', req: 1 },
       { k: 'carico', l: 'Contenuto attuale', t: 'number', half: 1, unit: 't', show: v => !v.prodottoId },
       { k: 'note', l: 'Note', t: 'textarea' }],
@@ -430,7 +430,7 @@ export const SPEC = {
       { k: 'nome', l: 'Nome della razione', req: 1, ph: 'Es. Unifeed alta produzione' },
       { k: 'gruppo', l: 'Gruppo', t: 'select', opts: GRUPPI, half: 1 },
       { k: 'capi', l: 'Numero di capi', t: 'number', half: 1, hint: 'Vuoto: conta i capi del gruppo' },
-      { k: 'ingredienti', l: 'Alimenti, kg tal quale per capo al giorno', t: 'lines', opts: oProd(['Mangime', 'Foraggio', 'Altro']), req: 1 },
+      { k: 'ingredienti', l: 'Alimenti, kg tal quale per capo al giorno', t: 'lines', opts: oProd(['Mangime', 'Integratore', 'Foraggio', 'Altro']), req: 1 },
       { k: 'autoDal', l: 'Scarico automatico dal', t: 'date', hint: 'Ogni giorno toglie dal magazzino i kg per capo × i capi, anche per i giorni in cui l\'app è rimasta chiusa. Vuoto: niente scarico automatico' },
       { k: 'note', l: 'Note', t: 'textarea' }],
     // cambiando la data di partenza lo scarico riparte da lì (i giorni già scaricati non si ripetono)
@@ -463,7 +463,7 @@ export function openEdit(c, id, pre, soloQuesta) {
   if (c === 'operazioni' && rec && rec.gruppo && !soloQuesta) { const blocco = S.operazioni.filter(o => o.gruppo === rec.gruppo); if (blocco.length > 1) return sceltaBlocco(rec, blocco); }
   const need = { operazioni: ['campi', 'Prima aggiungi un appezzamento.'], eventi: ['capi', 'Prima aggiungi un capo.'], manutenzioni: ['mezzi', 'Prima aggiungi un mezzo.'], movimenti: ['prodotti', 'Prima aggiungi un prodotto in magazzino.'] }[c];
   if (need && !S[need[0]].length) { toast(need[1], 'err'); return; }
-  if (c === 'razioni' && !S.prodotti.some(p => ['Mangime', 'Foraggio', 'Altro'].includes(p.categoria))) { toast('Prima inserisci in magazzino mangimi e foraggi in kg.', 'err'); return; }
+  if (c === 'razioni' && !S.prodotti.some(p => ['Mangime', 'Integratore', 'Foraggio', 'Altro'].includes(p.categoria))) { toast('Prima inserisci in magazzino mangimi e foraggi in kg.', 'err'); return; }
   const values = rec ? Object.assign({}, rec) : Object.assign({}, spec.defaults ? spec.defaults() : {}, pre || {});
   if (c === 'campi' && values.geom && !N(values.superficie)) values.superficie = Math.round(areaHa(values.geom) * 10000) / 10000;
   const fields = spec.fields();

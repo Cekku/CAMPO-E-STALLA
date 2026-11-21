@@ -7,7 +7,7 @@ import { isTrattore, riepilogo } from './trattori.js';
 export const COLTURE = ['Mais da granella', 'Mais trinciato', 'Frumento tenero', 'Frumento duro', 'Orzo', 'Triticale', 'Soia', 'Erba medica', 'Prato polifita', 'Loiessa', 'Sorgo', 'Girasole', 'Colza', 'Barbabietola', 'Vite', 'Pomodoro da industria', 'Riposo'];
 export const TIPI_OP = ['Lavorazione terreno', 'Semina', 'Concimazione', 'Trattamento fitosanitario', 'Diserbo', 'Irrigazione', 'Sfalcio', 'Raccolta', 'Altro'];
 export const OP_PROD = ['Semina', 'Concimazione', 'Trattamento fitosanitario', 'Diserbo', 'Irrigazione', 'Altro'];
-export const CATEGORIE = ['Fitofarmaco', 'Diserbante', 'Concime', 'Effluente', 'Seme', 'Mangime', 'Foraggio', 'Farmaco veterinario', 'Gasolio', 'Altro'];
+export const CATEGORIE = ['Fitofarmaco', 'Diserbante', 'Concime', 'Effluente', 'Seme', 'Mangime', 'Integratore', 'Foraggio', 'Farmaco veterinario', 'Igiene e mungitura', 'Gasolio', 'Lubrificante', 'AdBlue', 'Ricambio', 'Materiale di consumo', 'Altro'];
 export const UNITA = ['kg', 'l', 'q', 't', 'm³', 'dosi', 'pz'];
 export const TIPI_MEZZO = ['Trattore', 'Mietitrebbia', 'Carro miscelatore', 'Rimorchio', 'Irroratrice', 'Attrezzo', 'Pick-up', 'Altro'];
 export const TIPI_MAN = ['Tagliando', 'Riparazione', 'Controllo', 'Ingrassaggio', 'Pneumatici', 'Revisione', 'Altro'];

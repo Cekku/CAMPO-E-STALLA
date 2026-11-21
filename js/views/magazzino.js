@@ -11,7 +11,7 @@ import { sezione, contaDaFare } from './magfatture.js';
 import { docFattura, prezziAcquisto } from '../magfatture.js';
 import { previsione, giorniTxt } from '../razauto.js';
 
-const CAT_IC = { 'Fitofarmaco': 'shield-check', 'Diserbante': 'leaf', 'Concime': 'sprout', 'Seme': 'wheat', 'Mangime': 'wheat', 'Foraggio': 'leaf', 'Farmaco veterinario': 'syringe', 'Gasolio': 'fuel', 'Altro': 'package' };
+const CAT_IC = { 'Fitofarmaco': 'shield-check', 'Diserbante': 'leaf', 'Concime': 'sprout', 'Seme': 'wheat', 'Mangime': 'wheat', 'Foraggio': 'leaf', 'Farmaco veterinario': 'syringe', 'Gasolio': 'fuel', 'Integratore': 'flask-conical', 'Igiene e mungitura': 'droplets', 'Lubrificante': 'fuel', 'AdBlue': 'droplets', 'Ricambio': 'wrench', 'Materiale di consumo': 'package', 'Altro': 'package' };
 
 export function render() {
   if (UI.detail && UI.detail.type === 'prodotto') { const p = get('prodotti', UI.detail.id); if (p) return detail(p); UI.detail = null; }

@@ -44,7 +44,7 @@ async function salvaOp(o, ch) {
 }
 
 // uno scarico scritto a mano (senza operazione) dello stesso prodotto vicino alla data: la quantità calcolata lo raddoppierebbe
-const scaricoAMano = o => S.movimenti.some(m => m.tipo === 'Scarico' && !m.opId && m.prodottoId === o.prodottoId && okD(m.data) && Math.abs((new Date(m.data) - new Date(o.data)) / 864e5) <= 3);
+const scaricoAMano = o => S.movimenti.some(m => m.tipo === 'Scarico' && !m.opId && !m.reso && m.prodottoId === o.prodottoId && okD(m.data) && Math.abs((new Date(m.data) - new Date(o.data)) / 864e5) <= 3);
 // Calcoli dagli ettari trattati: { dose } è sempre sicuro; { quantita } muove il magazzino
 function calcolati(o) {
   const ch = {}; const c = get('campi', o.campoId); const ha = c ? haTrattati(o, c) : 0;
