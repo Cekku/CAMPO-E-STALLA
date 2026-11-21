@@ -13,6 +13,7 @@ Come lavori:
 - Prima di ricaricare un modulo cambiato: `fetch(file, {cache: 'reload'})` (il browser tiene i moduli vecchi).
 - Controlla: console senza errori, la pagina richiesta, le azioni (clic sui `data-act`), telefono 375 px senza scorrimento di lato, tema scuro se cambia lo stile.
 - Dati: solo dati finti o di esempio, creati per la prova e poi cancellati. Mai salvare sui dati veri dell'azienda, mai scrivere su Supabase.
+- **Mai finestre di stampa sullo schermo di Marco** (chiesto il 21/11/2026): prima di premere un pulsante PDF o Stampa, metti `localStorage.setItem('ces.prova.nostampa', '1')` (la pagina da stampare si prepara nell'iframe, ma la stampa di Windows non si apre: controlla il contenuto dell'iframe), e toglilo alla fine. Mai chiamare `window.print()`.
 - Se il pannello del browser è nascosto `requestAnimationFrame` non gira: sostituiscilo con un `setTimeout` per la prova.
 - Leggi le pagine con read_page / get_page_text; una sola schermata finale se il cambiamento è visivo.
 

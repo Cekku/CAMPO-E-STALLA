@@ -411,7 +411,7 @@ export function stampa(titolo, pagine) {
   fr = document.createElement('iframe'); fr.id = 'printFrame'; fr.setAttribute('aria-hidden', 'true');
   fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
   document.body.appendChild(fr);
-  fr.onload = () => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { scarica(titolo.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.html', new Blob([html], { type: 'text/html' })); } };
+  fr.onload = () => { try { fr.contentWindow.focus(); if (!localStorage.getItem('ces.prova.nostampa')) fr.contentWindow.print(); } catch (e) { scarica(titolo.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.html', new Blob([html], { type: 'text/html' })); } };
   fr.srcdoc = html;
 }
 /** Registro approvvigionamenti: un prodotto (pid) o tutti quelli con almeno un arrivo nell'anno. */

@@ -8,7 +8,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.66.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.66.1** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -70,6 +70,7 @@ Supabase in breve: progetto `vamcoyvunyjqgzxujsal`, URL e chiave anon in `js/con
 
 - Server locale per le prove: `python3 -m http.server 8765` nella cartella del progetto.
 - Prove nel browser con Playwright (Chromium headless): caricare file con `set_input_files` sull'input `data-act=c-files` (Carica documenti) o `c-pMovFile` (Pagamenti); azioni simulate creando un bottone con `data-act`. Moduli testabili anche in Node (pdf.js da `pdfjs-dist/legacy`, `globalThis.localStorage` finto, `S` da `js/state.js`).
+- Nelle prove nel browser integrato i pulsanti PDF aprono la vera finestra di stampa di Windows: prima mettere `localStorage` `ces.prova.nostampa` = `1` (lo leggono `conti/tabelle.js`, `registro.js`, `tracciabilita.js`) e toglierlo alla fine.
 - Controllo sintassi: `node --input-type=module --check < file.js`.
 - Commit con `git -c user.name="Claude" -c user.email="noreply@anthropic.com"` e righe finali `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; dopo il push su `main` attendere la pubblicazione di GitHub Pages (`gh api repos/Cekku/CAMPO-E-STALLA/actions/runs?per_page=1`).
 - Dopo un rilascio l'utente aggiorna con Ctrl+Shift+R (computer) o chiudendo e riaprendo l'app (telefono).
