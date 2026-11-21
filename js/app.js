@@ -13,6 +13,7 @@ import './automazioni-agganci.js';   // automazioni che c'erano già, iscritte a
 import './auto-magazzino.js';   // magazzino dalle fatture d'acquisto (1.66.0)
 import './auto-latte.js';   // latte dal caseificio (1.66.0)
 import './auto-personale.js';        // personale e scadenze (1.66.0)
+import './auto-stalla.js';   // Si@lleva dall'archivio del PC e gasolio dei mezzi
 import * as MAP from './map.js';
 import { promptInstall, canInstall } from './install.js';
 import { nativa, alTastoIndietro, controllaAggiornamento } from './nativo.js';

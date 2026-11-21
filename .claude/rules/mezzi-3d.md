@@ -1,6 +1,8 @@
 ---
 paths:
   - "js/trattori.js"
+  - "js/gasolio.js"
+  - "js/auto-stalla.js"
   - "js/views/libretto.js"
   - "js/views/mezzi.js"
   - "js/allegati.js"
@@ -34,3 +36,14 @@ Guida completa e di passaggio: **`LIBRETTO-TRATTORI.md`**. In breve:
   - `VISTE`: Insieme, Dall'alto, Nuova stalla (inquadra cuccette, cancelli e fondazioni).
   - Toccando un pezzo si vede il nome del gruppo. Il ciclo di disegno si ferma quando la tela esce dalla pagina.
 - Provato nel browser (in locale, modello caricato con un `DataTransfer` sul campo file): caricamento, viste, tetti spenti, tocco, telefono 375 px senza scorrimento di lato. Con il pannello del browser nascosto `requestAnimationFrame` non gira: per le schermate si disegna con un `setInterval`.
+
+## Gasolio dei mezzi (automazione `gasolio-mezzi`, 20/11/2026)
+
+- Logica in `js/gasolio.js`, registrata dal Centro in `js/auto-stalla.js` (area campagna). Parte dal giorno del primo giro (config `gasolio-auto.dal`): i lavori più vecchi non si toccano.
+- Per ogni lavoro fatto (non pianificato) con mezzo e ore, senza gasolio scelto a mano, propone uno scarico di ore × consumo l/h: movimento `gs-<id lavoro>` con campi gasOp, gasMezzo, stima, lh, ore.
+- `rifornimenti` = scarichi di gasolio con `movimenti.mezzoId` ("Messo nel mezzo"); `misure` = litri del rifornimento (a pieno) diviso le ore dal rifornimento prima, più i lavori con gasolio scelto a mano con quantità; `consumo` sceglie scheda (`mezzi.consumoLh`) o misure; `consumoTesto` scrive la fonte nella riga "Consumo gasolio" (`js/views/mezzi.js`, `js/views/libretto.js`).
+- Sicuro (`SICURO`): almeno 3 misure, 30 ore in tutto, scarto sotto il 25%. Allora lo scarico si salva da solo; altrimenti un dubbio per mezzo (Conferma scarica tutti quei lavori, Scarta = non si scaricano più). Mezzo senza consumo: dubbio "scrivi il consumo nella scheda".
+- `gasolioDa` sceglie il prodotto (quello in `prodottoId`, o l'unico di categoria Gasolio; con più prodotti un dubbio per scegliere). Mezzo con un rifornimento dal giorno di partenza: il gasolio esce dalla cisterna con i rifornimenti, quindi niente scarichi per lavoro e le stime `gs-` non toccate a mano fino al giorno dell'ultimo rifornimento si tolgono (`togli` con `rifornito`, fatti → `rifornito`), altrimenti si contava due volte (revisione del 20/11/2026). Per quei mezzi le ore servono solo a imparare il consumo.
+- `movimento` costruisce lo scarico, `piano` mette insieme salvataggi, dubbi e rimozioni; `PRE` è il prefisso `gs-` degli id. Ore cambiate: scarico aggiornato da solo se il consumo è sicuro e non è stato cambiato a mano; lavoro cancellato: scarico stimato tolto.
+- Config `gasolio-auto` = { dal, prodottoId, fatti: opId → fatto | scartato | annullato | rifornito }. Uno scarico tolto a mano o annullato non torna; annullando il primo giro il `dal` resta (`annullato` lo rimette). Le ore del mezzo non cambiano.
+- Campi nuovi in `js/forms.js`: `mezzi.consumoLh` (casella "Consumo di gasolio") e `movimenti.mezzoId` (casella "Messo nel mezzo").
