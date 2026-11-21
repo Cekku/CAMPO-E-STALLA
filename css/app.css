@@ -1861,6 +1861,7 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 .au-det { margin-top: 6px; font-size: .85em; border-collapse: collapse; }
 .au-det th, .au-det td { padding: 2px 8px 2px 0; text-align: left; white-space: nowrap; }
 .au-det th { font-weight: 600; color: var(--muted, inherit); }
+@media (max-width: 560px) { .au-det { display: block; max-width: 100%; overflow-x: auto; } .au-det th, .au-det td { white-space: normal; min-width: 5em; } } /* 1.66.0: tabellina dei dubbi sul telefono */
 .au-piu { margin-top: 6px; }
 .au-g + .au-g { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .au-gh { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
