@@ -1,6 +1,6 @@
 // Conti → Personale: riepilogo, dipendenti, cedolini, pagamenti, verifica dei pagamenti e irregolarità
 import { S, UI } from '../state.js';
-import { esc, nf, fd, N, $, $$, today } from '../util.js';
+import { esc, nf, fd, N, $, $$, today, addDays, diff } from '../util.js';
 import { ic } from '../icons.js';
 import * as store from '../store.js';
 import { toast, openSheet, closeSheet, arm, empty } from '../ui.js';
@@ -8,6 +8,7 @@ import { tabella, bottoniExport, fmtVal } from '../conti/tabelle.js';
 import { colonne, COL } from '../conti/grafici.js';
 import { miniTabs } from './conti-fatture.js';
 import * as P from '../conti/paghe.js';
+import * as PA from '../conti/personale-auto.js';
 import * as B from '../conti/banca.js';
 import { btnOrig } from './conti-documenti.js';
 
@@ -41,6 +42,17 @@ function mesiAnno(y) {
     return { periodo: p, mese: P.nomeMese(p), dip: cs.length || null, ore: s('ore'), lordo: b ? N(b.lordo) : s('lordo'), contrib: b ? N(b.contribDitta) : null, tfr: b ? N(b.tfrFpc) : s('tfrFondo'), costo: b ? N(b.costo) : null, ritDip: b ? r2(N(b.ritPrev)) : s('ritPrev'), irpef: b ? N(b.irpef) : s('irpef'), netto: b ? N(b.netto) : s('netto'), pagato: r2(vs.reduce((t, v) => t + v.pagato, 0)), dapagare: r2(vs.reduce((t, v) => t + Math.max(0, v.differenza), 0)), f24: (vers.find(v => v.tipo === 'f24' && v.periodo === p) || {}).dovuto ?? null, _cls: 'click', _p: p };
   });
 }
+function chipGiorni(data) {
+  const n = diff(today(), data);
+  const t = n <= 0 ? 'oggi' : n === 1 ? 'domani' : `fra ${n} giorni`;
+  return `<span class="chip ${n <= 7 ? 'bad' : n <= 30 ? 'warn' : n <= 60 ? 'info' : ''}">${t}</span>`;
+}
+function boxScadenze() {
+  const sc = PA.scadenze({ a: addDays(today(), 90) });
+  const righe = sc.slice(0, 8).map(x => `<button class="row" data-act="go" data-go='${esc(JSON.stringify(x.go))}'><span class="r-icon">${ic(PA.iconaScadenza(x.genere))}</span><span class="r-main"><b>${esc(x.titolo)}</b><span>${fd(x.data)} · ${x.importo != null ? eu(x.importo) + ' · ' : ''}${esc(x.testo)}</span></span>${chipGiorni(x.data)}</button>`).join('');
+  const piu = sc.length > 8 ? `<p class="more">e altre ${sc.length - 8} scadenze</p>` : '';
+  return `<section class="card" id="pScad"><div class="card-h"><h2>${ic('calendar-range')}Scadenze dei prossimi 90 giorni</h2><span class="count">${sc.length}</span></div>${sc.length ? `<div class="list flat">${righe}</div>${piu}` : '<div class="empty slim">Nessuna scadenza nei prossimi 90 giorni.</div>'}</section>`;
+}
 export function vPersonale() {
   if (!S.paghe.length && !S.pagamenti.length) return vuoto();
   const y = UI.anno; const M = mesiAnno(y);
@@ -49,7 +61,7 @@ export function vPersonale() {
   const ano = anomalieAttive(); const gravi = ano.filter(a => a.liv === 'err').length;
   const conBil = M.filter(r => r.costo != null).length;
   const costo = conBil ? tot('costo') : tot('lordo');
-  if (!M.length) return `${barra()}<section class="card">${empty('users', `Nessun cedolino del ${y}`, 'Scegli un altro anno in alto o carica i cedolini di quest\'anno.', `<button class="btn primary" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">${ic('file-up')}Carica documenti</button>`)}</section>${ano.length ? `<section class="card"><div class="card-h"><h2>${ic('shield-alert')}Da controllare</h2><span class="count">${ano.length}</span></div>${listaAnomalie(ano, 6)}</section>` : ''}`;
+  if (!M.length) return `${barra()}<section class="card">${empty('users', `Nessun cedolino del ${y}`, 'Scegli un altro anno in alto o carica i cedolini di quest\'anno.', `<button class="btn primary" data-act="sub" data-tab="conti" data-sec="conti" data-sub="importa">${ic('file-up')}Carica documenti</button>`)}</section>${boxScadenze()}${ano.length ? `<section class="card"><div class="card-h"><h2>${ic('shield-alert')}Da controllare</h2><span class="count">${ano.length}</span></div>${listaAnomalie(ano, 6)}</section>` : ''}`;
   const tM = tabella('pmesi', {
     title: 'Personale mese per mese ' + y, sheet: 'Mesi ' + y, sub: 'Dai bilancini paghe e dai cedolini',
     cols: [{ k: 'mese', h: 'Mese' }, { k: 'dip', h: 'Dipendenti', fmt: 'int' }, { k: 'ore', h: 'Ore lavorate', fmt: 'n1' }, { k: 'lordo', h: 'Retribuzione lorda', fmt: 'eur2' }, { k: 'contrib', h: 'Contributi a carico azienda', fmt: 'eur2' }, { k: 'tfr', h: 'TFR al fondo', fmt: 'eur2' }, { k: 'costo', h: 'Costo aziendale', fmt: 'eur2' }, { k: 'ritDip', h: 'Contributi dipendenti', fmt: 'eur2' }, { k: 'irpef', h: 'IRPEF trattenuta', fmt: 'eur2' }, { k: 'netto', h: 'Netto da pagare', fmt: 'eur2' }, { k: 'pagato', h: 'Netto pagato', fmt: 'eur2' }, { k: 'dapagare', h: 'Ancora da pagare', fmt: 'eur2', html: r => r.dapagare ? `<b class="t-bad">${eu(r.dapagare)}</b>` : '–' }, { k: 'f24', h: 'F24 ritenute', fmt: 'eur2' }],
@@ -64,6 +76,7 @@ export function vPersonale() {
   const graf = colonne(M.map(r => P.meseCorto(r.periodo)), [{ name: 'Netto ai dipendenti', values: M.map(r => r.netto), color: COL.ven }, { name: 'Contributi e IRPEF', values: M.map(r => r2(N(r.ritDip) + N(r.irpef) + N(r.contrib))), color: COL.acq }, { name: 'TFR', values: M.map(r => N(r.tfr)), color: COL.diff }]);
   return `${barra()}<div class="kpis">${kpi('Costo del personale ' + y, fmtVal(costo, 'eur'), conBil ? `costo aziendale · ${M.length} ${M.length === 1 ? 'mese' : 'mesi'}` : 'retribuzioni lorde (manca il bilancino)', 'users')}${kpi('Netto ai dipendenti', fmtVal(tot('netto'), 'eur'), `${dips.length} dipendenti nell'anno`, 'banknote')}${kpi('Ancora da pagare', fmtVal(tot('dapagare'), 'eur'), tot('dapagare') ? 'stipendi non saldati' : 'stipendi tutti pagati', 'hand-coins', tot('dapagare') ? 't-bad' : '')}${kpi('Irregolarità', String(ano.length), gravi ? `${gravi} gravi` : ano.length ? 'da controllare' : 'nessuna', 'shield-alert', gravi ? 't-bad' : '')}</div>
   ${ano.length ? `<section class="card"><div class="card-h"><h2>${ic('shield-alert')}Da controllare</h2><span class="count">${ano.length}</span><span class="sp"></span><button class="btn sm ghost" data-act="c-pIgnoraTutti">${ic('check')}Ignora tutti</button></div>${listaAnomalie(ano, 6)}</section>` : ''}
+  ${boxScadenze()}
   <div class="grid-2"><section class="card"><div class="card-h"><h2>${ic('chart-column')}Dove vanno i soldi, mese per mese</h2></div>${graf}</section>
   <section class="card"><div class="card-h"><h2>${ic('scale')}Nel conto economico ${y}</h2></div>${ceBox(y)}</section></div>
   <section class="card"><div class="card-h"><h2>${ic('calendar-range')}Mese per mese</h2>${bottoniExport(['pmesi'], 'Personale mese per mese ' + y)}</div>${tM}</section>
@@ -121,6 +134,14 @@ export function vDipendenti() {
     rows, rowAttr: r => `data-act="c-pDip" data-k="${esc(r._k)}"`, freeze: 1 });
   return `${barra()}<div class="chipbar">${[['', 'Tutti'], ['forza', 'In forza'], ['fuori', 'Cessati o con termine scaduto']].map(([v, l]) => `<button data-act="chip" data-f="pd_stato" data-v="${v}" aria-pressed="${filtro === v}">${l}</button>`).join('')}</div><section class="card"><div class="card-h"><h2>${ic('id-card')}Dipendenti</h2><span class="count">${rows.length}</span>${bottoniExport(['panag'], 'Anagrafica dipendenti')}</div>${t}<p class="muted small pad-x">I dati arrivano dall'ultimo cedolino di ogni dipendente. Tocca una riga per vedere i mesi, i pagamenti e gli avvisi.</p></section>${tabellaNomi()}`;
 }
+function dalleCarte(d) {
+  const sc = PA.scheda(d);
+  const campi = Object.keys(PA.CAMPI).filter(c => sc.campi[c]);
+  const righe = campi.map(c => { const o = sc.campi[c]; return `<tr><td class="t">${esc(PA.CAMPI[c])}</td><td class="t">${esc(PA.valoreTxt(c, o.v))}</td><td class="t">${esc(PA.nomeFonte(o.fonte))}${o.data ? ' del ' + fd(o.data) : ''}${o.conflitto ? ' <span class="chip warn">da controllare nel Centro automatico</span>' : ''}${o.nota ? ` <span class="muted small"> (${esc(o.nota)})</span>` : ''}</td></tr>`; }).join('');
+  const docs = sc.docs.map(x => `<button class="linkbtn" data-act="go" data-go='${esc(JSON.stringify({ ar: x.impronta }))}'>${esc(String(x.tipoDoc || '').replace(/-/g, ' '))} ${esc(x.nomeFile)}</button>`).join(' · ');
+  const nulla = !campi.length && !sc.docs.length;
+  return `<h3 class="sheet-h">Dai documenti</h3>${campi.length ? `<div class="tablewrap"><table><thead><tr><th class="t">Dato</th><th class="t">Valore</th><th class="t">Da dove</th></tr></thead><tbody>${righe}</tbody></table></div>` : ''}${sc.docs.length ? `<p class="muted small">Documenti letti: ${docs}</p>` : ''}${nulla ? '<p class="muted small">Nessun documento letto dall\'archivio del PC per questo dipendente (UNILAV, contratti, permessi): li legge il Centro automatico con il ponte acceso.</p>' : ''}`;
+}
 export function schedaDipendente(k) {
   const d = P.dipendenti().find(x => x.key === k);
   if (!d) { const ps = P.pagamenti().filter(p => p.dip === k); const nome = P.nomeDi(k); return openSheet(nome, `<div class="note-box">${ic('info')}<span>Non c'è nessun cedolino con questo nome. Se è un dipendente che conosci con un nome diverso, associalo qui sotto; altrimenti carica i suoi cedolini e i pagamenti si collegheranno da soli.</span></div>${boxUnione(k, nome)}<h3 class="sheet-h">Movimenti</h3><div class="list flat">${ps.map(p => `<button class="row" data-act="c-pPag" data-id="${esc(p.id)}"><span class="r-icon">${ic('banknote')}</span><span class="r-main"><b>${fd(p.data)} · ${eu(p.importo)} · ${esc(P.TIPI_PAG[p.tipo] || p.tipo)}</b><span>${esc(p.comp ? P.nomeMese(p.comp) : 'competenza automatica')}${p.descrizione ? ' · ' + esc(p.descrizione) : ''}</span></span>${ic('chevron-right', 'chev')}</button>`).join('')}</div><div class="factions"><span class="sp"></span><button class="btn" data-act="close">Chiudi</button></div>`); }
@@ -133,6 +154,7 @@ export function schedaDipendente(k) {
   const ano = d.anomalie.filter(a => !ignorate().has(a.testo));
   openSheet(d.nome, `<dl class="inv-head">${fact('Codice fiscale', esc(d.cf || '—'))}${fact('Matricola', esc(d.matricola || '—'))}${fact('Qualifica', esc(d.qualifica || '—'))}${fact('Mansione', esc(d.mansione || '—'))}${fact('Livello', esc(d.livello || '—'))}${fact('Nato il', fd(d.nascita))}${fact('Assunto il', fd(d.assunzione))}${fact('Termine del contratto', d.scadTD ? `<span class="${d.scadTD < today() ? 't-bad' : ''}">${fd(d.scadTD)}</span>` : 'tempo indeterminato')}${fact('Permesso di soggiorno', d.scadPermesso ? `<span class="${d.scadPermesso < today() ? 't-bad' : ''}">scade il ${fd(d.scadPermesso)}</span>` : '—')}${fact('Cessazione', fd(d.cessazione))}${fp('Ferie residue', d.ferie)}${fp('Permessi residui', d.permessi)}${fact('Stato', esc(d.stato))}</dl>
   ${ano.length ? `<h3 class="sheet-h">Avvisi</h3>${listaAnomalie(ano)}` : ''}
+  ${dalleCarte(d)}
   <div class="card-h"><h3>Mese per mese</h3>${bottoniExport(['pschd'], 'Dipendente ' + d.nome)}</div>${t}
   ${boxPrestiti(k)}
   ${d.uniti.length ? `<p class="muted small" style="margin-top:12px">Uniti a questa scheda: ${d.uniti.map(u => `${esc(u.nome)} <button class="linkbtn" data-act="c-pSepara" data-k="${esc(u.key)}">separa</button>`).join(' · ')}</p>` : ''}
@@ -325,13 +347,19 @@ export function vVerifica() {
     rows: ver.map(v => ({ mese: P.nomeMese(v.periodo), nome: nomeDip(v.dip), dovuto: v.dovuto, pagato: v.pagato, differenza: v.differenza, date: v.pag.map(p => fd(p.data)).join(', '), scadenza: v.scadenza, stato: v.stato, _cls: 'click', _d: v.dip, _p: v.periodo })), rowAttr: r => `data-act="c-pCella" data-dip="${esc(r._d)}" data-p="${r._p}"`,
     tot: { mese: 'Totale', dovuto: r2(ver.reduce((t, v) => t + v.dovuto, 0)), pagato: r2(ver.reduce((t, v) => t + v.pagato, 0)), differenza: r2(ver.reduce((t, v) => t + v.differenza, 0)) } });
   const vers = P.versamenti().filter(v => v.periodo.startsWith(String(y)));
-  const tS = tabella('pvers', { title: 'Versamenti ' + y, sheet: 'Versamenti ' + y, cols: [{ k: 'tipoNome', h: 'Versamento' }, { k: 'nome', h: 'Periodo' }, { k: 'dovuto', h: 'Dovuto', fmt: 'eur2' }, { k: 'pagato', h: 'Registrato', fmt: 'eur2' }, { k: 'scadenza', h: 'Scadenza', fmt: 'date' }, { k: 'date', h: 'Pagato il' }, { k: 'stato', h: 'Esito', html: r => stato(r.stato) + (r.ritardo ? ` <span class="muted small">${r.ritardo} gg di ritardo</span>` : '') }, { k: 'az', h: '', export: false, sort: false, html: r => r.stato !== 'pagato' && r.stato !== 'pagato in più' ? `<button class="btn sm ghost" data-act="c-pPag" data-tipo="${r.tipo}" data-comp="${r.periodo}" data-imp="${Math.max(0, r.differenza)}">${ic('plus')}Registra</button>` : '' }],
-    rows: vers.map(v => Object.assign({ date: v.pag.map(p => fd(p.data)).join(', ') }, v)), sort: false, note: ['F24: ritenute IRPEF e addizionali trattenute in busta, da versare entro il 16 del mese dopo (con il codice 1001 e le addizionali). Contributi agricoli: li calcola l\'INPS per trimestre. TFR al fondo pensione: versato al fondo di solito ogni trimestre.'] });
+  const tS = tabella('pvers', { title: 'Versamenti ' + y, sheet: 'Versamenti ' + y, cols: [{ k: 'tipoNome', h: 'Versamento' }, { k: 'nome', h: 'Periodo' }, { k: 'dovuto', h: 'Dovuto', fmt: 'eur2' }, { k: 'pagato', h: 'Registrato', fmt: 'eur2' }, { k: 'scadenza', h: 'Scadenza', fmt: 'date' }, { k: 'date', h: 'Pagato il' }, { k: 'conf', h: 'Dai documenti' }, { k: 'stato', h: 'Esito', html: r => stato(r.stato) + (r.ritardo ? ` <span class="muted small">${r.ritardo} gg di ritardo</span>` : '') }, { k: 'az', h: '', export: false, sort: false, html: r => r.stato !== 'pagato' && r.stato !== 'pagato in più' ? `<button class="btn sm ghost" data-act="c-pPag" data-tipo="${r.tipo}" data-comp="${r.periodo}" data-imp="${Math.max(0, r.differenza)}">${ic('plus')}Registra</button>` : '' }],
+    rows: vers.map(v => Object.assign({ date: v.pag.map(p => fd(p.data)).join(', ') }, v, { conf: v.confermato ? 'confermato' + (v.calcolato != null ? ' (stima dai bilancini ' + eu(v.calcolato) + ')' : '') : '' })), sort: false, note: ['F24: ritenute IRPEF e addizionali trattenute in busta, da versare entro il 16 del mese dopo (con il codice 1001 e le addizionali). Contributi agricoli: li calcola l\'INPS per trimestre. TFR al fondo pensione: versato al fondo di solito ogni trimestre.'] });
+  const ESITO = { ok: 'torna', accettato: 'torna', diverso: 'non torna: nel Centro automatico', senzaCalcolo: 'manca il bilancino', nonTorna: 'modello letto male' };
+  const BANCA = { collegato: 'collegato', uno: 'da collegare', piu: 'più movimenti uguali', nessuno: 'movimento non trovato' };
+  const an = PA.analisiVersamenti().filter(a => a.D.startsWith(String(y)));
+  const tDoc = tabella('pvdoc', { title: 'Avvisi e modelli F24 letti ' + y, sheet: 'Avvisi e F24 ' + y, cols: [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'doc', h: 'Documento' }, { k: 'versato', h: 'Versato', fmt: 'eur2' }, { k: 'calc', h: 'Calcolato', fmt: 'eur2' }, { k: 'esito', h: 'Esito' }, { k: 'banca', h: 'Banca' }],
+    rows: an.map(a => ({ data: a.D, doc: (a.v.doc && a.v.doc.genere === 'avviso' ? 'Avviso del consulente' : 'Modello F24') + ' ' + (a.v.nomeFile || ''), versato: a.tot, calc: r2((a.sF || 0) + (a.sC || 0)), esito: ESITO[a.caso] || '', banca: BANCA[a.mov && a.mov.stato] || '' })), sort: false });
   const ano = anomalieAttive(); const ign = (cfg().pagheIgnora || []).length; const cp = P.cfgPaghe();
   return `<section class="card"><div class="card-h"><h2>${ic('shield-check')}Irregolarità e controlli</h2><span class="count">${ano.length}</span><span class="sp"></span>${ano.length ? `<button class="btn sm ghost" data-act="c-pIgnoraTutti">${ic('check')}Ignora tutti</button>` : ''}${ign ? `<button class="btn sm ghost" data-act="c-pIgnoraReset">${ic('rotate-ccw')}Mostra di nuovo i ${ign} ignorati</button>` : ''}</div>${listaAnomalie(ano)}</section>
   <section class="card"><div class="card-h"><h2>${ic('users')}Stipendi ${y}: dovuto e pagato</h2>${bottoniExport(['pver', 'pvers'], 'Verifica pagamenti personale ' + y)}</div>${y < +today().slice(0, 4) ? `<p class="muted small pad-x">Anno passato: quello che risulta ancora da pagare resta segnato qui sotto, ma non dà più avvisi (si controlla solo l'anno in corso).</p>` : ''}${matrice}</section>
   <section class="card"><div class="card-h"><h2>${ic('list-checks')}Dettaglio stipendi</h2></div>${tV}</section>
   <section class="card"><div class="card-h"><h2>${ic('landmark')}F24, contributi e fondo pensione</h2></div>${vers.length ? tS : '<div class="empty slim">Servono i bilancini delle paghe per sapere quanto versare.</div>'}</section>
+  <section class="card"><div class="card-h"><h2>${ic('file-text')}Avvisi e modelli F24 letti</h2>${bottoniExport(['pvdoc'], 'Avvisi e F24 letti ' + y)}</div>${an.length ? tDoc : `<div class="empty slim">Nessun avviso di addebito o modello F24 letto dall'archivio del PC per il ${y}.</div>`}</section>
   <section class="card"><div class="card-h"><h2>${ic('calendar')}Scadenze usate nei controlli</h2></div><div class="toolbar pad-x" style="padding-bottom:16px"><label>Stipendi entro il giorno <input class="inp yr-in" id="pg_gs" style="width:64px" inputmode="numeric" value="${cp.giornoStipendi}"> del mese dopo</label><label>F24 entro il giorno <input class="inp yr-in" id="pg_gf" style="width:64px" inputmode="numeric" value="${cp.giornoF24}"></label><button class="btn sm" data-act="c-pCfg">${ic('check')}Salva</button></div></section>`;
 }
 function schedaCella(dk, p) {
