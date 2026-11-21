@@ -3,7 +3,7 @@
 // Regola: una riga entra da sola solo con prodotto CERTO e quantità SICURA; tutto il resto diventa un dubbio con la proposta.
 // Prodotto certo = codice articolo del fornitore già imparato, oppure P.IVA del fornitore + descrizione già imparata,
 // oppure numero di registrazione del fitofarmaco uguale a quello di un prodotto, oppure parole imparate (una sola
-// vincitrice, categoria della riga compatibile). Sul prodotto: codiciFatt ['piva|CODICE'], descrFatt ['piva|DESCRIZIONE'],
+// vincitrice, categoria della riga compatibile). Sul prodotto: codiciFatt ['Fimpronta|CODICE'], descrFatt ['Fimpronta|DESCRIZIONE'] (impronta del fornitore, non la P.IVA),
 // paroleFatt 'parole, altre parole', convFatt { 'unità fattura>unità prodotto': fattore }.
 import { N, okD } from './util.js';
 import { umNorm, convertiQ } from './conti/preventivi.js';
@@ -49,6 +49,9 @@ const r2 = x => Math.round(x * 100) / 100;
 const pivaN = s => String(s || '').replace(/\D/g, '');
 /** Fornitore: P.IVA (solo cifre) o, senza, il nome. */
 export const fornDi = f => pivaN(f && f.piva) || (f && f.controparte ? 'N:' + parole(f.controparte).join(' ') : '');
+/** Impronta del fornitore per le chiavi salvate sul prodotto (codiciFatt, descrFatt): la raccolta prodotti la vedono
+ *  anche i collaboratori, e dalla P.IVA si risale al fornitore (nascosto dalla 1.59.1). FNV-1a a 32 bit, 'F' + 8 cifre esadecimali. */
+export const fornK = r => { const s = fornDi(r); if (!s) return ''; let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return 'F' + h.toString(16).padStart(8, '0'); };
 const numN = s => norm(s).replace(/[^A-Z0-9]/g, '').replace(/^0+(?=.)/, '');
 const regN = s => { const d = String(s || '').replace(/\D/g, ''); return d ? d.replace(/^0+/, '') || '0' : ''; };
 const fidDi = k => String(k).slice(0, String(k).lastIndexOf(':'));
@@ -106,9 +109,9 @@ const CONTENITORE = new Set(['VARIE', 'VARIO', 'VARI', 'VARIA', 'DIVERSI', 'DIVE
 const vera = w => (/\d/.test(w) && w.replace(/\D/g, '').length >= 2) || (/^[A-Z]{3,}$/.test(w) && !CONTENITORE.has(w) && !VUOTE.has(w) && !UNIT_W.has(w));
 /** Chiavi imparate: codice articolo e descrizione, sempre legate al fornitore. Codici di 1-2 caratteri (numeri di riga) e codici
  *  "contenitore" ("VARIE", "RICAMBI", "ART…") non valgono; la descrizione solo se ha almeno una parola che non sia un contenitore. */
-export const codChiave = r => { const c = norm(r.codice).replace(/\s+/g, ''); const f = fornDi(r); return f && c.length >= 3 && !/^0+$/.test(c) && (/\d/.test(c) || (c.length >= 4 && !CONTENITORE.has(c) && !/^(ART|COD|SERV|SPESE|DIV)/.test(c))) ? f + '|' + c : ''; };
+export const codChiave = r => { const c = norm(r.codice).replace(/\s+/g, ''); const f = fornK(r); return f && c.length >= 3 && !/^0+$/.test(c) && (/\d/.test(c) || (c.length >= 4 && !CONTENITORE.has(c) && !/^(ART|COD|SERV|SPESE|DIV)/.test(c))) ? f + '|' + c : ''; };
 // descrizione da imparare: almeno una parola non generica, oppure due parole vere ("FARINA DI MAIS" sì, "CONCIME" o "RICAMBI VARI" no)
-export const descrK = r => { const d = descrChiave(r.descrizione); const f = fornDi(r); const ws = d.split(' '); return f && d.length >= 3 && (specifiche(ws) >= 1 || ws.filter(vera).length >= 2) ? f + '|' + d : ''; };
+export const descrK = r => { const d = descrChiave(r.descrizione); const f = fornK(r); const ws = d.split(' '); return f && d.length >= 3 && (specifiche(ws) >= 1 || ws.filter(vera).length >= 2) ? f + '|' + d : ''; };
 
 /* ---------------- quantità ---------------- */
 const numIt = s => { s = String(s); if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); return parseFloat(s.replace(',', '.')); };

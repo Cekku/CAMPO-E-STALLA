@@ -98,7 +98,10 @@ export function piano(S, cfg = {}) {
   // scarichi stimati la cui operazione non c'è più (o non ha più ore o mezzo): si tolgono se nessuno li ha cambiati
   for (const [opId, mv] of miei) {
     const o = ops.get(opId);
-    if ((!o || !fatta(o) || !(N(o.ore) > 0) || !o.mezzoId) && N(mv.quantita) === N(mv.stima)) out.togli.push({ col: 'movimenti', id: mv.id, del: true });
+    // … o se poi nel lavoro si è scelto il gasolio a mano: altrimenti dal magazzino uscirebbero tutti e due
+    const m0 = o && movOp.get(o.id);
+    const aMano = o && (isGasolio(prodotto(S, o.prodottoId)) || (m0 && m0.id !== mv.id && isGasolio(prodotto(S, m0.prodottoId))));
+    if ((!o || !fatta(o) || !(N(o.ore) > 0) || !o.mezzoId || aMano) && N(mv.quantita) === N(mv.stima)) out.togli.push({ col: 'movimenti', id: mv.id, del: true });
   }
   // mezzo con un rifornimento dal giorno di partenza: il gasolio dei lavori fino a quel giorno è già uscito con il
   // rifornimento (a pieno), quindi le stime di quei lavori si tolgono (se nessuno le ha cambiate), altrimenti conterebbe due volte

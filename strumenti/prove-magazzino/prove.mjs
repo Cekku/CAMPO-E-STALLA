@@ -47,6 +47,7 @@ t('kg in pezzi: non si sa', q({ quantita: 10, um: 'KG' }, P({ unita: 'pz' })).q 
 
 // classificazione di casi costruiti
 const FA = '00000000011', FB = '00000000022';
+const KA = R.fornK({ piva: FA }), KB = R.fornK({ piva: FB });   // impronte del fornitore usate nelle chiavi del prodotto
 let nf = 0;
 const fatt = (forn, data, righe, o = {}) => Object.assign({ id: 'f' + (++nf), tipo: 'Acquisto', piva: forn, controparte: 'Fornitore ' + forn.slice(-2), numero: String(nf), data, tipoDoc: 'TD01', fonte: 'xml', segnoOk: true, righe }, o);
 const righeDi = fs => fs.flatMap(f => f.righe.map((r, i) => Object.assign({}, r, { fid: f.id, i, data: f.data, tipo: f.tipo, controparte: f.controparte, piva: f.piva, numero: f.numero, tipoDoc: f.tipoDoc })));
@@ -91,7 +92,7 @@ const rUrea = (o = {}) => Object.assign({ descrizione: 'UREA 46% SACCO 25 KG', c
   const Es = cl([fatt(FA, '2026-03-01', [rUrea({ descrizione: 'UREA 46% SACCO 25 KG TRASPORTO INCLUSO', codice: '' }), { descrizione: 'TRASPORTO', categoria: 'Concimi', quantita: 1, um: 'NR', importo: 30 }])], [urea]);
   t('merce con "trasporto incluso": dubbio, il trasporto da solo fuori', Es.pronte.length === 0 && Es.daFare.length === 1 && /trasporto/.test(Es.daFare[0].motivo));
   t('riga già caricata ma senza segno in fatti: resta fatta', cl([fo2], [urea], [mo2], {}).fatte.length === 1);
-  const d1 = P({ id: 'd1', nome: 'Decis 1 l', categoria: 'Fitofarmaco', unita: 'l', nReg: '15432' }), d5 = P({ id: 'd5', nome: 'Decis 5 l', categoria: 'Fitofarmaco', unita: 'l', nReg: '15432', codiciFatt: [FB + '|DEC5'] });
+  const d1 = P({ id: 'd1', nome: 'Decis 1 l', categoria: 'Fitofarmaco', unita: 'l', nReg: '15432' }), d5 = P({ id: 'd5', nome: 'Decis 5 l', categoria: 'Fitofarmaco', unita: 'l', nReg: '15432', codiciFatt: [KB + '|DEC5'] });
   const Ed5 = cl([fatt(FB, '2026-05-01', [{ descrizione: 'DECIS EVO 5 LT REG. N. 15432', codice: 'DEC5', categoria: 'Fitofarmaci', quantita: 2, um: 'PZ', importo: 280 }])], [d1, d5], [{ id: 'h-d5', tipo: 'Carico', prodottoId: 'd5', data: '2026-01-02', quantita: 1, prezzo: 28 }]);
   t('due confezioni con lo stesso numero: vince il codice imparato', Ed5.pronte.length === 1 && Ed5.pronte[0].prodotto === d5 && Ed5.pronte[0].q === 10, Ed5.daFare.map(x => x.motivo));
   t('descrizione di una sola parola generica non si impara, "FARINA DI MAIS" sì', R.descrK({ piva: FA, descrizione: 'CONCIME' }) === '' && R.descrK({ piva: FA, descrizione: 'FARINA DI MAIS' }) !== '');
@@ -102,10 +103,10 @@ const rUrea = (o = {}) => Object.assign({ descrizione: 'UREA 46% SACCO 25 KG', c
   t('stesso giro: la riga con i sacchi scritti kg è un dubbio', E4b.pronte.length === 1 && E4b.pronte[0].q === 1000 && E4b.daFare.length === 1 && /prezzo molto diverso/.test(E4b.daFare[0].motivo), E4b.daFare.map(x => x.motivo));
   t('filtro olio è un ricambio, olio motore un lubrificante', R.categoriaPer({ categoria: 'Ricambi e manutenzione', descrizione: 'FILTRO OLIO MOTORE 1234' }) === 'Ricambio' && R.categoriaPer({ categoria: 'Ricambi e manutenzione', descrizione: 'OLIO MOTORE 15W40' }) === 'Lubrificante' && R.categoriaPer({ categoria: 'Carburanti e lubrificanti', descrizione: 'OLIO IDRAULICO FUSTO 20 LT' }) === 'Lubrificante');
   // codice imparato vince sulle parole, e due prodotti con lo stesso codice → dubbio
-  const u2 = P({ id: 'u2', nome: 'Urea granulare', codiciFatt: [FA + '|UR46'] });
+  const u2 = P({ id: 'u2', nome: 'Urea granulare', codiciFatt: [KA + '|UR46'] });
   const E6 = cl([f1], [urea, u2]);
   t('codice del fornitore: certo', E6.pronte.length === 1 && E6.pronte[0].prodotto === u2 && E6.pronte[0].come === 'codice');
-  const u3 = P({ id: 'u3', nome: 'Urea bis', descrFatt: [FA + '|UREA 46% SACCO 25 KG'] });
+  const u3 = P({ id: 'u3', nome: 'Urea bis', descrFatt: [KA + '|UREA 46% SACCO 25 KG'] });
   const E7 = cl([f1], [u2, u3]);
   t('codice e descrizione portano a due prodotti: dubbio', E7.pronte.length === 0 && E7.daFare[0].come === 'conflitto');
   // copie della stessa fattura
@@ -160,7 +161,7 @@ const rUrea = (o = {}) => Object.assign({ descrizione: 'UREA 46% SACCO 25 KG', c
   const fi = fatt(FB, '2026-05-01', [{ descrizione: 'SYNULOX LC 24 SIRINGHE LOTTO AB12', categoria: 'Farmaci e prodotti veterinari', quantita: 2, um: 'CF', importo: 120, codice: 'SYN24' }]);
   const syn = P({ id: 'syn', nome: 'Synulox LC', categoria: 'Farmaco veterinario', unita: 'pz' });
   const imp = R.impara(syn, righeDi([fi])[0], 48);
-  t('impara: codice, descrizione senza lotto, fattore 24', imp.codiciFatt[0] === FB + '|SYN24' && imp.descrFatt[0] === FB + '|SYNULOX LC 24 SIRINGHE' && imp.convFatt['conf>pz'] === 24);
+  t('impara: codice, descrizione senza lotto, fattore 24', imp.codiciFatt[0] === KB + '|SYN24' && imp.descrFatt[0] === KB + '|SYNULOX LC 24 SIRINGHE' && imp.convFatt['conf>pz'] === 24);
   const fi2 = fatt(FB, '2026-06-01', [{ descrizione: 'SYNULOX LC 24 SIRINGHE LOTTO CD34', categoria: 'Farmaci e prodotti veterinari', quantita: 3, um: 'CF', importo: 180, codice: 'SYN24' }]);
   const E18 = cl([fi2], [imp]);
   t('dopo la prima conferma: entra da sola (72 pz)', E18.pronte.length === 1 && E18.pronte[0].q === 72);

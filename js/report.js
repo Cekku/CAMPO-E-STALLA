@@ -183,7 +183,7 @@ function sezStalla(c) {
   const litri = L.reduce((t, l) => t + N(l.litri), 0), conf = L.reduce((t, l) => t + (l.conferiti !== undefined && l.conferiti !== '' && l.conferiti !== null ? N(l.conferiti) : N(l.litri)), 0);
   const Lp = S.latte.filter(l => nel(l.data, c.mp)); const litriP = Lp.reduce((t, l) => t + N(l.litri), 0);
   const media = k => { const v = L.filter(l => l[k] !== undefined && l[k] !== null && l[k] !== '' && N(l[k]) > 0); return v.length ? v.reduce((t, l) => t + N(l[k]), 0) / v.length : null; };
-  const pz = L.filter(l => N(l.prezzo) > 0); const prezzo = pz.length ? pz.reduce((t, l) => t + N(l.prezzo) * (N(l.conferiti) || N(l.litri)), 0) / (pz.reduce((t, l) => t + (N(l.conferiti) || N(l.litri)), 0) || 1) : null;
+  const pz = c.conti ? L.filter(l => N(l.prezzo) > 0) : []; const prezzo = pz.length ? pz.reduce((t, l) => t + N(l.prezzo) * (N(l.conferiti) || N(l.litri)), 0) / (pz.reduce((t, l) => t + (N(l.conferiti) || N(l.litri)), 0) || 1) : null;
   if (L.length) {
     K.push(kpi('Latte prodotto', Math.round(litri), 'n', { u: 'litri', d: confronto(litri, litriP), dl: nomeMese(c.mp), peggio: 'giu', s: giorni.size ? Math.round(litri / giorni.size).toLocaleString('it-IT') + ' litri al giorno · ' + giorni.size + ' giorni' : '' }));
     const q = [['grasso', 'grasso', '%'], ['proteine', 'proteine', '%'], ['cellule', 'cellule', ''], ['cbt', 'carica batterica', '']].map(([k, l, u]) => { const v = media(k); return v === null ? '' : l + ' ' + v.toLocaleString('it-IT', { maximumFractionDigits: u ? 2 : 0 }) + u; }).filter(Boolean);
@@ -197,7 +197,7 @@ function sezStalla(c) {
   const parti = evRows.filter(e => e.tipo === 'Parto').map(e => ({ data: e.data, capo: nomeCapo(capi.get(e.capoId)), andamento: e.facilita || '', vitelli: [[e.vitelloSesso, e.vitelloEsito], [e.vitello2Sesso, e.vitello2Esito]].filter(v => v[0]).map(v => (v[0] === 'F' ? 'femmina' : 'maschio') + (v[1] ? ' ' + v[1].toLowerCase() : '')).join(', ') }));
   if (parti.length) T.push(tab('parti', 'Parti', [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'capo', h: 'Vacca' }, { k: 'andamento', h: 'Andamento' }, { k: 'vitelli', h: 'Vitelli' }], parti, { sheet: 'Parti' }));
   if (L.length) {
-    const qual = ['grasso', 'proteine', 'cellule', 'cbt', 'prezzo'].filter(k => L.some(l => N(l[k]) > 0));
+    const qual = ['grasso', 'proteine', 'cellule', 'cbt'].concat(c.conti ? ['prezzo'] : []).filter(k => L.some(l => N(l[k]) > 0));
     const H = { grasso: ['Grasso %', 'n2'], proteine: ['Proteine %', 'n2'], cellule: ['Cellule', 'n'], cbt: ['Carica batt.', 'n'], prezzo: ['€/l', 'eur3'] };
     const rows = [...L].sort((a, b) => a.data.localeCompare(b.data)).map(l => Object.assign({ data: l.data, vacche: N(l.vacche) || null, litri: r1(l.litri), conferiti: l.conferiti !== undefined && l.conferiti !== '' && l.conferiti !== null ? r1(l.conferiti) : null, scartati: N(l.scartati) || null }, Object.fromEntries(qual.map(k => [k, N(l[k]) || null]))));
     T.push(tab('latte', 'Latte giorno per giorno', [{ k: 'data', h: 'Data', fmt: 'date' }, { k: 'vacche', h: 'Vacche munte', fmt: 'n' }, { k: 'litri', h: 'Litri prodotti', fmt: 'n1' }, { k: 'conferiti', h: 'Conferiti', fmt: 'n1' }, { k: 'scartati', h: 'Scartati', fmt: 'n1' }, ...qual.map(k => ({ k, h: H[k][0], fmt: H[k][1] }))], rows, { tot: { data: 'Totale', litri: r1(litri), conferiti: r1(conf), scartati: r1(L.reduce((t, l) => t + N(l.scartati), 0)) || null }, sheet: 'Latte' }));

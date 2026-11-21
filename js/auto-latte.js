@@ -57,7 +57,8 @@ async function leggiDoc(d) {
   if (!eFatturaLatte(t)) return { altro: true };
   return leggiFatturaLatte(t);
 }
-const fonte = (f, d) => ({ tipo: 'fattura', numero: f.numero, data: f.data, imp: d.impronta, nome: d.nome || '' });
+// niente nome del file: il registro del latte lo vedono anche i collaboratori (il nome dice caseificio e fattura)
+const fonte = (f, d) => ({ tipo: 'fattura', numero: f.numero, data: f.data, imp: d.impronta });
 // Tabellina dei controlli che non tornano: [voce, valore scritto nella fattura, valore calcolato dalle righe lette].
 const IN_EURO = /imponibile|totale/i;
 const valC = (c, v) => (v == null ? '—' : IN_EURO.test(c.voce) ? euro(v) : /^Litri/.test(c.voce) ? litri(v) : nf(v, 0));
@@ -141,7 +142,7 @@ registra({
       if (!f) { nonRisp++; break; }                              // il ponte non risponde: si riprova al giro dopo
       const quando = new Date().toISOString();
       if (f.altro) { agg[d.impronta] = { esito: 'altro', quando }; continue; }
-      const base = { n: f.numero, data: f.data, mese: f.mese, litri: f.litri, nome: d.nome || '', quando };
+      const base = { n: f.numero, data: f.data, mese: f.mese, litri: f.litri, quando };   // in config: senza nome del file
       const k = chiaveF(f); const gia = visti.get(k);
       if (gia) {                                                   // la stessa fattura in un altro file (es. una scansione)
         agg[d.impronta] = gia.litri === f.litri ? Object.assign(base, { esito: 'copia', di: gia.imp }) : Object.assign(base, { esito: 'dubbio', motivo: 'copia', di: gia.imp, altriLitri: gia.litri });

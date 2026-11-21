@@ -112,11 +112,16 @@ const msgAnnulla = t => `Annullato: ${dati(t.fatti)}${t.cambiati ? `, ${t.cambia
 
 // per le conferme in due tocchi: arm() non aspetta la funzione, gli errori si mostrano qui
 const prova = (b, fn) => async () => { b.disabled = true; try { await fn(); } catch (e) { console.warn(e); b.disabled = false; toast(e.message || 'Operazione non riuscita', 'err'); } };
+// a giro finito il pulsante torna attivo e la pagina si ridisegna (prima restava grigio fino al cambio di pagina)
+async function giro(b, fn) {
+  b.disabled = true;
+  try { return esitoGiro(await fn()); } finally { b.disabled = false; bus.render(); }
+}
 export async function auAct(a, b, d) {
   switch (a) {
-    case 'au-tutto': b.disabled = true; return esitoGiro(await A.avviaTutto());
-    case 'au-area': b.disabled = true; return esitoGiro(await A.avviaArea(d.area));
-    case 'au-una': b.disabled = true; return esitoGiro(await A.avvia(d.id));
+    case 'au-tutto': return giro(b, () => A.avviaTutto());
+    case 'au-area': return giro(b, () => A.avviaArea(d.area));
+    case 'au-una': return giro(b, () => A.avvia(d.id));
     case 'au-ok': b.disabled = true; try { await A.conferma(d.id); toast('Confermato e salvato'); } catch (e) { b.disabled = false; throw e; } return;
     case 'au-alt': b.disabled = true; try { await A.alternativa(d.id, d.i); toast('Scelta salvata'); } catch (e) { b.disabled = false; throw e; } return;
     case 'au-no': return arm(b, 'Sicuro? Scarta', prova(b, async () => { await A.scarta(d.id); toast('Scartato: non tornerà più'); }));

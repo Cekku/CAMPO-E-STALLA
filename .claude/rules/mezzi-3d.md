@@ -47,3 +47,5 @@ Guida completa e di passaggio: **`LIBRETTO-TRATTORI.md`**. In breve:
 - `movimento` costruisce lo scarico, `piano` mette insieme salvataggi, dubbi e rimozioni; `PRE` è il prefisso `gs-` degli id. Ore cambiate: scarico aggiornato da solo se il consumo è sicuro e non è stato cambiato a mano; lavoro cancellato: scarico stimato tolto.
 - Config `gasolio-auto` = { dal, prodottoId, fatti: opId → fatto | scartato | annullato | rifornito }. Uno scarico tolto a mano o annullato non torna; annullando il primo giro il `dal` resta (`annullato` lo rimette). Le ore del mezzo non cambiano.
 - Campi nuovi in `js/forms.js`: `mezzi.consumoLh` (casella "Consumo di gasolio") e `movimenti.mezzoId` (casella "Messo nel mezzo").
+
+Revisione della 1.66.0: in `gasolio.js` `piano()` la stima `gs-<lavoro>` non toccata si toglie anche quando nel lavoro si sceglie poi il gasolio a mano (prodotto del lavoro o movimento `opId` di gasolio): prima uscivano tutti e due. Provato in Node.

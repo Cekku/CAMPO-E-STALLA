@@ -77,6 +77,8 @@ Facoltativo `apriPagina: { tab, sub }` (dal report del mese, `js/auto-report.js`
 
 Dubbi con più scelte (1.63.0): facoltativi `alternative: [{ testo, conferma() }]` (pulsanti accanto a Conferma, azione `au-alt`, funzione `alternativa(id, i)`: va nel diario come una conferma) e `dettagli: [[voce, già salvato, arrivato adesso]]` (tabellina `.au-det` sotto il testo).
 
+Iscritte nei loro file (1.66.0, ognuna con la nota della sua area): `latte-caseificio` e `latte-caseificio-conti` (`auto-latte.js`, `latte.md`), `f24-contributi`, `dipendenti-schede`, `scadenze` (`auto-personale.js`, solo titolare, `conti-banca-paghe.md`), `sialleva-report` e `gasolio-mezzi` (`auto-stalla.js`, `stalla.md`, `mezzi-3d.md`), report del mese (`auto-report.js`, `report.md`), `mag-fatture` spostata in `auto-magazzino.js`.
+
 In `magfatture.js` aggiunte solo `pulisciSeServe()` e `occupato()` (per il contenitore).
 
 ## Provato

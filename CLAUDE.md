@@ -8,7 +8,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.65.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.66.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -33,7 +33,7 @@ Le note lunghe di ogni area sono in `.claude/rules/`: ognuna si carica da sola q
 | Mappa e catasto | `mappa-catasto.md` | import dei confini, elenco campi, aspetto e selezione dei campi, catasto WFS/WMS, sfondi e ortofoto |
 | Chiedi | `chiedi.md` | chat con Claude e IA sul PC, strumenti, funzione Supabase `chiedi` |
 | Mezzi e 3D | `mezzi-3d.md` | libretto dei trattori, stalla del progetto in 3D |
-| Stalla | `stalla.md` | stress da caldo (THI), Si@lleva / AIA |
+| Stalla | `stalla.md` | stress da caldo (THI), Si@lleva / AIA, report Si@lleva dall'archivio nel Centro (1.66.0) |
 | Latte dal caseificio | `latte.md` | fatture mensili del latte lette dall'archivio: consegne giorno per giorno nel registro, prezzi e qualità per il titolare, controlli e prove (1.66.0) |
 | Azoto e nitrati | `nitrati.md` | bilancio dell'azoto per campo e della stalla, limiti ZVN, valori di riferimento (1.53.0) |
 | Tracciabilità | `tracciabilita.md` | registri per il caseificio: approvvigionamenti dalle fatture e alimenti autoprodotti (1.42.0), autoprodotti da soli dalla campagna senza il venduto (1.64.0) |
@@ -48,7 +48,7 @@ Le note lunghe di ogni area sono in `.claude/rules/`: ognuna si carica da sola q
 | Ponte archivio | `archivio-ponte.md` | contratto delle richieste alla porta 1236 |
 | Archivio nell'app | `archivio-app.md` | pagine dell'Archivio e collegamenti dei documenti |
 | Quaderno di campagna | `quaderno.md` | norma (Reg. UE 2023/564, digitale dal 1/1/2027), codici EPPO, superficie trattata, quaderno automatico nel Centro (1.65.0) |
-| Magazzino | `magazzino.md` | carico dalle fatture di sementi, concimi, fitofarmaci e gasolio (1.59.0), scarico automatico delle razioni e avviso "sta per finire" (1.60.0) |
+| Magazzino | `magazzino.md` | carico dalle fatture di sementi, concimi, fitofarmaci e gasolio (1.59.0), scarico automatico delle razioni e avviso "sta per finire" (1.60.0), tutte le categorie riconosciute e note di credito (`magriconosci.js`, `auto-magazzino.js`, 1.66.0) |
 | Centro automatico | `automazioni.md` | motore delle automazioni (`registra`, giri all'apertura e ogni 30 minuti, diario con annulla, lista Da controllare), pagina Automatico, agganci di archivio Conti, magazzino dalle fatture, fitofarmaci, razioni e controlli di paghe e fatture (1.63.0, 19/11/2026) |
 | Report del mese | `report.md` | pagina Report del mese con controllo di completezza, istantanee salvate dal Centro (`report-mese`), esportazione, aggancio `aggiungiSezione` per le altre parti (20/11/2026) |
 | Organizzazione | `organizzazione.md` | chi fa cosa fra i modelli (sempre caricata) |
