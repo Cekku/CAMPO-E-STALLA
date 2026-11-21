@@ -1883,3 +1883,6 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 .qd-legge li { margin: 4px 0; }
 .qd-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .qd-manca { font-size: 11.5px; font-weight: 650; padding: 1px 7px; border-radius: 6px; background: var(--bad-soft); color: var(--bad); }
+
+/* dubbi del Centro con tabellina lunga (personale e scadenze, 1.66.0): sul telefono il testo va a capo */
+@media (max-width: 560px) { .au-det th, .au-det td { white-space: normal; overflow-wrap: anywhere; } }

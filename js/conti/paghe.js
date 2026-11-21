@@ -312,11 +312,10 @@ function controlli(ced, bil, tot, pag, ver, dip, per, pre) {
     if (c.scadTD && c.scadTD < ini && !c.cessazione) add('err', `Contratto a termine scaduto: ${(dip.get(c.dip) || c).nome}`, `Il termine era il ${c.scadTD.split('-').reverse().join('/')}, ma c'è il cedolino di ${nomeMese(c.periodo)}. Serve una proroga o una trasformazione a tempo indeterminato.`, { dip: c.dip, periodo: c.periodo });
     if (c.scadPermesso && c.scadPermesso < fine) add('warn', `Permesso di soggiorno scaduto: ${(dip.get(c.dip) || c).nome}`, `Scadenza indicata sul cedolino di ${nomeMese(c.periodo)}: ${c.scadPermesso.split('-').reverse().join('/')}. Verifica di avere la ricevuta della domanda di rinnovo e fai aggiornare la data al consulente.`, { dip: c.dip, periodo: c.periodo });
   }
-  // stesso dipendente, permesso o termine in scadenza nei prossimi 60 giorni (dall'ultimo cedolino)
+  // contratti e permessi in scadenza: dalla 1.66.0 li segnala lo scadenziario (conti/personale-auto.js), con le date
+  // prese anche da UNILAV, contratti e permessi e le scelte fatte nel Centro; qui restano solo i mesi mancanti
   for (const d of dip.values()) {
     if (d.cessazione && d.cessazione < t) continue;
-    if (d.scadTD && d.scadTD >= t && diff(t, d.scadTD) <= 45) add('info', `Contratto a termine in scadenza: ${d.nome}`, `Termine il ${d.scadTD.split('-').reverse().join('/')}: decidi se prorogare.`, { dip: d.key });
-    if (d.scadPermesso && d.scadPermesso >= t && diff(t, d.scadPermesso) <= 60) add('info', `Permesso di soggiorno in scadenza: ${d.nome}`, `Scade il ${d.scadPermesso.split('-').reverse().join('/')}.`, { dip: d.key });
     // mesi mancanti: dipendente presente prima e dopo, ma non in un mese caricato
     const suoi = new Set(d.ced.map(c => c.periodo));
     const mesiNorm = per.filter(p => +p.slice(5) <= 12 && p >= d.primo && p <= d.ultimo);
@@ -386,9 +385,17 @@ export function versamenti(bil = bilanciniPaghe(), pag = pagamenti()) {
   for (const o of out) Object.assign(o, { pagato: 0, pag: [] });
   // da quando si può versare: F24 dal mese dopo; contributi e fondo dalla fine del trimestre
   for (const o of out) { if (o.tipo === 'f24') o.da = meseSucc(meseRif(o.periodo)) + '-01'; else { const [y, q] = [+o.periodo.slice(0, 4), +o.periodo.slice(-1)]; o.da = q === 4 ? `${y + 1}-01-01` : `${y}-${String(q * 3 + 1).padStart(2, '0')}-01`; } }
-  const vp = pag.filter(p => ['f24', 'contributi', 'fondo'].includes(p.tipo));
+  // 1.66.0: un movimento collegato a una quietanza (avviso del consulente o modello F24 letti dall'archivio) si divide
+  // come dice il documento (ritenute del mese e contributi del trimestre). Gli altri F24 dello stesso giorno sono altri
+  // tributi (IVA, IMU…), e un F24 con il codice fiscale di una persona non è delle paghe dell'azienda: non si contano.
+  const vp = []; const giorniQ = pag.filter(p => p.quietanza && Array.isArray(p.ripartito) && p.ripartito.some(x => x.tipo === 'f24') && p.data).map(p => p.data);
+  for (const p of pag.filter(p => ['f24', 'contributi', 'fondo'].includes(p.tipo))) {
+    if (Array.isArray(p.ripartito) && p.ripartito.length) { for (const x of p.ripartito) vp.push(Object.assign({}, p, { tipo: x.tipo, comp: x.periodo, importo: x.importo, confermato: true, saldo: !!x.saldo })); continue; }
+    if (p.tipo === 'f24' && !p.comp && (/Cod\.?\s*Fiscale\s*:?\s*[A-Z]{6}[0-9L-V]{2}[A-Z][0-9L-V]{2}[A-Z][0-9L-V]{3}[A-Z]\b/i.test(p.descrizione || '') || giorniQ.some(d => Math.abs(diff(d, p.data || d)) <= 3))) continue;
+    vp.push(p);
+  }
   for (const p of [...vp.filter(p => p.comp), ...vp.filter(p => !p.comp).sort((a, b) => (a.data || '').localeCompare(b.data || ''))]) {
-    let resto = r2(N(p.importo)); const metti = (o, v) => { o.pagato = r2(o.pagato + v); o.pag.push({ id: p.id, data: p.data, importo: v }); resto = r2(resto - v); };
+    let resto = r2(N(p.importo)); const metti = (o, v) => { o.pagato = r2(o.pagato + v); o.pag.push({ id: p.id, data: p.data, importo: v, ...(p.confermato ? { confermato: true, quietanza: p.quietanza, ...(p.saldo ? { saldo: true } : {}) } : {}) }); resto = r2(resto - v); };
     const stessi = out.filter(o => o.tipo === p.tipo).sort((a, b) => a.scadenza.localeCompare(b.scadenza)); if (!stessi.length) continue;
     if (p.comp) { const o = stessi.find(o => o.periodo === p.comp); if (o) { metti(o, resto); continue; } }
     const data = p.data || today(); const aperte = stessi.filter(o => o.pagato < o.dovuto - 0.005);
@@ -399,10 +406,14 @@ export function versamenti(bil = bilanciniPaghe(), pag = pagamenti()) {
     if (resto > 0.005) metti(ultima || stessi.filter(o => o.da <= data).pop() || stessi[0], resto);
   }
   for (const o of out) {
+    // importo accettato da Marco (es. i contributi agricoli calcolati dall'INPS, diversi dalla stima dei bilancini): vale quello versato
+    if (o.pag.length && o.pag.every(x => x.confermato) && o.pag.some(x => x.saldo)) { o.calcolato = o.dovuto; o.dovuto = o.pagato; }
     o.differenza = r2(o.dovuto - o.pagato); o.ultimo = o.pag.map(x => x.data).sort().pop() || null;
     // il dovuto F24 è solo la parte stipendi: se si paga di più (altri tributi nello stesso F24) va bene
     o.stato = o.pagato >= o.dovuto - 0.01 ? (o.tipo !== 'f24' && o.pagato > o.dovuto + 0.01 ? 'pagato in più' : 'pagato') : o.pagato > 0 ? 'pagato in parte' : t > o.scadenza ? 'non pagato' : 'da pagare';
     o.ritardo = o.ultimo && o.ultimo > o.scadenza ? diff(o.scadenza, o.ultimo) : 0;
+    // pagato e confermato: tutto il dovuto viene da movimenti collegati a un documento letto
+    o.confermato = o.stato === 'pagato' && o.pag.length > 0 && o.pag.every(x => x.confermato);
   }
   return out.sort((a, b) => a.scadenza.localeCompare(b.scadenza));
 }

@@ -10,6 +10,7 @@ import { openEdit, openColtura, openColturaGruppo, openDatiGruppo } from './form
 import { startWizard } from './wizard.js';
 import { avviaCentro, dopoDisegno, numeroDubbi, STATO as CENTRO, setNaviga, mano, segnaMano } from './automazioni.js';
 import './automazioni-agganci.js';   // automazioni che c'erano già, iscritte al Centro automatico
+import './auto-personale.js';        // personale e scadenze (1.66.0)
 import * as MAP from './map.js';
 import { promptInstall, canInstall } from './install.js';
 import { nativa, alTastoIndietro, controllaAggiornamento } from './nativo.js';
@@ -664,7 +665,7 @@ function pagineChat() {
   }
 })();
 // Centro automatico (automazioni.js): da un dubbio "Apri" porta alla sua pagina, nella sua area
-setNaviga(({ area, tab, sub }) => { if (sheetOpen()) closeSheet(); if (area) { UI.area = area; saveUI(); } setTab(tab, sub); });
+setNaviga(({ area, tab, sub, el }) => { if (sheetOpen()) closeSheet(); if (area) { UI.area = area; saveUI(); } setTab(tab, sub); const e = el && document.getElementById(el); if (e) e.scrollIntoView(); });
 function showUpdate(worker) {
   const t = $('#toast'); t.innerHTML = ic('refresh-cw') + '<span>Nuova versione disponibile</span><button class="btn sm" id="updBtn">Aggiorna</button>'; t.className = 'toast show sticky'; t.hidden = false;
   $('#updBtn').onclick = () => worker.postMessage('skipWaiting');
