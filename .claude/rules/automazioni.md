@@ -3,6 +3,7 @@ paths:
   - "js/automazioni.js"
   - "js/automazioni-agganci.js"
   - "js/views/automatico.js"
+  - "js/auto-magazzino.js"
 ---
 # Centro automatico (19/11/2026, chiesto da Marco)
 
@@ -64,7 +65,7 @@ registra({
 | id | area | cosa | annullare |
 |---|---|---|---|
 | `conti-archivio` | conti | `conti/automatico.js` `esegui`; dubbi = documenti `dubbi`/`nonletto` (cedolini e bilancini paghe in area personale), Apri porta a "Dall'archivio del PC" e apre la revisione (`c-auRivedi`), Scarta = `segnaStato(…,'ignorato')`; niente Conferma (la revisione è nella pagina) | il documento resta `ignorato` ("annullato dal Centro"), così non si rilegge |
-| `mag-fatture` | magazzino (solo titolare) | `pulisciSeServe` (in `pronta`, fuori dal diario: annullando non tornano i prezzi della 1.59.0) + `caricaPronte`; dubbi = `elenco().daFare`, Conferma = `abbina(k, { pid: proposto, q, ricorda: true })` se c'è prodotto proposto e quantità | le righe caricate dal giro vanno fra le "non caricare" (`togli`); annullando una conferma la riga torna da fare |
+| `mag-fatture` | magazzino (solo titolare) | **dalla 1.66.0 in `js/auto-magazzino.js`** (vedi `magazzino.md`): `pulisciSeServe` in `pronta` + `caricaPronte` (solo righe certe); dubbi = `elenco().daFare` con proposta (prodotto e quantità, o crea nuovo), alternative, resi e correzioni di prezzo delle note di credito | le righe caricate dal giro (e le correzioni di prezzo `r>`) vanno fra le "non caricare" (`togli`); annullando una conferma la riga torna da fare |
 | `fito-abbina` | magazzino | `abbinaFitoSeServe`; segue prodotti e banca dati | il prodotto torna senza numero e con `nRegAuto`: non si riabbina |
 | `razioni` | stalla | `scaricaRazioni`; segue razioni | `autoFino` non è nel diario: lo scarico annullato non torna |
 | `paghe-controlli` | personale | `dubbiPaghe()` di `conti/dubbi.js` (doppioni incerti, cedolini in attesa `ca-…`, abbinamenti incerti); `esegui` non salva, conta | conferma/alternativa nel diario |

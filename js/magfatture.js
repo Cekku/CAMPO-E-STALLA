@@ -1,32 +1,33 @@
-// Carico in magazzino dei prodotti di campagna comprati (sementi, concimi, fitofarmaci, gasolio) dalle righe delle fatture.
-// Funzionamento "misto": la prima riga di un prodotto la abbina il titolare; poi le righe con le stesse parole entrano da sole.
-// Stato in econfig 'mag-fatture' (riservata, come le fatture): { da, fatti: { 'fid:i': idMovimento | 'no' } }.
-// Sul prodotto (raccolta prodotti): paroleFatt (parole da cercare, alternative con la virgola), convFatt { 'unità fattura>unità prodotto': fattore }.
+// Carico in magazzino dei prodotti comprati, dalle righe delle fatture d'acquisto (1.59.0; tutte le categorie del magazzino dalla 1.66.0).
+// Il riconoscimento è in js/magriconosci.js: entra da sola solo una riga con prodotto certo e quantità sicura; le altre diventano
+// dubbi del Centro automatico (js/auto-magazzino.js) con la proposta pronta, o si abbinano a mano nella pagina Da fatture.
+// Stato in econfig 'mag-fatture' (riservata, come le fatture): { da, fatti: { 'fid:i': idMovimento | 'no' | 'r>fid:i' } }
+// ('r>…' = riga di una nota di credito che corregge il prezzo di quel carico). Sul prodotto quello che ha imparato: vedi magriconosci.js.
 import { S, get } from './state.js';
 import * as store from './store.js';
 import { N, okD, uid } from './util.js';
 import { righe } from './conti/dati.js';
-import { DA_CLASSIFICARE } from './conti/regole.js';
-import { umNorm, convertiQ } from './conti/preventivi.js';
-import { leggiDdt, paroleNome } from './tracciabilita.js';
+import { leggiDdt } from './tracciabilita.js';
 import { contiVisibili } from './views/conti.js';
+import { fitoLookup, fitoMeta } from './fitodb.js';
 import { toast } from './ui.js';
+import * as MR from './magriconosci.js';
 
 export const ID = 'mag-fatture';
-/** Categoria dei Conti → categoria del magazzino. */
-export const CAT_FATT = { 'Sementi': 'Seme', 'Concimi': 'Concime', 'Fitofarmaci': 'Fitofarmaco', 'Carburanti e lubrificanti': 'Gasolio' };
-export const CAT_CAMPAGNA = ['Seme', 'Concime', 'Fitofarmaco', 'Diserbante', 'Gasolio', 'Altro'];
+export const CAT_MAG = MR.CAT_MAG;
+export const CAT_CAMPAGNA = MR.CAT_MAG;   // nome di prima (1.59.0)
+/** Categoria dei Conti → categoria del magazzino per un prodotto nuovo. */
+export const CAT_FATT = Object.fromEntries(Object.entries(MR.FAMIGLIE).map(([k, v]) => [k, v.cat]));
+export const { paroleDa, unitaPer, categoriaPer } = MR;
 
-const norm = s => String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-const parole = s => norm(s).split(/[^A-Z0-9%]+/).filter(Boolean);
+const norm = MR.norm;
 const r3 = x => Math.round(x * 1000) / 1000;
-
 let _ridisegna = () => {};
 export const setRender = fn => { _ridisegna = fn; };
 const ridisegna = () => { try { _ridisegna(); } catch (e) { console.warn(e); } };
-const VIA = new Set(['SACCHI', 'SACCO', 'SAC', 'SC', 'BIG', 'BAG', 'BIGBAG', 'SFUSO', 'SFUSA', 'SFUSI', 'KG', 'LT', 'LITRI', 'CONF', 'CONFEZIONE', 'BANCALE', 'PALLET', 'DOSE', 'DOSI', 'TANICA', 'FUSTO', 'FUSTI', 'CISTERNA', 'Q', 'QLI', 'QUINTALI', 'NR', 'PZ']);
 
-export const stato = () => S.econfig.find(x => x.id === ID) || {};
+export const stato = () => S.econfig.find(x => x.id === ID) || VUOTO;
+const VUOTO = Object.freeze({});   // sempre lo stesso oggetto: il segui del Centro non vede cambiamenti finti
 export const daData = () => okD(stato().da) ? stato().da : new Date().getFullYear() + '-01-01';
 /** Salva lo stato unendo i segni di fatti letti al momento del salvataggio (niente segni persi fra automatico e tocchi a mano);
  *  la data di partenza si fissa al primo salvataggio, così non scivola al cambio d'anno. */
@@ -38,123 +39,86 @@ async function salvaStato(d, via = []) {
 export const salvaDa = da => salvaStato({ da: okD(da) ? da : daData() });
 export const chiave = r => r.fid + ':' + r.i;
 export const idMov = k => 'mf-' + String(k).replace(/[^A-Za-z0-9_-]/g, '-');
-
-/** Parole da ricordare dalla descrizione: senza parole con cifre (lotti, pesi, date). */
-export const paroleDa = desc => paroleNome(desc).split(' ').filter(w => w && !/\d/.test(w) && !VIA.has(w)).slice(0, 3).join(' ');
-/** Unità del prodotto (elenco UNITA) → chiave di umNorm. */
-const umProd = u => u === 'm³' ? 'm3' : umNorm(u);
-/** Unità della fattura → unità per un prodotto nuovo. */
-export const unitaPer = um => ({ kg: 'kg', g: 'kg', q: 'q', t: 't', l: 'l', hl: 'l', m3: 'm³', pz: 'pz', dose: 'dosi', sacco: 'pz', conf: 'pz', balla: 'pz', rotolo: 'pz', bancale: 'pz' })[umNorm(um)] || 'kg';
-
-/** Punteggio della descrizione per le parole: 0 = non combacia, altrimenti quante parole (vince il più preciso). */
-function punteggio(testo, desc) {
-  const ws = parole(desc).flatMap(w => w.includes('%') ? [w, w.replace(/%/g, '')] : [w]); let best = 0;   // "46%" vale anche "46"
-  for (const a of String(testo || '').split(/[,;]/).map(x => parole(x)).filter(x => x.length)) {
-    if (a.length > best && a.every(x => ws.some(w => (x.length >= 3 && !/^\d+$/.test(x)) ? w.startsWith(x) : w === x))) best = a.length;
-  }
-  return best;
-}
-const campagna = () => S.prodotti.filter(p => CAT_CAMPAGNA.includes(p.categoria));
-/** Prodotto che ha già imparato queste parole (abbinato almeno una volta). */
-function imparato(desc, ps = campagna()) { let best = 0, sc = null; for (const p of ps) { const s = punteggio(p.paroleFatt, desc); if (s > best) { best = s; sc = p; } } return sc; }
-/** Solo per proporre: prodotto con il nome nella descrizione. */
-function somiglia(desc, ps = campagna()) { let best = 0, sc = null; for (const p of ps) { const s = punteggio(paroleNome(p.nome), desc); if (s > best) { best = s; sc = p; } } return sc; }
-
-/** Fattore imparato: per unità della fattura e unità del prodotto (se il prodotto cambia unità il fattore vecchio non vale più). */
-const chiaveConv = (r, p) => (umNorm(r.um) || '-') + '>' + (p.unita || '');
-/** Righe di servizio (trasporto, contributi…): mai caricate da sole, solo proposte. */
-const SERVIZIO = /\b(TRASPORT|CONTRIBUT|NOLO|NOLEGG|SPESE|SPESA|CAUZION|IMBALL|RESO|CONAI|SPEDIZ|CONSEGNA)/;
 /** Quantità della riga nell'unità del prodotto (null se non si sa convertire). */
-export function quantita(r, p) {
-  const um = umNorm(r.um); const q = N(r.quantita);
-  const f = p.convFatt && N(p.convFatt[chiaveConv(r, p)]); if (f > 0) return r3(q * f);
-  if (!um) return null;
-  const v = convertiQ(q, um, umProd(p.unita)); return v === null ? null : r3(v);
-}
+export const quantita = (r, p) => MR.qta(r, p).q;
 
-/** Righe di acquisto dal giorno scelto, divise fra caricate, tolte e da fare. */
+/** Righe d'acquisto dal giorno scelto: fatte, tolte, doppie (copia della stessa fattura), pronte (sicure) e daFare (dubbi). */
+let memo = null;
 export function elenco() {
-  if (!contiVisibili()) return { da: daData(), fatte: [], tolte: [], daFare: [], pronte: [] };
-  const st = stato(); const fatti = st.fatti || {}; const da = daData(); const ps = campagna();
-  const out = { da, fatte: [], tolte: [], daFare: [], pronte: [] };
-  for (const r of righe()) {
-    if (r.tipo !== 'Acquisto' || r.rett || r.tipoDoc === 'TD04' || !(N(r.quantita) > 0) || N(r.importo) < 0) continue;
-    const a = leggiDdt(r.ddt, r.data); if (!okD(a.data) || a.data < da) continue;
-    const p = imparato(r.descrizione, ps);
-    // fuori dalle categorie di campagna solo righe senza categoria o da classificare (niente "urea zootecnica" fra i concimi)
-    if (!CAT_FATT[r.categoria] && !(p && (!r.categoria || r.categoria === DA_CLASSIFICARE))) continue;
-    const k = chiave(r); const x = { r, k, data: a.data, ddt: a.num, prodotto: p, q: p ? quantita(r, p) : null };
-    if (fatti[k] === 'no') out.tolte.push(x);
-    else if (fatti[k]) out.fatte.push(x);
-    else if (p && x.q !== null && x.q > 0 && !SERVIZIO.test(norm(r.descrizione))) out.pronte.push(x);
-    else { x.proposto = p || somiglia(r.descrizione, ps); if (x.proposto && x.q === null) x.qProp = quantita(r, x.proposto); out.daFare.push(x); }
-  }
-  const ord = (a, b) => b.data.localeCompare(a.data);
-  out.fatte.sort(ord); out.tolte.sort(ord); out.daFare.sort(ord);
-  return out;
+  if (!contiVisibili()) return { da: daData(), fatte: [], tolte: [], doppie: [], daFare: [], pronte: [] };
+  const da = daData(); const dep = [S.fatture, S.prodotti, S.movimenti, S.econfig, fitoMeta.n, fitoMeta.versione, da];
+  if (memo && dep.every((d, i) => d === memo.dep[i])) return memo.E;
+  const E = MR.classifica({ righe: righe(), fatture: S.fatture, prodotti: S.prodotti, movimenti: S.movimenti, fatti: stato().fatti || {}, da,
+    fito: n => fitoLookup(n), dataDi: r => leggiDdt(r.ddt, r.data) });
+  memo = { dep, E }; return E;
+}
+let memoP = null;
+function prezziTutti() {
+  const dep = [S.fatture, S.movimenti, S.econfig]; if (memoP && dep.every((d, i) => d === memoP.dep[i])) return memoP.P;
+  const P = MR.prezzi({ fatture: S.fatture, movimenti: S.movimenti, fatti: stato().fatti || {} }); memoP = { dep, P }; return P;
 }
 
-/** Fattura, DDT e fornitore di un carico venuto da fattura: si leggono dalle fatture (solo il titolare), non stanno nel movimento. */
+/** Fattura, DDT, fornitore e prezzo unitario di un movimento venuto da fattura: si leggono dalle fatture (solo il titolare), non stanno nel movimento. */
 export function docFattura(m) {
   if (!m || !m.fattRiga || !contiVisibili()) return '';
   const k = String(m.fattRiga); const j = k.lastIndexOf(':'); const f = S.fatture.find(y => y.id === k.slice(0, j)); if (!f) return '';
   const r = (f.righe || [])[+k.slice(j + 1)] || {}; const d = okD(f.data) ? f.data.slice(8, 10) + '/' + f.data.slice(5, 7) + '/' + f.data.slice(0, 4) : '';
-  const q = N(m.quantita) > 0 && N(r.importo) > 0 ? ' · ' + (Math.round(N(r.importo) / N(m.quantita) * 100) / 100).toLocaleString('it-IT', { minimumFractionDigits: 2 }) + ' €' : '';
-  return ['Fatt. ' + (f.numero || '') + (d ? ' del ' + d : ''), String(r.ddt || '').trim() ? 'DDT ' + leggiDdt(r.ddt, f.data).num : '', f.controparte || ''].filter(Boolean).join(' · ') + q;
+  const pu = m.tipo === 'Carico' ? prezziTutti().carico.get(m.id) : (N(m.quantita) > 0 ? Math.abs(MR.importoNetto(r)) / N(m.quantita) : 0);
+  const q = pu > 0 ? ' · ' + (Math.round(pu * 100) / 100).toLocaleString('it-IT', { minimumFractionDigits: 2 }) + ' €' : '';
+  return [(MR.NOTE.has(f.tipoDoc) ? 'Nota di credito ' : 'Fatt. ') + (f.numero || '') + (d ? ' del ' + d : ''), String(r.ddt || '').trim() ? 'DDT ' + leggiDdt(r.ddt, f.data).num : '', f.controparte || ''].filter(Boolean).join(' · ') + q;
 }
-/** Solo per il titolare: prezzo dell'ultimo carico di ogni prodotto, a mano (prezzo scritto) o da fattura (importo senza IVA ÷ quantità).
- *  Map id prodotto → prezzo. Ai collaboratori Map vuota: resta il prezzo scritto sul prodotto. */
+/** Solo per il titolare: prezzo dell'ultimo carico di ogni prodotto, a mano (prezzo scritto) o da fattura (importo netto con gli sconti
+ *  di riga e di fattura e le note di credito di prezzo, ÷ quantità). Map id prodotto → prezzo. Ai collaboratori Map vuota. */
 export function prezziAcquisto() {
   const out = new Map(); if (!contiVisibili()) return out;
-  const fat = new Map(S.fatture.map(f => [f.id, f])); const ult = new Map();
-  for (const m of S.movimenti) {
-    if (m.tipo !== 'Carico' || !m.prodottoId || !(N(m.quantita) > 0)) continue;
-    let pr = 0;
-    if (m.fattRiga) { const k = String(m.fattRiga); const j = k.lastIndexOf(':'); const f = fat.get(k.slice(0, j)); const r = f && (f.righe || [])[+k.slice(j + 1)]; if (r) pr = N(r.importo) / N(m.quantita); }
-    else pr = N(m.prezzo);
-    if (!(pr > 0)) continue;
-    const d = m.data || ''; const u = ult.get(m.prodottoId);
-    if (!u || d >= u) { ult.set(m.prodottoId, d); out.set(m.prodottoId, pr); }
-  }
+  for (const [pid, u] of prezziTutti().ultimo) out.set(pid, u.pu);
   return out;
 }
-/** Il movimento non porta prezzo, fornitore né numero di fattura: movimenti e prodotti li vedono anche i collaboratori (scelta di Marco, 19/11/2026). */
+/** Il movimento non porta prezzo, fornitore né numero di fattura: movimenti e prodotti li vedono anche i collaboratori (scelta di Marco, 19/11/2026).
+ *  Un reso (nota di credito con quantità) è uno scarico con reso: true. */
 function movimento(x, p, q) {
-  return { tipo: 'Carico', prodottoId: p.id, data: x.data, quantita: r3(q), provenienza: 'Comprato', fattRiga: x.k, note: String(x.r.descrizione || '').slice(0, 200) };
+  const m = { tipo: x.tipo === 'reso' ? 'Scarico' : 'Carico', prodottoId: p.id, data: x.data, quantita: r3(q), fattRiga: x.k, note: String(x.r.descrizione || '').slice(0, 200) };
+  if (x.tipo === 'reso') { m.reso = true; m.note = ('Reso al fornitore (nota di credito) · ' + m.note).slice(0, 200); } else m.provenienza = 'Comprato';
+  return m;
 }
 
-/** Carica le righe pronte (prodotto già abbinato e quantità chiara). Ritorna quante. */
+/** Carica le righe pronte (prodotto certo e quantità sicura; resi e correzioni di prezzo col carico d'origine sicuro). Ritorna quante. */
 export async function caricaPronte() {
   const E = elenco(); if (!E.pronte.length) return 0;
   const rows = []; const fatti = {};
-  for (const x of E.pronte) { const id = idMov(x.k); rows.push({ col: 'movimenti', id, data: movimento(x, x.prodotto, x.q) }); fatti[x.k] = id; }
-  await store.bulkPut(rows);
+  for (const x of E.pronte) {
+    if (x.tipo === 'prezzo') { fatti[x.k] = 'r>' + x.origine; continue; }
+    const id = idMov(x.k); rows.push({ col: 'movimenti', id, data: movimento(x, x.prodotto, x.q) }); fatti[x.k] = id;
+  }
+  if (rows.length) await store.bulkPut(rows);
   await salvaStato({ fatti });
   return E.pronte.length;
 }
 
-/** Abbina a mano una riga: a un prodotto che c'è (pid) o a uno nuovo ({ nome, categoria, unita }). */
+/** Abbina una riga: a un prodotto che c'è (pid) o a uno nuovo ({ nome, categoria, unita, nReg? }); per una correzione di prezzo
+ *  basta il carico d'origine (origine = 'fid:i'). tipo forza 'prezzo' su un reso ("è solo una correzione del prezzo"). */
 export async function abbina(k, opz) {
   corre++;   // niente carico automatico a metà: le righe dello stesso prodotto le carica abbina, per contarle
   try { return await abbina1(k, opz); } finally { corre--; ridisegna(); }
 }
-async function abbina1(k, { pid, nuovo, q, ricorda, paroleR }) {
+async function abbina1(k, { pid, nuovo, q, ricorda, paroleR, origine, tipo }) {
   const x = elenco().daFare.find(y => y.k === k); if (!x) throw new Error('Riga non trovata: forse è già stata caricata.');
+  const t = tipo || x.tipo;
+  if (t === 'prezzo') {
+    const o = origine || x.origine; if (!o) throw new Error('Scegli il carico da correggere.');
+    await salvaStato({ fatti: { [k]: 'r>' + o } }); return 0;
+  }
   q = N(q); if (!(q > 0)) throw new Error('Scrivi la quantità.');
   let p;
   if (nuovo) {
     const nome = String(nuovo.nome || '').trim(); if (!nome) throw new Error('Scrivi il nome del prodotto.');
     if (S.prodotti.some(y => norm(y.nome) === norm(nome))) throw new Error('C\'è già un prodotto con questo nome: sceglilo dall\'elenco.');
-    const id = uid(); p = { id, nome, categoria: nuovo.categoria || CAT_FATT[x.r.categoria] || 'Altro', unita: nuovo.unita || unitaPer(x.r.um), giacenzaIniziale: 0 };
+    p = { id: uid(), nome, categoria: CAT_MAG.includes(nuovo.categoria) ? nuovo.categoria : (MR.categoriaPer(x.r) || 'Altro'), unita: nuovo.unita || unitaPer(x.r.um), giacenzaIniziale: 0 };
+    const fx = nuovo.nReg ? fitoLookup(nuovo.nReg) : null;
+    if (fx) { p.nReg = fx.nReg; p.nRegAuto = fx.nReg; if (fx.sostanze) p.sostanze = fx.sostanze; if (fx.impresa) p.impresa = fx.impresa; if (fx.scadenza) p.scadenzaAut = fx.scadenza; }
   } else { p = get('prodotti', pid); if (!p) throw new Error('Scegli il prodotto.'); p = Object.assign({}, p); }
-  if (ricorda) {
-    const w = String(paroleR || '').trim() || paroleDa(x.r.descrizione);
-    if (w && !punteggio(p.paroleFatt, x.r.descrizione)) p.paroleFatt = [p.paroleFatt, w].filter(Boolean).join(', ');
-    const ck = chiaveConv(x.r, p); const auto = quantita(x.r, Object.assign({}, p, { convFatt: {} })); const cf = Object.assign({}, p.convFatt || {});
-    if (auto === null || Math.abs(auto - q) > 0.001) cf[ck] = q / N(x.r.quantita); else delete cf[ck];
-    p.convFatt = cf;
-  }
-  const m = movimento(x, p, q); const mid = idMov(k);
+  if (ricorda) p = MR.impara(p, x.r, q, paroleR);
+  const m = movimento(Object.assign({}, x, { tipo: t }), p, q); const mid = idMov(k);
   const { id, ...dp } = p;
   await store.bulkPut([{ col: 'prodotti', id, data: dp }, { col: 'movimenti', id: mid, data: m }]);
   await salvaStato({ fatti: { [k]: mid } });
@@ -162,6 +126,27 @@ async function abbina1(k, { pid, nuovo, q, ricorda, paroleR }) {
 }
 /** "Non caricare" (o rimetti fra quelle da fare). */
 export async function togli(k, si = true) { await (si ? salvaStato({ fatti: { [k]: 'no' } }) : salvaStato({}, [k])); }
+/** Per l'annulla del Centro: il prodotto dimentica codice, descrizione e parole imparati dalla riga k, se li ha ancora
+ *  e se non li sapeva già prima della conferma (prima = versione del prodotto di prima, dal diario). */
+export async function dimentica(pid, k, prima = {}) {
+  const p = get('prodotti', pid); if (!p) return;
+  const j = String(k).lastIndexOf(':'); const f = S.fatture.find(y => y.id === String(k).slice(0, j)); const r0 = f && (f.righe || [])[+String(k).slice(j + 1)]; if (!r0) return;
+  const r = Object.assign({}, r0, { piva: f.piva, controparte: f.controparte });
+  const sa = (l, v) => (prima[l] || []).includes(v);
+  const ck = sa('codiciFatt', MR.codChiave(r)) ? '' : MR.codChiave(r), dk = sa('descrFatt', MR.descrK(r)) ? '' : MR.descrK(r);
+  const w0 = MR.paroleDa(r.descrizione); const w = w0 && String(prima.paroleFatt || '').split(',').some(x => norm(x.trim()) === norm(w0)) ? '' : w0;
+  const d = Object.assign({}, p); delete d.id; let cambia = false;
+  if (ck && (d.codiciFatt || []).includes(ck)) { d.codiciFatt = d.codiciFatt.filter(x => x !== ck); cambia = true; }
+  if (dk && (d.descrFatt || []).includes(dk)) { d.descrFatt = d.descrFatt.filter(x => x !== dk); cambia = true; }
+  if (w && d.paroleFatt) { const alt = String(d.paroleFatt).split(',').map(x => x.trim()).filter(Boolean); const resta = alt.filter(x => norm(x) !== norm(w)); if (resta.length !== alt.length) { d.paroleFatt = resta.join(', '); cambia = true; } }
+  if (cambia) await store.put('prodotti', p.id, d);
+}
+/** Rimette in fatti il segno delle righe il cui carico da fattura c'è ancora (dopo un annulla che ha rimesso econfig com'era). */
+export async function risegna() {
+  const f = stato().fatti || {}; const add = {};
+  for (const m of S.movimenti) if (m.fattRiga && String(m.id).startsWith('mf-') && !f[m.fattRiga]) add[m.fattRiga] = m.id;
+  if (Object.keys(add).length) await salvaStato({ fatti: add });
+}
 
 /** Toglie prezzo, fornitore e numero di fattura dai carichi fatti con la 1.59.0 (e il prezzo dei prodotti preso allora dalle fatture). */
 let pulito = false;
@@ -202,7 +187,6 @@ export async function controllaOra() {
 export function autoSeServe() {
   if (corre || !contiVisibili() || !S.fatture.length) return;
   if (!pulito) { corre++; pulisci().catch(e => { pulito = false; console.warn(e); }).finally(() => { corre--; ridisegna(); }); return; }
-  if (!S.prodotti.some(p => p.paroleFatt)) return;
   const dep = [S.fatture, S.prodotti, S.econfig]; if (ultimo && dep.every((d, i) => d === ultimo[i])) return; ultimo = dep;
   corre++;
   caricaPronte().then(n => { if (n) ridisegna(); if (n) toast(n === 1 ? 'Caricata in magazzino 1 riga di fattura' : `Caricate in magazzino ${n} righe di fattura`); })

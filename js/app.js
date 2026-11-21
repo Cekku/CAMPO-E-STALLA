@@ -10,6 +10,7 @@ import { openEdit, openColtura, openColturaGruppo, openDatiGruppo } from './form
 import { startWizard } from './wizard.js';
 import { avviaCentro, dopoDisegno, numeroDubbi, STATO as CENTRO, setNaviga, mano, segnaMano } from './automazioni.js';
 import './automazioni-agganci.js';   // automazioni che c'erano già, iscritte al Centro automatico
+import './auto-magazzino.js';   // magazzino dalle fatture d'acquisto (1.66.0)
 import * as MAP from './map.js';
 import { promptInstall, canInstall } from './install.js';
 import { nativa, alTastoIndietro, controllaAggiornamento } from './nativo.js';

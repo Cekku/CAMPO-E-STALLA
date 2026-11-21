@@ -6,7 +6,6 @@ import { nf, fd, okD } from './util.js';
 import { registra, controllaPonte, vai } from './automazioni.js';
 import { contiVisibili } from './views/conti.js';
 import * as AU from './conti/automatico.js';
-import * as MF from './magfatture.js';
 import { abbinaFitoSeServe } from './fitoabbina.js';
 import { fitoMeta } from './fitodb.js';
 import { scaricaRazioni } from './razauto.js';
@@ -52,41 +51,7 @@ registra({
   },
 });
 
-/* ---------- magazzino dalle fatture (magfatture.js) ---------- */
-const pagMag = { area: 'campagna', tab: 'magazzino', sub: 'fatture' };
-registra({
-  id: 'mag-fatture', nome: 'Magazzino dalle fatture', area: 'magazzino', soloTitolare: true,
-  descr: 'Sementi, concimi, fitofarmaci e gasolio comprati: le righe dei prodotti già abbinati entrano da sole in magazzino',
-  raccolte: ['movimenti', 'prodotti', 'econfig'], segui: () => [S.fatture, S.prodotti, MF.stato()],
-  propri: (c, id) => (c === 'movimenti' && id.startsWith('mf-')) || (c === 'econfig' && id === MF.ID) || c === 'prodotti',
-  async pronta() {
-    if (!contiVisibili() || !S.fatture.length) return 'Nessuna fattura caricata.';
-    if (MF.occupato()) return 'Stai abbinando una riga a mano: riprova fra poco.';
-    await MF.pulisciSeServe();   // sistemazione dei carichi della 1.59.0, fuori dal diario: annullando non tornano i prezzi
-    return true;
-  },
-  async esegui() {
-    if (!S.prodotti.some(p => p.paroleFatt)) return { salvati: 0, note: 'nessun prodotto ancora abbinato a una riga di fattura' };
-    const n = await MF.caricaPronte();
-    return { salvati: n, note: n ? (n === 1 ? 'Caricata in magazzino 1 riga di fattura' : `Caricate in magazzino ${n} righe di fattura`) : 'nessuna riga nuova' };
-  },
-  dubbi() {
-    if (!contiVisibili() || !S.fatture.length) return [];
-    return MF.elenco().daFare.map(x => {
-      const p = x.proposto; const q = x.q !== null && x.q !== undefined ? x.q : x.qProp;
-      const testo = String(x.r.descrizione || 'Riga di fattura').slice(0, 140) + (x.data ? ' · ' + fd(x.data) : '');
-      const base = { id: 'mf:' + x.k, area: 'magazzino', testo, scarta: () => MF.togli(x.k, true), apri: pagMag };
-      if (p && q > 0) return Object.assign(base, { proposta: `Caricare ${nf(q, 3)} ${p.unita || ''} come «${p.nome}» e riconoscerlo da solo nelle prossime fatture`, conferma: () => MF.abbina(x.k, { pid: p.id, q, ricorda: true }) });
-      return Object.assign(base, { proposta: p ? `Forse «${p.nome}», ma la quantità non si capisce: apri e scrivila` : 'Da abbinare a un prodotto del magazzino: apri e scegli' });
-    });
-  },
-  // un carico annullato dal giro non torna: la riga va fra le "non caricare" (si rimette a mano nella pagina Da fatture);
-  // annullando una conferma la riga torna fra quelle da fare
-  async annullato(riga, tolti) {
-    const conferma = riga.motivo === 'conferma';
-    for (const t of tolti) if (t.c === 'movimenti' && t.rec.fattRiga) await MF.togli(t.rec.fattRiga, !conferma);
-  },
-});
+/* ---------- magazzino dalle fatture: dalla 1.66.0 in js/auto-magazzino.js ---------- */
 
 /* ---------- fitofarmaci abbinati alla banca dati del Ministero (fitoabbina.js) ---------- */
 registra({
