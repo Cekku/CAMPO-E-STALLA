@@ -14,6 +14,7 @@ import './auto-magazzino.js';   // magazzino dalle fatture d'acquisto (1.66.0)
 import './auto-latte.js';   // latte dal caseificio (1.66.0)
 import './auto-personale.js';        // personale e scadenze (1.66.0)
 import './auto-stalla.js';   // Si@lleva dall'archivio del PC e gasolio dei mezzi
+import './auto-report.js';   // report del mese nel Centro automatico (js/report.js)
 import * as MAP from './map.js';
 import { promptInstall, canInstall } from './install.js';
 import { nativa, alTastoIndietro, controllaAggiornamento } from './nativo.js';
@@ -40,29 +41,30 @@ import { render as vConti, onAct as contiAct, onChange as contiChange, onDrop as
 import { render as vArchivio, arAct, arInput, arChange, vediDoc } from './views/archivio.js';
 import { render as vGuida, schedaDi } from './views/guida.js';
 import { render as vAuto, auAct } from './views/automatico.js';
+import { render as vReport, rpAct } from './views/report.js';
 import { initChiedi, apri as apriChiedi, alterna as alternaChiedi } from './chiedi/pannello.js';
 
-const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, quaderno: vQuad, carichi: vCar, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida, automatico: vAuto };
-const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', quaderno: 'Quaderno', carichi: 'Pesate del raccolto', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida', automatico: 'Automatico' };
+const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, quaderno: vQuad, carichi: vCar, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida, automatico: vAuto, report: vReport };
+const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', quaderno: 'Quaderno', carichi: 'Pesate del raccolto', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida', automatico: 'Automatico', report: 'Report del mese' };
 const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'quaderno', 'carichi', 'stalla', 'magazzino', 'mezzi', 'nitrati', 'conti']);
 // Voci del menu: [tab, sub, icona, etichetta]
 const MENU = {
   campagna: [
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['campi', 'elenco', 'sprout', 'Campi'], ['mappa', null, 'map', 'Mappa'], ['attivita', null, 'notebook-pen', 'Attività'], ['quaderno', null, 'book-open', 'Quaderno di campagna'], ['carichi', null, 'scale', 'Pesate del raccolto'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino'], ['magazzino', 'movimenti', 'package', 'Carichi e scarichi']]],
     ['Agronomia', [['meteo', null, 'cloud-sun', 'Meteo'], ['campi', 'costi', 'euro', 'Costi e margini'], ['nitrati', null, 'leaf', 'Azoto e nitrati'], ['note', null, 'pencil', 'Note']]],
-    ['Gestione', [['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
+    ['Gestione', [['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['report', null, 'calendar-range', 'Report del mese'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
   ],
   stalla: [
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['stalla', 'mandria', 'cow', 'Mandria'], ['stalla', 'stalle', 'layout-grid', 'Stalle e silos'], ['stalla', 'indici', 'gauge', 'Indici e benessere'], ['stalla', 'riproduzione', 'heart-pulse', 'Riproduzione'], ['stalla', 'latte', 'milk', 'Latte'], ['stalla', 'progetto', 'warehouse', 'Progetto stalla 3D']]],
     ['Alimentazione e salute', [['stalla', 'razioni', 'wheat', 'Razioni'], ['stalla', 'tracciabilita', 'clipboard-list', 'Tracciabilità alimenti'],['stalla', 'sanitario', 'syringe', 'Sanitario'], ['meteo', null, 'thermometer', 'Meteo e caldo'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino']]],
-    ['Gestione', [['note', null, 'pencil', 'Note'], ['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
+    ['Gestione', [['note', null, 'pencil', 'Note'], ['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['report', null, 'calendar-range', 'Report del mese'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
   ],
   conti: [
     ['Principale', [['conti', 'panoramica', 'layout-dashboard', 'Panoramica'], ['conti', 'fatture', 'receipt', 'Fatture'], ['conti', 'mancanti', 'scan-search', 'Fatture mancanti'], ['conti', 'importa', 'file-up', 'Carica documenti'], ['conti', 'automatico', 'folder-open', "Dall'archivio del PC"]]],
     ['Acquisti e vendite', [['conti', 'fornitori', 'truck', 'Fornitori'], ['conti', 'clienti', 'handshake', 'Clienti'], ['conti', 'prodotti', 'package', 'Prodotti e prezzi'], ['conti', 'preventivi', 'clipboard-list', 'Preventivi e contratti'], ['conti', 'categorie', 'tags', 'Categorie'], ['conti', 'mensile', 'calendar-range', 'Andamento mensile'], ['conti', 'latte', 'milk', 'Latte venduto']]],
     ['Bilancio', [['conti', 'salute', 'heart-pulse', "Salute dell'azienda"], ['conti', 'grafici', 'chart-column', 'Grafici e confronti'], ['conti', 'ce', 'scale', 'Conto economico'], ['conti', 'rica', 'scale', 'Bilancino e fatture (RICA)'], ['conti', 'sp', 'landmark', 'Stato patrimoniale'], ['conti', 'indici', 'gauge', 'Indici di bilancio'], ['conti', 'centri', 'chart-pie', 'Centri di costo'], ['conti', 'rls', 'gauge', 'Reddito lordo standard'], ['conti', 'analisi', 'cow', 'Analisi della stalla'], ['conti', 'iva', 'percent', 'Dichiarazioni IVA'], ['conti', 'regime', 'scale', 'Regime IVA: ordinario o speciale'], ['conti', 'cespiti', 'tractor', 'Beni e ammortamenti'], ['conti', 'terreni', 'landmark', 'Valuta un terreno'], ['conti', 'controlli', 'shield-check', 'Controlli']]],
     ['Personale', [['conti', 'personale', 'users', 'Riepilogo del personale'], ['conti', 'dipendenti', 'id-card', 'Dipendenti'], ['conti', 'cedolini', 'file-text', 'Cedolini e bilancini paghe'], ['conti', 'pagamenti', 'banknote', 'Pagamenti'], ['conti', 'prestiti', 'hand-coins', 'Anticipi e prestiti'], ['conti', 'verifica', 'shield-check', 'Verifica pagamenti']]],
-    ['Gestione', [['conti', 'regole', 'list-checks', 'Regole delle categorie'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
+    ['Gestione', [['conti', 'regole', 'list-checks', 'Regole delle categorie'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['report', null, 'calendar-range', 'Report del mese'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
   ],
   // Archivio documenti: catalogo dei file sul PC, letto dal ponte locale (js/views/archivio.js)
   archivio: [
@@ -163,8 +165,8 @@ if (window.ResizeObserver) new ResizeObserver(([e]) => document.documentElement.
 function render() {
   derive();
   dopoDisegno();   // Centro automatico: riparte da solo con i dati cambiati (magazzino dalle fatture, fitofarmaci, razioni)
-  if (UI.area === 'conti' && (!contiVisibili() || !['conti', 'impostazioni', 'guida', 'automatico'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'conti'; }
-  if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'impostazioni', 'guida', 'automatico'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
+  if (UI.area === 'conti' && (!contiVisibili() || !['conti', 'impostazioni', 'guida', 'automatico', 'report'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'conti'; }
+  if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'impostazioni', 'guida', 'automatico', 'report'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
   if (UI.area !== 'conti' && UI.tab === 'conti') UI.area = 'conti';
   if (UI.area !== 'archivio' && UI.tab === 'archivio') UI.area = 'archivio';
   document.body.dataset.area = UI.area;
@@ -525,7 +527,8 @@ async function clic(e) {
       case 'lockNow': return blocca();
       case 'lockOff': try { toast(await disattivaDaForm($)); } catch (err) { toast(err.message, 'err'); } return render();
       case 'c-expAll': drawer(false); closeSheet(); b.disabled = true; try { await esportaTutto(UI.anno); } finally { b.disabled = false; } return;
-      default: if (a.startsWith('au-')) return auAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+      default: if (a.startsWith('rp-')) return rpAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+        if (a.startsWith('au-')) return auAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('ar-')) return arAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('p3d') && a !== 'p3dFile') return import('./views/progetto3d.js').then(x => x.p3dAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('lib-')) return import('./views/libretto.js').then(x => x.libAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });

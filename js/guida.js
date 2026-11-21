@@ -27,6 +27,23 @@ export const GUIDA = [
     passi: ['In "La mia azienda" vai alla sezione "Persone".', 'Dai ai collaboratori il codice di invito: loro creano il proprio account e lo scrivono all\'accesso.', 'Accanto a ogni persona scegli: Collaboratore, Collaboratore senza allegati oppure Solo lettura.', 'Se una persona lascia l\'azienda, toglila e crea un nuovo codice di invito.'],
     consigli: ['Il codice lo vede solo il titolare.', 'Fatture, bilancio e paghe li vede sempre solo il titolare.'],
     parole: 'collaboratori dipendenti permessi ruoli invitare titolare solo lettura codice invito utenti' },
+  { id: 'report', area: 'generale', titolo: 'Report del mese', icona: 'calendar-range', vai: ['report', null],
+    cosa: "Il riassunto di un mese in una pagina: stalla (capi, parti, asciutte, eventi sanitari, latte e razioni), magazzino (carichi, scarichi, giacenze, cosa sta finendo o scade) e campagna (lavori per campo e coltura, trattamenti, raccolte, ore dei mezzi). Il titolare vede anche i Conti (fatture, confronto con l'anno prima, pagamenti, IVA) e il personale (costo per dipendente, versamenti). In cima c'è il controllo: dice se manca qualcosa.",
+    passi: [
+      "Apri «Report del mese» dal menu (voce «Gestione») o dal riquadro della dashboard.",
+      "Scegli il mese dalla tendina o con le frecce: si apre sull'ultimo mese finito.",
+      "Guarda «È tutto completo?»: cedolini, fatture «Da classificare», giorni senza latte, dati da controllare nel Centro, estratto conto. Tocca «Sistema» per andare dove si sistema.",
+      "Il primo del mese il Centro automatico salva il report del mese finito: da lì resta uguale anche se i dati cambiano dopo. Se manca qualcosa te lo chiede prima, in «Da controllare» (Conferma = salvalo lo stesso).",
+      "Per vedere i numeri aggiornati tocca «Guarda i dati di adesso»; per sostituire il report salvato tocca «Rifai il report» (due tocchi).",
+      "Scarica il report con Excel (un foglio per tabella e un riepilogo), CSV o «Stampa / PDF».",
+    ],
+    consigli: [
+      "Titolare: togli «Con i Conti» per stampare il report da dare a chi non deve vedere fatture e paghe.",
+      "I collaboratori vedono il report senza Conti, personale e valori del magazzino.",
+      "Il costo per dipendente è una stima: lordo e TFR del cedolino più i contributi della ditta del bilancino paghe divisi in base al lordo.",
+      "Un mese passato senza report salvato si può salvare a mano: sceglilo e tocca «Salva il report».",
+    ],
+    parole: 'report mese mensile riepilogo riassunto resoconto chiusura del mese completezza controllo cedolini mancanti latte giorni istantanea salvato stampa pdf excel csv esporta fine mese' },
   { id: 'centro-automatico', area: 'generale', titolo: 'Automatico: i dati che entrano da soli', icona: 'zap', vai: ['automatico', null],
     cosa: "Il punto unico delle automazioni: documenti dell'archivio del PC nei Conti, magazzino dalle fatture (mangimi, integratori, farmaci, mungitura, ricambi, lubrificanti, sementi, concimi, fitofarmaci, gasolio), fitofarmaci abbinati alla banca dati, latte consegnato al caseificio dalle fatture del latte, scarico giornaliero delle razioni, controlli di paghe, pagamenti e fatture. Partono da sole quando apri l'app e poi ogni 30 minuti finché resta aperta. Un dato non sicuro non si salva mai da solo: va in «Da controllare» con la proposta pronta.",
     passi: [
@@ -42,6 +59,7 @@ export const GUIDA = [
     ],
     consigli: [
       "I collaboratori vedono solo le automazioni di magazzino e stalla; quelle dei Conti e del personale le vede e le avvia solo il titolare.",
+      "«Report del mese» (fra i Conti) il primo del mese salva il report del mese finito (Apri lo mostra); dai collaboratori lo fa «Report del mese (collaboratori)», senza i Conti. Se manca qualcosa, come i cedolini o il latte di qualche giorno, te lo chiede in «Da controllare» prima di salvarlo.",
       "Un carico dalle fatture annullato non torna da solo: lo ritrovi in Magazzino → Da fatture, fra le righe da non caricare.",
       "Meglio «Annulla il giro» che una riga sola: le righe dello stesso giro sono legate (per esempio i carichi in magazzino delle fatture appena lette).",
       "Quello che scrivi a mano mentre un giro lavora non entra nel diario: Annulla non lo tocca.",
