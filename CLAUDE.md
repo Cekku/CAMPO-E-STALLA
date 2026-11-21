@@ -34,6 +34,7 @@ Le note lunghe di ogni area sono in `.claude/rules/`: ognuna si carica da sola q
 | Chiedi | `chiedi.md` | chat con Claude e IA sul PC, strumenti, funzione Supabase `chiedi` |
 | Mezzi e 3D | `mezzi-3d.md` | libretto dei trattori, stalla del progetto in 3D |
 | Stalla | `stalla.md` | stress da caldo (THI), Si@lleva / AIA |
+| Latte dal caseificio | `latte.md` | fatture mensili del latte lette dall'archivio: consegne giorno per giorno nel registro, prezzi e qualità per il titolare, controlli e prove (1.66.0) |
 | Azoto e nitrati | `nitrati.md` | bilancio dell'azoto per campo e della stalla, limiti ZVN, valori di riferimento (1.53.0) |
 | Tracciabilità | `tracciabilita.md` | registri per il caseificio: approvvigionamenti dalle fatture e alimenti autoprodotti (1.42.0), autoprodotti da soli dalla campagna senza il venduto (1.64.0) |
 | Conti | `conti.md` | struttura del modulo, file e raccolte riservate, regime IVA, valuta un terreno (1.49.0, 1.51.0, 1.52.0) |

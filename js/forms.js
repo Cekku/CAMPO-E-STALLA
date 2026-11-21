@@ -412,7 +412,7 @@ export const SPEC = {
       { k: 'note', l: 'Note', t: 'textarea' }],
     defaults: () => { const last = D.latte[D.latte.length - 1]; const sosp = S.capi.filter(c => capoI(c).inSospLatte); return { data: today(), vacche: S.capi.filter(c => capoI(c).stato === 'In lattazione').length || null, prezzo: last ? last.prezzo : null, note: sosp.length ? 'In sospensione: ' + sosp.map(c => c.nome || c.matricola).join(', ') : '' }; },
     validate: v => { const ex = S.latte.find(l => l.id === v.data); return ex && ex.id !== (FORM && FORM.id) ? 'Il latte del ' + fd(v.data) + ' è già registrato: aprilo dal registro per modificarlo.' : null; },
-    async save(id, v) { await store.put('latte', v.data, v); if (id && id !== v.data) await store.remove('latte', id); },
+    async save(id, v) { if (v.prodStima && N(v.litri) !== N(v.conferiti)) delete v.prodStima; await store.put('latte', v.data, v); if (id && id !== v.data) await store.remove('latte', id); },
   },
   note: {
     title: 'Nota', icon: 'pencil',

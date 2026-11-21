@@ -11,6 +11,9 @@ import { capoAia } from './aia-view.js';
 import { render as trRender } from './tracciabilita.js';
 import { progettoView, sospendi3d } from './progetto3d.js';
 import { boxOf, benessere } from '../herd.js';
+import { fattureMese } from '../auto-latte.js';
+import { contiVisibili } from './conti.js';
+import { colonne, linee, COL } from '../conti/grafici.js';
 import { tabella, bottoniExport } from '../conti/tabelle.js';
 
 const numInt = c => { const n = parseInt(numCapo(c), 10); return isNaN(n) ? null : n; };
@@ -116,7 +119,40 @@ function latte() {
     <div class="kpi static"><span class="k-l">Qualità</span><span class="k-v">${q && N(q.cellule) ? nf(q.cellule, 0) : '—'}<small>mila cell.</small></span><span class="k-s">${q ? (N(q.grasso) ? 'G ' + nf(q.grasso, 2) + '% ' : '') + (N(q.proteine) ? 'P ' + nf(q.proteine, 2) + '%' : '') : 'nessuna analisi'}</span></div>
     <div class="kpi static"><span class="k-l">Conferito ${UI.anno}</span><span class="k-v">${nf(sum(anno, conf) / 1000, 1)}<small>mila l</small></span><span class="k-s">${eur(sum(anno, l => conf(l) * N(l.prezzo)))}</span></div></div>
   <section class="card"><div class="card-h"><h2>Andamento</h2><div class="btns"><button class="btn sm ghost" data-act="export" data-what="latte">${ic('download')}CSV</button>${newBtn('latte', 'Registra')}</div></div>${ch ? `<div class="chartbox">${ch.svg}</div><div class="legend"><span><i class="sw conf"></i>conferiti</span><span><i class="sw prod"></i>non conferiti</span></div>` : empty('milk', 'Nessuna registrazione', 'Ogni giorno: litri prodotti, conferiti e scartati, più le analisi.', newBtn('latte', 'Registra il latte di oggi'))}</section>
-  ${L.length ? `<section class="card"><div class="card-h"><h2>Registro giornaliero</h2></div><div class="list">${[...L].reverse().slice(0, 60).map(l => `<button class="row" data-act="edit" data-form="latte" data-id="${l.id}"><span class="datebox"><b>${+l.data.slice(8)}</b>${['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'][+l.data.slice(5, 7) - 1]}</span><span class="r-main"><b class="num">${nf(l.litri, 0)} l${exChip(l)}</b><span>${[N(l.vacche) ? l.vacche + ' vacche' : '', N(l.grasso) ? 'G ' + nf(l.grasso, 2) + '%' : '', N(l.proteine) ? 'P ' + nf(l.proteine, 2) + '%' : '', N(l.cellule) ? 'SCC ' + nf(l.cellule, 0) : '', N(l.cbt) ? 'CBT ' + nf(l.cbt, 0) : '', l.note ? esc(l.note) : ''].filter(Boolean).join(' · ')}</span></span><span class="r-side"><span class="num">${eur(conf(l) * N(l.prezzo))}</span>${N(l.scartati) ? chip(nf(l.scartati, 0) + ' l scartati', 'warn') : ''}</span></button>`).join('')}</div></section>` : ''}`;
+  ${latteMesi(conf)}
+  ${L.length ? `<section class="card"><div class="card-h"><h2>Registro giornaliero</h2></div><div class="list">${[...L].reverse().slice(0, 60).map(l => `<button class="row" data-act="edit" data-form="latte" data-id="${l.id}"><span class="datebox"><b>${+l.data.slice(8)}</b>${['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'][+l.data.slice(5, 7) - 1]}</span><span class="r-main"><b class="num">${nf(l.litri, 0)} l${exChip(l)}</b><span>${[N(l.vacche) ? l.vacche + ' vacche' : '', N(l.grasso) ? 'G ' + nf(l.grasso, 2) + '%' : '', N(l.proteine) ? 'P ' + nf(l.proteine, 2) + '%' : '', N(l.cellule) ? 'SCC ' + nf(l.cellule, 0) : '', N(l.cbt) ? 'CBT ' + nf(l.cbt, 0) : '', N(l.conferiti) && N(l.conferiti) !== N(l.litri) ? nf(l.conferiti, 0) + ' l conferiti' : '', l.fonte && l.fonte.tipo === 'fattura' ? (l.fonte.litri == null || N(l.fonte.litri) === N(l.conferiti) ? 'dalla fattura n. ' : 'cambiato a mano (' + nf(l.fonte.litri, 0) + ' l nella fattura n. ') + esc(l.fonte.numero) + ' del ' + fd(l.fonte.data) + (l.fonte.litri == null || N(l.fonte.litri) === N(l.conferiti) ? '' : ')') + (l.prodStima ? ' · prodotti = conferiti' : '') : '', l.note ? esc(l.note) : ''].filter(Boolean).join(' · ')}</span></span><span class="r-side"><span class="num">${eur(conf(l) * N(l.prezzo))}</span>${N(l.scartati) ? chip(nf(l.scartati, 0) + ' l scartati', 'warn') : ''}</span></button>`).join('')}</div></section>` : ''}`;
+}
+
+/* Mese per mese: litri consegnati dal registro; per il titolare anche litri, qualità e prezzo delle fatture del latte (1.66.0). */
+const MESI_C = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+const MESI_L = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+function latteMesi(conf) {
+  const y = UI.anno; const tit = contiVisibili();
+  const L = D.latte.filter(l => yearOf(l.data) === y);
+  const F = tit ? fattureMese().filter(f => f.mese.slice(0, 4) === String(y)) : [];
+  if (!L.length && !F.length) return '';
+  const rows = MESI_L.map((nome, i) => {
+    const mm = y + '-' + String(i + 1).padStart(2, '0');
+    const g = L.filter(l => l.data.slice(0, 7) === mm); const ff = F.filter(f => f.mese === mm);
+    const f = ff.slice().sort((a, b) => N(b.litri) - N(a.litri))[0]; const q = (f && f.qualita) || {};
+    const lf = ff.reduce((t, x) => t + N(x.litri), 0); const imp = ff.reduce((t, x) => t + N(x.imponibile), 0);
+    return { mese: nome, giorni: g.length || null, registro: g.length ? sum(g, conf) : null, dalleFatture: g.filter(l => l.fonte && l.fonte.tipo === 'fattura').length || null,
+      fattura: lf || null, grasso: q.grasso ? q.grasso.media : null, proteine: q.proteine ? q.proteine.media : null,
+      cellule: q.cellule && q.cellule.media != null ? q.cellule.media / 1000 : null, cbt: q.cbt && q.cbt.media != null ? q.cbt.media / 1000 : null,
+      prezzoBase: f && f.prezzoBase != null ? f.prezzoBase / 1000 : null, premi: ff.reduce((t, x) => t + N(x.premi), 0) || null, trattenute: ff.reduce((t, x) => t + N(x.trattenute), 0) || null,
+      imponibile: imp || null, prezzoMedio: lf ? imp / lf : null, numero: ff.map(x => x.numero).join(', ') };
+  });
+  const S_ = k => rows.reduce((t, r) => t + N(r[k]), 0);
+  const tot = { mese: 'Totale', giorni: S_('giorni') || null, registro: S_('registro') || null, dalleFatture: S_('dalleFatture') || null, fattura: S_('fattura') || null, premi: S_('premi') || null, trattenute: S_('trattenute') || null, imponibile: S_('imponibile') || null, prezzoMedio: S_('fattura') ? S_('imponibile') / S_('fattura') : null };
+  const serie = [{ name: 'Consegnati (registro)', values: rows.map(r => r.registro), color: COL.ven }].concat(F.length ? [{ name: 'Dalle fatture', values: rows.map(r => r.fattura), color: 'var(--chart-prod)' }] : []);
+  const conQual = rows.some(r => r.grasso != null || r.proteine != null);
+  const cols = [{ k: 'mese', h: 'Mese' }, { k: 'giorni', h: 'Giorni', fmt: 'num' }, { k: 'registro', h: 'Consegnati (registro) l', fmt: 'num' }, { k: 'dalleFatture', h: 'Giorni dalle fatture', fmt: 'num' }]
+    .concat(tit && F.length ? [{ k: 'fattura', h: 'Litri della fattura', fmt: 'num' }, { k: 'grasso', h: 'Grasso %', fmt: 'num2' }, { k: 'proteine', h: 'Proteine %', fmt: 'num2' }, { k: 'cellule', h: 'Cellule (mila/ml)', fmt: 'num' }, { k: 'cbt', h: 'Carica batterica (mila/ml)', fmt: 'num' }, { k: 'prezzoBase', h: 'Prezzo base €/l', fmt: 'eur4' }, { k: 'premi', h: 'Premi €', fmt: 'eur2' }, { k: 'trattenute', h: 'Trattenute €', fmt: 'eur2' }, { k: 'imponibile', h: 'Imponibile €', fmt: 'eur2' }, { k: 'prezzoMedio', h: '€/l con premi', fmt: 'eur4' }, { k: 'numero', h: 'Fattura' }] : []);
+  return `<section class="card"><div class="card-h"><h2>${ic('chart-column')}Mese per mese – ${y}</h2>${bottoniExport(['latteMesi'], 'Latte mese per mese ' + y)}</div>
+  ${colonne(MESI_C, serie, { unit: 'l' })}
+  ${tit && conQual ? `<div class="grid-2"><div><div class="card-h"><h3>Grasso e proteine</h3></div>${linee(MESI_C, [{ name: 'Grasso %', values: rows.map(r => r.grasso), color: COL.ven }, { name: 'Proteine %', values: rows.map(r => r.proteine), color: COL.diff }], { fmt: v => nf(v, 2), unit: '%' })}</div><div><div class="card-h"><h3>Cellule e carica batterica</h3></div>${linee(MESI_C, [{ name: 'Cellule (mila)', values: rows.map(r => r.cellule), color: COL.acq }, { name: 'Carica batterica (mila)', values: rows.map(r => r.cbt), color: COL.diff }], { fmt: v => nf(v, 0), unit: 'mila/ml' })}</div></div>` : ''}
+  ${tabella('latteMesi', { title: 'Latte mese per mese ' + y, sheet: 'Latte', cols, rows, tot, sort: false })}
+  <p class="muted small">${tit ? 'Litri, qualità e prezzo dalle fatture del latte lette dal Centro automatico (solo il titolare vede prezzi e analisi).' : 'Litri consegnati dal registro del latte; i giorni dalle fatture arrivano dal Centro automatico.'}</p></section>`;
 }
 
 function razioni() {
