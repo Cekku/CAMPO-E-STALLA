@@ -287,7 +287,7 @@ function drawNotes() {
     let ll = null; if (n.lat && n.lon) ll = [+n.lat, +n.lon]; else { const c = get('campi', n.campoId); const ct = c && c.geom && centroid(c.geom); if (ct) ll = [ct[1], ct[0]]; }
     if (!ll) return;
     const m = L.marker(ll, { icon: L.divIcon({ className: 'note-pin', html: ic(ICONA_NOTA[n.tipoNota] || 'pencil'), iconSize: [30, 30], iconAnchor: [-6, 46] }), pmIgnore: true, title: (n.titolo || 'Nota') + (n.tipoNota && n.tipoNota !== 'Nota generica' ? ' · ' + n.tipoNota : '') });
-    m.on('click', e => { L.DomEvent.stopPropagation(e); openEdit('note', n.id); });
+    m.on('click', e => { L.DomEvent.stopPropagation(e); if (prendiPunto(e)) return; openEdit('note', n.id); });
     m.addTo(notesGroup);
   });
 }

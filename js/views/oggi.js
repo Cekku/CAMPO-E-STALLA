@@ -161,7 +161,7 @@ const progBar = (pct, alt = false) => `<span class="pl-bar${alt ? ' alt' : ''}" 
 
 export function noteCard(n) {
   const c = get('campi', n.campoId);
-  return `<button class="note-card" data-act="edit" data-form="note" data-id="${n.id}" style="--c:${NOTE_COL[n.colore] || 'var(--line-2)'}"><b>${esc(n.titolo || 'Nota')}</b><small>${fd(n.data)}${c ? ' · ' + esc(c.nome) : ''}${n.tipoNota && n.tipoNota !== 'Nota generica' ? ' · ' + esc(n.tipoNota) : ''}${n.lat && n.lon ? ' · 📍' : ''}${(n.allegati || []).length ? ' · ' + n.allegati.length + ((n.allegati || []).length === 1 ? ' allegato' : ' allegati') : ''}</small><p>${esc((n.testo || '').slice(0, 180))}</p>${n.esempio ? '<span class="chip ghost">Esempio</span>' : ''}</button>`;
+  return `<button class="note-card" data-act="edit" data-form="note" data-id="${n.id}" style="--c:${NOTE_COL[n.colore] || 'var(--line-2)'}"><b>${esc(n.titolo || 'Nota')}</b><small>${fd(n.data)}${c ? ' · ' + esc(c.nome) : ''}${n.tipoNota && n.tipoNota !== 'Nota generica' ? ' · ' + esc(n.tipoNota) : ''}${n.lat && n.lon ? ' · ' + ic('map-pin') : ''}${(n.allegati || []).length ? ' · ' + n.allegati.length + ((n.allegati || []).length === 1 ? ' allegato' : ' allegati') : ''}</small><p>${esc((n.testo || '').slice(0, 180))}</p>${n.esempio ? '<span class="chip ghost">Esempio</span>' : ''}</button>`;
 }
 
 export function opRow(o) {

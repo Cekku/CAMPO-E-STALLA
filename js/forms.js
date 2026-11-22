@@ -16,7 +16,7 @@ import { scaricaRazioni } from './razauto.js';
 import { CATALOGO, GRUPPI_COMP, OPZ_MODELLI, MODELLI, isTrattore } from './trattori.js';
 import { boxAllegati, salvaAllegati } from './views/libretto.js';
 import { sottotipiDi, PROFONDITA, CIELO, MODI_FITO, LIVELLI_INFESTAZIONE, MOTIVI_INTERVENTO, METODI_CONCIMAZIONE, METODI_IRRIGAZIONE, RESIDUI } from './elenchi.js';
-import { GESTIONI, QUALITA_CAT, ECOSCHEMI, COPERTURE, IRRIGAZIONI, FONTI, ENERGIE, UNITA_PORTATA, LOTTE, PERIODI, UNITA_RESA, DESTINAZIONI, USI, QUALITA_COLT, particelleDa, catastoDa } from './particelle.js';
+import { GESTIONI, QUALITA_CAT, ECOSCHEMI, COPERTURE, IRRIGAZIONI, FONTI, ENERGIE, UNITA_PORTATA, LOTTE, PERIODI, UNITA_RESA, DESTINAZIONI, USI, QUALITA_COLT, particelleDa, catastoDa, testoUguale } from './particelle.js';
 
 const oCampi = () => [...S.campi].sort(byName).map(c => [c.id, `${c.nome} · ${nf(campoHa(c), 2)} ha`]);
 const oProd = cats => () => [...S.prodotti].filter(p => !cats || cats.includes(p.categoria)).sort(byName).map(p => [p.id, `${p.nome} — ${nf(giac(p), 1)} ${p.unita || ''}`]);
@@ -172,7 +172,7 @@ export const SPEC = {
       { k: 's1', l: 'Dati catastali', t: 'section' },
       { k: 'comune', l: 'Comune', half: 1, list: comuniCampi() },
       { k: 'conduzione', l: 'Conduzione', t: 'seg', opts: ['Proprietà', 'Affitto', 'Comodato'], half: 1 },
-      { k: 'catasto', l: 'Foglio e particelle (testo)', ph: 'Fg. 12 mapp. 45, 46', show: () => CAT_LIBERO, hint: 'Da questo testo non si capiscono foglio e mappale. Se scrivi le particelle qui sotto, il testo verrà sostituito da quelle.' },
+      { k: 'catasto', l: 'Foglio e particelle (testo)', ph: 'Fg. 12 mapp. 45, 46', show: () => CAT_LIBERO, hint: "Questo testo non si legge tutto nelle righe qui sotto, quindi resta com'è. Controlla le particelle; se svuoti il testo, si riscrive da solo dalle righe." },
       { k: 'particelle', l: 'Particelle catastali', t: 'rows', stack: 1, addLabel: 'Aggiungi particella', hint: 'Una riga per particella. Area usata = la parte della particella dentro questo campo.', cols: [
         { k: 'comune', l: 'Comune', list: comuniCampi() }, { k: 'foglio', l: 'Foglio', ph: 'Es. 12' }, { k: 'particella', l: 'Particella', ph: 'Es. 45' }, { k: 'sub', l: 'Sub', ph: '—' },
         { k: 'areaCat', l: 'Area catastale', t: 'number', unit: 'ha' }, { k: 'areaUsata', l: 'Area usata', t: 'number', unit: 'ha' },
@@ -188,12 +188,12 @@ export const SPEC = {
     // il vecchio testo del catasto diventa righe; con le righe il testo si riscrive come riassunto
     prepara(v) {
       const righe = Array.isArray(v.particelle) && v.particelle.length ? v.particelle : particelleDa(v.catasto, v.comune);
-      CAT_LIBERO = !!String(v.catasto || '').trim() && !righe.length;
+      CAT_LIBERO = !!String(v.catasto || '').trim() && !testoUguale(v.catasto, righe);   // il testo che le righe non dicono tutto non si riscrive
       if (righe.length) v.particelle = righe.map(r => Object.assign({}, r));
     },
     save: async (id, v) => {
       const righe = Array.isArray(v.particelle) ? v.particelle : [];
-      if (righe.length) v.catasto = catastoDa(righe); else if (!CAT_LIBERO) v.catasto = '';
+      if (CAT_LIBERO && String(v.catasto || '').trim()) { /* resta il testo scritto */ } else v.catasto = righe.length ? catastoDa(righe) : '';
       if (!Array.isArray(v.ecoschemi) || !v.ecoschemi.length) delete v.ecoschemi;
       if (v.irriguo !== 'Sì') ['irrigazione', 'fonteAcqua', 'energia', 'portata'].forEach(k => { if (!v[k]) delete v[k]; });
       await store.put('campi', id, v);
@@ -215,7 +215,7 @@ export const SPEC = {
       { k: 'prodottoId', l: 'Prodotto dal magazzino', t: 'select', opts: oProd(['Fitofarmaco', 'Diserbante', 'Concime', 'Effluente', 'Seme', 'Altro', 'Gasolio']), show: isT(...OP_PROD), blank: 'Nessun prodotto' },
       { k: 'dose', l: 'Dose', t: 'number', half: 1, unit: '/ha', show: v => !!v.prodottoId },
       { k: 'quantita', l: 'Quantità totale', t: 'number', half: 1, show: v => !!v.prodottoId, hint: 'Dose × ettari, si scarica dal magazzino' },
-      { k: 'altriProdotti', l: 'Altri prodotti nella stessa passata (miscela in botte, seme e concime…)', t: 'rows', addLabel: 'Aggiungi prodotto', show: v => !!v.prodottoId && OP_PROD.includes(v.tipo), hint: "Totale vuoto = dose × ettari. Ogni prodotto si scarica dal magazzino e passa dai controlli dell'etichetta.",
+      { k: 'altriProdotti', l: 'Altri prodotti nella stessa passata (miscela in botte, seme e concime…)', t: 'rows', stack: 1, addLabel: 'Aggiungi prodotto', show: v => !!v.prodottoId && OP_PROD.includes(v.tipo), hint: "Totale vuoto = dose × ettari. Ogni prodotto si scarica dal magazzino e passa dai controlli dell'etichetta.",
         cols: [{ k: 'prodottoId', l: 'Prodotto', t: 'select', opts: oProd(['Fitofarmaco', 'Diserbante', 'Concime', 'Effluente', 'Seme', 'Altro']), ph: 'Scegli', w: '1.6fr' }, { k: 'dose', l: 'Dose', unit: '/ha', t: 'number', ph: 'Dose', w: '70px' }, { k: 'quantita', l: 'Totale', t: 'number', ph: 'Totale', w: '76px' }, { k: 'avversita', l: 'Avversità', ph: 'Come sopra', w: '1fr' }] },
       { k: 'profondita', l: 'Profondità di lavoro', t: 'seg', opts: PROFONDITA, show: v => v.tipo === 'Lavorazione terreno' && /arat|ripunt|vang|disca/i.test(v.sottotipo || '') },
       { k: 'trasemina', l: 'È una trasemina?', t: 'seg', opts: ['Sì', 'No'], half: 1, show: isT('Semina') },
@@ -392,6 +392,8 @@ export const SPEC = {
     onChange(ch, v) {
       if (ch === null || ch === 'prodottoId') { const p = get('prodotti', v.prodottoId); setUnit('quantita', p ? p.unita : ''); }
       // le pesate del raccolto segnano `autoprodotto`: nel modulo compaiono come "Prodotto in azienda"
+      // un movimento fatto da un'attività, una razione, la stalla, una pesata o una fattura non cambia tipo (si rifarebbe da solo)
+      if (ch === 'tipo' && FORM.id && recF().tipo && v.tipo !== recF().tipo && ['opId', 'evId', 'razioneId', 'caricoId', 'fattRiga'].some(k => recF()[k])) { setVal('tipo', recF().tipo); toast("Questo movimento è registrato dall'app: il tipo non si cambia qui."); return; }
       if (ch === null) { if (recF().autoprodotto && !recF().provenienza) setVal('provenienza', 'Prodotto in azienda'); boxAllegati({ l: 'Bolla e foto', scan: false }); }
       if ([null, 'tipo', 'prodottoId', 'data', 'quantita'].includes(ch)) hintInventario(v);
     },

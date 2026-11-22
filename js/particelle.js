@@ -38,11 +38,16 @@ export function particelleDa(testo, comune) {
 const riga = (comune, foglio, particella, sub) => ({ comune: s(comune), foglio: s(foglio), particella: s(particella), sub: s(sub), areaCat: null, areaUsata: null, proprietario: '', gestione: '', qualita: '', pac: '' });
 
 // righe -> testo riassunto "Fg. 12 mapp. 45, 46; Fg. 13 mapp. 7/2" (stesso foglio insieme, nell'ordine delle righe)
+// con particelle di più comuni il nome del comune va davanti al foglio, così lo stesso foglio di due comuni non si mescola
 export function catastoDa(righe) {
-  const fogli = new Map();
-  (righe || []).forEach(r => { const f = s(r.foglio); const p = s(r.particella) + (s(r.sub) ? '/' + s(r.sub) : ''); if (!f && !p) return; const k = f || '?'; if (!fogli.has(k)) fogli.set(k, []); if (p && !fogli.get(k).includes(p)) fogli.get(k).push(p); });
-  return [...fogli.entries()].map(([f, ps]) => (f === '?' ? '' : 'Fg. ' + f) + (ps.length ? (f === '?' ? '' : ' ') + 'mapp. ' + ps.join(', ') : '')).join('; ');
+  const fogli = new Map(); const rr = (righe || []).filter(Boolean);
+  const piuComuni = new Set(rr.map(r => s(r.comune).toLowerCase()).filter(Boolean)).size > 1;
+  rr.forEach(r => { const f = s(r.foglio); const p = s(r.particella) + (s(r.sub) ? '/' + s(r.sub) : ''); if (!f && !p) return; const k = (piuComuni ? s(r.comune) : '') + '|' + (f || '?'); if (!fogli.has(k)) fogli.set(k, []); if (p && !fogli.get(k).includes(p)) fogli.get(k).push(p); });
+  return [...fogli.entries()].map(([k, ps]) => { const [com, f] = k.split('|'); return (com ? com + ' ' : '') + (f === '?' ? '' : 'Fg. ' + f) + (ps.length ? (f === '?' ? '' : ' ') + 'mapp. ' + ps.join(', ') : ''); }).join('; ');
 }
+// il testo dice le stesse cose delle righe? (spazi, punti e maiuscole non contano)
+const piatto = t => s(t).toLowerCase().replace(/foglio/g, 'fg').replace(/mappali|mappale|particelle|particella|part/g, 'mapp').replace(/[^0-9a-z]/g, '');
+export const testoUguale = (testo, righe) => piatto(testo) === piatto(catastoDa(righe));
 
 // righe salvate, oppure lette dal testo vecchio (solo per mostrarle: non si salva niente)
 export const particelleDi = c => Array.isArray(c && c.particelle) && c.particelle.length ? c.particelle : particelleDa(c && c.catasto, c && c.comune);

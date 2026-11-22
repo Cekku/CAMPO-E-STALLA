@@ -227,6 +227,7 @@ window.addEventListener('resize', twDopo, { passive: true });
 const drawer = open => { document.body.classList.toggle('drawer-open', open); };
 function setTab(t, sub) {
   if (UI.tab === 'mappa' && t !== 'mappa') MAP.endMode();
+  if (t !== 'mappa') MAP.annullaPunto();   // la scelta del punto di una nota finisce quando si lascia la mappa
   UI.tab = t; if (sub) UI.sub[t] = sub; UI.detail = null; UI.hist = []; saveUI();
   try { history.replaceState(null, '', '#' + t); } catch (e) { }
   drawer(false); render(); window.scrollTo(0, 0);
