@@ -14,6 +14,7 @@ import { FASI_BOX, allBoxes } from './herd.js';
 import { scaricaRazioni } from './razauto.js';
 import { CATALOGO, GRUPPI_COMP, OPZ_MODELLI, MODELLI, isTrattore } from './trattori.js';
 import { boxAllegati, salvaAllegati } from './views/libretto.js';
+import { GESTIONI, QUALITA_CAT, ECOSCHEMI, COPERTURE, IRRIGAZIONI, FONTI, ENERGIE, UNITA_PORTATA, LOTTE, PERIODI, UNITA_RESA, DESTINAZIONI, USI, QUALITA_COLT, particelleDa, catastoDa } from './particelle.js';
 
 const oCampi = () => [...S.campi].sort(byName).map(c => [c.id, `${c.nome} · ${nf(campoHa(c), 2)} ha`]);
 const oProd = cats => () => [...S.prodotti].filter(p => !cats || cats.includes(p.categoria)).sort(byName).map(p => [p.id, `${p.nome} — ${nf(giac(p), 1)} ${p.unita || ''}`]);
@@ -72,6 +73,8 @@ async function mettiInCoda(eventoId, v) {
 
 // "Fino al" prima del primo giorno: errore (vuoto o uguale = lavoro di un giorno)
 export const erroreFine = v => okD(v.dataFine) && okD(v.data) && v.dataFine < v.data ? '"Fino al" non può essere prima del primo giorno.' : null;
+let CAT_LIBERO = false;   // testo del catasto che non diventa righe: il campo di testo resta visibile
+const comuniCampi = () => [...new Set(S.campi.map(c => (c.comune || '').trim()).filter(Boolean))].sort();
 export const SPEC = {
   campi: {
     title: 'Appezzamento', icon: 'map',
@@ -81,13 +84,40 @@ export const SPEC = {
       { k: 'coltura', l: 'Coltura in atto', half: 1, list: coltureNote() },
       { k: 'varieta', l: 'Varietà o ibrido', half: 1 },
       { k: 'irriguo', l: 'Irriguo', t: 'seg', opts: ['Sì', 'No'], half: 1 },
+      { k: 'irrigazione', l: 'Metodo di irrigazione', t: 'select', opts: IRRIGAZIONI, half: 1, show: v => v.irriguo === 'Sì' },
+      { k: 'fonteAcqua', l: "Da dove arriva l'acqua", t: 'select', opts: FONTI, half: 1, show: v => v.irriguo === 'Sì' },
+      { k: 'energia', l: 'Energia della pompa', t: 'select', opts: ENERGIE, half: 1, show: v => v.irriguo === 'Sì' },
+      { k: 'portata', l: "Portata dell'impianto", t: 'number', third: 1, show: v => v.irriguo === 'Sì' },
+      { k: 'portataUnita', l: 'Unità', t: 'select', opts: UNITA_PORTATA, blank: false, third: 1, show: v => v.irriguo === 'Sì' },
       { k: 's1', l: 'Dati catastali', t: 'section' },
-      { k: 'comune', l: 'Comune', half: 1 },
-      { k: 'catasto', l: 'Foglio e particelle', half: 1, ph: 'Fg. 12 mapp. 45, 46' },
-      { k: 'conduzione', l: 'Conduzione', t: 'seg', opts: ['Proprietà', 'Affitto', 'Comodato'] },
+      { k: 'comune', l: 'Comune', half: 1, list: comuniCampi() },
+      { k: 'conduzione', l: 'Conduzione', t: 'seg', opts: ['Proprietà', 'Affitto', 'Comodato'], half: 1 },
+      { k: 'catasto', l: 'Foglio e particelle (testo)', ph: 'Fg. 12 mapp. 45, 46', show: () => CAT_LIBERO, hint: 'Da questo testo non si capiscono foglio e mappale. Se scrivi le particelle qui sotto, il testo verrà sostituito da quelle.' },
+      { k: 'particelle', l: 'Particelle catastali', t: 'rows', stack: 1, addLabel: 'Aggiungi particella', hint: 'Una riga per particella. Area usata = la parte della particella dentro questo campo.', cols: [
+        { k: 'comune', l: 'Comune', list: comuniCampi() }, { k: 'foglio', l: 'Foglio', ph: 'Es. 12' }, { k: 'particella', l: 'Particella', ph: 'Es. 45' }, { k: 'sub', l: 'Sub', ph: '—' },
+        { k: 'areaCat', l: 'Area catastale', t: 'number', unit: 'ha' }, { k: 'areaUsata', l: 'Area usata', t: 'number', unit: 'ha' },
+        { k: 'proprietario', l: 'Proprietario', ph: 'Nome' }, { k: 'gestione', l: 'Gestione', t: 'select', opts: GESTIONI },
+        { k: 'qualita', l: 'Qualità catastale', t: 'select', opts: QUALITA_CAT }, { k: 'pac', l: 'Nella domanda PAC', t: 'select', opts: ['Sì', 'No'] }] },
+      { k: 's2', l: 'PAC e altri dati', t: 'section' },
+      { k: 'ecoschemi', l: 'Ecoschemi PAC', t: 'checks', opts: [['', ECOSCHEMI]] },
+      { k: 'copertura', l: 'Copertura', t: 'select', opts: COPERTURE, half: 1 },
+      { k: 'strada', l: 'Confina con strada o area pubblica', t: 'seg', opts: ['Sì', 'No'], half: 1 },
       { k: 'gruppo', l: 'Gruppo', ph: 'Es. Campi della stalla' },
       { k: 'note', l: 'Note', t: 'textarea' }],
-    defaults: () => ({ irriguo: 'No', conduzione: 'Proprietà' }),
+    defaults: () => ({ irriguo: 'No', conduzione: 'Proprietà', portataUnita: 'l/s' }),
+    // il vecchio testo del catasto diventa righe; con le righe il testo si riscrive come riassunto
+    prepara(v) {
+      const righe = Array.isArray(v.particelle) && v.particelle.length ? v.particelle : particelleDa(v.catasto, v.comune);
+      CAT_LIBERO = !!String(v.catasto || '').trim() && !righe.length;
+      if (righe.length) v.particelle = righe.map(r => Object.assign({}, r));
+    },
+    save: async (id, v) => {
+      const righe = Array.isArray(v.particelle) ? v.particelle : [];
+      if (righe.length) v.catasto = catastoDa(righe); else if (!CAT_LIBERO) v.catasto = '';
+      if (!Array.isArray(v.ecoschemi) || !v.ecoschemi.length) delete v.ecoschemi;
+      if (v.irriguo !== 'Sì') ['irrigazione', 'fonteAcqua', 'energia', 'portata'].forEach(k => { if (!v[k]) delete v[k]; });
+      await store.put('campi', id, v);
+    },
     canDel: c => S.operazioni.some(o => o.campoId === c.id) ? 'Il campo ha operazioni registrate: eliminale prima dal quaderno.' : S.carichi.some(k => k.campoId === c.id) ? 'Il campo ha pesate del raccolto: eliminale prima da Pesate del raccolto.' : null,
   },
   operazioni: {
@@ -468,6 +498,7 @@ export function openEdit(c, id, pre, soloQuesta) {
   if (c === 'razioni' && !S.prodotti.some(p => ['Mangime', 'Integratore', 'Foraggio', 'Altro'].includes(p.categoria))) { toast('Prima inserisci in magazzino mangimi e foraggi in kg.', 'err'); return; }
   const values = rec ? Object.assign({}, rec) : Object.assign({}, spec.defaults ? spec.defaults() : {}, pre || {});
   if (c === 'campi' && values.geom && !N(values.superficie)) values.superficie = Math.round(areaHa(values.geom) * 10000) / 10000;
+  if (spec.prepara) spec.prepara(values);
   const fields = spec.fields();
   const fk = new Set(fields.map(f => f.k));
   openForm({
@@ -502,6 +533,19 @@ export function chiudeAuto(ch, v, tipo, campoId) {
   setVal('chiude', /medica|prato|loiessa|loietto|erba|trifoglio/i.test(col) ? 'No' : 'Sì');
 }
 
+// Dati della coltura dell'annata (come nel fascicolo e in xFarm): uguali nel modulo del campo e in quello di più campi
+const camposColtura = () => [
+  { k: 'resa', l: 'Resa attesa', t: 'number', third: 1 },
+  { k: 'resaUnita', l: 'Unità', t: 'select', opts: UNITA_RESA, blank: false, third: 1 },
+  { k: 'periodo', l: 'Periodo di inizio', t: 'select', opts: PERIODI, blank: false, third: 1 },
+  { k: 'lotta', l: 'Tipo di lotta', t: 'select', opts: LOTTE, half: 1 },
+  { k: 'ogm', l: 'OGM', t: 'seg', opts: ['No', 'Sì'], half: 1 },
+  { k: 'c_sez', l: 'Fascicolo e domanda PAC', t: 'section' },
+  { k: 'destinazione', l: "Destinazione d'uso", third: 1, list: DESTINAZIONI, ph: 'Es. alimentazione della stalla' },
+  { k: 'qualita', l: 'Qualità', third: 1, list: QUALITA_COLT },
+  { k: 'uso', l: 'Uso', third: 1, list: USI, ph: 'Es. trinciato, fieno' }];
+// riga di un campo usata per riempire il modulo di più campi: solo i dati della coltura, non la seconda coltura
+const pulita = r => { const o = Object.assign({}, r); delete o.secondo; return o; };
 // Coltura di un'annata dentro la scheda del campo
 export function openColtura(campoId, anno) {
   const c = get('campi', campoId); if (!c) return;
@@ -516,8 +560,7 @@ export function openColtura(campoId, anno) {
       { k: 'coltura', l: 'Coltura', req: 1, half: 1, list: coltureNote() },
       { k: 'varieta', l: 'Varietà o ibrido', half: 1 },
       { k: 'semina', l: 'Data di semina o trapianto', t: 'date', half: 1 },
-      { k: 'resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha' },
-      { k: 'destinazione', l: 'Destinazione', half: 1, ph: 'Es. trinciato aziendale' },
+      ...camposColtura(),
       { k: 's_sez', l: 'Dopo questa coltura, nello stesso anno', t: 'section' },
       { k: 's_uso', l: "Che cos'è", t: 'seg', opts: ['Secondo raccolto', 'Coltura di copertura'] },
       { k: 's_coltura', l: 'Seconda coltura', half: 1, list: coltureNote(), ph: 'Es. soia, loiessa, sorgo' },
@@ -525,10 +568,10 @@ export function openColtura(campoId, anno) {
       { k: 's_semina', l: 'Data di semina', t: 'date', half: 1 },
       { k: 's_resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha' },
       { k: 's_destinazione', l: 'Destinazione', half: 1 }],
-    values: Object.assign({ anno: String(y) }, cur || {}, { anno: String(y) }, secondoValori(cur && cur.secondo)),
+    values: Object.assign({ anno: String(y), resaUnita: 't/ha' }, cur || {}, { anno: String(y) }, secondoValori(cur && cur.secondo)),
     onSave: async v => {
       const list = (Array.isArray(c.colture) ? c.colture : []).filter(x => +x.anno !== +v.anno);
-      const riga = Object.assign({}, v, { anno: +v.anno }); const sec = secondoDa(v);
+      const prima = st.find(x => +x.anno === +v.anno); const riga = Object.assign({}, prima || {}, v, { anno: +v.anno }); const sec = secondoDa(v);
       Object.keys(riga).forEach(k => { if (k.startsWith('s_')) delete riga[k]; });
       delete riga.secondo; if (sec) riga.secondo = sec;
       list.push(riga);
@@ -573,15 +616,14 @@ export function openColturaGruppo(ids, anno) {
       { k: 'coltura', l: 'Coltura', req: 1, half: 1, list: coltureNote() },
       { k: 'varieta', l: 'Varietà o ibrido', half: 1 },
       { k: 'semina', l: 'Data di semina o trapianto', t: 'date', half: 1 },
-      { k: 'resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha' },
-      { k: 'destinazione', l: 'Destinazione', half: 1, ph: 'Es. trinciato aziendale' }],
-    values: Object.assign({}, uguale || {}, { anno: String(y) }),
+      ...camposColtura()],
+    values: Object.assign({ resaUnita: 't/ha' }, uguale ? pulita(uguale) : {}, { anno: String(y) }),
     saveLabel: 'Salva su ' + campi.length + (campi.length === 1 ? ' campo' : ' campi'),
     onChange(ch, v) { if (ch === 'anno') setHint('anno', avviso(v.anno)); },
     onSave: async v => {
       const a = +v.anno; const riga = Object.assign({}, v, { anno: a });
       const rows = campi.map(c => {
-        const prec = (Array.isArray(c.colture) ? c.colture : []).find(x => +x.anno === a); const list = (Array.isArray(c.colture) ? c.colture : []).filter(x => +x.anno !== a); list.push(Object.assign({}, riga, prec && prec.secondo ? { secondo: prec.secondo } : {}));
+        const prec = (Array.isArray(c.colture) ? c.colture : []).find(x => +x.anno === a); const list = (Array.isArray(c.colture) ? c.colture : []).filter(x => +x.anno !== a); list.push(Object.assign({}, prec && +prec.anno === a ? prec : {}, riga, prec && prec.secondo ? { secondo: prec.secondo } : {}));
         const upd = Object.assign({}, c, { colture: list.sort((p, q) => q.anno - p.anno) });
         if (a === oggi) { upd.coltura = v.coltura; upd.varieta = v.varieta; }
         return { col: 'campi', id: c.id, data: upd };

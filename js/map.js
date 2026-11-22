@@ -15,6 +15,7 @@ import { NdviLayer, scene as s2scene, ndviLabel, ndviColor, campoNdviCached } fr
 import { collegamento } from './catasto.js';
 import { contiVisibili } from './views/conti.js';
 import { CatastoVettoriale, ZOOM_PARTICELLE } from './catastomappa.js';
+import { conParticelle, particelleDa } from './particelle.js';
 
 const CAT_URL = 'https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php';
 let map = null, fieldsGroup = null, base = {}, overlays = {}, mode = 'view', selected = null, editLayer = null, editId = null, drawFor = null, gpsMarker = null, gpsCircle = null, clickMarker = null;
@@ -526,7 +527,8 @@ export async function catAggiungi() {
   const geom = c.geom ? C.unisci(c.geom, p.geom) : p.geom; const ha = Math.round(areaHa(geom) * 10000) / 10000;
   const add = (p.multi || [p]).map(x => `Fg. ${x.foglioTxt} mapp. ${x.particella}`);
   const cur = (c.catasto || '').trim(); const next = [cur, ...add.filter(a => !cur.includes(a))].filter(Boolean).join('; ');
-  await store.put('campi', c.id, Object.assign({}, c, { geom, superficie: ha, catasto: next, comune: c.comune || p.comune }));
+  const pr = conParticelle(c, (p.multi || [p]).map(x => ({ comune: p.comune, foglio: x.foglioTxt, particella: x.particella, areaUsata: x.geom ? Math.round(areaHa(x.geom) * 10000) / 10000 : null })));
+  await store.put('campi', c.id, Object.assign({}, c, { geom, superficie: ha, catasto: next, comune: c.comune || p.comune }, pr || {}));
   toast(`${add.length === 1 ? 'Particella aggiunta' : add.length + ' particelle aggiunte'} a ${c.nome}: ora ${nf(ha, 2)} ha`); closeCat(); select(c.id);
 }
 export function closeCat() { $('#catCard').hidden = true; if (clickMarker) { map.removeLayer(clickMarker); clickMarker = null; } if (catLayer) { map.removeLayer(catLayer); catLayer = null; } catPart = null; }
@@ -534,7 +536,8 @@ export async function assignCatasto(txt, comune) {
   const c = selected && get('campi', selected); if (!c) return;
   const cur = (c.catasto || '').trim(); const add = txt.replace(/^Fg\. /, 'Fg. ');
   const next = cur ? (cur.includes(add) ? cur : cur + '; ' + add) : add;
-  await store.put('campi', c.id, Object.assign({}, c, { catasto: next, comune: c.comune || comune }));
+  const pr = conParticelle(c, particelleDa(add, comune || c.comune));
+  await store.put('campi', c.id, Object.assign({}, c, { catasto: next, comune: c.comune || comune }, pr || {}));
   toast('Dati catastali aggiunti a ' + c.nome); closeCat();
 }
 
