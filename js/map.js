@@ -140,7 +140,7 @@ function buildMap() {
   map.on('moveend', debounce(() => { const c = map.getCenter(); lsSet('ces.mapview', { lat: c.lat, lng: c.lng, z: map.getZoom() }); }, 400));
   let eraLontano = null;
   map.on('zoomend', () => { $('#map').classList.toggle('show-labels', map.getZoom() >= 14 && prefs.etichette); updateCatHint(); if (lontano() !== eraLontano) { eraLontano = lontano(); restyle(); } });
-  map.on('click', e => { if (mode !== 'view') return; if (selected) select(null); if (prefs.particelle && map.getZoom() >= 15) queryParcel(e.latlng); });
+  map.on('click', e => { if (prendiPunto(e)) return; if (mode !== 'view') return; if (selected) select(null); if (prefs.particelle && map.getZoom() >= 15) queryParcel(e.latlng); });
   map.on('locationfound', e => {
     if (!gpsMarker) { gpsMarker = L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 3, fillColor: '#2D7FF9', fillOpacity: 1, pane: 'markerPane' }).addTo(map); gpsCircle = L.circle(e.latlng, { radius: e.accuracy, color: '#2D7FF9', weight: 1, fillOpacity: .08, interactive: false }).addTo(map); }
     else { gpsMarker.setLatLng(e.latlng); gpsCircle.setLatLng(e.latlng).setRadius(e.accuracy); }
@@ -260,7 +260,7 @@ function drawFields() {
     const alone = L.geoJSON(c.geom, { style: () => s.alone, pane: 'campiAlone', interactive: false, pmIgnore: true });
     const linea = L.geoJSON(c.geom, { style: () => s.linea, pmIgnore: true });
     linea.on('click', e => {
-      L.DomEvent.stopPropagation(e);
+      L.DomEvent.stopPropagation(e); if (prendiPunto(e)) return;
       const oe = e.originalEvent || {};
       if (mode === 'multi') toggleMulti(c.id);
       else if (mode === 'view' && (oe.ctrlKey || oe.metaKey || oe.shiftKey)) startMulti(selected && selected !== c.id ? [selected, c.id] : [c.id]);
@@ -279,12 +279,13 @@ function drawFields() {
   drawNotes(); renderLegend(); renderWeather();
   if (mode === 'multi') barraMulti();
 }
+const ICONA_NOTA = { 'Danni da insetti': 'bug', 'Ristagno idrico': 'droplets', 'Presenza di erbe infestanti': 'leaf', 'Campionamento': 'flask-conical', 'Analisi colturale': 'flask-conical', 'Danni da patogeni': 'triangle-alert', 'Danno generico': 'triangle-alert' };
 function drawNotes() {
   if (!notesGroup) return; notesGroup.clearLayers(); if (!prefs.note) return;
   S.note.forEach(n => {
     let ll = null; if (n.lat && n.lon) ll = [+n.lat, +n.lon]; else { const c = get('campi', n.campoId); const ct = c && c.geom && centroid(c.geom); if (ct) ll = [ct[1], ct[0]]; }
     if (!ll) return;
-    const m = L.marker(ll, { icon: L.divIcon({ className: 'note-pin', html: ic('pencil'), iconSize: [30, 30], iconAnchor: [-6, 46] }), pmIgnore: true, title: n.titolo || 'Nota' });
+    const m = L.marker(ll, { icon: L.divIcon({ className: 'note-pin', html: ic(ICONA_NOTA[n.tipoNota] || 'pencil'), iconSize: [30, 30], iconAnchor: [-6, 46] }), pmIgnore: true, title: (n.titolo || 'Nota') + (n.tipoNota && n.tipoNota !== 'Nota generica' ? ' · ' + n.tipoNota : '') });
     m.on('click', e => { L.DomEvent.stopPropagation(e); openEdit('note', n.id); });
     m.addTo(notesGroup);
   });
@@ -599,6 +600,12 @@ export function applyPanel() {
 export function plusMenu() {
   openSheet('Aggiungi sulla mappa', `<div class="quick"><button data-act="mapDraw"><span class="q-ic">${ic('pentagon')}</span><b>Nuovo campo</b><span>Disegna il confine</span></button><button data-act="mapNoteHere"><span class="q-ic">${ic('pencil')}</span><b>Nota qui</b><span>Al centro della mappa</span></button><button data-act="new" data-form="operazioni"><span class="q-ic">${ic('notebook-pen')}</span><b>Attività</b><span>Su uno o più campi</span></button><label><span class="q-ic">${ic('file-up')}</span><b>Importa confini</b><span>KML, GeoJSON o shapefile</span><input type="file" accept=".kml,.geojson,.json,.zip,.shp" data-act="mapImport" hidden></label></div>`);
 }
+// Punto di una nota scelto toccando la mappa (1.67.0): il prossimo tocco, anche dentro un campo, chiama cb(lat, lon)
+let pick = null;
+function prendiPunto(e) { if (!pick || !e.latlng) return false; const f = pick; pick = null; document.body.classList.remove('map-pick'); f(+e.latlng.lat.toFixed(6), +e.latlng.lng.toFixed(6)); return true; }
+export const mappaPronta = () => !!map;
+export function sceltaPunto(cb) { pick = cb; document.body.classList.add('map-pick'); setTimeout(() => { if (pick === cb) annullaPunto(); }, 180e3); toast('Tocca la mappa nel punto della nota'); }
+export function annullaPunto() { pick = null; document.body.classList.remove('map-pick'); }
 export function noteHere() { closeSheet(); const c = map.getCenter(); setTimeout(() => openEdit('note', null, { lat: +c.lat.toFixed(6), lon: +c.lng.toFixed(6) }), 230); }
 export function noteForField(id) { openEdit('note', null, { campoId: id }); }
 

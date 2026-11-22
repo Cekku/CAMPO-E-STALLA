@@ -10,7 +10,7 @@
 import { S, D } from './state.js';
 import * as store from './store.js';
 import { N, okD, today, addDays, yearOf } from './util.js';
-import { capoI, cropOf, colturaAlla, campoHa, chiudeColtura, TIPI_EV } from './domain.js';
+import { capoI, cropOf, colturaAlla, campoHa, chiudeColtura, TIPI_EV, giacAl, segnoMov } from './domain.js';
 import { righeTrattamenti } from './registro.js';
 import { fatture, righe, litriRiga } from './conti/dati.js';
 import { DA_CLASSIFICARE, CAT_LATTE, CAT_PREMI } from './conti/regole.js';
@@ -216,27 +216,27 @@ function sezMagazzino(c) {
   if (!P.length) return null;
   const rows = [];
   for (const p of P) {
-    let g = N(p.giacenzaIniziale), car = 0, sca = 0, raz = 0, nm = 0;
+    // giacenza a fine mese con gli inventari; le differenze d'inventario del mese a parte (segnoMov: contato − calcolato)
+    const g = giacAl(p, c.rif); let car = 0, sca = 0, raz = 0, inv = 0, nm = 0;
     for (const m of S.movimenti) {
-      if (m.prodottoId !== p.id) continue; const q = N(m.quantita), s = m.tipo === 'Scarico';
-      if (!okD(m.data) || m.data <= c.rif) g += s ? -q : q;
-      if (nel(m.data, c.mese)) { nm++; if (s) { sca += q; if (m.razioneId) raz += q; } else car += q; }
+      if (m.prodottoId !== p.id || !nel(m.data, c.mese)) continue; const q = N(m.quantita); nm++;
+      if (m.tipo === 'Inventario') inv += segnoMov(m); else if (m.tipo === 'Scarico') { sca += q; if (m.razioneId) raz += q; } else car += q;
     }
     const avv = [];
     if (g < 0) avv.push('giacenza negativa'); else if (N(p.scortaMin) > 0 && g < N(p.scortaMin)) avv.push('sotto scorta');
     if (okD(p.scadenza) && g > 0) { if (p.scadenza < c.rif) avv.push('scaduto'); else if (p.scadenza <= addDays(c.rif, 60)) avv.push('scade il ' + p.scadenza.split('-').reverse().join('/')); }
     if (okD(p.scadenzaAut) && g > 0 && p.scadenzaAut <= addDays(c.rif, 90)) avv.push(p.scadenzaAut < c.rif ? 'non più autorizzato' : 'autorizzato fino al ' + p.scadenzaAut.split('-').reverse().join('/'));
     if (!nm && Math.abs(g) < 1e-9 && !avv.length) continue;
-    const r = { prodotto: p.nome || '', categoria: p.categoria || '', unita: p.unita || '', carichi: r2(car) || null, scarichi: r2(sca) || null, razioni: r2(raz) || null, giacenza: r2(g), scorta: N(p.scortaMin) || null, avviso: avv.join(', ') };
+    const r = { prodotto: p.nome || '', categoria: p.categoria || '', unita: p.unita || '', carichi: r2(car) || null, scarichi: r2(sca) || null, razioni: r2(raz) || null, inventario: r2(inv) || null, giacenza: r2(g), scorta: N(p.scortaMin) || null, avviso: avv.join(', ') };
     if (c.conti) r.valore = N(p.prezzo) > 0 && g > 0 ? r2(g * N(p.prezzo)) : null;
     rows.push(r);
   }
   rows.sort((a, b) => a.categoria.localeCompare(b.categoria, 'it') || a.prodotto.localeCompare(b.prodotto, 'it'));
   const movM = S.movimenti.filter(m => nel(m.data, c.mese));
   const occhio = rows.filter(r => r.avviso);
-  const K = [kpi('Carichi', movM.filter(m => m.tipo !== 'Scarico').length, 'n', { u: 'movimenti' }), kpi('Scarichi', movM.filter(m => m.tipo === 'Scarico').length, 'n', { u: 'movimenti', s: movM.filter(m => m.tipo === 'Scarico' && m.razioneId).length + ' dalle razioni' }), kpi('Da tenere d\'occhio', occhio.length, 'n', { s: occhio.filter(r => /scorta|negativa/.test(r.avviso)).length + ' sotto scorta · ' + occhio.filter(r => /scad|autorizz/.test(r.avviso)).length + ' in scadenza' })];
+  const K = [kpi('Carichi', movM.filter(m => m.tipo === 'Carico').length, 'n', { u: 'movimenti' }), kpi('Scarichi', movM.filter(m => m.tipo === 'Scarico').length, 'n', { u: 'movimenti', s: movM.filter(m => m.tipo === 'Scarico' && m.razioneId).length + ' dalle razioni' }), kpi('Da tenere d\'occhio', occhio.length, 'n', { s: occhio.filter(r => /scorta|negativa/.test(r.avviso)).length + ' sotto scorta · ' + occhio.filter(r => /scad|autorizz/.test(r.avviso)).length + ' in scadenza' })];
   if (c.conti) K.push(kpi('Valore in magazzino', r2(rows.reduce((t, r) => t + N(r.valore), 0)), 'eur', { s: 'giacenza × prezzo, a fine mese' }));
-  const cols = [{ k: 'prodotto', h: 'Prodotto' }, { k: 'categoria', h: 'Categoria' }, { k: 'unita', h: 'Unità' }, { k: 'carichi', h: 'Caricati', fmt: 'n2' }, { k: 'scarichi', h: 'Scaricati', fmt: 'n2' }, { k: 'razioni', h: 'Di cui razioni', fmt: 'n2' }, { k: 'giacenza', h: 'Giacenza a fine mese', fmt: 'n2' }, { k: 'scorta', h: 'Scorta minima', fmt: 'n2' }, ...(c.conti ? [{ k: 'valore', h: 'Valore', fmt: 'eur2' }] : []), { k: 'avviso', h: 'Da sapere' }];
+  const cols = [{ k: 'prodotto', h: 'Prodotto' }, { k: 'categoria', h: 'Categoria' }, { k: 'unita', h: 'Unità' }, { k: 'carichi', h: 'Caricati', fmt: 'n2' }, { k: 'scarichi', h: 'Scaricati', fmt: 'n2' }, { k: 'razioni', h: 'Di cui razioni', fmt: 'n2' }, { k: 'inventario', h: 'Differenza inventario', fmt: 'n2' }, { k: 'giacenza', h: 'Giacenza a fine mese', fmt: 'n2' }, { k: 'scorta', h: 'Scorta minima', fmt: 'n2' }, ...(c.conti ? [{ k: 'valore', h: 'Valore', fmt: 'eur2' }] : []), { k: 'avviso', h: 'Da sapere' }];
   const T = [tab('mag', 'Giacenze e movimenti', cols, rows, Object.assign({ sheet: 'Magazzino' }, c.conti ? { tot: { prodotto: 'Totale', valore: r2(rows.reduce((t, r) => t + N(r.valore), 0)) } } : {}))];
   if (occhio.length) T.push(tab('occhio', 'Sotto scorta o in scadenza', [{ k: 'prodotto', h: 'Prodotto' }, { k: 'giacenza', h: 'Giacenza', fmt: 'n2' }, { k: 'unita', h: 'Unità' }, { k: 'avviso', h: 'Cosa' }], occhio, { sheet: 'Da tenere d occhio' }));
   return { id: 'magazzino', titolo: 'Magazzino', icona: 'warehouse', area: 'magazzino', kpi: K, tabelle: T, note: [] };

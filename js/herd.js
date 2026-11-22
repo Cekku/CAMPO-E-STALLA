@@ -1,7 +1,7 @@
 // Stalle, box, silos, misure dai sistemi di stalla (Alpro, MooMonitor, SCR…) e indici della mandria
 import { S, D, get } from './state.js';
 import { N, okD, diff, today, addDays, sum, byDate } from './util.js';
-import { capoI, giac, razioneInfo, extraAlerts, kgUnita } from './domain.js';
+import { capoI, giac, razioneInfo, extraAlerts, kgUnita, segnoMov } from './domain.js';
 
 export const FASI_BOX = ['Lattazione', 'Fresche', 'Asciutta', 'Preparto', 'Box parto', 'Infermeria', 'Manze', 'Vitelle', 'Vitelli', 'Ingrasso', 'Altro'];
 export const boxKey = (s, b) => s.id + '|' + b.nome;
@@ -111,9 +111,11 @@ export function quotaSilo(s) {
     if (auto + acq + nd < 1e-9) { auto = acq = nd = 0; }
   };
   for (const d of [...giorni.keys()].sort()) {
-    const ms = giorni.get(d), car = ms.filter(m => m.tipo === 'Carico'), sca = ms.filter(m => m.tipo !== 'Carico');
+    const ms = giorni.get(d), car = ms.filter(m => m.tipo === 'Carico'), sca = ms.filter(m => m.tipo === 'Scarico');
     const prima = sca.reduce((t, m) => t + Math.max(0, N(m.quantita)), 0) <= auto + acq + nd + 1e-9;
     if (prima) { sca.forEach(scarica); car.forEach(carica); } else { car.forEach(carica); sca.forEach(scarica); }
+    // inventario a fine giornata: quello trovato in più è di origine non nota, quello che manca esce in proporzione
+    for (const m of ms.filter(m => m.tipo === 'Inventario')) { const dq = segnoMov(m); if (dq > 0) nd += dq; else if (dq < 0) scarica({ quantita: -dq }); }
   }
   const tot = auto + acq + nd, u = kgUnita(p), g = giac(p);   // le quote valgono sulla giacenza vera del magazzino
   if (tot <= 0 || g <= 0) return { auto: 0, acq: 0, nd: 0, pAuto: null, pAcq: null, pNd: null };
