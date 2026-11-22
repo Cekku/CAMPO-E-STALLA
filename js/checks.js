@@ -3,7 +3,7 @@
 import { S, get } from './state.js';
 import { N, okD, addDays, diff, fd, nf, today, yearOf, esc } from './util.js';
 import { ic } from './icons.js';
-import { giac, campoHa, colturaAlla } from './domain.js';
+import { giac, campoHa, colturaAlla, prodottiOp } from './domain.js';
 import { getMeteo } from './meteo.js';
 import { fitoLookup } from './fitodb.js';
 
@@ -34,7 +34,17 @@ export function cropMatch(coltura, impiego) {
   for (const k of fa) if (fb.has(k)) return true;
   return false;
 }
-export function impiegoPer(p, coltura) { return (p && Array.isArray(p.impieghi) ? p.impieghi : []).find(i => cropMatch(coltura, i.coltura)) || null; }
+// Avversità di una riga di etichetta (1.68.0): testo con le voci separate da virgola; vuoto = tutte
+export const avversitaDi = i => String((i && i.avversita) || '').split(/[,;]/).map(x => x.trim()).filter(Boolean);
+const avvMatch = (a, i) => { const n = norm(a); return !!n && avversitaDi(i).some(x => { const m = norm(x); return m && (n.includes(m) || m.includes(n)); }); };
+// Riga di etichetta per coltura e, se c'è, per avversità: prima quella dell'avversità, poi quella valida per tutte
+export function impiegoPer(p, coltura, avversita) {
+  const rr = (p && Array.isArray(p.impieghi) ? p.impieghi : []).filter(i => cropMatch(coltura, i.coltura));
+  if (!rr.length) return null;
+  return (avversita && rr.find(i => avvMatch(avversita, i))) || rr.find(i => !avversitaDi(i).length) || rr[0];
+}
+/** Avversità ammesse in etichetta per quella coltura (vuoto = l'etichetta non le elenca). */
+export const avversitaAmmesse = (p, coltura) => [...new Set((p && Array.isArray(p.impieghi) ? p.impieghi : []).filter(i => cropMatch(coltura, i.coltura)).flatMap(avversitaDi))];
 export const operatoreDi = nome => { const n = norm(nome); return n ? S.operatori.find(o => norm(o.nome) === n) || null : null; };
 
 // v: valori dell'operazione; campi: elenco dei campi coinvolti; opId: id dell'operazione in modifica (da escludere dai conteggi)
@@ -42,35 +52,43 @@ export function controlliOp(v, campi, opId = null) {
   const out = []; const add = (lv, t, s = '') => out.push({ lv, t, s });
   if (!campi.length) return out;
   const data = okD(v.data) ? v.data : today();
-  const p = get('prodotti', v.prodottoId);
-  const fito = isFitoOp(v.tipo) || (p && FITO.includes(p.categoria));
+  // un giro di controlli per ogni prodotto dell'attività (1.68.0); con un prodotto solo i testi restano quelli di prima
+  const righe = prodottiOp(v).map(r => Object.assign({}, r, { p: get('prodotti', r.prodottoId) })).filter(r => r.p);
+  const fito = isFitoOp(v.tipo) || righe.some(r => FITO.includes(r.p.categoria));
   const totHa = campi.reduce((t, c) => t + campoHa(c), 0);
+  const piu = righe.length > 1;
 
-  if (p) {
+  for (const r of righe) {
+    const p = r.p, np = piu ? p.nome + ': ' : '';
+    // in un trattamento il concime o il seme aggiunto in botte non ha i controlli dell'etichetta dei fitofarmaci
+    const pf = fito && (FITO.includes(p.categoria) || (isFitoOp(v.tipo) && (r.riga === 0 || !['Concime', 'Effluente', 'Seme'].includes(p.categoria))));
+    const dose = r.dose, qta = N(r.quantita) > 0 ? N(r.quantita) : r.riga ? N(r.dose) * totHa : 0;
     const db = fitoLookup(p.nReg);
-    if (fito) {
-      if (!p.nReg) add('warn', 'Numero di registrazione mancante', 'Inseriscilo nella scheda di ' + p.nome + ': è obbligatorio nel registro dei trattamenti.');
-      else if (db && db.revocato) add('bad', 'Prodotto revocato o non più autorizzato', 'Banca dati del Ministero: ' + (db.stato || 'revocato') + (db.scadenza ? ' (' + fd(db.scadenza) + ')' : ''));
+    if (pf) {
+      if (!p.nReg) add('warn', np + 'Numero di registrazione mancante', 'Inseriscilo nella scheda di ' + p.nome + ': è obbligatorio nel registro dei trattamenti.');
+      else if (db && db.revocato) add('bad', np + 'Prodotto revocato o non più autorizzato', 'Banca dati del Ministero: ' + (db.stato || 'revocato') + (db.scadenza ? ' (' + fd(db.scadenza) + ')' : ''));
       const scadAut = p.scadenzaAut || (db && db.scadenza);
-      if (okD(scadAut) && scadAut < data) add('bad', 'Autorizzazione scaduta', p.nome + ' era autorizzato fino al ' + fd(scadAut) + '.');
+      if (okD(scadAut) && scadAut < data) add('bad', np + 'Autorizzazione scaduta', p.nome + ' era autorizzato fino al ' + fd(scadAut) + '.');
     }
-    if (okD(p.scadenza) && p.scadenza < data) add('bad', 'Prodotto scaduto', 'Il lotto in magazzino è scaduto il ' + fd(p.scadenza) + '.');
-    const g = giac(p) + (opId ? N((S.movimenti.find(m => m.opId === opId) || {}).quantita) : 0);
-    if (v.stato !== 'Pianificata' && N(v.quantita) > 0 && N(v.quantita) > g + 1e-9) add('warn', 'Giacenza insufficiente', 'In magazzino ' + nf(g, 2) + ' ' + (p.unita || '') + ', ne servono ' + nf(v.quantita, 2) + '. Registra il carico mancante.');
+    if (okD(p.scadenza) && p.scadenza < data) add('bad', np + 'Prodotto scaduto', 'Il lotto in magazzino è scaduto il ' + fd(p.scadenza) + '.');
+    const g = giac(p) + (opId ? S.movimenti.filter(m => m.opId === opId && m.prodottoId === p.id).reduce((t, m) => t + N(m.quantita), 0) : 0);
+    if (v.stato !== 'Pianificata' && qta > 0 && qta > g + 1e-9 && p.categoria !== 'Effluente') add('warn', np + 'Giacenza insufficiente', 'In magazzino ' + nf(g, 2) + ' ' + (p.unita || '') + ', ne servono ' + nf(qta, 2) + '. Registra il carico mancante.');
 
-    if (fito) {
+    if (pf) {
       const hasImp = Array.isArray(p.impieghi) && p.impieghi.length;
-      if (!hasImp) add('warn', 'Impieghi in etichetta non inseriti', 'Aggiungi in ' + p.nome + ' le colture autorizzate con dose massima, carenza e numero di interventi: i controlli diventano completi.');
+      if (!hasImp) add('warn', np + 'Impieghi in etichetta non inseriti', 'Aggiungi in ' + p.nome + ' le colture autorizzate con dose massima, carenza e numero di interventi: i controlli diventano completi.');
       campi.forEach(c => {
         const col = (colturaAlla(c, data) || {}).coltura || '';
-        const pre = campi.length > 1 ? c.nome + ': ' : '';
+        const pre = np + (campi.length > 1 ? c.nome + ': ' : '');
         if (!col) { add('warn', pre + 'Coltura non indicata', 'Aggiungi la coltura dell\'annata ' + yearOf(data) + ' al campo per verificare l\'etichetta.'); return; }
         if (!hasImp) return;
-        const imp = impiegoPer(p, col);
+        const imp = impiegoPer(p, col, r.avversita);
         if (!imp) { add('bad', pre + 'Non autorizzato su ' + col, 'In etichetta: ' + p.impieghi.map(i => i.coltura).filter(Boolean).join(', ') + '.'); return; }
-        if (N(imp.doseMax) > 0 && N(v.dose) > 0 && N(v.dose) > N(imp.doseMax) + 1e-9) add('bad', pre + 'Dose oltre il massimo', nf(v.dose, 3) + ' ' + (p.unita || '') + '/ha contro un massimo di ' + nf(imp.doseMax, 3) + ' su ' + col + '.');
-        if (N(imp.doseMin) > 0 && N(v.dose) > 0 && N(v.dose) < N(imp.doseMin) - 1e-9) add('warn', pre + 'Dose sotto il minimo di etichetta', 'Minimo ' + nf(imp.doseMin, 3) + ' ' + (p.unita || '') + '/ha: rischio di efficacia ridotta e resistenze.');
-        const prev = S.operazioni.filter(o => o.id !== opId && o.campoId === c.id && o.prodottoId === p.id && o.stato !== 'Pianificata' && okD(o.data) && yearOf(o.data) === yearOf(data)).sort((a, b) => a.data.localeCompare(b.data));
+        const amm = avversitaAmmesse(p, col);
+        if (amm.length && r.avversita && !p.impieghi.some(i => cropMatch(col, i.coltura) && (!avversitaDi(i).length || avvMatch(r.avversita, i)))) add('warn', pre + 'Avversità non in etichetta', '"' + r.avversita + '" non è fra quelle ammesse su ' + col + ': ' + amm.join(', ') + '.');
+        if (N(imp.doseMax) > 0 && N(dose) > 0 && N(dose) > N(imp.doseMax) + 1e-9) add('bad', pre + 'Dose oltre il massimo', nf(dose, 3) + ' ' + (p.unita || '') + '/ha contro un massimo di ' + nf(imp.doseMax, 3) + ' su ' + col + '.');
+        if (N(imp.doseMin) > 0 && N(dose) > 0 && N(dose) < N(imp.doseMin) - 1e-9) add('warn', pre + 'Dose sotto il minimo di etichetta', 'Minimo ' + nf(imp.doseMin, 3) + ' ' + (p.unita || '') + '/ha: rischio di efficacia ridotta e resistenze.');
+        const prev = S.operazioni.filter(o => o.id !== opId && o.campoId === c.id && prodottiOp(o).some(x => x.prodottoId === p.id) && o.stato !== 'Pianificata' && okD(o.data) && yearOf(o.data) === yearOf(data)).sort((a, b) => a.data.localeCompare(b.data));
         if (N(imp.maxInterventi) > 0 && prev.length >= N(imp.maxInterventi)) add('bad', pre + 'Numero massimo di interventi raggiunto', prev.length + ' su ' + nf(imp.maxInterventi, 0) + ' consentiti nell\'anno su ' + col + '.');
         const before = prev.filter(o => o.data <= data).pop();
         if (N(imp.intervallo) > 0 && before) { const gg = diff(before.data, data); if (gg < N(imp.intervallo)) add('bad', pre + 'Intervallo troppo breve', 'Ultimo intervento il ' + fd(before.data) + ' (' + gg + ' giorni fa), servono almeno ' + nf(imp.intervallo, 0) + ' giorni.'); }
@@ -83,10 +101,11 @@ export function controlliOp(v, campi, opId = null) {
         }
       });
     }
-  } else if (fito) add('warn', 'Nessun prodotto scelto', 'Per il registro servono prodotto, dose e quantità.');
+    if (pf && N(dose) <= 0) add('warn', np + 'Dose per ettaro mancante', 'Indica la dose: serve al registro e ai controlli.');
+  }
+  if (!righe.length && fito) add('warn', 'Nessun prodotto scelto', 'Per il registro servono prodotto, dose e quantità.');
 
   if (fito) {
-    if (N(v.dose) <= 0 && p) add('warn', 'Dose per ettaro mancante', 'Indica la dose: serve al registro e ai controlli.');
     const op = operatoreDi(v.operatore);
     if (!v.operatore) add('warn', 'Operatore non indicato', 'Chi distribuisce deve avere il patentino (certificato di abilitazione all\'uso).');
     else if (!op) add('warn', 'Patentino di ' + v.operatore + ' non registrato', 'Aggiungi l\'operatore con numero e scadenza del patentino in La mia azienda → Operatori.');
@@ -115,7 +134,7 @@ export function controlliOp(v, campi, opId = null) {
     if (!v.bbch && !v.fase) add('info', 'Fase fenologica non indicata', 'Il registro elettronico chiede lo stadio BBCH della coltura.');
     if (!v.avversita) add('warn', 'Avversità non indicata', 'Scrivi il motivo del trattamento (malattia, insetto, infestanti).');
   }
-  if (!out.some(x => x.lv === 'bad' || x.lv === 'warn') && fito) add('ok', 'Tutti i controlli superati', p ? p.nome + ' su ' + nf(totHa, 2) + ' ha' : '');
+  if (!out.some(x => x.lv === 'bad' || x.lv === 'warn') && fito) add('ok', 'Tutti i controlli superati', righe.length ? righe.map(r => r.p.nome).join(' + ') + ' su ' + nf(totHa, 2) + ' ha' : '');
   return out;
 }
 

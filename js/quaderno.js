@@ -6,7 +6,7 @@ import { S, get } from './state.js';
 import * as store from './store.js';
 import { fd, nf, N, today, addDays, okD, yearOf } from './util.js';
 import { registra } from './automazioni.js';
-import { colturaAlla } from './domain.js';
+import { colturaAlla, prodottiOp } from './domain.js';
 import { isFitoOp, FITO, operatoreDi, controlliOp } from './checks.js';
 import { meteoAlMomento, farmPosition } from './meteo.js';
 import { haTrattati, eppoDi } from './registro.js';
@@ -36,10 +36,16 @@ async function salvaOp(o, ch) {
   const { id, ...d } = cur; const v = Object.assign(d, ch);
   MIEI.add(id); await store.put('operazioni', id, v);
   if (!('quantita' in ch) && !('stato' in ch)) return true;
-  const p = get('prodotti', v.prodottoId), c = get('campi', v.campoId), mov = S.movimenti.find(m => m.opId === id);
+  const p = get('prodotti', v.prodottoId), c = get('campi', v.campoId), mov = S.movimenti.find(m => m.opId === id && !m.riga);
   const eff = p && p.categoria === 'Effluente';
   if (!eff && v.prodottoId && N(v.quantita) > 0 && v.stato !== 'Pianificata') { const mid = mov ? mov.id : 'qm-' + id; MIEI.add(mid); await store.put('movimenti', mid, { data: v.data, prodottoId: v.prodottoId, tipo: 'Scarico', quantita: N(v.quantita), note: (v.tipo || '') + ' · ' + (c ? c.nome : ''), opId: id }); }
   else if (mov) { MIEI.add(mov.id); await store.remove('movimenti', mov.id); }
+  // altri prodotti della stessa attività (1.68.0): uno scarico ciascuno, con "riga"
+  for (const r of prodottiOp(v).filter(x => x.riga)) {
+    const q = get('prodotti', r.prodottoId), m2 = S.movimenti.find(m => m.opId === id && m.riga === r.riga);
+    if (q && q.categoria !== 'Effluente' && N(r.quantita) > 0 && v.stato !== 'Pianificata') { const mid = m2 ? m2.id : 'qm-' + id + '-' + r.riga; MIEI.add(mid); await store.put('movimenti', mid, { data: v.data, prodottoId: r.prodottoId, tipo: 'Scarico', quantita: N(r.quantita), note: (v.tipo || '') + ' · ' + (c ? c.nome : ''), opId: id, riga: r.riga }); }
+    else if (m2) { MIEI.add(m2.id); await store.remove('movimenti', m2.id); }
+  }
   return true;
 }
 

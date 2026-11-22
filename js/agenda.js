@@ -112,7 +112,10 @@ const RICHIESTI = [
 ];
 export function statoRegistro(y) {
   const righe = righeTrattamenti(y);
-  const rows = righe.map(r => ({ r, manca: RICHIESTI.filter(([, , ok]) => !ok(r)).map(([, l]) => l) }));
+  // un trattamento con più prodotti ha più righe (1.68.0): si conta una volta, con i dati mancanti di tutte le sue righe
+  const per = new Map();
+  for (const r of righe) { const manca = RICHIESTI.filter(([, , ok]) => !ok(r)).map(([, l]) => l); const x = per.get(r.o.id); if (x) manca.forEach(l => { if (!x.manca.includes(l)) x.manca.push(l); }); else per.set(r.o.id, { r, manca }); }
+  const rows = [...per.values()];
   const inc = rows.filter(x => x.manca.length);
   return { tot: rows.length, ok: rows.length - inc.length, inc };
 }

@@ -3,10 +3,11 @@ import { S, D, UI, get } from './state.js';
 import { N, nf, fd, today, addDays, byName, okD, yearOf } from './util.js';
 import * as store from './store.js';
 import { openForm, openSheet, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
+import { prodottiOp } from './domain.js';
 import { COLTURE, coltureNote, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo, cropOf, kgUnita, colturaAlla } from './domain.js';
 import { areaHa } from './geo.js';
 import { meteoAlMomento } from './meteo.js';
-import { controlliOp, checksHTML, forceOk, isFitoOp, FITO } from './checks.js';
+import { controlliOp, checksHTML, forceOk, isFitoOp, FITO, impiegoPer, avversitaAmmesse } from './checks.js';
 import { fitoLookup, fitoSearch, fitoMeta, etichettaUrl } from './fitodb.js';
 import { esc } from './util.js';
 import { haTrattati } from './registro.js';
@@ -48,7 +49,7 @@ export const BBCH = ['00 Seme secco', '09 Emergenza', '10-19 Sviluppo fogliare',
 // Riquadro dei controlli, condiviso tra modulo singolo e registrazione guidata
 export function runChecks(v, campi, opId) {
   const box = document.getElementById('box_controlli'); if (!box) return [];
-  const list = isFitoOp(v.tipo) || (get('prodotti', v.prodottoId) && FITO.includes(get('prodotti', v.prodottoId).categoria)) ? controlliOp(v, campi, opId) : [];
+  const list = isFitoOp(v.tipo) || prodottiOp(v).some(r => FITO.includes((get('prodotti', r.prodottoId) || {}).categoria)) ? controlliOp(v, campi, opId) : [];
   const was = document.getElementById('chkForce'); const keep = was && was.checked;
   box.innerHTML = checksHTML(list); box.hidden = !list.length;
   const now = document.getElementById('chkForce'); if (now && keep) now.checked = true;
@@ -71,6 +72,24 @@ async function mettiInCoda(eventoId, v) {
   if (FORM) FORM.done = 'Evento salvato e messo in coda per ' + dest.map(d => d === 'moomonitor' ? 'MooMonitor' : 'Si@lleva').join(' e ');
 }
 
+// Etichetta sulla coltura del campo (1.68.0): avversità ammesse nell'elenco, dose e carenza nel suggerimento,
+// e nell'elenco dei prodotti i fitofarmaci non autorizzati su quella coltura sono segnati
+export function etichettaAuto(ch, v, campo) {
+  if (![null, 'tipo', 'prodottoId', 'campoId', 'data', 'avversita'].includes(ch) || !isFitoOp(v.tipo)) return;
+  const col = campo ? (colturaAlla(campo, okD(v.data) ? v.data : today()) || {}).coltura || '' : '';
+  const p = get('prodotti', v.prodottoId);
+  const dl = document.getElementById('dl_avversita');
+  if (dl && ch !== 'avversita') dl.innerHTML = (p && col ? avversitaAmmesse(p, col) : []).map(x => `<option value="${esc(x)}">`).join('');
+  const imp = p && col ? impiegoPer(p, col, v.avversita) : null;
+  const amm = p && col ? avversitaAmmesse(p, col) : [];
+  setHint('avversita', imp ? 'In etichetta su ' + col + (amm.length ? ': ' + amm.join(', ') : '') + (N(imp.doseMax) > 0 ? ' · dose fino a ' + nf(imp.doseMax, 3) + ' ' + (p.unita || '') + '/ha' : '') + (N(imp.carenza) ? ' · carenza ' + imp.carenza + ' giorni' : '') : '');
+  const sel = document.getElementById('f_prodottoId');
+  if (sel && ['null', 'tipo', 'campoId', 'data'].includes(String(ch))) for (const o of sel.options) {
+    if (!o.value) continue; if (o.dataset.t === undefined) o.dataset.t = o.textContent;
+    const q = get('prodotti', o.value); const no = col && q && FITO.includes(q.categoria) && Array.isArray(q.impieghi) && q.impieghi.length && !impiegoPer(q, col);
+    o.textContent = o.dataset.t + (no ? ' · non autorizzato su ' + col : '');
+  }
+}
 // Sottotipo (1.67.0): l'elenco cambia con il tipo di attività
 export function listaSottotipi(tipo) {
   const dl = document.getElementById('dl_sottotipo'); if (!dl) return;
@@ -127,6 +146,8 @@ export const SPEC = {
       { k: 'prodottoId', l: 'Prodotto dal magazzino', t: 'select', opts: oProd(['Fitofarmaco', 'Diserbante', 'Concime', 'Effluente', 'Seme', 'Altro', 'Gasolio']), show: isT(...OP_PROD), blank: 'Nessun prodotto' },
       { k: 'dose', l: 'Dose', t: 'number', half: 1, unit: '/ha', show: v => !!v.prodottoId },
       { k: 'quantita', l: 'Quantità totale', t: 'number', half: 1, show: v => !!v.prodottoId, hint: 'Dose × ettari, si scarica dal magazzino' },
+      { k: 'altriProdotti', l: 'Altri prodotti nella stessa passata (miscela in botte, seme e concime…)', t: 'rows', addLabel: 'Aggiungi prodotto', show: v => !!v.prodottoId && OP_PROD.includes(v.tipo), hint: "Totale vuoto = dose × ettari. Ogni prodotto si scarica dal magazzino e passa dai controlli dell'etichetta.",
+        cols: [{ k: 'prodottoId', l: 'Prodotto', t: 'select', opts: oProd(['Fitofarmaco', 'Diserbante', 'Concime', 'Effluente', 'Seme', 'Altro']), ph: 'Scegli', w: '1.6fr' }, { k: 'dose', l: 'Dose', unit: '/ha', t: 'number', ph: 'Dose', w: '70px' }, { k: 'quantita', l: 'Totale', t: 'number', ph: 'Totale', w: '76px' }, { k: 'avversita', l: 'Avversità', ph: 'Come sopra', w: '1fr' }] },
       { k: 'profondita', l: 'Profondità di lavoro', t: 'seg', opts: PROFONDITA, show: v => v.tipo === 'Lavorazione terreno' && /arat|ripunt|vang|disca/i.test(v.sottotipo || '') },
       { k: 'trasemina', l: 'È una trasemina?', t: 'seg', opts: ['Sì', 'No'], half: 1, show: isT('Semina') },
       { k: 'concFondo', l: 'Concimazione di fondo?', t: 'seg', opts: ['Sì', 'No'], half: 1, show: isT('Concimazione') },
@@ -136,7 +157,7 @@ export const SPEC = {
       { k: 'portata', l: 'Portata', t: 'number', half: 1, unit: 'm³/h', show: isT('Irrigazione') },
       { k: 'durataIrr', l: 'Durata', t: 'number', half: 1, unit: 'h', show: isT('Irrigazione'), hint: 'Vuoto = dalle ore di inizio e fine (lavori di un giorno)' },
       { k: 'volumeIrr', l: 'Acqua distribuita', t: 'number', half: 1, unit: 'm³', show: isT('Irrigazione'), hint: 'Portata × durata, si calcola da solo' },
-      { k: 'avversita', l: 'Avversità o motivo', show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. piralide, infestanti dicotiledoni' },
+      { k: 'avversita', l: 'Avversità o motivo', list: [], hint: ' ', show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. piralide, infestanti dicotiledoni' },
       { k: 'bbch', l: 'Stadio BBCH', half: 1, list: BBCH, show: isT('Trattamento fitosanitario', 'Diserbo', 'Concimazione'), ph: 'Es. 32' },
       { k: 'fase', l: 'Fase fenologica', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo', 'Concimazione'), ph: 'Es. 6 foglie' },
       { k: 'volumeAcqua', l: 'Volume d\'acqua', t: 'number', half: 1, unit: 'l/ha', show: isT('Trattamento fitosanitario', 'Diserbo') },
@@ -177,6 +198,7 @@ export const SPEC = {
       if (['Trattamento fitosanitario', 'Diserbo'].includes(v.tipo) && [null, 'data', 'oraInizio', 'tipo'].includes(ch)) meteoAuto(ch, v);
       if (['Raccolta', 'Sfalcio'].includes(v.tipo) && [null, 'campoId', 'data', 'tipo'].includes(ch)) { const y = yearOf(v.data), t = S.carichi.filter(x => x.campoId === v.campoId && yearOf(x.data) === y).reduce((s, x) => s + N(x.netto), 0) / 1000; setHint('raccolto', v.campoId && t > 0 ? 'Dalle pesate di quest\'anno: ' + nf(t, 1) + ' t' : ' '); }
       if (ch === null || ch === 'tipo') listaSottotipi(v.tipo);
+      etichettaAuto(ch, v, get('campi', v.campoId));
       oreDaOrari(ch, v); volumeIrrAuto(ch, v);
       chiudeAuto(ch, v, v.tipo, v.campoId);
       const c0 = get('campi', v.campoId); runChecks(Object.assign({}, v, readForm()), c0 ? [c0] : [], FORM && FORM.id);
@@ -184,13 +206,23 @@ export const SPEC = {
     async save(id, v) {
       v.dataFine = okD(v.dataFine) && v.dataFine > v.data ? v.dataFine : null;
       if (FORM && FORM.checks) { const bad = FORM.checks.filter(x => x.lv === 'bad'); v.controlli = bad.length ? bad.map(x => x.t) : null; v.controllato = isFitoOp(v.tipo) ? today() : null; }
+      const c = get('campi', v.campoId);
+      // altri prodotti (1.68.0): solo le righe con il prodotto; il totale vuoto si calcola da dose × ettari
+      const altri = (Array.isArray(v.altriProdotti) ? v.altriProdotti : []).filter(r => r && r.prodottoId).map(r => Object.assign({}, r, { quantita: N(r.quantita) > 0 ? N(r.quantita) : N(r.dose) > 0 && c ? Math.round(N(r.dose) * haTrattati(v, c) * 100) / 100 : null }));
+      v.altriProdotti = v.prodottoId && altri.length ? altri : null;
       const nid = await store.put('operazioni', id, v);
-      const mov = S.movimenti.find(m => m.opId === nid); const c = get('campi', v.campoId);
-      const eff = v.prodottoId && (get('prodotti', v.prodottoId) || {}).categoria === 'Effluente';   // gli effluenti non hanno giacenza
-      if (!eff && v.prodottoId && N(v.quantita) > 0 && v.stato !== 'Pianificata') await store.put('movimenti', mov ? mov.id : null, { data: v.data, prodottoId: v.prodottoId, tipo: 'Scarico', quantita: N(v.quantita), note: (v.tipo || '') + ' · ' + (c ? c.nome : ''), opId: nid });
-      else if (mov) await store.remove('movimenti', mov.id);
+      // uno scarico di magazzino per prodotto: riga 0 = il primo (senza "riga", come prima), poi riga 1, 2…
+      const movs = S.movimenti.filter(m => m.opId === nid);
+      for (const r of prodottiOp(v)) {
+        const mov = movs.find(m => (m.riga || 0) === r.riga);
+        const eff = (get('prodotti', r.prodottoId) || {}).categoria === 'Effluente';   // gli effluenti non hanno giacenza
+        if (!eff && N(r.quantita) > 0 && v.stato !== 'Pianificata') await store.put('movimenti', mov ? mov.id : null, Object.assign({ data: v.data, prodottoId: r.prodottoId, tipo: 'Scarico', quantita: N(r.quantita), note: (v.tipo || '') + ' · ' + (c ? c.nome : ''), opId: nid }, r.riga ? { riga: r.riga } : {}));
+        else if (mov) await store.remove('movimenti', mov.id);
+      }
+      const usate = new Set(prodottiOp(v).map(r => r.riga));
+      for (const m of movs) if (!usate.has(m.riga || 0)) await store.remove('movimenti', m.id);
     },
-    async remove(o) { const mov = S.movimenti.find(m => m.opId === o.id); if (mov) await store.remove('movimenti', mov.id); await store.remove('operazioni', o.id); },
+    async remove(o) { for (const m of S.movimenti.filter(x => x.opId === o.id)) await store.remove('movimenti', m.id); await store.remove('operazioni', o.id); },
   },
   carichi: {
     title: 'Pesata del raccolto', icon: 'scale',
@@ -247,8 +279,8 @@ export const SPEC = {
       { k: 'scadenzaAut', l: 'Autorizzazione valida fino al', t: 'date', half: 1, show: v => FITO.includes(v.categoria) },
       { k: 'impresa', l: 'Titolare della registrazione', half: 1, show: v => FITO.includes(v.categoria) },
       { k: 's2', l: 'Impieghi autorizzati (dall\'etichetta)', t: 'section', show: v => FITO.includes(v.categoria) },
-      { k: 'impieghi', l: 'Una riga per coltura: i trattamenti vengono controllati su questi limiti', t: 'rows', show: v => FITO.includes(v.categoria), addLabel: 'Aggiungi coltura',
-        cols: [{ k: 'coltura', l: 'Coltura', list: [...COLTURE.filter(c => c !== 'Riposo'), 'Cereali autunno-vernini', 'Mais', 'Frumento', 'Prati e pascoli'], ph: 'Coltura', w: 'minmax(110px,2fr)' }, { k: 'doseMin', l: 'Dose min', unit: '/ha', t: 'number', ph: '—' }, { k: 'doseMax', l: 'Dose max', unit: '/ha', t: 'number', ph: '—' }, { k: 'carenza', l: 'Carenza', unit: 'gg', t: 'number', ph: '—' }, { k: 'maxInterventi', l: 'Interventi', unit: 'max/anno', t: 'number', ph: '—' }, { k: 'intervallo', l: 'Intervallo', unit: 'gg', t: 'number', ph: '—' }] },
+      { k: 'impieghi', l: 'Una riga per coltura (o per coltura e avversità, se la dose cambia): i trattamenti vengono controllati su questi limiti', t: 'rows', show: v => FITO.includes(v.categoria), addLabel: 'Aggiungi coltura',
+        cols: [{ k: 'coltura', l: 'Coltura', list: [...COLTURE.filter(c => c !== 'Riposo'), 'Cereali autunno-vernini', 'Mais', 'Frumento', 'Prati e pascoli'], ph: 'Coltura', w: 'minmax(110px,2fr)' }, { k: 'avversita', l: 'Avversità', ph: 'Tutte', w: 'minmax(100px,1.6fr)' }, { k: 'doseMin', l: 'Dose min', unit: '/ha', t: 'number', ph: '—' }, { k: 'doseMax', l: 'Dose max', unit: '/ha', t: 'number', ph: '—' }, { k: 'carenza', l: 'Carenza', unit: 'gg', t: 'number', ph: '—' }, { k: 'maxInterventi', l: 'Interventi', unit: 'max/anno', t: 'number', ph: '—' }, { k: 'intervallo', l: 'Intervallo', unit: 'gg', t: 'number', ph: '—' }] },
       { k: 'sospLatte', l: 'Sospensione latte', t: 'number', half: 1, unit: 'giorni', show: v => v.categoria === 'Farmaco veterinario' },
       { k: 'sospCarne', l: 'Sospensione carne', t: 'number', half: 1, unit: 'giorni', show: v => v.categoria === 'Farmaco veterinario' },
       { k: 'fornitore', l: 'Fornitore', half: 1 },

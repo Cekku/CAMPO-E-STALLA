@@ -213,9 +213,17 @@ export function mezzoTagliando(m) {
   const ult = t.length ? Math.max(...t) : N(m.oreUltimoTagliando); const int = N(m.intervallo);
   return int > 0 ? { ult, prossimo: ult + int } : null;
 }
+// Prodotti di un'attività (1.68.0): il primo nei campi di sempre (prodottoId, dose, quantita, avversita),
+// gli altri in altriProdotti [{ prodottoId, dose, quantita, avversita }]; riga 0 = il primo
+export function prodottiOp(o) {
+  if (!o) return [];
+  const out = o.prodottoId ? [{ prodottoId: o.prodottoId, dose: o.dose, quantita: o.quantita, avversita: o.avversita, riga: 0 }] : [];
+  (Array.isArray(o.altriProdotti) ? o.altriProdotti : []).forEach((r, i) => { if (r && r.prodottoId) out.push({ prodottoId: r.prodottoId, dose: r.dose, quantita: r.quantita, avversita: r.avversita || o.avversita, riga: i + 1 }); });
+  return out;
+}
 export function opCosto(o) {
-  const p = get('prodotti', o.prodottoId), m = get('mezzi', o.mezzoId);
-  const prod = p ? N(o.quantita) * N(p.prezzo) : 0, mez = m ? N(o.ore) * N(m.costoOra) : 0, extra = N(o.costoExtra);
+  const m = get('mezzi', o.mezzoId);
+  const prod = prodottiOp(o).reduce((t, r) => { const p = get('prodotti', r.prodottoId); return t + (p ? N(r.quantita) * N(p.prezzo) : 0); }, 0), mez = m ? N(o.ore) * N(m.costoOra) : 0, extra = N(o.costoExtra);
   return { prod, mez, extra, tot: prod + mez + extra, ricavo: N(o.raccolto) * N(o.prezzoVendita) };
 }
 export function campoInfo(c, anno = UI.anno) {

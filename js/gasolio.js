@@ -92,7 +92,7 @@ export function piano(S, cfg = {}) {
   const { p, tutti } = gasolioDa(S, cfg); out.p = p; out.tutti = tutti;
   const dal = cfg.dal; if (!dal) return out;
   const fatti = cfg.fatti || {};
-  const movOp = new Map(S.movimenti.filter(m => m.opId).map(m => [m.opId, m]));
+  const movOp = new Map(S.movimenti.filter(m => m.opId && !m.riga).map(m => [m.opId, m]));
   const miei = new Map(S.movimenti.filter(m => m.gasOp).map(m => [m.gasOp, m]));
   const ops = new Map(S.operazioni.map(o => [o.id, o]));
   // scarichi stimati la cui operazione non c'è più (o non ha più ore o mezzo): si tolgono se nessuno li ha cambiati
@@ -100,7 +100,7 @@ export function piano(S, cfg = {}) {
     const o = ops.get(opId);
     // … o se poi nel lavoro si è scelto il gasolio a mano: altrimenti dal magazzino uscirebbero tutti e due
     const m0 = o && movOp.get(o.id);
-    const aMano = o && (isGasolio(prodotto(S, o.prodottoId)) || (m0 && m0.id !== mv.id && isGasolio(prodotto(S, m0.prodottoId))));
+    const aMano = o && (isGasolio(prodotto(S, o.prodottoId)) || (o.altriProdotti || []).some(r => isGasolio(prodotto(S, r.prodottoId))) || (m0 && m0.id !== mv.id && isGasolio(prodotto(S, m0.prodottoId))));
     if ((!o || !fatta(o) || !(N(o.ore) > 0) || !o.mezzoId || aMano) && N(mv.quantita) === N(mv.stima)) out.togli.push({ col: 'movimenti', id: mv.id, del: true });
   }
   // mezzo con un rifornimento dal giorno di partenza: il gasolio dei lavori fino a quel giorno è già uscito con il

@@ -2,7 +2,7 @@
 // Valori di partenza indicativi (DM 25/02/2016 e regolamento regionale): l'utente li controlla con il tecnico e li cambia in Impostazioni.
 import { S, get } from './state.js';
 import { N, yearOf } from './util.js';
-import { cropOf, secondoOf, campoHa, capoI, COLTURE, coltureNote } from './domain.js';
+import { cropOf, secondoOf, campoHa, capoI, COLTURE, coltureNote, prodottiOp } from './domain.js';
 
 // Limite di azoto da effluenti zootecnici, kg N per ettaro all'anno (media sulla superficie aziendale)
 export const LIMITI = { ZVN: 170, Ordinaria: 340 };
@@ -33,11 +33,21 @@ export function masDi(coltura, cfg = nitConfig()) {
 const inKg = (q, u) => q * ({ q: 100, t: 1000, 'm³': 1000 }[u] || 1);
 
 // Azoto, fosforo e potassio portati da un'attività. Concime: titolo in % sul peso. Effluente: kg per unità (m³ o t).
+// Con più prodotti nella stessa attività (1.68.0) si sommano
 export function nutrientiOp(o) {
-  const p = o && o.prodottoId ? get('prodotti', o.prodottoId) : null;
+  let tot = null;
+  for (const r of prodottiOp(o)) {
+    const x = nutrientiRiga(o, r); if (!x) continue;
+    tot = tot || { n: 0, nEff: 0, nZoo: 0, p: 0, k: 0 };
+    for (const k in tot) tot[k] += x[k];
+  }
+  return tot;
+}
+function nutrientiRiga(o, r) {
+  const p = r.prodottoId ? get('prodotti', r.prodottoId) : null;
   if (!p || !CATS_N.includes(p.categoria)) return null;
   const c = get('campi', o.campoId);
-  const q = N(o.quantita) || (c ? N(o.dose) * campoHa(c) : 0);
+  const q = N(r.quantita) || (c ? N(r.dose) * campoHa(c) : 0);
   if (!q) return null;
   if (p.categoria === 'Effluente') {
     const n = q * N(p.kgN), eff = p.effN !== undefined && p.effN !== null && p.effN !== '' ? N(p.effN) : EFF_DEF;
