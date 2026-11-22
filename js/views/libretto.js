@@ -202,14 +202,15 @@ export function aggiungiTrattori() {
 
 /* ---------- allegati nel modulo dell'intervento ---------- */
 const kb = n => n >= 1024 ? nf(n / 1024, 1) + ' MB' : n + ' kB';
-export function boxAllegati() {
+// Usato anche da movimenti di magazzino (bolla) e note (foto): `l` = titolo del riquadro, `scan` = pulsanti di lettura della fattura (solo manutenzioni)
+export function boxAllegati({ l = 'Fattura e foto', scan = true } = {}) {
   const box = document.getElementById('box_allegati'); if (!box || !FORM) return;
   if (!FORM.allegati) FORM.allegati = ((FORM.values || {}).allegati || []).slice();
   const draw = () => {
-    if (!store.puoAllegati()) { const n = FORM.allegati.length; box.innerHTML = `<span class="flabel">Fattura e foto</span><p class="muted small">${n ? n + (n === 1 ? ' allegato. ' : ' allegati. ') : ''}${ALL.NO_ALLEGATI}</p>`; return; }
+    if (!store.puoAllegati()) { const n = FORM.allegati.length; box.innerHTML = `<span class="flabel">${esc(l)}</span><p class="muted small">${n ? n + (n === 1 ? ' allegato. ' : ' allegati. ') : ''}${ALL.NO_ALLEGATI}</p>`; return; }
     const att = lsGet('ces.scan', null), attesa = att && Date.now() - att.t < 3 * 3600e3;
-    box.innerHTML = `<span class="flabel">Fattura e foto</span>${FORM.allegati.length ? `<div class="all-list">${FORM.allegati.map(a => `<div class="all-it"><button type="button" class="all-open" data-all="apri" data-id="${a.id}">${ic(/pdf/.test(a.tipo) ? 'file-text' : 'camera')}<span><b>${esc(a.nome)}</b><small>${kb(a.kb || 0)}</small></span></button><button type="button" class="iconbtn" data-all="via" data-id="${a.id}" aria-label="Togli ${esc(a.nome)}">${ic('x')}</button></div>`).join('')}</div>` : ''}
-    <div class="btns"><label class="btn sm">${ic('camera')}Fotografa<input type="file" accept="image/*" capture="environment" hidden data-all="file"></label><label class="btn sm">${ic('paperclip')}Scegli file<input type="file" accept="image/*,application/pdf,.pdf" multiple hidden data-all="file"></label><button type="button" class="btn sm ghost" data-all="scan">${ic('sparkles')}Leggi con Claude</button>${attesa ? `<button type="button" class="btn sm primary" data-all="incolla">${ic('clipboard-paste')}Incolla i dati letti</button>` : ''}</div><div class="all-view" hidden></div>`;
+    box.innerHTML = `<span class="flabel">${esc(l)}</span>${FORM.allegati.length ? `<div class="all-list">${FORM.allegati.map(a => `<div class="all-it"><button type="button" class="all-open" data-all="apri" data-id="${a.id}">${ic(/pdf/.test(a.tipo) ? 'file-text' : 'camera')}<span><b>${esc(a.nome)}</b><small>${kb(a.kb || 0)}</small></span></button><button type="button" class="iconbtn" data-all="via" data-id="${a.id}" aria-label="Togli ${esc(a.nome)}">${ic('x')}</button></div>`).join('')}</div>` : ''}
+    <div class="btns"><label class="btn sm">${ic('camera')}Fotografa<input type="file" accept="image/*" capture="environment" hidden data-all="file"></label><label class="btn sm">${ic('paperclip')}Scegli file<input type="file" accept="image/*,application/pdf,.pdf" multiple hidden data-all="file"></label>${scan ? `<button type="button" class="btn sm ghost" data-all="scan">${ic('sparkles')}Leggi con Claude</button>` : ''}${scan && attesa ? `<button type="button" class="btn sm primary" data-all="incolla">${ic('clipboard-paste')}Incolla i dati letti</button>` : ''}</div><div class="all-view" hidden></div>`;
   };
   draw();
   box.onclick = async e => {
@@ -228,13 +229,15 @@ export function boxAllegati() {
   };
   FORM.redrawAllegati = draw;
 }
-export async function salvaAllegati(id, v) {
-  const prima = id ? ((get('manutenzioni', id) || {}).allegati || []) : [];
+// `col`: raccolta del record (manutenzioni, movimenti, note); i codici dei ricambi solo per le manutenzioni
+export async function salvaAllegati(id, v, col = 'manutenzioni') {
+  const prima = id ? ((get(col, id) || {}).allegati || []) : [];
   const ora = (FORM && FORM.allegati) || prima;
-  v.allegati = ora;
+  if (ora.length || prima.length || v.allegati) v.allegati = ora;
   const cod = v._codici; delete v._codici;
-  await store.put('manutenzioni', id, v);
+  const nid = await store.put(col, id, v);
   prima.filter(a => !ora.some(b => b.id === a.id)).forEach(a => ALL.elimina(a.id));
+  if (col !== 'manutenzioni') return nid;
   // codici ricambio letti dalla fattura: riempiono la scheda dei pezzi che non ne hanno ancora uno
   const m = get('mezzi', v.mezzoId);
   if (m && cod && Object.keys(cod).length) { const codici = Object.assign({}, cod, m.codici || {}); if (JSON.stringify(codici) !== JSON.stringify(m.codici || {})) await store.put('mezzi', m.id, Object.assign({}, m, { codici })); }

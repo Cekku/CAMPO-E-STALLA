@@ -49,3 +49,8 @@ Guida completa e di passaggio: **`LIBRETTO-TRATTORI.md`**. In breve:
 - Campi nuovi in `js/forms.js`: `mezzi.consumoLh` (casella "Consumo di gasolio") e `movimenti.mezzoId` (casella "Messo nel mezzo").
 
 Revisione della 1.66.0: in `gasolio.js` `piano()` la stima `gs-<lavoro>` non toccata si toglie anche quando nel lavoro si sceglie poi il gasolio a mano (prodotto del lavoro o movimento `opId` di gasolio): prima uscivano tutti e due. Provato in Node.
+
+## Campi nuovi dei mezzi e tipi (rilascio 4, 22/11/2026)
+
+- Campi: `telaio`, `potenza` + `potenzaU` ('CV'/'kW'), `larghezza` (m), `inAffitto` ('Sì'), `dataImmatricolazione`, `dataAcquisto`, `vitaAnni` (scheda: "fino al" = anno di acquisto + vita). Visibili nella scheda (`views/mezzi.js`), potenza anche nella card; CSV `mezzi` dal pulsante in testa.
+- `TIPI_MEZZO` in `domain.js`: i primi 8 invariati, poi i tipi nuovi; `isTrattore` = solo 'Trattore'; `Irroratrice` è usata da `checks.js` e dal registro. `TIPI_MAN` ha tipi nuovi (rottura, usura, taratura, lavaggio della botte, sanificazione); Tagliando invariato.

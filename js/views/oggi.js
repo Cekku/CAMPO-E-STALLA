@@ -2,8 +2,7 @@
 import { S, D, UI, azienda, get } from '../state.js';
 import { esc, nf, eur, fd, fdPeriodo, fineDi, fdShort, fdLong, today, sum, byDate, N, plural, yearOf, diff, okD, addDays } from '../util.js';
 import { ic } from '../icons.js';
-import { prodottiOp } from '../domain.js';
-import { allAlerts, campoHa, capoI, giac, cropColor, cropColorName, cropOf, colturaAlla, cropOra, cropColorOra, VUOTO, opCosto, mezzoOre, mezzoTagliando } from '../domain.js';
+import { allAlerts, campoHa, capoI, giac, cropColor, cropColorName, cropOf, colturaAlla, cropOra, cropColorOra, VUOTO, opCosto, mezzoOre, mezzoTagliando, segnoMov, prodottiOp } from '../domain.js';
 import { isTrattore, compDi, stato } from '../trattori.js';
 import { farmSvg, thumb, satSvg } from '../geo.js';
 import { getMeteo, wmo } from '../meteo.js';
@@ -144,7 +143,7 @@ export function render() {
       <div class="o1">${agendaCard('campagna')}</div>
       <section class="card o4"><div class="card-h"><h2>${ic('notebook-pen')}Ultime attività</h2><button class="btn sm ghost" data-act="nav" data-tab="attivita">Vedi tutte</button></div>
         <div class="list">${done.length ? done.map(opRow).join('') : empty('notebook-pen', 'Nessuna attività', 'Registra semine, trattamenti, raccolte.', newBtn('operazioni', 'Nuova attività', '', 'action'))}</div></section>
-      <section class="card o6"><div class="card-h"><h2>${ic('warehouse')}Movimenti magazzino</h2><button class="btn sm ghost" data-act="nav" data-tab="magazzino" data-sub="movimenti">Vedi tutti</button></div><div class="list">${mov.length ? mov.map(m => { const p = get('prodotti', m.prodottoId); const out = m.tipo === 'Scarico'; return `<button class="row" data-act="open" data-type="prodotto" data-id="${m.prodottoId}"><span class="r-icon ${out ? 'out' : 'in'}">${ic(out ? 'upload' : 'download')}</span><span class="r-main"><b>${esc(p ? p.nome : '—')}</b><span>${out ? 'Scarico' : 'Carico'} · ${fd(m.data)}</span></span><span class="chip ${out ? 'bad' : 'ok'} num">${out ? '−' : '+'}${nf(m.quantita, 1)} ${esc(p ? p.unita || '' : '')}</span></button>`; }).join('') : '<div class="empty slim">Nessun movimento.</div>'}</div></section>
+      <section class="card o6"><div class="card-h"><h2>${ic('warehouse')}Movimenti magazzino</h2><button class="btn sm ghost" data-act="nav" data-tab="magazzino" data-sub="movimenti">Vedi tutti</button></div><div class="list">${mov.length ? mov.map(m => { const p = get('prodotti', m.prodottoId); const inv = m.tipo === 'Inventario'; const out = inv ? segnoMov(m) < 0 : m.tipo === 'Scarico'; const q = inv ? Math.abs(segnoMov(m)) : m.quantita; return `<button class="row" data-act="open" data-type="prodotto" data-id="${m.prodottoId}"><span class="r-icon ${inv ? '' : out ? 'out' : 'in'}">${ic(inv ? 'clipboard-list' : out ? 'upload' : 'download')}</span><span class="r-main"><b>${esc(p ? p.nome : '—')}</b><span>${inv ? 'Inventario' : out ? 'Scarico' : 'Carico'} · ${fd(m.data)}</span></span><span class="chip ${inv && !segnoMov(m) ? 'ghost' : out ? 'bad' : 'ok'} num">${inv && !segnoMov(m) ? '0' : (out ? '−' : '+') + nf(q, 1)} ${esc(p ? p.unita || '' : '')}</span></button>`; }).join('') : '<div class="empty slim">Nessun movimento.</div>'}</div></section>
     </div>
     <div class="col">
       <div id="avvisi" class="o2">${alertsCard(x => x.area !== 'stalla' && x.area !== 'latte', 'Avvisi')}</div>
@@ -162,7 +161,7 @@ const progBar = (pct, alt = false) => `<span class="pl-bar${alt ? ' alt' : ''}" 
 
 export function noteCard(n) {
   const c = get('campi', n.campoId);
-  return `<button class="note-card" data-act="edit" data-form="note" data-id="${n.id}" style="--c:${NOTE_COL[n.colore] || 'var(--line-2)'}"><b>${esc(n.titolo || 'Nota')}</b><small>${fd(n.data)}${c ? ' · ' + esc(c.nome) : ''}</small><p>${esc((n.testo || '').slice(0, 180))}</p>${n.esempio ? '<span class="chip ghost">Esempio</span>' : ''}</button>`;
+  return `<button class="note-card" data-act="edit" data-form="note" data-id="${n.id}" style="--c:${NOTE_COL[n.colore] || 'var(--line-2)'}"><b>${esc(n.titolo || 'Nota')}</b><small>${fd(n.data)}${c ? ' · ' + esc(c.nome) : ''}${n.tipoNota && n.tipoNota !== 'Nota generica' ? ' · ' + esc(n.tipoNota) : ''}${n.lat && n.lon ? ' · 📍' : ''}${(n.allegati || []).length ? ' · ' + n.allegati.length + ((n.allegati || []).length === 1 ? ' allegato' : ' allegati') : ''}</small><p>${esc((n.testo || '').slice(0, 180))}</p>${n.esempio ? '<span class="chip ghost">Esempio</span>' : ''}</button>`;
 }
 
 export function opRow(o) {

@@ -9,8 +9,29 @@ export const TIPI_OP = ['Lavorazione terreno', 'Semina', 'Concimazione', 'Tratta
 export const OP_PROD = ['Semina', 'Concimazione', 'Trattamento fitosanitario', 'Diserbo', 'Irrigazione', 'Altro'];
 export const CATEGORIE = ['Fitofarmaco', 'Diserbante', 'Concime', 'Effluente', 'Seme', 'Mangime', 'Integratore', 'Foraggio', 'Farmaco veterinario', 'Igiene e mungitura', 'Gasolio', 'Lubrificante', 'AdBlue', 'Ricambio', 'Materiale di consumo', 'Altro'];
 export const UNITA = ['kg', 'l', 'q', 't', 'm³', 'dosi', 'pz'];
-export const TIPI_MEZZO = ['Trattore', 'Mietitrebbia', 'Carro miscelatore', 'Rimorchio', 'Irroratrice', 'Attrezzo', 'Pick-up', 'Altro'];
-export const TIPI_MAN = ['Tagliando', 'Riparazione', 'Controllo', 'Ingrassaggio', 'Pneumatici', 'Revisione', 'Altro'];
+// Tipi di mezzo: i primi otto sono quelli di sempre (i record vecchi li usano: 'Trattore' apre il libretto, 'Irroratrice' il controllo funzionale);
+// gli altri scelti dalle voci di xFarm utili a una stalla da latte con seminativi (1.67.0)
+export const TIPI_MEZZO = ['Trattore', 'Mietitrebbia', 'Carro miscelatore', 'Rimorchio', 'Irroratrice', 'Attrezzo', 'Pick-up', 'Altro',
+  'Sollevatore telescopico', 'Pala gommata', 'Carro botte', 'Spandiletame', 'Spandiliquame', 'Interratore di liquame', 'Spandiconcime',
+  'Aratro', 'Ripuntatore', 'Erpice rotante', 'Erpice a dischi', 'Erpice a denti', 'Coltivatore', 'Rullo', 'Seminatrice di precisione', 'Seminatrice da cereali', 'Seminatrice su sodo',
+  'Sarchiatrice', 'Falciatrice', 'Falciacondizionatrice', 'Voltafieno', 'Ranghinatore', 'Rotopressa', 'Rotopressa con fasciatore', 'Fasciatore', 'Pressa per balloni', 'Carro autocaricante',
+  'Trinciatrice', 'Trinciasarmenti', 'Desilatore', 'Cisterna fissa', 'Cisterna mobile', 'Silos', 'Robot di mungitura', 'Impianto di mungitura', 'Robot spingiforaggio', 'Generatore'];
+export const TIPI_MAN = ['Tagliando', 'Riparazione', 'Controllo', 'Ingrassaggio', 'Pneumatici', 'Revisione', 'Manutenzione', 'Rottura', 'Usura', 'Taratura', 'Lavaggio della botte', 'Lavaggio del macchinario', 'Controllo funzionale', 'Sanificazione', 'Altro'];
+// Tipi di nota (da xFarm, 1.67.0); le note vecchie senza tipo valgono "Nota generica"
+export const TIPI_NOTA = ['Nota generica', 'Danni da patogeni', 'Danni da insetti', 'Ristagno idrico', 'Presenza di erbe infestanti', 'Danno generico', 'Campionamento', 'Analisi colturale'];
+// Movimenti di magazzino: Inventario = quantità contata; la giacenza da quel giorno riparte da lì (1.67.0)
+export const TIPI_MOV = ['Carico', 'Scarico', 'Inventario'];
+// Tipologie del prodotto per categoria (da xFarm, 1.67.0): solo descrittive, non cambiano i conti
+export const TIPOLOGIE = {
+  Fitofarmaco: ['Fungicida', 'Insetticida', 'Acaricida', 'Nematocida', 'Molluschicida', 'Fitoregolatore', 'Coadiuvante', 'Biostimolante', 'Repellente', 'Feromone', 'Altro'],
+  Diserbante: ['Pre-semina', 'Pre-emergenza', 'Post-emergenza', 'Totale', 'Altro'],
+  Concime: ['Minerale', 'Organico', 'Organo-minerale', 'Fogliare', 'Ammendante', 'Correttivo', 'Biostimolante', 'Inibitore della nitrificazione', 'Altro'],
+  Effluente: ['Liquame', 'Letame', 'Digestato', 'Altro'],
+  Seme: ['Ibrido', 'Varietà', 'Miscuglio', 'Seme conciato', 'Altro'],
+  Mangime: ['Nucleo', 'Concentrato', 'Mangime completo', 'Granella', 'Farina', 'Fiocchi', 'Sottoprodotto', 'Altro'],
+  Integratore: ['Minerale', 'Vitaminico', 'Tampone', 'Lievito', 'Altro'],
+  Foraggio: ['Fieno', 'Fasciato', 'Insilato di mais', "Insilato d'erba", 'Pastone', 'Paglia', 'Erba verde', 'Altro'],
+};
 export const RAZZE = ['Frisona', 'Bruna', 'Pezzata Rossa', 'Jersey', 'Simmental', 'Rendena', 'Incrocio', 'Altra'];
 export const GRUPPI = ['Alta produzione', 'Media produzione', 'Bassa produzione', 'Fresche', 'Asciutta', 'Preparto', 'Manze', 'Vitelle', 'Vitelli'];
 export const TIPI_EV = ['Parto', 'Calore', 'Fecondazione', 'Diagnosi gravidanza', 'Messa in asciutta', 'Trattamento sanitario', 'Vaccinazione', 'Controllo funzionale', 'Uscita', 'Nota'];
@@ -188,13 +209,32 @@ export function derive() {
   S.eventi.forEach(e => { (evBy[e.capoId] = evBy[e.capoId] || []).push(e); });
   Object.values(evBy).forEach(a => a.sort(byDate));
   const capi = new Map(); S.capi.forEach(c => capi.set(c.id, capoInfo(c, evBy[c.id] || [])));
-  const giac = new Map(); S.prodotti.forEach(p => giac.set(p.id, N(p.giacenzaIniziale)));
-  S.movimenti.forEach(m => { if (giac.has(m.prodottoId)) giac.set(m.prodottoId, giac.get(m.prodottoId) + (m.tipo === 'Scarico' ? -1 : 1) * N(m.quantita)); });
+  const giac = new Map(), delta = new Map(); S.prodotti.forEach(p => giac.set(p.id, N(p.giacenzaIniziale)));
+  const conInv = new Set(); S.movimenti.forEach(m => { if (m.tipo === 'Inventario' && giac.has(m.prodottoId)) conInv.add(m.prodottoId); });
+  S.movimenti.forEach(m => { if (giac.has(m.prodottoId) && !conInv.has(m.prodottoId)) giac.set(m.prodottoId, giac.get(m.prodottoId) + segnoBase(m)); });
+  for (const pid of conInv) { const r = scorri(N(get('prodotti', pid).giacenzaIniziale), S.movimenti.filter(m => m.prodottoId === pid)); giac.set(pid, r.g); r.delta.forEach((v, k) => delta.set(k, v)); }
   const latte = [...S.latte].filter(l => okD(l.data)).sort(byDate);
-  Object.assign(D, { evBy, capi, giac, latte });
+  Object.assign(D, { evBy, capi, giac, delta, latte });
 }
-
+/* Giacenza con gli inventari (1.67.0). Un movimento Inventario porta `quantita` = quantità contata: la giacenza diventa quella
+   e la differenza con quella calcolata (D.delta) vale come un carico o uno scarico. Ordine: per data (senza data prima di tutto);
+   nello stesso giorno l'inventario vale a fine giornata, dopo carichi e scarichi; due inventari nello stesso giorno: vale l'ultimo
+   registrato (`creato`, poi id). `fino`: si ferma alla fine di quel giorno. Carichi, scarichi, fatture, razioni e gasolio non cambiano: restano Carico/Scarico. */
+const segnoBase = m => m.tipo === 'Scarico' ? -N(m.quantita) : m.tipo === 'Inventario' ? 0 : N(m.quantita);
+const ordMov = (a, b) => (okD(a.data) ? a.data : '').localeCompare(okD(b.data) ? b.data : '') || (a.tipo === 'Inventario') - (b.tipo === 'Inventario') || String(a.creato || '').localeCompare(String(b.creato || '')) || String(a.id || '').localeCompare(String(b.id || ''));
+function scorri(g0, movs, fino) {
+  let g = g0; const delta = new Map();
+  for (const m of [...movs].sort(ordMov)) {
+    if (fino && okD(m.data) && m.data > fino) break;
+    if (m.tipo === 'Inventario') { const d = N(m.quantita) - g; delta.set(m.id, d); g = N(m.quantita); } else g += segnoBase(m);
+  }
+  return { g, delta };
+}
 export const giac = p => D.giac.get(p.id) || 0;
+/** Quantità con il segno di un movimento: + carico, − scarico; per l'inventario la differenza fra contato e calcolato. */
+export const segnoMov = m => m.tipo === 'Inventario' ? (D.delta && D.delta.get(m.id)) || 0 : segnoBase(m);
+/** Giacenza di un prodotto alla fine del giorno `data` (AAAA-MM-GG), inventari compresi; i movimenti senza data contano sempre. */
+export const giacAl = (p, data, movs = S.movimenti) => scorri(N(p.giacenzaIniziale), movs.filter(m => m.prodottoId === p.id), data).g;
 export const capoI = c => D.capi.get(c.id);
 export function mezzoOre(m) {
   const ops = S.operazioni.filter(o => o.mezzoId === m.id);

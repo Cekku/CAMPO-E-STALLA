@@ -2,9 +2,9 @@
 import { S, D, UI, get } from './state.js';
 import { N, nf, fd, today, addDays, byName, okD, yearOf } from './util.js';
 import * as store from './store.js';
-import { openForm, openSheet, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
-import { prodottiOp } from './domain.js';
-import { COLTURE, coltureNote, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo, cropOf, kgUnita, colturaAlla } from './domain.js';
+import { openForm, openSheet, closeSheet, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
+import { ic } from './icons.js';
+import { COLTURE, coltureNote, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, TIPI_MOV, TIPOLOGIE, TIPI_NOTA, giacAl, prodottiOp, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo, cropOf, kgUnita, colturaAlla } from './domain.js';
 import { areaHa } from './geo.js';
 import { meteoAlMomento } from './meteo.js';
 import { controlliOp, checksHTML, forceOk, isFitoOp, FITO, impiegoPer, avversitaAmmesse } from './checks.js';
@@ -21,6 +21,45 @@ import { GESTIONI, QUALITA_CAT, ECOSCHEMI, COPERTURE, IRRIGAZIONI, FONTI, ENERGI
 const oCampi = () => [...S.campi].sort(byName).map(c => [c.id, `${c.nome} · ${nf(campoHa(c), 2)} ha`]);
 const oProd = cats => () => [...S.prodotti].filter(p => !cats || cats.includes(p.categoria)).sort(byName).map(p => [p.id, `${p.nome} — ${nf(giac(p), 1)} ${p.unita || ''}`]);
 const oMezzi = () => [...S.mezzi].sort(byName).map(m => [m.id, m.nome]);
+// Punto della nota: posizione del telefono o tocco sulla mappa (il modulo si chiude e si riapre con quello che c'era scritto)
+function boxPunto() {
+  const box = document.getElementById('box_punto'); if (!box) return;
+  box.innerHTML = `<div class="btns"><button type="button" class="btn sm" data-pt="gps">${ic('locate-fixed')}Usa la mia posizione</button><button type="button" class="btn sm" data-pt="mappa">${ic('map-pin')}Scegli sulla mappa</button><button type="button" class="btn sm ghost" data-pt="via">${ic('x')}Togli il punto</button></div>`;
+  box.onclick = async e => {
+    const b = e.target.closest('[data-pt]'); if (!b) return; const k = b.dataset.pt;
+    if (k === 'via') { setVal('lat', ''); setVal('lon', ''); return; }
+    if (k === 'gps') {
+      if (!navigator.geolocation) return toast('Questo dispositivo non dà la posizione', 'err');
+      b.disabled = true; navigator.geolocation.getCurrentPosition(p => { b.disabled = false; setVal('lat', +p.coords.latitude.toFixed(6)); setVal('lon', +p.coords.longitude.toFixed(6)); toast('Posizione presa (precisione ' + Math.round(p.coords.accuracy) + ' m)'); }, () => { b.disabled = false; toast('Posizione non disponibile: controlla il permesso della posizione', 'err'); }, { enableHighAccuracy: true, timeout: 15000 });
+      return;
+    }
+    const id = FORM.id || null, vals = Object.assign({}, readForm()), all = (FORM.allegati || []).slice();
+    closeSheet();
+    const tb = document.createElement('button'); tb.hidden = true; tb.dataset.act = 'nav'; tb.dataset.tab = 'mappa'; document.body.appendChild(tb); tb.click(); tb.remove();
+    const MAP = await import('./map.js');
+    const via = Date.now(); while (!MAP.mappaPronta() && Date.now() - via < 8000) await new Promise(r => setTimeout(r, 150));
+    if (!MAP.mappaPronta()) return toast('La mappa non si è aperta', 'err');
+    MAP.sceltaPunto((lat, lon) => {
+      openEdit('note', id, id ? null : vals);
+      if (!FORM) return;
+      Object.entries(vals).forEach(([k2, x]) => { if (k2 !== 'lat' && k2 !== 'lon') setVal(k2, x); });
+      setVal('lat', lat); setVal('lon', lon); FORM.dirty.add('lat');
+      FORM.allegati = all; if (FORM.redrawAllegati) FORM.redrawAllegati();
+    });
+  };
+}
+// il record com'era all'apertura del modulo (readForm dà solo i campi del modulo)
+const recF = () => (FORM && FORM.values) || {};
+const tipK = cat => 'tip_' + cat.replace(/\W/g, '');
+// Inventario: sotto la quantità contata dice quanto calcola l'app quel giorno e di quanto cambia la giacenza
+function hintInventario(v) {
+  const p = get('prodotti', v.prodottoId);
+  if (v.tipo !== 'Inventario' || !p) return setHint('quantita', '');
+  const altri = S.movimenti.filter(m => m.id !== (FORM && FORM.id));
+  const calc = giacAl(p, okD(v.data) ? v.data : today(), altri), u = p.unita || '';
+  const q = String(v.quantita ?? '').trim() === '' ? null : N(v.quantita), d = q === null ? null : q - calc;
+  setHint('quantita', `Quantità contata. L'app calcola ${nf(calc, 2)} ${u} a fine giornata` + (d === null ? '' : Math.abs(d) < 1e-9 ? ': nessuna differenza' : `: differenza ${d > 0 ? '+' : '−'}${nf(Math.abs(d), 2)} ${u}`));
+}
 // Prima i capi con il numero aziendale, in ordine di numero; poi gli altri per matricola
 const nInt = c => { const n = parseInt(numCapo(c), 10); return isNaN(n) ? Infinity : n; };
 const oCapi = () => [...S.capi].filter(c => capoI(c).stato !== 'Uscita').sort((a, b) => nInt(a) - nInt(b) || (a.matricola || '').localeCompare(b.matricola || '')).map(c => [c.id, [nomeCapoLungo(c), c.matricola && numCapo(c) ? c.matricola.slice(-6) : ''].filter(Boolean).join(' · ')]);
@@ -291,6 +330,8 @@ export const SPEC = {
       { k: 'nome', l: 'Nome commerciale', req: 1 },
       { k: 'categoria', l: 'Categoria', t: 'select', opts: CATEGORIE, req: 1, half: 1, blank: 'Scegli' },
       { k: 'unita', l: 'Unità di misura', t: 'select', opts: UNITA, req: 1, half: 1, blank: false },
+      // un menu per categoria (le voci cambiano): il valore scelto va in `tipologia` al salvataggio
+      ...Object.entries(TIPOLOGIE).map(([cat, opts]) => ({ k: tipK(cat), l: 'Tipologia', t: 'select', opts, half: 1, blank: 'Non indicata', show: v => v.categoria === cat })),
       { k: 'prezzo', l: 'Prezzo per unità', t: 'number', half: 1, unit: '€' },
       { k: 'giacenzaIniziale', l: 'Giacenza iniziale', t: 'number', half: 1, hint: 'Quantità presente quando inizi a usare l\'app', show: v => v.categoria !== 'Effluente' },
       { k: 'scortaMin', l: 'Scorta minima', t: 'number', half: 1, show: v => v.categoria !== 'Effluente' },
@@ -300,6 +341,10 @@ export const SPEC = {
       { k: 'titN', l: 'Azoto (N)', t: 'number', half: 1, unit: '%', show: v => v.categoria === 'Concime', hint: 'Titolo in etichetta, es. urea 46 - 0 - 0' },
       { k: 'titP', l: 'Fosforo (P₂O₅)', t: 'number', half: 1, unit: '%', show: v => v.categoria === 'Concime' },
       { k: 'titK', l: 'Potassio (K₂O)', t: 'number', half: 1, unit: '%', show: v => v.categoria === 'Concime' },
+      { k: 'titMg', l: 'Magnesio (MgO)', t: 'number', half: 1, unit: '%', show: v => v.categoria === 'Concime' },
+      { k: 'titS', l: 'Zolfo (SO₃)', t: 'number', half: 1, unit: '%', show: v => v.categoria === 'Concime' },
+      { k: 'classeFao', l: 'Classe FAO', t: 'number', half: 1, show: v => v.categoria === 'Seme', ph: 'Es. 600', hint: 'Per mais e sorgo: più è alta, più è lungo il ciclo' },
+      { k: 'giorniCiclo', l: 'Durata del ciclo', t: 'number', half: 1, unit: 'giorni', show: v => v.categoria === 'Seme', hint: 'Giorni dalla semina alla raccolta' },
       { k: 'kgN', l: 'Azoto (N)', t: 'number', half: 1, unit: 'kg per unità', show: v => v.categoria === 'Effluente', hint: 'Kg per m³ o per t: meglio dall\'analisi (liquame bovino circa 3-4 kg/m³, letame circa 5 kg/t)' },
       { k: 'kgP', l: 'Fosforo (P₂O₅)', t: 'number', half: 1, unit: 'kg per unità', show: v => v.categoria === 'Effluente' },
       { k: 'kgK', l: 'Potassio (K₂O)', t: 'number', half: 1, unit: 'kg per unità', show: v => v.categoria === 'Effluente' },
@@ -316,26 +361,51 @@ export const SPEC = {
       { k: 'fornitore', l: 'Fornitore', half: 1 },
       { k: 'note', l: 'Note', t: 'textarea' }],
     defaults: () => ({ unita: 'kg' }),
-    onChange(ch, v) { if (ch === null || ch === 'categoria' || ch === 'nReg') dbBox(v); },
+    onChange(ch, v) {
+      if (ch === null && FORM && FORM.values && FORM.values.tipologia && TIPOLOGIE[v.categoria]) setVal(tipK(v.categoria), FORM.values.tipologia);
+      if (ch === null || ch === 'categoria' || ch === 'nReg') dbBox(v);
+    },
+    async save(id, v) {
+      const sc = TIPOLOGIE[v.categoria] ? v[tipK(v.categoria)] : null; Object.keys(TIPOLOGIE).forEach(c => delete v[tipK(c)]);
+      if (sc) v.tipologia = sc; else delete v.tipologia;
+      return store.put('prodotti', id, v);
+    },
     canDel: p => S.movimenti.some(m => m.prodottoId === p.id) || S.operazioni.some(o => o.prodottoId === p.id) ? 'Il prodotto ha movimenti registrati e non si può eliminare.' : null,
   },
   movimenti: {
     title: 'Movimento di magazzino', icon: 'warehouse',
     fields: () => [
-      { k: 'tipo', l: 'Tipo', t: 'seg', opts: ['Carico', 'Scarico'], req: 1 },
+      { k: 'tipo', l: 'Tipo', t: 'seg', opts: TIPI_MOV, req: 1 },
       { k: 'prodottoId', l: 'Prodotto', t: 'select', opts: oProd(), req: 1, blank: 'Scegli' },
       { k: 'data', l: 'Data', t: 'date', req: 1, half: 1 },
-      { k: 'quantita', l: 'Quantità', t: 'number', req: 1, half: 1 },
-      { k: 'prezzo', l: 'Prezzo unitario', t: 'number', half: 1, unit: '€', show: isT('Carico'), hint: 'Aggiorna il prezzo del prodotto' },
-      { k: 'documento', l: 'DDT o fattura', half: 1, show: isT('Carico') },
+      { k: 'quantita', l: 'Quantità', t: 'number', req: 1, half: 1, hint: ' ' },
       { k: 'provenienza', l: 'Provenienza', t: 'seg', opts: ['Comprato', 'Prodotto in azienda'], show: isT('Carico'), hint: 'Per i silos: quanto del contenuto è prodotto in azienda e quanto comprato' },
+      { k: 'destinazione', l: 'Dove va', t: 'seg', opts: [['', 'Usato in azienda'], ['Venduto', 'Venduto']], show: v => v.tipo === 'Scarico' && !['reso', 'opId', 'evId', 'razioneId'].some(k => recF()[k]) },
+      { k: 'prezzo', l: 'Prezzo unitario', t: 'number', half: 1, unit: '€', show: v => v.tipo === 'Carico' || (v.tipo === 'Scarico' && v.destinazione === 'Venduto'), hint: 'Nei carichi aggiorna il prezzo del prodotto' },
+      { k: 'fornitore', l: 'Fornitore', half: 1, show: v => v.tipo === 'Carico' && v.provenienza !== 'Prodotto in azienda' && !(recF().autoprodotto && v.provenienza !== 'Comprato') && !recF().fattRiga, list: [...new Set([...S.prodotti.map(p => p.fornitore), ...S.movimenti.map(m => m.fornitore)].filter(Boolean))].sort() },
+      { k: 'cliente', l: 'Venduto a', half: 1, show: v => v.tipo === 'Scarico' && v.destinazione === 'Venduto' },
+      { k: 'documento', l: 'DDT o fattura', half: 1, show: v => v.tipo === 'Carico' || (v.tipo === 'Scarico' && v.destinazione === 'Venduto') },
+      { k: 'allegati', l: 'Bolla e foto', t: 'box', show: v => v.tipo !== 'Inventario' },
       { k: 'mezzoId', l: 'Messo nel mezzo', t: 'select', opts: oMezzi, blank: 'Nessuno', show: v => v.tipo === 'Scarico' && (get('prodotti', v.prodottoId) || {}).categoria === 'Gasolio', hint: "Rifornimento dalla cisterna, fatto a pieno: serve a imparare quanto consuma il mezzo" },
       { k: 'note', l: 'Note', t: 'textarea' }],
     defaults: () => ({ data: today(), tipo: 'Carico' }),
-    onChange(ch, v) { if (ch === null || ch === 'prodottoId') { const p = get('prodotti', v.prodottoId); setUnit('quantita', p ? p.unita : ''); } },
+    onChange(ch, v) {
+      if (ch === null || ch === 'prodottoId') { const p = get('prodotti', v.prodottoId); setUnit('quantita', p ? p.unita : ''); }
+      // le pesate del raccolto segnano `autoprodotto`: nel modulo compaiono come "Prodotto in azienda"
+      if (ch === null) { if (recF().autoprodotto && !recF().provenienza) setVal('provenienza', 'Prodotto in azienda'); boxAllegati({ l: 'Bolla e foto', scan: false }); }
+      if ([null, 'tipo', 'prodottoId', 'data', 'quantita'].includes(ch)) hintInventario(v);
+    },
+    validate: v => v.tipo === 'Inventario' ? (String(v.quantita ?? '').trim() === '' || N(v.quantita) < 0 ? 'Scrivi la quantità contata (anche 0).' : null) : null,
     async save(id, v) {
-      await store.put('movimenti', id, v);
+      const old = id ? get('movimenti', id) : null;
+      if (v.tipo === 'Inventario') { v.creato = (old && old.tipo === 'Inventario' && old.creato) || new Date().toISOString(); v.quantita = N(v.quantita); ['prezzo', 'documento', 'provenienza', 'fornitore', 'destinazione', 'cliente'].forEach(k => delete v[k]); }
+      else if (v.tipo === 'Carico') { ['destinazione', 'cliente', 'creato'].forEach(k => delete v[k]); }
+      else { ['provenienza', 'fornitore', 'creato'].forEach(k => delete v[k]); if (v.destinazione !== 'Venduto') ['cliente', 'destinazione'].forEach(k => delete v[k]); }
+      // una pesata (autoprodotto) segnata a mano come comprata: vale la scelta del modulo
+      if (v.autoprodotto && v.provenienza === 'Comprato') v.autoprodotto = false;
+      const nid = await salvaAllegati(id, v, 'movimenti');
       if (v.tipo === 'Carico' && N(v.prezzo) > 0) { const p = get('prodotti', v.prodottoId); if (p && N(p.prezzo) !== N(v.prezzo)) await store.put('prodotti', p.id, Object.assign({}, p, { prezzo: N(v.prezzo) })); }
+      return nid;
     },
     canDel: m => m.caricoId ? 'Questo carico viene da una pesata: modificalo da Pesate del raccolto.' : m.opId || m.evId ? 'Questo scarico viene da una registrazione: modificala dal quaderno o dalla stalla.' : null,
   },
@@ -348,7 +418,15 @@ export const SPEC = {
       { k: 'modello', l: 'Marca e modello', half: 1 },
       { k: 'targa', l: 'Targa', half: 1 },
       { k: 'serie', l: 'Numero di serie (PIN)', half: 1, show: v => v.tipo === 'Trattore', hint: 'Sulla targhetta del trattore: i ricambi cambiano con il numero di serie' },
+      { k: 'telaio', l: 'Numero di telaio', half: 1, show: v => v.tipo !== 'Trattore' },
       { k: 'anno', l: 'Anno', t: 'number', half: 1 },
+      { k: 'potenza', l: 'Potenza', t: 'number', half: 1, hint: 'kW × 1,36 = CV' },
+      { k: 'potenzaU', l: 'Unità della potenza', t: 'seg', opts: ['CV', 'kW'], half: 1 },
+      { k: 'larghezza', l: 'Larghezza di lavoro', t: 'number', half: 1, unit: 'm' },
+      { k: 'inAffitto', l: 'In affitto o noleggio', t: 'seg', opts: [['', 'No'], ['Sì', 'Sì']], half: 1 },
+      { k: 'dataImmatricolazione', l: 'Immatricolato il', t: 'date', half: 1 },
+      { k: 'dataAcquisto', l: 'Comprato il', t: 'date', half: 1 },
+      { k: 'vitaAnni', l: 'Durata di vita prevista', t: 'number', half: 1, unit: 'anni', hint: 'Per sapere quando conviene sostituirlo' },
       { k: 's1', l: 'Ore e costi', t: 'section' },
       { k: 'oreIniziali', l: 'Ore motore attuali', t: 'number', half: 1, unit: 'h', hint: 'Le ore dei lavori si sommano da qui' },
       { k: 'costoOra', l: 'Costo orario', t: 'number', half: 1, unit: '€/h', hint: 'Gasolio, usura, ammortamento' },
@@ -362,6 +440,7 @@ export const SPEC = {
       { k: 'taratura', l: 'Ultima regolazione strumentale', t: 'date', half: 1, show: v => v.tipo === 'Irroratrice' },
       { k: 'note', l: 'Note', t: 'textarea' }],
     canDel: m => S.manutenzioni.some(x => x.mezzoId === m.id) || S.operazioni.some(o => o.mezzoId === m.id || o.attrezzoId === m.id) ? 'Il mezzo ha lavori o manutenzioni registrati e non si può eliminare.' : null,
+    defaults: () => ({ potenzaU: 'CV' }),
     onChange(ch, v) { if (ch === 'catalogo' && MODELLI[v.catalogo]) { const md = MODELLI[v.catalogo], n = md.marca + ' ' + md.modello; if (!FORM.dirty.has('modello')) setVal('modello', n); if (!v.nome) setVal('nome', n); } },
   },
   manutenzioni: {
@@ -521,11 +600,20 @@ export const SPEC = {
     title: 'Nota', icon: 'pencil',
     fields: () => [
       { k: 'titolo', l: 'Titolo', req: 1, ph: 'Es. Prova irrigazione pivot' },
+      { k: 'tipoNota', l: 'Tipo di nota', t: 'select', opts: TIPI_NOTA, half: 1, blank: false },
       { k: 'data', l: 'Data', t: 'date', req: 1, half: 1 },
       { k: 'campoId', l: 'Campo', t: 'select', opts: oCampi, half: 1, blank: 'Nessun campo' },
       { k: 'colore', l: 'Etichetta', t: 'seg', opts: [['', 'Nessuna'], ['verde', 'Verde'], ['giallo', 'Gialla'], ['rossa', 'Rossa'], ['blu', 'Blu']] },
-      { k: 'testo', l: 'Testo', t: 'textarea', ph: 'Osservazioni, misure, promemoria…' }],
-    defaults: () => ({ data: today(), colore: '' }),
+      { k: 'testo', l: 'Testo', t: 'textarea', ph: 'Osservazioni, misure, promemoria…' },
+      { k: 's1', l: 'Punto sulla mappa', t: 'section' },
+      { k: 'lat', l: 'Latitudine', t: 'number', half: 1, ph: 'Es. 46,1234' },
+      { k: 'lon', l: 'Longitudine', t: 'number', half: 1, ph: 'Es. 13,2345' },
+      { k: 'punto', t: 'box' },
+      { k: 'allegati', l: 'Foto e file', t: 'box' }],
+    defaults: () => ({ data: today(), colore: '', tipoNota: 'Nota generica' }),
+    onChange(ch, v) { if (ch === null) { boxAllegati({ l: 'Foto e file', scan: false }); boxPunto(); } },
+    validate: v => (v.lat === null) !== (v.lon === null) ? 'Scrivi tutte e due le coordinate del punto, o nessuna.' : v.lat !== null && (Math.abs(v.lat) > 90 || Math.abs(v.lon) > 180) ? 'Coordinate del punto non valide.' : null,
+    async save(id, v) { if (v.lat === null) { delete v.lat; delete v.lon; } return salvaAllegati(id, v, 'note'); },
   },
   razioni: {
     title: 'Razione', icon: 'wheat',
