@@ -14,7 +14,7 @@ import { consumoTesto } from '../gasolio.js';
 export const consumoFact = m => { const c = consumoTesto(S, m); return fact('Consumo gasolio', c ? `<span class="num">${nf(c.lh, 1)} l/h</span> <small>${esc(c.nota)}</small>` : '—'); };
 
 const costoAnno = m => sum(S.manutenzioni.filter(x => x.mezzoId === m.id && yearOf(x.data) === UI.anno), x => x.costo);
-const oreAnno = m => sum(S.operazioni.filter(o => o.mezzoId === m.id && yearOf(o.data) === UI.anno), o => o.ore);
+const oreAnno = m => sum(S.operazioni.filter(o => (o.mezzoId === m.id || o.attrezzoId === m.id) && yearOf(o.data) === UI.anno), o => o.ore);
 function scad(m) {
   let s = ''; const t = isTrattore(m) ? null : mezzoTagliando(m), ore = mezzoOre(m);
   if (isTrattore(m)) { const r = riepilogo(m); if (r.bad.length) s += chip(r.bad.length + (r.bad.length === 1 ? ' manutenzione scaduta' : ' manutenzioni scadute'), 'bad'); if (r.warn.length) s += chip(r.warn.length + ' in scadenza', 'warn'); }
@@ -35,7 +35,7 @@ export function render() {
 function detail(m) {
   const ore = mezzoOre(m), t = mezzoTagliando(m);
   const man = S.manutenzioni.filter(x => x.mezzoId === m.id).sort(byDate).reverse();
-  const ops = S.operazioni.filter(o => o.mezzoId === m.id && yearOf(o.data) === UI.anno).sort(byDate).reverse();
+  const ops = S.operazioni.filter(o => (o.mezzoId === m.id || o.attrezzoId === m.id) && yearOf(o.data) === UI.anno).sort(byDate).reverse();
   return { title: m.nome, html: `<section class="card detail-hero"><div class="big-icon">${ic('tractor')}</div><div class="dh-body"><span class="eyebrow">${esc(m.tipo || 'Mezzo')}</span><h1>${esc(m.nome)}${exChip(m)}</h1><span class="muted">${esc([m.modello, m.targa, m.anno].filter(Boolean).join(' · '))}</span><div class="big-num">${nf(ore, 0)}<small>ore motore</small></div><div class="chips">${scad(m)}</div><div class="btns">${newBtn('manutenzioni', 'Manutenzione', `data-mezzo="${m.id}"`)}<button class="btn sm ghost" data-act="edit" data-form="mezzi" data-id="${m.id}">${ic('pencil')}Modifica</button></div></div></section>
   <dl class="facts">${fact('Costo orario', N(m.costoOra) ? `<span class="num">${eur(m.costoOra, 2)}/h</span>` : '—')}${consumoFact(m)}${fact('Prossimo tagliando', t ? `<span class="num">${nf(t.prossimo, 0)} h</span> <small>${t.prossimo - ore < 0 ? 'superato' : 'tra ' + nf(t.prossimo - ore, 0) + ' h'}</small>` : '—')}${fact('Revisione', fd(m.scadenzaRevisione))}${fact('Assicurazione', fd(m.scadenzaAssicurazione))}${m.tipo === 'Irroratrice' || m.controlloFunzionale ? fact('Controllo funzionale', fd(m.controlloFunzionale)) + fact('Regolazione', fd(m.taratura)) : ''}${fact('Ore ' + UI.anno, `<span class="num">${nf(oreAnno(m), 1)} h</span>`)}${fact('Manutenzioni ' + UI.anno, `<span class="num">${eur(costoAnno(m))}</span>`)}</dl>
   ${m.note ? `<section class="card note">${esc(m.note)}</section>` : ''}

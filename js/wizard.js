@@ -5,7 +5,7 @@ import { ic } from './icons.js';
 import { TIPI_OP, campoHa, cropOf, cropColor } from './domain.js';
 import { thumb } from './geo.js';
 import { openSheet, openForm, toast } from './ui.js';
-import { SPEC, runChecks, erroreFine, meteoAuto, chiudeAuto } from './forms.js';
+import { SPEC, runChecks, erroreFine, meteoAuto, chiudeAuto, listaSottotipi, oreDaOrari, volumeIrrAuto } from './forms.js';
 import { forceOk } from './checks.js';
 import { FORM, readForm } from './ui.js';
 
@@ -81,6 +81,8 @@ function step3() {
         const h = document.getElementById('h_raccolto'); if (h) h.textContent = t > 0 ? "Dalle pesate di quest'anno: " + nf(t, 1) + ' t' : ' ';
       }
       if (['Trattamento fitosanitario', 'Diserbo'].includes(W.tipo) && [null, 'data', 'oraInizio'].includes(ch)) meteoAuto(ch, Object.assign({}, v, { tipo: W.tipo }));   // meteo del momento (1.54.0)
+      if (ch === null) listaSottotipi(W.tipo);   // 1.67.0
+      oreDaOrari(ch, v); volumeIrrAuto(ch, Object.assign({}, v, { tipo: W.tipo }));
       chiudeAuto(ch, v, W.tipo, campi[0] && campi[0].id);
       runChecks(Object.assign({}, readForm(), { tipo: W.tipo, stato: W.stato }), campi, null);
     },
@@ -97,6 +99,7 @@ function step3() {
         if (N(v.quantita) > 0) rec.quantita = Math.round(N(v.quantita) * share * 100) / 100;
         if (N(v.ore) > 0 && campi.length > 1) rec.ore = Math.round(N(v.ore) * share * 100) / 100;
         if (N(v.costoExtra) > 0 && campi.length > 1) rec.costoExtra = Math.round(N(v.costoExtra) * share * 100) / 100;
+        if (N(v.volumeIrr) > 0 && campi.length > 1) rec.volumeIrr = Math.round(N(v.volumeIrr) * share * 10) / 10;   // 1.67.0
         if (N(v.raccolto) > 0 && campi.length > 1) rec.raccolto = Math.round(N(v.raccolto) * share * 100) / 100;
         await SPEC.operazioni.save(ex ? ex.id : null, rec);
       }
@@ -116,6 +119,6 @@ export function modificaBlocco(gruppo) {
   const ops = S.operazioni.filter(o => o.gruppo === gruppo && get('campi', o.campoId)); if (!ops.length) return;
   const o0 = ops[0]; const values = Object.assign({}, o0);
   ['id', 'campoId', 'gruppo', 'tipo', 'stato', 'controlli', 'controllato'].forEach(k => delete values[k]);
-  ['quantita', 'ore', 'costoExtra', 'raccolto'].forEach(k => { const t = ops.reduce((s, o) => s + N(o[k]), 0); values[k] = t ? Math.round(t * 100) / 100 : null; });
+  ['quantita', 'ore', 'costoExtra', 'raccolto', 'volumeIrr'].forEach(k => { const t = ops.reduce((s, o) => s + N(o[k]), 0); values[k] = t ? Math.round(t * 100) / 100 : null; });
   startWizard({ tipo: o0.tipo, stato: o0.stato, campi: ops.map(o => o.campoId), values, blocco: ops });
 }

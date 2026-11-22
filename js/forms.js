@@ -14,6 +14,7 @@ import { FASI_BOX, allBoxes } from './herd.js';
 import { scaricaRazioni } from './razauto.js';
 import { CATALOGO, GRUPPI_COMP, OPZ_MODELLI, MODELLI, isTrattore } from './trattori.js';
 import { boxAllegati, salvaAllegati } from './views/libretto.js';
+import { sottotipiDi, PROFONDITA, CIELO, MODI_FITO, LIVELLI_INFESTAZIONE, MOTIVI_INTERVENTO, METODI_CONCIMAZIONE, METODI_IRRIGAZIONE, RESIDUI } from './elenchi.js';
 
 const oCampi = () => [...S.campi].sort(byName).map(c => [c.id, `${c.nome} · ${nf(campoHa(c), 2)} ha`]);
 const oProd = cats => () => [...S.prodotti].filter(p => !cats || cats.includes(p.categoria)).sort(byName).map(p => [p.id, `${p.nome} — ${nf(giac(p), 1)} ${p.unita || ''}`]);
@@ -70,6 +71,27 @@ async function mettiInCoda(eventoId, v) {
   if (FORM) FORM.done = 'Evento salvato e messo in coda per ' + dest.map(d => d === 'moomonitor' ? 'MooMonitor' : 'Si@lleva').join(' e ');
 }
 
+// Sottotipo (1.67.0): l'elenco cambia con il tipo di attività
+export function listaSottotipi(tipo) {
+  const dl = document.getElementById('dl_sottotipo'); if (!dl) return;
+  dl.innerHTML = sottotipiDi(tipo).map(x => `<option value="${esc(x)}">`).join('');
+}
+// Minuti fra due orari dello stesso giorno (null se mancano o la fine non è dopo)
+const minuti = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
+export const oreFra = (a, b) => { const x = minuti(a), y = minuti(b); return x !== null && y !== null && y > x ? Math.round((y - x) / 60 * 100) / 100 : null; };
+// Ore di lavoro dagli orari, se non le ha scritte l'utente (solo lavori di un giorno)
+// Una sola attività di un blocco (ore e acqua sono la sua parte): niente calcolo automatico
+const inBlocco = () => { const r = FORM && FORM.id && get('operazioni', FORM.id); return !!(r && r.gruppo && S.operazioni.some(x => x.gruppo === r.gruppo && x.id !== r.id)); };
+export function oreDaOrari(ch, v) {
+  if (!['oraInizio', 'oraFine'].includes(ch) || !FORM || FORM.dirty.has('ore') || okD(v.dataFine) || inBlocco()) return;
+  const h = oreFra(v.oraInizio, v.oraFine); if (h !== null) setVal('ore', h);
+}
+// Irrigazione: acqua = portata × durata (durata dagli orari se manca)
+export function volumeIrrAuto(ch, v) {
+  if (!['portata', 'durataIrr', 'oraInizio', 'oraFine', 'tipo'].includes(ch) || !FORM || FORM.dirty.has('volumeIrr') || v.tipo !== 'Irrigazione' || inBlocco()) return;
+  const d = N(v.durataIrr) > 0 ? N(v.durataIrr) : okD(v.dataFine) ? null : oreFra(v.oraInizio, v.oraFine);
+  if (N(v.portata) > 0 && d) setVal('volumeIrr', Math.round(N(v.portata) * d * 10) / 10);
+}
 // "Fino al" prima del primo giorno: errore (vuoto o uguale = lavoro di un giorno)
 export const erroreFine = v => okD(v.dataFine) && okD(v.data) && v.dataFine < v.data ? '"Fino al" non può essere prima del primo giorno.' : null;
 export const SPEC = {
@@ -95,26 +117,39 @@ export const SPEC = {
     fields: () => [
       { k: 'stato', l: 'Stato', t: 'seg', opts: [['Fatto', 'Fatta'], ['Pianificata', 'Da fare']] },
       { k: 'tipo', l: 'Operazione', t: 'select', opts: TIPI_OP, req: 1, blank: 'Scegli' },
+      { k: 'sottotipo', l: 'Lavoro', list: [], show: v => !!v.tipo, ph: "Scegli dall'elenco o scrivi il tuo", hint: 'Facoltativo: es. aratura, ranghinatura, post-emergenza' },
       { k: 'data', l: 'Data (o primo giorno)', t: 'date', req: 1, half: 1 },
       { k: 'dataFine', l: 'Fino al', t: 'date', half: 1, hint: 'Solo se il lavoro dura più giorni' },
+      { k: 'oraInizio', l: 'Ora di inizio', t: 'time', half: 1 },
+      { k: 'oraFine', l: 'Ora di fine', t: 'time', half: 1 },
       { k: 'campoId', l: 'Appezzamento', t: 'select', opts: oCampi, req: 1, blank: 'Scegli il campo' },
       { k: 'haTrattati', l: 'Superficie trattata', t: 'number', half: 1, unit: 'ha', show: isT('Trattamento fitosanitario', 'Diserbo'), hint: 'Solo se hai trattato una parte del campo: vuoto = tutto il campo' },
       { k: 'prodottoId', l: 'Prodotto dal magazzino', t: 'select', opts: oProd(['Fitofarmaco', 'Diserbante', 'Concime', 'Effluente', 'Seme', 'Altro', 'Gasolio']), show: isT(...OP_PROD), blank: 'Nessun prodotto' },
       { k: 'dose', l: 'Dose', t: 'number', half: 1, unit: '/ha', show: v => !!v.prodottoId },
       { k: 'quantita', l: 'Quantità totale', t: 'number', half: 1, show: v => !!v.prodottoId, hint: 'Dose × ettari, si scarica dal magazzino' },
+      { k: 'profondita', l: 'Profondità di lavoro', t: 'seg', opts: PROFONDITA, show: v => v.tipo === 'Lavorazione terreno' && /arat|ripunt|vang|disca/i.test(v.sottotipo || '') },
+      { k: 'trasemina', l: 'È una trasemina?', t: 'seg', opts: ['Sì', 'No'], half: 1, show: isT('Semina') },
+      { k: 'concFondo', l: 'Concimazione di fondo?', t: 'seg', opts: ['Sì', 'No'], half: 1, show: isT('Concimazione') },
+      { k: 'metodoConc', l: 'Metodo di distribuzione', t: 'select', opts: METODI_CONCIMAZIONE, blank: 'Scegli', show: isT('Concimazione') },
+      { k: 'antibrina', l: 'Irrigazione antibrina?', t: 'seg', opts: ['Sì', 'No'], half: 1, show: isT('Irrigazione') },
+      { k: 'metodoIrr', l: 'Metodo di irrigazione', t: 'select', opts: METODI_IRRIGAZIONE, blank: 'Scegli', half: 1, show: isT('Irrigazione') },
+      { k: 'portata', l: 'Portata', t: 'number', half: 1, unit: 'm³/h', show: isT('Irrigazione') },
+      { k: 'durataIrr', l: 'Durata', t: 'number', half: 1, unit: 'h', show: isT('Irrigazione'), hint: 'Vuoto = dalle ore di inizio e fine (lavori di un giorno)' },
+      { k: 'volumeIrr', l: 'Acqua distribuita', t: 'number', half: 1, unit: 'm³', show: isT('Irrigazione'), hint: 'Portata × durata, si calcola da solo' },
       { k: 'avversita', l: 'Avversità o motivo', show: isT('Trattamento fitosanitario', 'Diserbo'), ph: 'Es. piralide, infestanti dicotiledoni' },
       { k: 'bbch', l: 'Stadio BBCH', half: 1, list: BBCH, show: isT('Trattamento fitosanitario', 'Diserbo', 'Concimazione'), ph: 'Es. 32' },
       { k: 'fase', l: 'Fase fenologica', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo', 'Concimazione'), ph: 'Es. 6 foglie' },
-      { k: 'oraInizio', l: 'Ora di inizio', t: 'time', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'volumeAcqua', l: 'Volume d\'acqua', t: 'number', half: 1, unit: 'l/ha', show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'vento', l: 'Vento', t: 'seg', opts: ['Assente', 'Debole', 'Moderato', 'Forte'], show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'cielo', l: 'Stato del cielo', t: 'select', opts: CIELO, blank: 'Scegli', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'temp', l: 'Temperatura', t: 'number', half: 1, unit: '°C', hint: "Si compila da solo dal meteo del giorno e dell'ora di inizio", show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'umidita', l: 'Umidità', t: 'number', half: 1, unit: '%', show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'ventoKmh', l: 'Velocità del vento', t: 'number', half: 1, unit: 'km/h', show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'pioggia24', l: 'Pioggia nelle 24 ore prima', t: 'number', half: 1, unit: 'mm', show: isT('Trattamento fitosanitario', 'Diserbo') },
-      { k: 'modoApplicazione', l: 'Modo di distribuzione', t: 'select', opts: ['Barra irroratrice', 'Atomizzatore', 'Localizzato', 'Concia del seme', 'Microgranulato', 'Altro'], blank: 'Scegli', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo') },
-      { k: 'livelloInfestazione', l: 'Livello di infestazione', t: 'seg', opts: ['Basso', 'Medio', 'Alto'], show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'modoApplicazione', l: 'Modo di distribuzione', t: 'select', opts: MODI_FITO, blank: 'Scegli', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'livelloInfestazione', l: 'Livello di infestazione', t: 'select', opts: LIVELLI_INFESTAZIONE, blank: 'Scegli', half: 1, show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'sogliaSuperata', l: 'Soglia di intervento superata', t: 'seg', opts: ['Sì', 'No'], show: isT('Trattamento fitosanitario', 'Diserbo') },
+      { k: 'motivoInt', l: 'Perché intervieni', t: 'select', opts: MOTIVI_INTERVENTO, blank: 'Scegli', show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'autTecnica', l: 'Con autorizzazione o consiglio del tecnico', t: 'seg', opts: ['Sì', 'No'], show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'fasciaRispetto', l: 'Fascia di rispetto lasciata (acque, case, strade)', t: 'seg', opts: ['Sì', 'No'], show: isT('Trattamento fitosanitario', 'Diserbo') },
       { k: 'efficacia', l: 'Efficacia (da segnare dopo)', t: 'seg', opts: ['Buona', 'Media', 'Scarsa'], show: isT('Trattamento fitosanitario', 'Diserbo') },
@@ -122,10 +157,12 @@ export const SPEC = {
       { k: 'modoRaccolta', l: 'Tipo di raccolta', t: 'seg', opts: MODI_RACCOLTA, show: isT('Raccolta') },
       { k: 'prodottoRaccolto', l: 'Cosa hai ottenuto', list: PRODOTTI_RACCOLTA, show: isT('Raccolta', 'Sfalcio'), ph: 'Es. insilato, pastone, granella, fieno' },
       { k: 'chiude', l: 'Questa raccolta chiude la coltura?', t: 'seg', opts: [['Sì', 'Sì, il campo resta libero'], ['No', 'No, la coltura continua (altri tagli)']], show: isT('Raccolta') },
+      { k: 'residui', l: 'Residui (paglia, stocchi)', t: 'select', opts: RESIDUI, blank: 'Scegli', show: isT('Raccolta') },
       { k: 'raccolto', l: 'Quantità raccolta', t: 'number', half: 1, unit: 't', show: isT('Raccolta', 'Sfalcio'), hint: ' ' },
       { k: 'prezzoVendita', l: 'Prezzo', t: 'number', half: 1, unit: '€/t', show: isT('Raccolta', 'Sfalcio') },
       { k: 's1', l: 'Mezzi e costi', t: 'section' },
       { k: 'mezzoId', l: 'Mezzo', t: 'select', opts: oMezzi, half: 1, blank: 'Nessuno' },
+      { k: 'attrezzoId', l: 'Attrezzo collegato', t: 'select', opts: oMezzi, half: 1, blank: 'Nessuno', show: v => !!v.mezzoId },
       { k: 'ore', l: 'Ore di lavoro', t: 'number', half: 1, unit: 'h' },
       { k: 'operatore', l: 'Operatore', half: 1, list: oOperatori() },
       { k: 'costoExtra', l: 'Costi extra', t: 'number', half: 1, unit: '€', hint: 'Contoterzi, acqua, manodopera' },
@@ -139,6 +176,8 @@ export const SPEC = {
       if (!(FORM && FORM.dirty.has('quantita')) && ['dose', 'campoId', 'prodottoId', 'haTrattati'].includes(ch)) { const c = get('campi', v.campoId); if (c && v.dose !== null) setVal('quantita', Math.round(N(v.dose) * haTrattati(v, c) * 100) / 100); }
       if (['Trattamento fitosanitario', 'Diserbo'].includes(v.tipo) && [null, 'data', 'oraInizio', 'tipo'].includes(ch)) meteoAuto(ch, v);
       if (['Raccolta', 'Sfalcio'].includes(v.tipo) && [null, 'campoId', 'data', 'tipo'].includes(ch)) { const y = yearOf(v.data), t = S.carichi.filter(x => x.campoId === v.campoId && yearOf(x.data) === y).reduce((s, x) => s + N(x.netto), 0) / 1000; setHint('raccolto', v.campoId && t > 0 ? 'Dalle pesate di quest\'anno: ' + nf(t, 1) + ' t' : ' '); }
+      if (ch === null || ch === 'tipo') listaSottotipi(v.tipo);
+      oreDaOrari(ch, v); volumeIrrAuto(ch, v);
       chiudeAuto(ch, v, v.tipo, v.campoId);
       const c0 = get('campi', v.campoId); runChecks(Object.assign({}, v, readForm()), c0 ? [c0] : [], FORM && FORM.id);
     },
@@ -260,7 +299,7 @@ export const SPEC = {
       { k: 'controlloFunzionale', l: 'Controllo funzionale valido fino al', t: 'date', half: 1, show: v => v.tipo === 'Irroratrice', hint: 'Obbligatorio per le irroratrici (PAN)' },
       { k: 'taratura', l: 'Ultima regolazione strumentale', t: 'date', half: 1, show: v => v.tipo === 'Irroratrice' },
       { k: 'note', l: 'Note', t: 'textarea' }],
-    canDel: m => S.manutenzioni.some(x => x.mezzoId === m.id) || S.operazioni.some(o => o.mezzoId === m.id) ? 'Il mezzo ha lavori o manutenzioni registrati e non si può eliminare.' : null,
+    canDel: m => S.manutenzioni.some(x => x.mezzoId === m.id) || S.operazioni.some(o => o.mezzoId === m.id || o.attrezzoId === m.id) ? 'Il mezzo ha lavori o manutenzioni registrati e non si può eliminare.' : null,
     onChange(ch, v) { if (ch === 'catalogo' && MODELLI[v.catalogo]) { const md = MODELLI[v.catalogo], n = md.marca + ' ' + md.modello; if (!FORM.dirty.has('modello')) setVal('modello', n); if (!v.nome) setVal('nome', n); } },
   },
   manutenzioni: {
