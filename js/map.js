@@ -16,6 +16,7 @@ import { collegamento } from './catasto.js';
 import { contiVisibili } from './views/conti.js';
 import { CatastoVettoriale, ZOOM_PARTICELLE } from './catastomappa.js';
 import { conParticelle, particelleDa } from './particelle.js';
+import { CONFINE_FVG } from './confine-fvg.js';
 
 const CAT_URL = 'https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php';
 let map = null, fieldsGroup = null, base = {}, overlays = {}, mode = 'view', selected = null, editLayer = null, editId = null, drawFor = null, gpsMarker = null, gpsCircle = null, clickMarker = null;
@@ -40,7 +41,13 @@ const FVG_BOUNDS = window.L ? L.latLngBounds([[45.57, 12.30], [46.66, 13.94]]) :
 const inFVG = (lat, lon) => lat > 45.57 && lat < 46.66 && lon > 12.30 && lon < 13.94;
 let sotto = null, esriFuori = null;
 // Ortofoto FVG: Esri sotto solo se la vista non sta tutta dentro il riquadro della Regione
-const esriSeServe = () => { if (map && esriFuori) { if (FVG_BOUNDS.contains(map.getBounds())) base.fvg.removeLayer(esriFuori); else base.fvg.addLayer(esriFuori); } };
+// (1.70.1) Il server della Regione fuori dal Friuli manda nero e fuori dal suo riquadro bianco, coprendo il satellite:
+// l'ortofoto si disegna solo dentro il confine vero (CONFINE_FVG), e il satellite Esri resta sotto se la vista esce dal confine.
+const dentroAnello = (lon, lat, r) => { let d = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) d = !d; } return d; };
+const dentroFVG = (lat, lon) => inFVG(lat, lon) && CONFINE_FVG.some(p => dentroAnello(lon, lat, p[0]) && !p.slice(1).some(b => dentroAnello(lon, lat, b)));
+// vista tutta dentro il confine: controllo su una griglia 5×5 di punti (il confine è irregolare, gli angoli soli non bastano)
+const vistaDentroFVG = b => { for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++) if (!dentroFVG(b.getSouth() + (b.getNorth() - b.getSouth()) * i / 4, b.getWest() + (b.getEast() - b.getWest()) * j / 4)) return false; return true; };
+const esriSeServe = () => { if (map && esriFuori) { if (vistaDentroFVG(map.getBounds())) base.fvg.removeLayer(esriFuori); else base.fvg.addLayer(esriFuori); } };
 const savePrefs = () => lsSet('ces.map', prefs);
 
 // Il WMS catastale accetta solo coordinate geografiche (EPSG:6706, WMS 1.1.1, ordine lon,lat)
@@ -84,8 +91,24 @@ const filtroCanvas = typeof CanvasRenderingContext2D !== 'undefined' && 'filter'
 const FvgLayer = window.L ? L.TileLayer.WMS.extend({
   createTile(coords, done) {
     const c = document.createElement('canvas'), sz = this.getTileSize(); c.width = sz.x; c.height = sz.y;
+    // confine del Friuli in pixel della tessera; tessera tutta fuori dal confine: niente richiesta, resta vuota (si vede il satellite)
+    const o = coords.scaleBy(sz), anelli = [];
+    let dentro = false;
+    for (const p of CONFINE_FVG) for (const r of p) {
+      const pts = r.map(([lon, lat]) => this._map.project([lat, lon], coords.z).subtract(o));
+      anelli.push(pts);
+      if (!dentro && r === p[0]) { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const q of pts) { if (q.x < x0) x0 = q.x; if (q.x > x1) x1 = q.x; if (q.y < y0) y0 = q.y; if (q.y > y1) y1 = q.y; } dentro = x1 > 0 && y1 > 0 && x0 < sz.x && y0 < sz.y; }
+    }
+    const centro = this._map.unproject(o.add(sz.divideBy(2)), coords.z);
+    const tutta = [[0, 0], [sz.x, 0], [0, sz.y], [sz.x, sz.y]].every(([x, y]) => { const ll = this._map.unproject(o.add([x, y]), coords.z); return dentroFVG(ll.lat, ll.lng); }) && dentroFVG(centro.lat, centro.lng);
+    if (!dentro) { c.complete = true; setTimeout(() => done(null, c)); return c; }
     const img = new Image();
-    img.onload = () => { const ctx = c.getContext('2d'); if (filtroCanvas) ctx.filter = FILTRO_FVG; ctx.drawImage(img, 0, 0, c.width, c.height); c.complete = true; done(null, c); };
+    img.onload = () => {
+      const ctx = c.getContext('2d');
+      // tessera tutta dentro (quasi sempre da vicino): niente ritaglio; sul bordo si disegna solo dentro il confine
+      if (!tutta) { ctx.beginPath(); for (const pts of anelli) { pts.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.closePath(); } ctx.clip('evenodd'); }
+      if (filtroCanvas) ctx.filter = FILTRO_FVG; ctx.drawImage(img, 0, 0, c.width, c.height); c.complete = true; done(null, c);
+    };
     img.onerror = e => { c.complete = true; done(e, c); };
     img.src = this.getTileUrl(coords);
     return c;
