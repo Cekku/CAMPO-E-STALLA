@@ -13,8 +13,8 @@ import { tabella, bottoniExport } from '../conti/tabelle.js';
 import * as N from '../notizie.js';
 import { ARGOMENTI, SERIE, meseIt, mesiFra, andamento, latteSuMangime, MIX } from '../../supabase/functions/_shared/mercati.js';
 
-const SCHEDE = [['rassegna', 'Rassegna'], ['mercati', 'Mercati'], ['portali', 'Portali']];
-const sub = () => (SCHEDE.some(s => s[0] === UI.sub.notizie) ? UI.sub.notizie : 'rassegna');
+const SCHEDE = [['panoramica', 'Panoramica'], ['rassegna', 'Rassegna'], ['mercati', 'Prezzi e grafici'], ['portali', 'Portali']];
+const sub = () => (SCHEDE.some(s => s[0] === UI.sub.notizie) ? UI.sub.notizie : 'panoramica');
 const ora = iso => { const d = new Date(iso); return isNaN(d) ? '' : fd(iso.slice(0, 10)) + ' alle ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }); };
 const pct = v => (v == null ? '' : `<span class="${v > 0 ? 'nz-su' : v < 0 ? 'nz-giu' : 'muted'}">${v > 0 ? '+' : ''}${nf(v, 1)}%</span>`);
 const testo = s => esc(s || '').replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>');
@@ -23,7 +23,7 @@ const sito = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } ca
 
 export function render() {
   const s = sub();
-  const corpo = s === 'mercati' ? mercati() : s === 'portali' ? portali() : rassegna();
+  const corpo = s === 'mercati' ? mercati() : s === 'portali' ? portali() : s === 'rassegna' ? rassegna() : panoramica();
   return { title: 'Notizie e mercati', html: tabs('notizie', SCHEDE, s) + corpo };
 }
 
@@ -92,8 +92,8 @@ function serieGrafico(ids, mesi, extra = []) {
   for (const e of extra) ser.push(e);
   return ser.map(x => ({ name: x.s ? x.s.nome : x.nome, color: x.c, values: mesi.map(k => x.m[k] ?? null) }));
 }
-function grafico(titolo, icona, ids, unita, { extra = [], nota = '' } = {}) {
-  const per = Number(UI.f.nz_per) || 36;
+function grafico(titolo, icona, ids, unita, { extra = [], nota = '', mesiFissi = 0 } = {}) {
+  const per = mesiFissi || Number(UI.f.nz_per) || 36;
   const fine = today().slice(0, 7);
   const [y, m] = fine.split('-').map(Number); const d = new Date(Date.UTC(y, m - per, 1));
   const mesi = mesiFra(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`, fine);
@@ -158,6 +158,46 @@ function mercati() {
   <section class="card"><div class="card-h"><h2>${ic('table')}Prezzi mese per mese</h2></div>${tabPrezzi}${bottoniExport(['nzPrezzi'], 'prezzi-mercato')}</section>
   <section class="card"><div class="card-h"><h2>${ic('link')}Da dove vengono i prezzi</h2></div><ul class="nz-fonti">${fonti}</ul>
     <p class="muted small">Pagine pubbliche di CLAL e Teseo, che riportano i listini delle Borse merci e delle Camere di commercio. I futures sul latte (borsa EEX) non hanno prezzi pubblici gratuiti giorno per giorno: per questo qui non ci sono.</p></section>`;
+}
+
+/* ================= panoramica (pagina iniziale dell'area) ================= */
+
+function kpiProprio(proprio) {
+  const a = proprio && andamento(proprio.mesi);
+  return a ? `<div class="kpi"><span class="k-l">Il tuo latte (fatture)</span><span class="k-v">${nf(a.valore, 2)}<small>€/100 l</small></span><span class="k-c">${esc(meseIt(a.mese))} · mese ${pct(a.suMese)} · anno ${pct(a.suAnno)} · solo titolare</span></div>` : '';
+}
+function seriePerLitro(proprio) {
+  const l = N.mesiDi('latte-lomb'), ma = N.mesiDi('mais'), so = N.mesiDi('soia');
+  const out = [{ nome: 'Latte Lombardia', m: latteSuMangime(l, ma, so), c: PALETTE[0] }];
+  if (proprio) out.push({ nome: 'Il tuo latte', m: latteSuMangime(proprio.mesi, ma, so), c: PALETTE[2] });
+  return out;
+}
+
+function panoramica() {
+  if (!S.fonti.length && !S.mercati.length) return rassegna();
+  const pp = N.pagine(), p = pp[0];
+  const proprio = N.prezzoProprio();
+  const R = S.mercati.length ? N.riepilogoOra(true) : null;
+  const scelti = ['latte-lomb', 'latte-spot', 'latte-ue', 'mais', 'soia', 'urea'];
+  const kpi = R ? kpiProprio(proprio) + R.prezzi.filter(x => scelti.includes(x.id)).map(x => `<div class="kpi"><span class="k-l">${esc(x.nome)}</span><span class="k-v">${nf(x.andamento.valore, 2)}<small>${esc(x.unita)}</small></span><span class="k-c">${esc(meseIt(x.andamento.mese))} · anno ${pct(x.andamento.suAnno)}</span></div>`).join('') : '';
+  const fatto = p && (p.motore === 'claude' || p.motore === 'pc');
+  const importanti = fatto ? (p.argomenti || []).flatMap(g => g.articoli).filter(a => a.importanza === 'alta').slice(0, 5) : [];
+  const legami = R ? R.legami.filter(l => l.r != null).sort((a, b) => b.r - a.r).slice(0, 3) : [];
+  const m = (pp.find(x => x.mercati && (x.motore === 'claude' || x.motore === 'pc')) || {}).mercati;
+
+  return `${p ? `<section class="card nz-sintesi"><div class="card-h"><h2>${ic('newspaper')}${esc(fatto && p.titolo ? p.titolo : 'Rassegna del ' + fdLong(p.id))}</h2><button class="btn sm ghost" data-act="sub" data-sec="notizie" data-sub="rassegna">Leggi tutto${ic('chevron-right')}</button></div>
+      <p class="muted small">${esc(fdLong(p.id))} · ${(p.articoli || []).length} articoli nuovi</p>
+      ${fatto && p.sintesi ? `<p>${testo(p.sintesi)}</p>` : '<p class="muted">Il riassunto di oggi non c’è ancora.</p>'}
+      ${importanti.length ? `<h3 class="nz-h3">Da non perdere</h3><ul class="nz-arts">${importanti.map(articoloHTML).join('')}</ul>` : ''}</section>` : `<section class="card">${empty('newspaper', 'La prima rassegna non c’è ancora', 'Arriva domattina, oppure apri Rassegna e premi "Aggiorna adesso".')}</section>`}
+  ${kpi ? `<div class="kpis nz-kpis">${kpi}</div>` : ''}
+  ${R ? grafico('Prezzo del latte', 'milk', ['latte-lomb', 'latte-spot', 'latte-ue'], '€/100 l', { mesiFissi: 24, extra: proprio ? [{ nome: 'Il tuo latte (fatture)', m: proprio.mesi, c: 'var(--ink, #222)' }] : [] }) : ''}
+  ${R ? grafico('Mais e soia', 'wheat', ['mais', 'soia'], '€/t', { mesiFissi: 24 }) : ''}
+  ${R ? grafico('Quanto mangime paga un litro di latte', 'scale', [], 'kg/l', { mesiFissi: 24, extra: seriePerLitro(proprio), nota: 'Più alto è, meglio va la stalla.' }) : ''}
+  ${fatto && p.analisi ? `<section class="card"><div class="card-h"><h2>${ic('lightbulb')}Cosa vuol dire per noi</h2></div><p>${testo(p.analisi)}</p></section>` : ''}
+  ${fatto && (p.prospettive || []).length ? `<section class="card"><div class="card-h"><h2>${ic('telescope')}Prospettive</h2></div><ul class="nz-punti">${p.prospettive.map(x => `<li>${esc(x)}</li>`).join('')}</ul></section>` : ''}
+  ${m ? analisiMercati(m) : ''}
+  ${legami.length ? `<section class="card"><div class="card-h"><h2>${ic('git-compare')}Cosa anticipa il prezzo del latte</h2><button class="btn sm ghost" data-act="sub" data-sec="notizie" data-sub="mercati">Tutti i grafici${ic('chevron-right')}</button></div>
+    <ul class="nz-punti">${legami.map(l => `<li><b>${esc(l.da)}</b>: ${l.ritardo ? `di solito si muove ${l.ritardo} ${l.ritardo === 1 ? 'mese' : 'mesi'} prima` : 'si muove insieme'} — legame ${esc(l.forza)} (${nf(l.r, 2)}, ${l.n} mesi)</li>`).join('')}</ul></section>` : ''}`;
 }
 
 /* ================= portali ================= */

@@ -1,9 +1,9 @@
 // Testi della guida d'uso (pagina Guida, js/views/guida.js). Da aggiornare a ogni funzione nuova.
-export const AREE_GUIDA = [['generale', 'Per iniziare', 'info'], ['campagna', 'Campagna', 'sprout'], ['stalla', 'Stalla', 'cow'], ['conti', 'Conti', 'wallet'], ['archivio', 'Archivio', 'book-open']];
+export const AREE_GUIDA = [['generale', 'Per iniziare', 'info'], ['campagna', 'Campagna', 'sprout'], ['stalla', 'Stalla', 'cow'], ['notizie', 'Notizie e mercati', 'newspaper'], ['conti', 'Conti', 'wallet'], ['archivio', 'Archivio', 'book-open']];
 export const GUIDA = [
   // ---------- Per iniziare ----------
   { id: 'menu', area: 'generale', titolo: 'Come si muove nell\'app', icona: 'info', vai: null,
-    cosa: 'L\'app ha quattro aree: Campagna, Stalla, Conti e Archivio. Ogni area ha le sue pagine.',
+    cosa: 'L\'app ha cinque aree: Campagna, Stalla, Notizie e mercati, Conti e Archivio (le ultime due solo per il titolare). Ogni area ha le sue pagine.',
     passi: ['Sul computer le aree sono nel menu in alto: tocca il nome e scegli la pagina.', 'Sul telefono apri il menu laterale con il pulsante in alto a sinistra. In basso c\'è la barra con le pagine più usate.', 'Per scrivere una cosa fatta (un lavoro nel campo, un evento in stalla) tocca il pulsante + "Registra".', 'Per cambiare annata usa il selettore dell\'anno in alto.'],
     consigli: ['Non capisci come funziona una pagina? Tocca il punto di domanda (?) in alto: si apre la Guida proprio su quella pagina.', 'Per trovare una pagina o un dato usa "Cerca" in alto.', 'Tutta la Guida è in fondo al menu di ogni area, alla voce "Guida": in alto c\'è la barra per cercare.', 'Tabelle larghe (con colonne che non stanno nello schermo): la barra per scorrere di lato è sempre in fondo al riquadro, senza dover scendere fino all\'ultima riga; i titoli delle colonne restano fermi in alto.'],
     parole: 'menu aree navigare pagine barra pulsante registra cerca annata anno primi passi iniziare guida aiuto punto di domanda come funziona tabella larga scorrere di lato colonne barra di scorrimento' },
@@ -143,17 +143,22 @@ export const GUIDA = [
     passi: ['Guarda le previsioni giorno per giorno: temperatura, pioggia e vento.', 'Controlla i giorni indicati come adatti ai trattamenti.', 'In alto trovi il riquadro del caldo per le vacche (stress da caldo).'],
     consigli: ['Quando registri un trattamento l\'app ti avvisa se è previsto vento o pioggia.'],
     parole: 'previsioni tempo pioggia vento temperatura caldo thi stress termico trattamenti giorni adatti' },
-  { id: 'rassegna', area: 'campagna', titolo: 'Rassegna del giorno', icona: 'newspaper', vai: ['notizie', 'rassegna'],
+  { id: 'notizie', area: 'notizie', titolo: 'Notizie e mercati: panoramica', icona: 'layout-dashboard', vai: ['notizie', 'panoramica'],
+    cosa: 'La pagina iniziale dell’area Notizie e mercati: in un colpo d’occhio la rassegna di oggi con gli articoli da non perdere, gli ultimi prezzi, i grafici del latte, di mais e soia e di quanto mangime paga un litro di latte, cosa vogliono dire le notizie per l’azienda, le prospettive e cosa anticipa il prezzo del latte.',
+    passi: ['Apri l’area Notizie dal menu delle aree (accanto a Campagna e Stalla).', 'Leggi tutto porta alla Rassegna del giorno completa.', 'Tutti i grafici porta a Prezzi e grafici, dove scegli il periodo e scarichi le tabelle.'],
+    consigli: ['Il tuo prezzo del latte dalle fatture lo vede solo il titolare.'],
+    parole: 'notizie mercati panoramica analisi grafici prezzi latte rassegna prospettive area' },
+  { id: 'rassegna', area: 'notizie', titolo: 'Rassegna del giorno', icona: 'newspaper', vai: ['notizie', 'rassegna'],
     cosa: 'Ogni mattina l\'app legge i portali di settore che hai scelto (CLAL, Teseo, Ruminantia e gli altri), tiene solo gli articoli nuovi e scrive una pagina con il riassunto per argomento, cosa vogliono dire per l\'azienda, le prospettive e il punto sui mercati.',
     passi: ['La prima volta premi Aggiungi i portali consigliati.', 'La pagina del giorno arriva da sola verso le 6; con Aggiorna adesso la rifai subito (ci vogliono uno o due minuti).', 'Con le frecce o la tendina vedi i giorni passati.', 'Tocca il titolo di un articolo per leggerlo sul sito originale.', 'Se il riassunto manca o ne vuoi un secondo, premi Riassunto con l\'IA del PC (serve LM Studio acceso sul PC).'],
     consigli: ['Il riassunto è automatico: prima di decidere qualcosa leggi l\'articolo originale.', 'Il riassunto lo scrive Claude su Supabase (pochi centesimi al giorno) oppure l\'IA del PC, gratis ma solo a PC acceso.'],
     parole: 'rassegna notizie articoli portali riassunto analisi prospettive clal teseo ruminantia giornale novità settore' },
-  { id: 'mercati', area: 'campagna', titolo: 'Prezzi e mercati', icona: 'trending-up', vai: ['notizie', 'mercati'],
+  { id: 'mercati', area: 'notizie', titolo: 'Prezzi e grafici', icona: 'trending-up', vai: ['notizie', 'mercati'],
     cosa: 'Grafici dei prezzi del latte (alla stalla in Lombardia, spot di Milano, media europea e, solo per il titolare, il tuo prezzo dalle fatture del caseificio), degli alimenti (mais, soia, orzo, fieno), dell\'urea e del gasolio agricolo, con quanto mangime paga un litro di latte e quali prezzi anticipano quello del latte.',
     passi: ['Scegli il periodo: 1, 3, 5 o 10 anni.', 'In alto l\'ultimo prezzo di ogni voce con la variazione sul mese e sull\'anno.', 'Legami fra i prezzi: di quanti mesi una serie anticipa il prezzo alla stalla e quanto è forte il legame.', 'Sotto trovi l\'analisi della rassegna e la tabella mese per mese da scaricare in Excel, CSV o PDF.'],
     consigli: ['Un legame forte non è una certezza: guarda insieme lo spot e il prezzo europeo.', 'I prezzi vengono dai listini pubblici delle Borse merci e delle Camere di commercio, ripresi da CLAL e Teseo; i futures sul latte non hanno prezzi pubblici gratuiti.'],
     parole: 'prezzi mercati latte spot stalla futures mais soia orzo fieno urea concimi gasolio grafici correlazione andamento borsa listino' },
-  { id: 'portali', area: 'campagna', titolo: 'Portali della rassegna', icona: 'rss', vai: ['notizie', 'portali'],
+  { id: 'portali', area: 'notizie', titolo: 'Portali della rassegna', icona: 'rss', vai: ['notizie', 'portali'],
     cosa: 'L\'elenco dei siti che la rassegna legge ogni mattina.',
     passi: ['Aggiungi: scrivi il nome, l\'indirizzo del sito (o del suo feed RSS) e l\'argomento.', 'Togli la spunta per non leggere un portale senza toglierlo.', 'Cambia l\'argomento con la tendina.', 'Il cestino lo toglie (tocca due volte).'],
     consigli: ['Se un portale non si legge, sotto la pagina del giorno c\'è scritto perché: di solito il sito non ha un feed RSS.'],

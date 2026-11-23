@@ -53,14 +53,17 @@ const MENU = {
   campagna: [
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['campi', 'elenco', 'sprout', 'Campi'], ['mappa', null, 'map', 'Mappa'], ['attivita', null, 'notebook-pen', 'Attività'], ['quaderno', null, 'book-open', 'Quaderno di campagna'], ['carichi', null, 'scale', 'Pesate del raccolto'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino'], ['magazzino', 'movimenti', 'package', 'Carichi e scarichi']]],
     ['Agronomia', [['meteo', null, 'cloud-sun', 'Meteo'], ['campi', 'costi', 'euro', 'Costi e margini'], ['nitrati', null, 'leaf', 'Azoto e nitrati'], ['note', null, 'pencil', 'Note']]],
-    ['Notizie e mercati', [['notizie', 'rassegna', 'newspaper', 'Rassegna del giorno'], ['notizie', 'mercati', 'trending-up', 'Prezzi e mercati'], ['notizie', 'portali', 'rss', 'Portali']]],
     ['Gestione', [['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['report', null, 'calendar-range', 'Report del mese'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
   ],
   stalla: [
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['stalla', 'mandria', 'cow', 'Mandria'], ['stalla', 'stalle', 'layout-grid', 'Stalle e silos'], ['stalla', 'indici', 'gauge', 'Indici e benessere'], ['stalla', 'riproduzione', 'heart-pulse', 'Riproduzione'], ['stalla', 'latte', 'milk', 'Latte'], ['stalla', 'progetto', 'warehouse', 'Progetto stalla 3D']]],
     ['Alimentazione e salute', [['stalla', 'razioni', 'wheat', 'Razioni'], ['stalla', 'tracciabilita', 'clipboard-list', 'Tracciabilità alimenti'],['stalla', 'sanitario', 'syringe', 'Sanitario'], ['meteo', null, 'thermometer', 'Meteo e caldo'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino']]],
-    ['Notizie e mercati', [['notizie', 'rassegna', 'newspaper', 'Rassegna del giorno'], ['notizie', 'mercati', 'trending-up', 'Prezzi e mercati'], ['notizie', 'portali', 'rss', 'Portali']]],
     ['Gestione', [['note', null, 'pencil', 'Note'], ['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['report', null, 'calendar-range', 'Report del mese'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
+  ],
+  // Notizie e mercati (1.72.0): area a parte, per tutti i membri
+  notizie: [
+    ['Principale', [['notizie', 'panoramica', 'layout-dashboard', 'Panoramica'], ['notizie', 'rassegna', 'newspaper', 'Rassegna del giorno'], ['notizie', 'mercati', 'trending-up', 'Prezzi e grafici']]],
+    ['Gestione', [['notizie', 'portali', 'rss', 'Portali'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['guida', null, 'circle-help', 'Guida']]],
   ],
   conti: [
     ['Principale', [['conti', 'panoramica', 'layout-dashboard', 'Panoramica'], ['conti', 'fatture', 'receipt', 'Fatture'], ['conti', 'mancanti', 'scan-search', 'Fatture mancanti'], ['conti', 'importa', 'file-up', 'Carica documenti'], ['conti', 'automatico', 'folder-open', "Dall'archivio del PC"]]],
@@ -115,8 +118,8 @@ const isVoce = (t, s) => isCur(t, s) && !(t === 'magazzino' && !s);
 function drawerHTML() {
   const a = azienda(); const ha = sum(S.campi, campoHa); const si = syncInfo();
   const nAl = allAlerts().filter(x => UI.area === 'stalla' ? ['stalla', 'latte', 'magazzino'].includes(x.area) : x.area !== 'stalla' && x.area !== 'latte').length;
-  const aree = [['campagna', 'sprout', 'Campagna'], ['stalla', 'cow', 'Stalla'], ...(contiVisibili() ? [['conti', 'wallet', 'Conti'], ['archivio', 'book-open', 'Archivio']] : [])];
-  const sottotitolo = UI.area === 'stalla' ? S.capi.filter(c => capoI(c).stato !== 'Uscita').length + ' capi · Stalla' : UI.area === 'conti' ? S.fatture.length + ' fatture · Conti' : UI.area === 'archivio' ? 'Documenti sul PC · Archivio' : nf(ha, 2) + ' ha · Campagna';
+  const aree = [['campagna', 'sprout', 'Campagna'], ['stalla', 'cow', 'Stalla'], ['notizie', 'newspaper', 'Notizie'], ...(contiVisibili() ? [['conti', 'wallet', 'Conti'], ['archivio', 'book-open', 'Archivio']] : [])];
+  const sottotitolo = UI.area === 'stalla' ? S.capi.filter(c => capoI(c).stato !== 'Uscita').length + ' capi · Stalla' : UI.area === 'conti' ? S.fatture.length + ' fatture · Conti' : UI.area === 'archivio' ? 'Documenti sul PC · Archivio' : UI.area === 'notizie' ? 'Rassegna e prezzi · Notizie' : nf(ha, 2) + ' ha · Campagna';
   return `<div class="dr-head"><img src="icons/icon-192.png" alt="" width="44" height="44"><div><b>${esc(a.nome || (sync.farm && sync.farm.name) || 'La tua azienda')}</b><span>${sottotitolo}</span></div></div>
   <button class="dr-user" data-act="nav" data-tab="impostazioni"><span class="dr-av">${ic(sync.user ? 'user' : si.icn)}</span><span><b>${esc(sync.user ? sync.user.email : 'Nessun account')}</b><small class="${si.cls}">${esc(si.t)}</small></span>${ic('chevron-right', 'chev')}</button>
   <div class="dr-tiles"><button data-act="syncTile">${ic('refresh-cw')}<span>Sincronizza</span></button><button data-act="nav" data-tab="oggi">${ic('triangle-alert')}<span>Avvisi</span>${nAl ? `<i class="badge">${nAl}</i>` : ''}</button><button data-act="exportSheet">${ic('download')}<span>Esporta</span></button></div>
@@ -129,6 +132,7 @@ function drawerHTML() {
 const BNAV = {
   campagna: [['oggi', null, 'house', 'Home'], ['mappa', null, 'map', 'Mappa'], null, ['attivita', null, 'notebook-pen', 'Attività'], ['campi', 'elenco', 'sprout', 'Campi']],
   stalla: [['oggi', null, 'house', 'Home'], ['stalla', 'mandria', 'cow', 'Mandria'], null, ['stalla', 'latte', 'milk', 'Latte'], ['stalla', 'stalle', 'layout-grid', 'Stalle']],
+  notizie: [['notizie', 'panoramica', 'layout-dashboard', 'Home'], ['notizie', 'rassegna', 'newspaper', 'Rassegna'], null, ['notizie', 'mercati', 'trending-up', 'Prezzi'], ['notizie', 'portali', 'rss', 'Portali']],
   conti: [['conti', 'panoramica', 'layout-dashboard', 'Home'], ['conti', 'fatture', 'receipt', 'Fatture'], null, ['conti', 'ce', 'scale', 'Bilancio'], ['conti', 'analisi', 'gauge', 'Analisi']],
   archivio: [['archivio', 'scaffale', 'book-open', 'Scaffale'], ['archivio', 'cerca', 'search', 'Cerca'], null, ['archivio', 'rivedere', 'list-checks', 'Rivedere'], ['archivio', 'ponte', 'smartphone', 'PC']],
 };
@@ -140,14 +144,15 @@ function bnavHTML() {
 // [tab, sub, etichetta]; sub vuoto = l'ultima scheda aperta di quella pagina; sub numero = gruppo di pagine dei Conti (GRUPPI_CONTI).
 // Le voci meno usate restano nella tendina dell'ultima sezione di MENU ("Gestione").
 const TOP = {
-  campagna: [['oggi', null, 'Dashboard'], ['campi', null, 'Campi'], ['mappa', null, 'Mappa'], ['attivita', null, 'Attività'], ['quaderno', null, 'Quaderno'], ['magazzino', null, 'Magazzino'], ['meteo', null, 'Meteo'], ['note', null, 'Note'], ['notizie', null, 'Notizie']],
-  stalla: [['oggi', null, 'Dashboard'], ['stalla', null, 'Mandria e latte'], ['meteo', null, 'Meteo e caldo'], ['magazzino', null, 'Magazzino'], ['notizie', null, 'Notizie']],
+  campagna: [['oggi', null, 'Dashboard'], ['campi', null, 'Campi'], ['mappa', null, 'Mappa'], ['attivita', null, 'Attività'], ['quaderno', null, 'Quaderno'], ['magazzino', null, 'Magazzino'], ['meteo', null, 'Meteo'], ['note', null, 'Note']],
+  stalla: [['oggi', null, 'Dashboard'], ['stalla', null, 'Mandria e latte'], ['meteo', null, 'Meteo e caldo'], ['magazzino', null, 'Magazzino']],
+  notizie: [['notizie', 'panoramica', 'Panoramica'], ['notizie', 'rassegna', 'Rassegna del giorno'], ['notizie', 'mercati', 'Prezzi e grafici']],
   conti: [['conti', 'panoramica', 'Panoramica'], ['conti', 0, 'Fatture'], ['conti', 1, 'Bilancio'], ['conti', 2, 'Personale'], ['conti', 'importa', 'Carica documenti']],
   archivio: [['archivio', 'scaffale', 'Scaffale'], ['archivio', 'raccoglitore', 'Raccoglitori'], ['archivio', 'cerca', 'Cerca'], ['archivio', 'rivedere', 'Da rivedere']],
 };
 const ultimaConti = {};   // ultima pagina aperta di ogni gruppo dei Conti: la voce del gruppo riporta lì
 function topnavHTML() {
-  const aree = [['campagna', 'Campagna'], ['stalla', 'Stalla'], ...(contiVisibili() ? [['conti', 'Conti'], ['archivio', 'Archivio']] : [])];
+  const aree = [['campagna', 'Campagna'], ['stalla', 'Stalla'], ['notizie', 'Notizie'], ...(contiVisibili() ? [['conti', 'Conti'], ['archivio', 'Archivio']] : [])];
   const voce = ([t, s, l]) => {
     let qui = isCur(t, s), sub = s;
     if (typeof s === 'number') { const g = GRUPPI_CONTI[s]; qui = UI.tab === 'conti' && g.includes(UI.sub.conti); if (qui) ultimaConti[s] = UI.sub.conti; sub = ultimaConti[s] || g[0]; }
@@ -172,6 +177,8 @@ function render() {
   if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'impostazioni', 'guida', 'automatico', 'report'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
   if (UI.area !== 'conti' && UI.tab === 'conti') UI.area = 'conti';
   if (UI.area !== 'archivio' && UI.tab === 'archivio') UI.area = 'archivio';
+  if (UI.area === 'notizie' && !['notizie', 'impostazioni', 'guida'].includes(UI.tab)) UI.tab = 'notizie';
+  if (UI.area !== 'notizie' && UI.tab === 'notizie') UI.area = 'notizie';
   document.body.dataset.area = UI.area;
   $('#drawer').innerHTML = drawerHTML();
   $('#bnav').innerHTML = bnavHTML();
@@ -238,7 +245,7 @@ function setTab(t, sub) {
 function openDetail(type, id) {
   UI.hist.push({ tab: UI.tab, detail: UI.detail });
   // da Conti o Archivio (collegamenti, agenda) la scheda si apre nella sua area
-  if (UI.area === 'conti' || UI.area === 'archivio') UI.area = type === 'capo' || type === 'struttura' ? 'stalla' : 'campagna';
+  if (UI.area === 'conti' || UI.area === 'archivio' || UI.area === 'notizie') UI.area = type === 'capo' || type === 'struttura' ? 'stalla' : 'campagna';
   UI.tab = TAB_OF[type]; UI.detail = { type, id };
   try { history.pushState({ d: 1 }, '', '#' + UI.tab); } catch (e) { }
   render(); window.scrollTo(0, 0);
@@ -437,7 +444,7 @@ async function clic(e) {
       case 'nav': case 'tab': return setTab(d.tab, d.sub);
       case 'guApri': { UI.f.guq = ''; UI.sub.guida = 'tutte'; UI.guApri = d.id; setTab('guida'); const el = document.getElementById('gu-' + d.id); if (el) el.scrollIntoView({ block: 'start' }); return; }
       case 'guVai': UI.area = d.area; saveUI(); return setTab(d.tab, d.sub);   // dalla Guida alla pagina, nella sua area
-      case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'conti' ? 'conti' : d.area === 'archivio' ? 'archivio' : 'oggi');
+      case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'conti' ? 'conti' : d.area === 'archivio' ? 'archivio' : d.area === 'notizie' ? 'notizie' : 'oggi');
       case 'sub': if (d.tab && UI.tab !== d.tab) { UI.tab = d.tab; UI.detail = null; UI.hist = []; } UI.sub[d.sec] = d.sub; saveUI(); render(); return window.scrollTo(0, 0);
       case 'open': if (sheetOpen()) closeSheet(); return openDetail(d.type, d.id);
       case 'go': { const g = JSON.parse(d.go); if (g.ar) { if (sheetOpen()) closeSheet(); const tel = vediDoc(g.ar, g.c); setTab('archivio', 'raccoglitore'); if (tel) arAct('ar-doc', b, { id: g.ar }); return; } if (g.tab) { if (g.f) UI.f[g.f] = g.v; setTab(g.tab, g.sub); const el = g.el && document.getElementById(g.el); if (el) el.scrollIntoView(); return; } if (g.form) return openEdit(g.form); if (g.edit) return openEdit(g.edit, g.id); return openDetail(g.type, g.id); }

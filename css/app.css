@@ -1045,6 +1045,9 @@ tr.clk { cursor: pointer; } tr.clk:hover td { background: var(--hover, rgba(0,0,
 body[data-area="conti"] { --bar: #1F4A5A; --bar-2: #1A3F4D; --bar-soft: #E0ECF0; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body[data-area="conti"] { --bar: #A9CBD6; --bar-2: #95BBC7; --bar-soft: #1C3640; } }
 :root[data-theme="dark"] body[data-area="conti"] { --bar: #A9CBD6; --bar-2: #95BBC7; --bar-soft: #1C3640; }
+body[data-area="notizie"] { --bar: #6E4F1C; --bar-2: #5E4316; --bar-soft: #F3EAD6; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body[data-area="notizie"] { --bar: #DDBE84; --bar-2: #CFAE72; --bar-soft: #3A2F1B; } }
+:root[data-theme="dark"] body[data-area="notizie"] { --bar: #DDBE84; --bar-2: #CFAE72; --bar-soft: #3A2F1B; }
 .chart .zero { stroke: var(--line-2); stroke-width: 1.2; }
 .chart.lines .pt { stroke: var(--surface); stroke-width: 1.5; }
 .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
