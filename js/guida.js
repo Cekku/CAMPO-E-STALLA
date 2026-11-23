@@ -14,7 +14,7 @@ export const GUIDA = [
     parole: 'impostazioni azienda sede opzioni configurazione gestione' },
   { id: 'aspetto', area: 'generale', titolo: 'Aspetto: chiaro o scuro', icona: 'palette', vai: ['impostazioni', null],
     cosa: 'Scegli come appare l\'app: chiara come un quaderno a righe, scura per la sera, oppure come il telefono o il computer.',
-    passi: ['Apri "La mia azienda".', 'Nella sezione "Aspetto" tocca Chiaro, Scuro o "Come il dispositivo".', 'Il cambio si vede subito, senza ricaricare.'],
+    passi: ['Apri "La mia azienda".', 'Nella sezione "Aspetto" tocca Chiaro, Scuro o "Come il dispositivo".', 'Il cambio si vede subito, senza ricaricare.', 'Più in fretta: tocca il sole (o la luna, o lo schermo) nella barra in alto. A ogni tocco passa a Chiaro, poi Scuro, poi Come il dispositivo.'],
     consigli: ['La scelta vale solo sul dispositivo dove la fai: sul telefono e sul computer puoi averne due diverse.', 'Se l\'app ti sembra diventata scura da sola, il telefono o il computer sono passati al tema scuro: scegli Chiaro.'],
     parole: 'tema scuro chiaro notte colore colori sfondo quaderno aspetto carta nero' },
   { id: 'sincronizzazione', area: 'generale', titolo: 'Account e sincronizzazione', icona: 'refresh-cw', vai: ['impostazioni', null],

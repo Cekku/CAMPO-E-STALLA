@@ -35,7 +35,7 @@ import { render as vCar } from './views/carichi.js';
 import { render as vNit,salvaNitrati, resetNitrati } from './views/nitrati.js';
 import { render as vMezzi } from './views/mezzi.js';
 import { moveSheet, misureImport } from './views/stalle.js';
-import { render as vImp, authUI, setTema } from './views/impostazioni.js';
+import { render as vImp, authUI, setTema, temaAtt, temaBtn, TEMI } from './views/impostazioni.js';
 import { avviaBlocco, blocca, salvaBloccoDaForm, disattivaDaForm } from './lock.js';
 import { render as vConti, onAct as contiAct, onChange as contiChange, onDrop as contiDrop, setRerender, contiVisibili, esportaTutto, GRUPPI as GRUPPI_CONTI } from './views/conti.js';
 import { render as vArchivio, arAct, arInput, arChange, vediDoc } from './views/archivio.js';
@@ -183,7 +183,7 @@ function render() {
   $('#drawer').innerHTML = drawerHTML();
   $('#bnav').innerHTML = bnavHTML();
   $('#topnav').innerHTML = topnavHTML();
-  syncPill(); autoPill();
+  syncPill(); autoPill(); temaBtn();
   { const h = $('#helpBtn'), g = schedaDi(UI.tab, UI.sub[UI.tab], UI.area); h.hidden = UI.tab === 'guida' || !g; if (g) h.dataset.id = g.id; }   // ? in alto: la scheda della Guida di questa pagina
   const years = new Set([new Date().getFullYear(), UI.anno]); S.operazioni.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.eventi.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.carichi.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); if (UI.tab === 'conti' || (UI.tab === 'stalla' && UI.sub.stalla === 'tracciabilita')) { S.fatture.forEach(o => { const y = yearOf(o.data); if (y) years.add(y); }); S.bilanci.forEach(b => { if (+b.id) years.add(+b.id); }); S.paghe.forEach(p => { if (+p.anno) years.add(+p.anno); }); const cy = new Date().getFullYear(); for (let y = Math.min(cy - 4, ...years); y <= cy; y++) years.add(y); }
   $('#yearSel').innerHTML = [...years].sort((a, b) => b - a).map(y => `<option value="${y}"${y === UI.anno ? ' selected' : ''}>${y}</option>`).join('');
@@ -442,6 +442,7 @@ async function clic(e) {
       case 'drawerClose': return drawer(false);
       case 'tnMenu': { const dd = b.parentElement, open = !dd.classList.contains('open'); closeTn(); dd.classList.toggle('open', open); b.setAttribute('aria-expanded', open); return; }
       case 'nav': case 'tab': return setTab(d.tab, d.sub);
+      case 'temaGiro': { const n = { light: 'dark', dark: 'auto', auto: 'light' }[temaAtt()]; setTema(n); toast('Aspetto: ' + TEMI[n][1]); return; }
       case 'guApri': { UI.f.guq = ''; UI.sub.guida = 'tutte'; UI.guApri = d.id; setTab('guida'); const el = document.getElementById('gu-' + d.id); if (el) el.scrollIntoView({ block: 'start' }); return; }
       case 'guVai': UI.area = d.area; saveUI(); return setTab(d.tab, d.sub);   // dalla Guida alla pagina, nella sua area
       case 'area': UI.area = d.area; saveUI(); return setTab(d.area === 'conti' ? 'conti' : d.area === 'archivio' ? 'archivio' : d.area === 'notizie' ? 'notizie' : 'oggi');

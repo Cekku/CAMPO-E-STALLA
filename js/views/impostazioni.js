@@ -148,12 +148,20 @@ function catastoSection() {
 
 
 /* Aspetto: chiaro (Quaderno), scuro (notturno) o come il telefono/computer. Salvato in localStorage ces.tema; lo applica anche lo script in testa a index.html. */
-const temaAtt = () => { try { const t = localStorage.getItem('ces.tema'); return t === 'light' || t === 'dark' ? t : 'auto'; } catch (e) { return 'auto'; } };
+export const temaAtt = () => { try { const t = localStorage.getItem('ces.tema'); return t === 'light' || t === 'dark' ? t : 'auto'; } catch (e) { return 'auto'; } };
 export function setTema(t) {
   try { if (t === 'light' || t === 'dark') localStorage.setItem('ces.tema', t); else localStorage.removeItem('ces.tema'); } catch (e) { }
   const r = document.documentElement;
   if (t === 'light' || t === 'dark') r.dataset.theme = t; else delete r.dataset.theme;
   document.querySelectorAll('meta[name=theme-color]').forEach(m => { m.content = t === 'dark' ? '#15191E' : t === 'light' ? '#F3EFE4' : (m.media.includes('dark') ? '#15191E' : '#F3EFE4'); });
+  temaBtn();
+  document.querySelectorAll('input[name=tema]').forEach(i => { i.checked = i.value === temaAtt(); });
+}
+/* Pulsante in alto (1.72.1): mostra la scelta attuale; a ogni tocco Chiaro → Scuro → Come il dispositivo. */
+export const TEMI = { light: ['sun', 'Chiaro'], dark: ['moon', 'Scuro'], auto: ['monitor', 'Come il dispositivo'] };
+export function temaBtn() {
+  const b = document.getElementById('temaBtn'); if (!b) return;
+  const [i, l] = TEMI[temaAtt()]; b.innerHTML = ic(i); b.title = 'Aspetto: ' + l + ' (tocca per cambiare)'; b.setAttribute('aria-label', b.title);
 }
 function temaSection() {
   const t = temaAtt(), o = [['light', 'sun', 'Chiaro'], ['dark', 'moon', 'Scuro'], ['auto', 'monitor', 'Come il dispositivo']];
