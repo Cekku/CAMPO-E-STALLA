@@ -124,40 +124,54 @@ const CatastoLayer = window.L ? L.TileLayer.extend({
   },
 }) : null;
 
-// Zoom con la rotella che somma tutti gli scatti (23/11/2026, Marco: "a ogni giro, anche lungo, fa solo uno zoom").
-// Leaflet zooma al primo scatto e, finché dura l'animazione (0,25 s), setView scarta gli altri: girando tanto si
-// muoveva di un passo solo. Qui ogni scatto sposta il livello "obiettivo" (uno scatto del mouse ≈ mezzo livello);
-// se la mappa sta già zoomando, alla fine dell'animazione riparte verso l'obiettivo, fino a 3 livelli per volta.
-const PX_PER_LIVELLO = 100, PASSO_MAX = 3;
+// Zoom con la rotella continuo, come Google Maps (23/11/2026, Marco: prima "a ogni giro, anche lungo, fa solo uno zoom",
+// poi "avanti e indietro veloce i poligoni restano in sovraimpressione o si sfocano").
+// La rotella di Leaflet fa un'animazione per scatto e scarta gli scatti che arrivano mentre anima; accodando le animazioni
+// i poligoni restavano a metà quando si cambiava verso. Qui, come fa Leaflet con il pizzico sul telefono, la mappa si
+// sposta un poco a ogni fotogramma (_move) verso il livello obiettivo, con il punto sotto il mouse fermo; gli eventi
+// zoomstart/zoomend partono una volta sola, all'inizio e alla fine del movimento. Uno scatto del mouse ≈ mezzo livello.
+const PX_PER_LIVELLO = 100, MORBIDEZZA_MS = 80;
 function rotellaFluida(m) {
-  // gli scatti piccoli (touchpad) restano nell'obiettivo finché non fanno un quarto di livello;
-  // dopo mezzo secondo senza rotella si riparte dal livello vero (dopo un "vai al campo", un pizzico...)
-  let obiettivo = null, punto = null, ultimo = 0, atteso = null;
-  const vai = () => {
-    if (obiettivo == null || m._animatingZoom) return;
-    if (Date.now() - ultimo > 1500) { obiettivo = null; return; } // non riprendere dopo uno zoom fatto da altro
-    const z = m.getZoom(), d = Math.max(-PASSO_MAX, Math.min(PASSO_MAX, obiettivo - z));
-    const nuovo = m._limitZoom(z + d);
-    if (Math.abs(nuovo - z) > 0.01) { atteso = nuovo; m.setZoomAround(punto, nuovo); }
+  let grezzo = 0, dest = 0, z = 0, punto = null, ancora = null, frame = null, tPrima = 0, ultimo = 0, zFermo = null;
+  const fine = () => { cancelAnimationFrame(frame); frame = null; };
+  const passo = t => {
+    // uno zoom fatto da altro nel frattempo (aperto un campo, pizzico...): si lascia a lui
+    if (Math.abs(m.getZoom() - z) > 1e-6 || m._animatingZoom) { fine(); m._moveEnd(true); return; }
+    const dt = Math.max(0, Math.min(64, t - tPrima)); tPrima = t;
+    let nz = z + (dest - z) * (1 - Math.exp(-dt / MORBIDEZZA_MS));
+    if (Math.abs(dest - nz) < 0.004) nz = dest;
+    // centro calcolato dal punto della mappa fissato sotto il mouse (ancora): così gli arrotondamenti di ogni fotogramma non si sommano
+    const centro = m.unproject(m.project(ancora, nz).subtract(punto.subtract(m.getSize().divideBy(2))), nz);
+    // durante il movimento le tessere si ingrandiscono soltanto (pinch: come col pizzico, niente scaricamenti a ogni
+    // fotogramma); all'ultimo passo, senza pinch, gli strati scelgono il livello giusto e scaricano le tessere nitide
+    z = nz;
+    if (nz === dest) { fine(); zFermo = nz; m._move(centro, nz); m._moveEnd(true); }
+    else { m._move(centro, nz, { pinch: true }); frame = requestAnimationFrame(passo); }
   };
-  // uno zoom finito altrove (aperto un campo, "dove sono"...) ferma la rotella invece di farsi riportare indietro
-  m.on('zoomend', () => {
-    if (atteso == null || Math.abs(m.getZoom() - atteso) > 0.01) obiettivo = null; // i nostri zoom mettono sempre atteso
-    atteso = null; setTimeout(vai, 0);
-  });
+  // trascinare la mappa ferma la rotella dove si trova (altrimenti i fotogrammi annullavano lo spostamento della mano)
+  m.on('dragstart', () => { if (frame != null) { fine(); m._moveEnd(true); } });
   L.DomEvent.on(m.getContainer(), 'wheel', e => {
     L.DomEvent.preventDefault(e);
-    const ora = Date.now();
-    const base = obiettivo == null || ora - ultimo > 500 ? m.getZoom() : obiettivo;
+    const ora = performance.now();
+    // grezzo somma anche gli scatti piccoli del touchpad (finché non fanno un quarto di livello la mappa non si muove);
+    // si riparte dallo zoom vero se la mappa è cambiata o se la rotella è ferma da mezzo secondo
+    if (frame == null && (ora - ultimo > 500 || m.getZoom() !== zFermo)) grezzo = m.getZoom();
     ultimo = ora;
-    obiettivo = Math.max(m.getMinZoom(), Math.min(m.getMaxZoom(), base + L.DomEvent.getWheelDelta(e) / PX_PER_LIVELLO));
-    punto = m.mouseEventToContainerPoint(e);
-    vai();
+    grezzo = Math.max(m.getMinZoom(), Math.min(m.getMaxZoom(), grezzo + L.DomEvent.getWheelDelta(e) / PX_PER_LIVELLO));
+    dest = m._limitZoom(grezzo); // arrotondato a zoomSnap e fra i limiti
+    // l'ancora si rifà solo se il mouse si è spostato: ricalcolata a metà movimento porterebbe con sé mezzo pixel di arrotondamento, poi ingrandito
+    const p = m.mouseEventToContainerPoint(e);
+    if (frame == null || !punto || p.distanceTo(punto) > 2) { punto = p; ancora = m.containerPointToLatLng(p); }
+    zFermo = m.getZoom();
+    if (frame == null && dest !== m.getZoom() && !m._animatingZoom) {
+      m._stop(); z = m.getZoom(); m._moveStart(true, false);
+      tPrima = ora; frame = requestAnimationFrame(passo);
+    }
   });
 }
 
 function buildMap() {
-  // rotella: la gestisce rotellaFluida (quella di Leaflet perdeva gli scatti arrivati durante l'animazione)
+  // rotella: la gestisce rotellaFluida (zoom continuo; quella di Leaflet perdeva scatti e accavallava le animazioni)
   map = L.map('map', { zoomControl: false, attributionControl: true, maxZoom: 21, minZoom: 5, tap: true, preferCanvas: false, zoomSnap: 0.25, scrollWheelZoom: false });
   rotellaFluida(map);
   map.attributionControl.setPrefix('');
