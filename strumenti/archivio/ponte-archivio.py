@@ -526,6 +526,28 @@ def _porta_aperta(porta):
         return False
 
 
+CONTESTO_CHAT = 32768
+
+
+def _info_modello(L, url, nome):
+    try:
+        d = L.http(url.rsplit('/v1', 1)[0] + '/api/v0/models', timeout=10)
+        return next((m for m in d.get('data', []) if m.get('id') == nome), {})
+    except (OSError, ValueError):
+        return {}
+
+
+def _togli_altri(L, url, nome):
+    """Toglie dalla memoria gli altri modelli di testo caricati (resta solo quello della chat)."""
+    try:
+        d = L.http(url.rsplit('/v1', 1)[0] + '/api/v0/models', timeout=10)
+    except (OSError, ValueError):
+        return
+    for m in d.get('data', []):
+        if m.get('state') == 'loaded' and m.get('type') in ('llm', 'vlm') and m.get('id') != nome and nome.lower() not in m.get('id', '').lower():
+            subprocess.run([L.LMS, 'unload', m['id']], capture_output=True, timeout=120)
+
+
 def _accendi_ia(modello):
     import time
     try:
@@ -533,10 +555,23 @@ def _accendi_ia(modello):
         c = L.impostazioni()
         if modello:
             c['modello'] = modello
+        # la chat dell'app manda istruzioni e strumenti (circa 13.000 token): 8.192 non bastano
+        c['contesto'] = max(int(c.get('contesto') or 0), CONTESTO_CHAT)
         _IA.update(fase='lmstudio', messaggio='accendo LM Studio e carico il modello (anche un minuto)')
+        if c['modello'] and L.acceso(c['url']):
+            _togli_altri(L, c['url'], c['modello'])      # 32 GB non bastano per due modelli grandi insieme
         nome = L.accendi(c)
         if not nome:
             raise RuntimeError('LM Studio non si accende o non ha il modello: aprilo a mano una volta e controlla il modello')
+        _togli_altri(L, c['url'], nome)
+        info = _info_modello(L, c['url'], nome)
+        if info.get('state') == 'loaded' and info.get('loaded_context_length') and int(info['loaded_context_length']) < CONTESTO_CHAT:
+            _IA.update(messaggio='ricarico il modello con più memoria per la chat')
+            subprocess.run([L.LMS, 'unload', nome], capture_output=True, timeout=120)
+            r = subprocess.run([L.LMS, 'load', nome, '--context-length', str(CONTESTO_CHAT), '--ttl', '1800', '-y'],
+                               capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=600)
+            if r.returncode != 0:
+                raise RuntimeError(f'non riesco a ricaricare {nome}: ' + (r.stderr or r.stdout).strip()[-200:])
         if not any(m[0] == nome and m[2] for m in L.elenco_modelli(c['url'])):
             raise RuntimeError(f'LM Studio è acceso ma non riesce a caricare {nome} (memoria piena?): chiudi qualche programma e riprova')
         if not _porta_aperta(PORTA_IA):

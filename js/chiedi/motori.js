@@ -103,14 +103,21 @@ export async function domandaLocale({ msgs, conti, pagine, onPasso = () => { }, 
   if (!model) throw new Error('Il modello sul PC non risponde: premi "Accendi l\'IA sul PC" (qui sotto o in La mia azienda → Modello sul PC)');
   const tools = strumentiPer(conti).map(s => ({ type: 'function', function: { name: s.name, description: s.description, parameters: s.parameters } }));
   const sys = { role: 'system', content: istruzioni(conti, pagine) };
-  const usati = [];
+  const usati = []; let ricaricato = false;
   for (let giro = 0; giro < GIRI; giro++) {
     if (ferma.si) throw new Error('Fermato');
     let r; try {
       r = await fetch(base + '/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model, temperature: 0.2, reasoning_effort: 'none', max_tokens: 2500, tools, tool_choice: 'auto', messages: [sys, ...msgs] }) });
     } catch (e) { throw new Error('Il modello sul PC non risponde: controlla che LM Studio e il ponte siano accesi'); }
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error('Il modello sul PC ha dato errore: ' + ((j.error && (j.error.message || j.error)) || r.status));
+    const errTesto = String((j.error && (j.error.message || j.error)) || r.status);
+    // modello caricato con poca memoria (LM Studio lo ricarica da solo a 8.192 token): lo fa ricaricare grande e riprova una volta
+    if (!r.ok && !ricaricato && /context size|exceed_context|n_ctx|context length/i.test(errTesto)) {
+      ricaricato = true;
+      try { const { preparaIaPC } = await import('../ia-pc.js'); model = (await preparaIaPC(model)) || model; } catch (e) { throw new Error('La domanda è troppo lunga per la memoria del modello sul PC e non riesco a ricaricarlo (' + e.message + '): premi "Accendi l\'IA sul PC" e riprova'); }
+      giro--; continue;
+    }
+    if (!r.ok) throw new Error('Il modello sul PC ha dato errore: ' + errTesto);
     const m = ((j.choices || [])[0] || {}).message || {};
     const calls = m.tool_calls || [];
     msgs.push({ role: 'assistant', content: m.content || '', ...(calls.length ? { tool_calls: calls } : {}) });
