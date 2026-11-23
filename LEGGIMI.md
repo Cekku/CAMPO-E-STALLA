@@ -233,3 +233,13 @@ La chiave di Claude non sta nell'app (il codice è pubblico): sta nei segreti di
 In alternativa, su un solo dispositivo, si può salvare la chiave in La mia azienda → Registrazione a voce e con testo libero: la chat la usa al posto della funzione.
 
 Per **Sul PC** basta quello che serve già per le fatture: LM Studio aperto con il server acceso, il ponte avviato (`strumenti/Avvia ponte LM Studio.bat`) e il modello collegato in La mia azienda → Modello sul PC. Funziona solo da quel computer.
+
+## Rassegna e mercati: collegare Supabase (una volta sola)
+
+La pagina Notizie e mercati legge i portali ogni mattina con una funzione di Supabase chiamata `rassegna`. La chiave di Claude resta nei segreti di Supabase, non nell'app.
+
+1. La funzione `rassegna` si pubblica da sola con l'integrazione GitHub, come le altre (cartella `supabase/functions/rassegna`).
+2. In **Supabase** → **Edge Functions** → **Secrets** aggiungi: `ANTHROPIC_API_KEY` (la stessa della chat Chiedi: se c'è già, non serve rifarla) e `RASSEGNA_SEGRETO`, una parola lunga inventata da te (almeno 30 tra lettere e numeri). Facoltativo: `RASSEGNA_MODELLO` = `claude-sonnet-5-5` per spendere la metà (se non c'è, si usa `claude-opus-5-5`).
+3. In **SQL Editor** apri il file `supabase/aggiornamento-rassegna.sql`, al posto di `METTI-QUI-IL-SEGRETO` scrivi lo stesso segreto del passo 2 ed eseguilo una volta sola. Da quel momento il giro parte ogni mattina alle 6 (alle 7 con l'ora legale).
+4. Nell'app apri **Notizie e mercati** → **Portali** → **Aggiungi i portali consigliati**; poi **Rassegna** → **Aggiorna adesso** per avere la prima pagina.
+5. Costo indicativo: con Opus 5.5 circa 0,10-0,25 $ al giorno, con Sonnet 5.5 circa la metà. Senza la chiave arrivano gli articoli senza riassunto, e il riassunto si può far scrivere all'IA del PC (LM Studio, come per la chat).

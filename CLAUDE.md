@@ -8,7 +8,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.70.3** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.71.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -51,6 +51,7 @@ Le note lunghe di ogni area sono in `.claude/rules/`: ognuna si carica da sola q
 | Magazzino | `magazzino.md` | carico dalle fatture di sementi, concimi, fitofarmaci e gasolio (1.59.0), scarico automatico delle razioni e avviso "sta per finire" (1.60.0), tutte le categorie riconosciute e note di credito (`magriconosci.js`, `auto-magazzino.js`, 1.66.0), inventario e campi nuovi di prodotti e movimenti (1.69.0) |
 | Centro automatico | `automazioni.md` | motore delle automazioni (`registra`, giri all'apertura e ogni 30 minuti, diario con annulla, lista Da controllare), pagina Automatico, agganci di archivio Conti, magazzino dalle fatture, fitofarmaci, razioni e controlli di paghe e fatture (1.63.0, 19/11/2026) |
 | Report del mese | `report.md` | pagina Report del mese con controllo di completezza, istantanee salvate dal Centro (`report-mese`), esportazione, aggancio `aggiungiSezione` per le altre parti (20/11/2026) |
+| Notizie e mercati | `notizie-mercati.md` | rassegna del giorno dai portali di settore con riassunto, analisi e prospettive (funzione Supabase `rassegna` con pg_cron, Claude o IA del PC), prezzi di latte, alimenti, concimi e gasolio da CLAL e Teseo con grafici e legami fra le serie (1.71.0) |
 | Organizzazione | `organizzazione.md` | chi fa cosa fra i modelli (sempre caricata) |
 
 Quando aggiungi una funzione nuova: le note vanno nel file della sua area (e i file nuovi nei suoi `paths:`); qui solo se cambia qualcosa che vale per tutto il progetto. **E aggiorna sempre la Guida** (`js/guida.js`, chiesto da Marco il 17/11/2026): una scheda nuova per una pagina nuova, i passi cambiati per una funzione nuova o cambiata, parole chiave per la ricerca. Un'area nuova = un file nuovo in `.claude/rules/` e una riga in questa tabella.

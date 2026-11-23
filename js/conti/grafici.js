@@ -31,8 +31,8 @@ export function colonne(labels, series, { h = 230, fmt = compatto, unit = '€',
 }
 export const legenda = series => series.length > 1 ? `<div class="legend">${series.map(s => `<span><i class="sw" style="background:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>` : '';
 
-/** Linee su più anni o mesi: series = [{ name, values, color }]. */
-export function linee(labels, series, { h = 220, fmt = compatto, unit = '' } = {}) {
+/** Linee su più anni o mesi: series = [{ name, values, color }]; ogni = scrive sull'asse un'etichetta ogni n (con tanti mesi). */
+export function linee(labels, series, { h = 220, fmt = compatto, unit = '', ogni = 1 } = {}) {
   const vals = series.flatMap(s => s.values.filter(v => v != null));
   if (vals.length < 1) return '<div class="empty slim">Nessun dato da mostrare.</div>';
   let mx = Math.max(...vals), mn = Math.min(...vals); if (mx === mn) { mx += Math.abs(mx) * 0.1 || 1; mn -= Math.abs(mn) * 0.1 || 1; }
@@ -42,7 +42,7 @@ export function linee(labels, series, { h = 220, fmt = compatto, unit = '' } = {
   const y = v => T + ph - (v - mn) / (mx - mn) * ph;
   let g = '';
   for (let k = 0; k <= 4; k++) { const v = mn + (mx - mn) * k / 4; g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="grid"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" class="ax">${fmt(v)}</text>`; }
-  labels.forEach((l, i) => { g += `<text x="${x(i)}" y="${h - 8}" text-anchor="middle" class="ax lab">${esc(l)}</text>`; });
+  labels.forEach((l, i) => { if (ogni > 1 && (labels.length - 1 - i) % ogni) return; g += `<text x="${x(i)}" y="${h - 8}" text-anchor="middle" class="ax lab">${esc(l)}</text>`; });
   series.forEach(s => {
     const pts = s.values.map((v, i) => v == null ? null : [x(i), y(v), v, i]).filter(Boolean);
     if (pts.length > 1) g += `<path d="${pts.map((p, k) => (k ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('')}" fill="none" style="stroke:${s.color}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`;

@@ -42,21 +42,24 @@ import { render as vArchivio, arAct, arInput, arChange, vediDoc } from './views/
 import { render as vGuida, schedaDi } from './views/guida.js';
 import { render as vAuto, auAct } from './views/automatico.js';
 import { render as vReport, rpAct } from './views/report.js';
+import { render as vNotizie, nzAct } from './views/notizie.js';
 import { initChiedi, apri as apriChiedi, alterna as alternaChiedi } from './chiedi/pannello.js';
 
-const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, quaderno: vQuad, carichi: vCar, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida, automatico: vAuto, report: vReport };
-const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', quaderno: 'Quaderno', carichi: 'Pesate del raccolto', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida', automatico: 'Automatico', report: 'Report del mese' };
+const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, quaderno: vQuad, carichi: vCar, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida, automatico: vAuto, report: vReport, notizie: vNotizie };
+const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', quaderno: 'Quaderno', carichi: 'Pesate del raccolto', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida', automatico: 'Automatico', report: 'Report del mese', notizie: 'Notizie e mercati' };
 const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'quaderno', 'carichi', 'stalla', 'magazzino', 'mezzi', 'nitrati', 'conti']);
 // Voci del menu: [tab, sub, icona, etichetta]
 const MENU = {
   campagna: [
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['campi', 'elenco', 'sprout', 'Campi'], ['mappa', null, 'map', 'Mappa'], ['attivita', null, 'notebook-pen', 'Attività'], ['quaderno', null, 'book-open', 'Quaderno di campagna'], ['carichi', null, 'scale', 'Pesate del raccolto'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino'], ['magazzino', 'movimenti', 'package', 'Carichi e scarichi']]],
     ['Agronomia', [['meteo', null, 'cloud-sun', 'Meteo'], ['campi', 'costi', 'euro', 'Costi e margini'], ['nitrati', null, 'leaf', 'Azoto e nitrati'], ['note', null, 'pencil', 'Note']]],
+    ['Notizie e mercati', [['notizie', 'rassegna', 'newspaper', 'Rassegna del giorno'], ['notizie', 'mercati', 'trending-up', 'Prezzi e mercati'], ['notizie', 'portali', 'rss', 'Portali']]],
     ['Gestione', [['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['report', null, 'calendar-range', 'Report del mese'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
   ],
   stalla: [
     ['Principale', [['oggi', null, 'house', 'Dashboard'], ['stalla', 'mandria', 'cow', 'Mandria'], ['stalla', 'stalle', 'layout-grid', 'Stalle e silos'], ['stalla', 'indici', 'gauge', 'Indici e benessere'], ['stalla', 'riproduzione', 'heart-pulse', 'Riproduzione'], ['stalla', 'latte', 'milk', 'Latte'], ['stalla', 'progetto', 'warehouse', 'Progetto stalla 3D']]],
     ['Alimentazione e salute', [['stalla', 'razioni', 'wheat', 'Razioni'], ['stalla', 'tracciabilita', 'clipboard-list', 'Tracciabilità alimenti'],['stalla', 'sanitario', 'syringe', 'Sanitario'], ['meteo', null, 'thermometer', 'Meteo e caldo'], ['magazzino', 'prodotti', 'warehouse', 'Magazzino']]],
+    ['Notizie e mercati', [['notizie', 'rassegna', 'newspaper', 'Rassegna del giorno'], ['notizie', 'mercati', 'trending-up', 'Prezzi e mercati'], ['notizie', 'portali', 'rss', 'Portali']]],
     ['Gestione', [['note', null, 'pencil', 'Note'], ['mezzi', null, 'tractor', 'Macchinari'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['report', null, 'calendar-range', 'Report del mese'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
   ],
   conti: [
@@ -137,8 +140,8 @@ function bnavHTML() {
 // [tab, sub, etichetta]; sub vuoto = l'ultima scheda aperta di quella pagina; sub numero = gruppo di pagine dei Conti (GRUPPI_CONTI).
 // Le voci meno usate restano nella tendina dell'ultima sezione di MENU ("Gestione").
 const TOP = {
-  campagna: [['oggi', null, 'Dashboard'], ['campi', null, 'Campi'], ['mappa', null, 'Mappa'], ['attivita', null, 'Attività'], ['quaderno', null, 'Quaderno'], ['magazzino', null, 'Magazzino'], ['meteo', null, 'Meteo'], ['note', null, 'Note']],
-  stalla: [['oggi', null, 'Dashboard'], ['stalla', null, 'Mandria e latte'], ['meteo', null, 'Meteo e caldo'], ['magazzino', null, 'Magazzino']],
+  campagna: [['oggi', null, 'Dashboard'], ['campi', null, 'Campi'], ['mappa', null, 'Mappa'], ['attivita', null, 'Attività'], ['quaderno', null, 'Quaderno'], ['magazzino', null, 'Magazzino'], ['meteo', null, 'Meteo'], ['note', null, 'Note'], ['notizie', null, 'Notizie']],
+  stalla: [['oggi', null, 'Dashboard'], ['stalla', null, 'Mandria e latte'], ['meteo', null, 'Meteo e caldo'], ['magazzino', null, 'Magazzino'], ['notizie', null, 'Notizie']],
   conti: [['conti', 'panoramica', 'Panoramica'], ['conti', 0, 'Fatture'], ['conti', 1, 'Bilancio'], ['conti', 2, 'Personale'], ['conti', 'importa', 'Carica documenti']],
   archivio: [['archivio', 'scaffale', 'Scaffale'], ['archivio', 'raccoglitore', 'Raccoglitori'], ['archivio', 'cerca', 'Cerca'], ['archivio', 'rivedere', 'Da rivedere']],
 };
@@ -532,6 +535,7 @@ async function clic(e) {
       case 'lockOff': try { toast(await disattivaDaForm($)); } catch (err) { toast(err.message, 'err'); } return render();
       case 'c-expAll': drawer(false); closeSheet(); b.disabled = true; try { await esportaTutto(UI.anno); } finally { b.disabled = false; } return;
       default: if (a.startsWith('rp-')) return rpAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+        if (a.startsWith('nz-')) return nzAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('au-')) return auAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('ar-')) return arAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('p3d') && a !== 'p3dFile') return import('./views/progetto3d.js').then(x => x.p3dAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
@@ -554,6 +558,8 @@ document.addEventListener('change', e => {
   if (t.dataset.act === 'p3dFile' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Carico il modello…'); import('./views/progetto3d.js').then(m => m.caricaModello(f)).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'misureImport' && t.files[0]) { const f = t.files[0]; t.value = ''; misureImport(f).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'fitoImport' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Lettura della banca dati…'); importFito(f).then(n => toast('Banca dati caricata: ' + n + ' prodotti')).catch(err => toast(err.message || 'File non valido', 'err')); return; }
+  if (t.dataset.nz) return nzAct(t.dataset.nz, t, t.dataset).catch(err => toast(err.message || 'Operazione non riuscita', 'err'));
+  if (t.dataset.act && t.dataset.act.startsWith('nz-')) return nzAct(t.dataset.act, t, t.dataset).catch(err => toast(err.message || 'Operazione non riuscita', 'err'));
   if (t.dataset.act === 'authTab') { authUI.tab = t.value; return render(); }
   if (t.dataset.act === 'tema') { setTema(t.value); return; }
   if (t.dataset.act === 'memberRole') { store.setMemberRole(t.dataset.id, t.value).then(() => toast('Permessi aggiornati')).catch(err => toast(traduci(err), 'err')).finally(() => render()); return; }

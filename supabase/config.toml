@@ -12,3 +12,10 @@ entrypoint = "./functions/catasto/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/chiedi/index.ts"
+
+# rassegna del giorno e prezzi di mercato: la chiama pg_cron ogni mattina con il segreto RASSEGNA_SEGRETO
+# (supabase/aggiornamento-rassegna.sql), oppure l'app con l'accesso; i controlli li fa la funzione
+[functions.rassegna]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/rassegna/index.ts"

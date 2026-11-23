@@ -21,7 +21,7 @@ export function viaClaude() {
   if (store.cloudReady() && sync.user && sync.farm) return { via: 'funzione' };
   return { via: null, motivo: 'Per usare Claude accedi all\'azienda (La mia azienda → Sincronizzazione) oppure salva una chiave API su questo dispositivo.' };
 }
-const baseLocale = () => String((lsGet('ces.llm', null) || {}).url || 'http://localhost:1235').trim().replace(/\/+$/, '').replace(/\/v1$/, '');
+export const baseLocale = () => String((lsGet('ces.llm', null) || {}).url || 'http://localhost:1235').trim().replace(/\/+$/, '').replace(/\/v1$/, '');
 export const localeConfigurato = () => !!lsGet('ces.llm', null);
 
 export function istruzioni(conti, pagine) {
