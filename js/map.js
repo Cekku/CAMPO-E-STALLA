@@ -124,9 +124,42 @@ const CatastoLayer = window.L ? L.TileLayer.extend({
   },
 }) : null;
 
+// Zoom con la rotella che somma tutti gli scatti (23/11/2026, Marco: "a ogni giro, anche lungo, fa solo uno zoom").
+// Leaflet zooma al primo scatto e, finché dura l'animazione (0,25 s), setView scarta gli altri: girando tanto si
+// muoveva di un passo solo. Qui ogni scatto sposta il livello "obiettivo" (uno scatto del mouse ≈ mezzo livello);
+// se la mappa sta già zoomando, alla fine dell'animazione riparte verso l'obiettivo, fino a 3 livelli per volta.
+const PX_PER_LIVELLO = 100, PASSO_MAX = 3;
+function rotellaFluida(m) {
+  // gli scatti piccoli (touchpad) restano nell'obiettivo finché non fanno un quarto di livello;
+  // dopo mezzo secondo senza rotella si riparte dal livello vero (dopo un "vai al campo", un pizzico...)
+  let obiettivo = null, punto = null, ultimo = 0, atteso = null;
+  const vai = () => {
+    if (obiettivo == null || m._animatingZoom) return;
+    if (Date.now() - ultimo > 1500) { obiettivo = null; return; } // non riprendere dopo uno zoom fatto da altro
+    const z = m.getZoom(), d = Math.max(-PASSO_MAX, Math.min(PASSO_MAX, obiettivo - z));
+    const nuovo = m._limitZoom(z + d);
+    if (Math.abs(nuovo - z) > 0.01) { atteso = nuovo; m.setZoomAround(punto, nuovo); }
+  };
+  // uno zoom finito altrove (aperto un campo, "dove sono"...) ferma la rotella invece di farsi riportare indietro
+  m.on('zoomend', () => {
+    if (atteso == null || Math.abs(m.getZoom() - atteso) > 0.01) obiettivo = null; // i nostri zoom mettono sempre atteso
+    atteso = null; setTimeout(vai, 0);
+  });
+  L.DomEvent.on(m.getContainer(), 'wheel', e => {
+    L.DomEvent.preventDefault(e);
+    const ora = Date.now();
+    const base = obiettivo == null || ora - ultimo > 500 ? m.getZoom() : obiettivo;
+    ultimo = ora;
+    obiettivo = Math.max(m.getMinZoom(), Math.min(m.getMaxZoom(), base + L.DomEvent.getWheelDelta(e) / PX_PER_LIVELLO));
+    punto = m.mouseEventToContainerPoint(e);
+    vai();
+  });
+}
+
 function buildMap() {
-  // rotella a passi più piccoli e frequenti: zoom più continuo
-  map = L.map('map', { zoomControl: false, attributionControl: true, maxZoom: 21, minZoom: 5, tap: true, preferCanvas: false, zoomSnap: 0.25, wheelPxPerZoomLevel: 90, wheelDebounceTime: 20 });
+  // rotella: la gestisce rotellaFluida (quella di Leaflet perdeva gli scatti arrivati durante l'animazione)
+  map = L.map('map', { zoomControl: false, attributionControl: true, maxZoom: 21, minZoom: 5, tap: true, preferCanvas: false, zoomSnap: 0.25, scrollWheelZoom: false });
+  rotellaFluida(map);
   map.attributionControl.setPrefix('');
   // dal basso: sfondo (200), catasto (350), nomi (360), particella evidenziata (390), campi (400): i campi restano sempre sopra
   map.createPane('catasto').style.zIndex = 350;
