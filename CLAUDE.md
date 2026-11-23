@@ -73,6 +73,7 @@ Supabase in breve: progetto `vamcoyvunyjqgzxujsal`, URL e chiave anon in `js/con
 - Nelle prove nel browser integrato i pulsanti PDF aprono la vera finestra di stampa di Windows: prima mettere `localStorage` `ces.prova.nostampa` = `1` (lo leggono `conti/tabelle.js`, `registro.js`, `tracciabilita.js`) e toglierlo alla fine.
 - Controllo sintassi: `node --input-type=module --check < file.js`.
 - Commit con `git -c user.name="Claude" -c user.email="noreply@anthropic.com"` e righe finali `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; dopo il push su `main` attendere la pubblicazione di GitHub Pages (`gh api repos/Cekku/CAMPO-E-STALLA/actions/runs?per_page=1`).
+- **App Android** (`app-android/`, Capacitor): l'APK lo crea GitHub Actions (`.github/workflows/apk.yml`, avvio a mano: `gh workflow run apk.yml -f note="..."`), che lo firma con i segreti `APK_CHIAVE`/`APK_PASSWORD` e lo mette nella Release `v<versione>` (se c'è già, sostituisce il file). Copia della chiave in `Desktop\chiave-android` (fuori dal repository). La chiave vecchia si è persa: dal 23/11/2026 (1.69.0) chiave nuova, chi aveva la 1.25.0 deve disinstallare prima. Va rifatto l'APK a ogni rilascio, altrimenti l'app Android resta indietro (la 1.25.0 chiedeva `join_code` e dalla 1.26.0 non trovava più l'azienda).
 - Dopo un rilascio l'utente aggiorna con Ctrl+Shift+R (computer) o chiudendo e riaprendo l'app (telefono).
 
 ## Preferenze dell'utente
