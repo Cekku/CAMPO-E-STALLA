@@ -1,9 +1,13 @@
 # Crea l'APK firmato dell'app Android con i file attuali del sito e lo pubblica nelle Release.
-# Si avvia a mano (Actions → App Android → Run workflow). La chiave di firma è nei segreti
+# Parte da solo quando cambia app-android/, oppure a mano (Actions → App Android → Run workflow). La chiave di firma è nei segreti
 # APK_CHIAVE (file .p12 in base64) e APK_PASSWORD; la copia sul PC è in Desktop\chiave-android.
 name: App Android
 
 on:
+  # Le pagine l'app le prende dal sito e si aggiornano da sole: l'APK va rifatto solo quando cambia la parte Android
+  push:
+    branches: [main]
+    paths: ['app-android/**']
   workflow_dispatch:
     inputs:
       note:

@@ -83,7 +83,7 @@ export const GUIDA = [
     parole: 'installazione telefono android iphone apk icona schermata home scaricare app non installata conflitto disinstalla' },
   { id: 'aggiornare', area: 'generale', titolo: 'Aggiornare l\'app', icona: 'refresh-cw', vai: null,
     cosa: 'Quando esce una versione nuova, l\'app si aggiorna da sola: serve solo riaprirla.',
-    passi: ['Sul computer premi Ctrl+Shift+R.', 'Sul telefono chiudi l\'app del tutto e riaprila.', 'Se compare l\'avviso "Nuova versione disponibile", toccalo.', 'Sull\'app Android, se compare "C\'è l\'app nuova", tocca "Scarica".'],
+    passi: ['Sul computer premi Ctrl+Shift+R.', 'Sul telefono chiudi l\'app del tutto e riaprila.', 'Se compare l\'avviso "Nuova versione disponibile", toccalo.', 'Sull\'app Android le pagine nuove arrivano da sole come sul sito: basta riaprire l\'app con la rete.', 'Se l\'app Android mostra "C\'è l\'app nuova", tocca "Scarica" e installa: succede solo quando cambia la parte Android, e i dati restano.', 'Solo il passaggio alla 1.70 fa eccezione: dopo l\'installazione rifai l\'accesso e i dati dell\'azienda tornano da internet; prima sincronizza quello che hai registrato sul telefono.'],
     consigli: ['I tuoi dati non si perdono con l\'aggiornamento.'],
     parole: 'aggiornamento versione nuova novità ricaricare riaprire ctrl shift r' },
   { id: 'chiedi', area: 'generale', titolo: 'Chiedi: fai domande all\'app', icona: 'search', vai: null,

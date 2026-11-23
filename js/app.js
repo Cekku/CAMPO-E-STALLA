@@ -666,8 +666,9 @@ function pagineChat() {
     return false;
   });
   controllaAggiornamento(VERSION);
-  // nell'app Android i file sono già nel telefono: il service worker servirebbe solo a tenere copie vecchie
-  if ('serviceWorker' in navigator && location.protocol === 'https:' && !nativa) {
+  // l'app Android dalla 1.70.0 apre il sito e usa anche lei il service worker (copie per lavorare senza rete, aggiornamento da solo);
+  // solo i file dentro l'APK (https://localhost, APK vecchi) non lo usano
+  if ('serviceWorker' in navigator && location.protocol === 'https:' && !(nativa && location.hostname === 'localhost')) {
     navigator.serviceWorker.register('./sw.js').then(reg => {
       reg.addEventListener('updatefound', () => { const w = reg.installing; if (!w) return; w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(w); }); });
     }).catch(() => { });

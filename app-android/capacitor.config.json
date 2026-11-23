@@ -2,6 +2,10 @@
   "appId": "it.cecutti.campoestalla",
   "appName": "Campo e Stalla",
   "webDir": "www",
+  "server": {
+    "url": "https://cekku.github.io/CAMPO-E-STALLA/",
+    "errorPath": "offline.html"
+  },
   "android": {
     "backgroundColor": "#F3EFE4"
   }

@@ -49,10 +49,13 @@ export function alTastoIndietro(gestisci) {
 }
 
 const piuNuova = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
-/** Controlla su GitHub se è uscito un APK più nuovo di quello installato. */
+/** Controlla su GitHub se è uscito un APK più nuovo di quello installato.
+ *  Le pagine arrivano dal sito e si aggiornano da sole: si confronta la versione dell'APK (App.getInfo), non quella del sito.
+ *  Un APK nuovo esce solo quando cambia la parte Android (app-android/). */
 export async function controllaAggiornamento(versione) {
   if (!nativa || !navigator.onLine) return;
   try {
+    try { const info = await P.App.getInfo(); if (info && info.version) versione = info.version; } catch (e) { }
     const r = await fetch('https://api.github.com/repos/Cekku/CAMPO-E-STALLA/releases/latest', { cache: 'no-store' }); if (!r.ok) return;
     const nuova = String((await r.json()).tag_name || '').replace(/^v/, '');
     if (nuova && piuNuova(nuova, versione)) avvisoFisso(`C'è l'app nuova (${nuova})`, 'Scarica', () => window.open(RILASCI, '_blank'));

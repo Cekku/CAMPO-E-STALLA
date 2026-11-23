@@ -24,6 +24,12 @@ Gestionale per l'azienda agricola e zootecnica, installabile sul telefono e sul 
 - **Ricerca catastale**: cerca una o più particelle per comune, foglio e mappale (anche sezione), mostra il confine sulla mappa e lo trasforma in un campo nuovo o lo aggiunge a un campo esistente (confine, superficie e dati catastali); toccando la mappa con il livello particelle acceso si ottiene la particella con il suo confine. I dati vengono dal WFS dell'Agenzia delle Entrate (CC BY 4.0) attraverso un piccolo collegamento dell'utente: vedi sotto.
 - Funziona **senza rete**; le modifiche si sincronizzano al ritorno della connessione.
 
+## Novità della versione 1.70: l'app Android si aggiorna da sola
+
+L'app Android ora prende le pagine dal sito, come Chrome: quando esce una versione nuova basta riaprire l'app con la rete e le novità ci sono già, senza scaricare niente.
+Senza rete funziona lo stesso con le pagine già scaricate. Solo se cambia la parte Android (stampa, salvataggio dei file) compare l'avviso **C'è l'app nuova**: si scarica e si installa sopra, i dati restano.
+Chi ha ancora l'app 1.25.0 o più vecchia deve disinstallarla una volta e installare quella nuova (la chiave di firma è cambiata). Chi ha la 1.69.0 la installa sopra, ma dopo deve rifare l'accesso: i dati dell'azienda tornano da internet, quindi prima conviene sincronizzare quello che è stato registrato sul telefono.
+
 ## Novità della versione 1.43: la Guida dentro l'app
 
 In fondo al menu di ogni area c'è **Guida**: una scheda per ogni pagina, con a cosa serve e come si usa. In alto c'è una barra di ricerca (scrivi per esempio "fatture" o "latte") e i pulsanti per guardare una sola area. Il pulsante "Apri la pagina" ti porta direttamente alla pagina. In ogni pagina, in alto, il **punto di domanda (?)** apre la Guida proprio sulla scheda di quella pagina. La guida viene aggiornata a ogni novità dell'app.

@@ -16,7 +16,7 @@
 2. Apri il file `Campo-e-Stalla.apk` dalla notifica del download.
 3. La prima volta Android chiede di permettere l'installazione da questa fonte: consentila, torna indietro e tocca **Installa**.
 
-Per aggiornare si fa lo stesso: i dati salvati nell'app restano.
+L'app prende le pagine dal sito: le novità arrivano da sole, basta riaprirla con la rete. Solo quando cambia la parte Android compare "C'è l'app nuova": si scarica e si installa sopra, e i dati salvati nell'app restano. Eccezione: passando dalla 1.69.0 alla 1.70.0 va rifatto l'accesso (i dati dell'azienda tornano da internet; prima sincronizza).
 
 **Chi ha l'app 1.25.0 o più vecchia**: dal 23/11/2026 l'app è firmata con una chiave nuova, quindi Android non la aggiorna sopra quella vecchia ("App non installata"). Disinstalla prima la vecchia app, poi installa quella nuova e fai l'accesso: i dati si riscaricano dall'azienda online. Sui telefoni con Android 8 aggiorna prima *Android System WebView* dal Play Store.
 

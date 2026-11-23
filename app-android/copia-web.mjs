@@ -11,4 +11,6 @@ const DA_COPIARE = ['index.html', 'manifest.webmanifest', 'css', 'js', 'data', '
 rmSync(www, { recursive: true, force: true });
 mkdirSync(www);
 for (const f of DA_COPIARE) cpSync(join(sito, f), join(www, f), { recursive: true });
+// L'app apre il sito (server.url in capacitor.config.json) e si aggiorna da sola; questa pagina compare solo se manca la rete alla prima apertura
+cpSync(join(qui, 'offline.html'), join(www, 'offline.html'));
 console.log('File del sito copiati in', www);
