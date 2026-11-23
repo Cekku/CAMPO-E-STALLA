@@ -86,6 +86,9 @@ export async function ocrSulPC(bytes, { tempo = 15 * 60000 } = {}) {
   return chiama('/ocr', { metodo: 'POST', corpo: { dati: base64(new Uint8Array(bytes)) }, tempo });
 }
 /** Elenco di documenti dal ponte senza passare dalla memoria della vista. */
+// IA sul PC (ponte versione 4): accende LM Studio e il ponte della porta 1235, poi dice a che punto è
+export const accendiIA = modello => chiama('/accendi-ia', { metodo: 'POST', corpo: modello ? { modello } : {} });
+export const statoIA = () => chiama('/ia', { tempo: 4000 });
 export const cerca = (filtri, tempo = 15000) => chiama('/documenti' + qs(filtri), { tempo });
 /** correzioni nel formato del ponte: { "<id>": { a, t, d, c, p, x, n } }; {} = confermato così com'è */
 export async function correggi(corr) { const r = await chiama('/correzioni', { metodo: 'POST', corpo: corr }); cache.clear(); return r; }

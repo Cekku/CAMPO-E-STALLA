@@ -118,7 +118,7 @@ const isVoce = (t, s) => isCur(t, s) && !(t === 'magazzino' && !s);
 function drawerHTML() {
   const a = azienda(); const ha = sum(S.campi, campoHa); const si = syncInfo();
   const nAl = allAlerts().filter(x => UI.area === 'stalla' ? ['stalla', 'latte', 'magazzino'].includes(x.area) : x.area !== 'stalla' && x.area !== 'latte').length;
-  const aree = [['campagna', 'sprout', 'Campagna'], ['stalla', 'cow', 'Stalla'], ['notizie', 'newspaper', 'Notizie'], ...(contiVisibili() ? [['conti', 'wallet', 'Conti'], ['archivio', 'book-open', 'Archivio']] : [])];
+  const aree = [['campagna', 'sprout', 'Campagna'], ['stalla', 'cow', 'Stalla'], ...(contiVisibili() ? [['conti', 'wallet', 'Conti'], ['archivio', 'book-open', 'Archivio']] : []), ['notizie', 'newspaper', 'Notizie']];
   const sottotitolo = UI.area === 'stalla' ? S.capi.filter(c => capoI(c).stato !== 'Uscita').length + ' capi · Stalla' : UI.area === 'conti' ? S.fatture.length + ' fatture · Conti' : UI.area === 'archivio' ? 'Documenti sul PC · Archivio' : UI.area === 'notizie' ? 'Rassegna e prezzi · Notizie' : nf(ha, 2) + ' ha · Campagna';
   return `<div class="dr-head"><img src="icons/icon-192.png" alt="" width="44" height="44"><div><b>${esc(a.nome || (sync.farm && sync.farm.name) || 'La tua azienda')}</b><span>${sottotitolo}</span></div></div>
   <button class="dr-user" data-act="nav" data-tab="impostazioni"><span class="dr-av">${ic(sync.user ? 'user' : si.icn)}</span><span><b>${esc(sync.user ? sync.user.email : 'Nessun account')}</b><small class="${si.cls}">${esc(si.t)}</small></span>${ic('chevron-right', 'chev')}</button>
@@ -152,7 +152,7 @@ const TOP = {
 };
 const ultimaConti = {};   // ultima pagina aperta di ogni gruppo dei Conti: la voce del gruppo riporta lì
 function topnavHTML() {
-  const aree = [['campagna', 'Campagna'], ['stalla', 'Stalla'], ['notizie', 'Notizie'], ...(contiVisibili() ? [['conti', 'Conti'], ['archivio', 'Archivio']] : [])];
+  const aree = [['campagna', 'Campagna'], ['stalla', 'Stalla'], ...(contiVisibili() ? [['conti', 'Conti'], ['archivio', 'Archivio']] : []), ['notizie', 'Notizie']];
   const voce = ([t, s, l]) => {
     let qui = isCur(t, s), sub = s;
     if (typeof s === 'number') { const g = GRUPPI_CONTI[s]; qui = UI.tab === 'conti' && g.includes(UI.sub.conti); if (qui) ultimaConti[s] = UI.sub.conti; sub = ultimaConti[s] || g[0]; }
@@ -458,6 +458,7 @@ async function clic(e) {
       case 'quickgo': return quickGo(d.k);
       case 'nlApply': return nlApply();
       case 'moveCapi': return moveSheet(d.src || '');
+      case 'llmAccendi': return import('./ia-pc.js').then(m => m.accendiIaPC(b, render));
       case 'llmForget': try { localStorage.removeItem('ces.llm'); } catch (e) { } toast('Modello sul PC scollegato'); return render();
       case 'aiForget': try { localStorage.removeItem('ces.ai'); } catch (e) { } toast('Chiave rimossa'); return render();
       case 'search': return searchSheet();

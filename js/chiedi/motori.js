@@ -100,7 +100,7 @@ export async function domandaLocale({ msgs, conti, pagine, onPasso = () => { }, 
   const c = lsGet('ces.llm', null) || {}; const base = baseLocale();
   let model = c.model;
   if (!model) { try { const j = await (await fetch(base + '/v1/models')).json(); model = ((j.data || []).map(m => m.id).filter(id => !/embed/i.test(id)))[0]; } catch (e) { } }
-  if (!model) throw new Error('Il modello sul PC non risponde: accendi LM Studio e il ponte (file "Avvia ponte LM Studio" nella cartella strumenti)');
+  if (!model) throw new Error('Il modello sul PC non risponde: premi "Accendi l\'IA sul PC" (qui sotto o in La mia azienda → Modello sul PC)');
   const tools = strumentiPer(conti).map(s => ({ type: 'function', function: { name: s.name, description: s.description, parameters: s.parameters } }));
   const sys = { role: 'system', content: istruzioni(conti, pagine) };
   const usati = [];

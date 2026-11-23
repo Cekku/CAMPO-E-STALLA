@@ -19,6 +19,8 @@ Richieste (risposte JSON, contratto descritto in CLAUDE.md, sezione "Archivio do
   GET  /testo/<id o impronta> il testo intero già letto dall'archivio (mai i riservati)
   POST /ocr                   {"dati": "<PDF in base64>"} lettura ottica con PP-OCR di un PDF fatto di immagini che
                               l'app sta caricando: parole con la posizione, pagina per pagina. Non salva niente.
+  POST /accendi-ia            {"modello": "facoltativo"} accende LM Studio (server e modello) e il ponte dell'IA sul PC
+                              (ponte-lmstudio.py, porta 1235), senza finestre; GET /ia dice a che punto è
 
 Avvio: doppio clic su "Archivio - ponte.bat" (oppure: python ponte-archivio.py).
 """
@@ -35,7 +37,7 @@ import urllib.parse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import archivio as A  # noqa: E402
 
-VERSIONE = 3
+VERSIONE = 4
 PORTA = 1236
 ORIGINI = {
     'https://cekku.github.io',
@@ -507,10 +509,79 @@ def ocr_file(corpo):
     return {'motore': 'ppocr' + OCR_MOTORE, 'secondi': round(time.time() - t0, 1), 'pagine': pagine}
 
 
+# ---------------------------------------------------------------- IA sul PC (pulsante "Accendi" dell'app)
+
+PONTE_IA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'ponte-lmstudio.py')
+PORTA_IA = 1235
+_IA = {'fase': 'spenta', 'messaggio': '', 'modello': None}
+_IA_LOCK = threading.Lock()
+
+
+def _porta_aperta(porta):
+    import socket
+    try:
+        with socket.create_connection(('127.0.0.1', porta), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def _accendi_ia(modello):
+    import time
+    try:
+        import ia_locale as L
+        c = L.impostazioni()
+        if modello:
+            c['modello'] = modello
+        _IA.update(fase='lmstudio', messaggio='accendo LM Studio e carico il modello (anche un minuto)')
+        nome = L.accendi(c)
+        if not nome:
+            raise RuntimeError('LM Studio non si accende o non ha il modello: aprilo a mano una volta e controlla il modello')
+        if not any(m[0] == nome and m[2] for m in L.elenco_modelli(c['url'])):
+            raise RuntimeError(f'LM Studio è acceso ma non riesce a caricare {nome} (memoria piena?): chiudi qualche programma e riprova')
+        if not _porta_aperta(PORTA_IA):
+            _IA.update(fase='ponte', messaggio='accendo il ponte')
+            if not os.path.isfile(PONTE_IA):
+                raise RuntimeError('non trovo ponte-lmstudio.py nella cartella strumenti')
+            subprocess.Popen([sys.executable, '-u', PONTE_IA], cwd=os.path.dirname(PONTE_IA),
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            for _ in range(30):
+                if _porta_aperta(PORTA_IA):
+                    break
+                time.sleep(0.5)
+            else:
+                raise RuntimeError("il ponte dell'IA non parte: prova 'Avvia ponte LM Studio.bat' per vedere l'errore")
+        _IA.update(fase='pronta', messaggio='', modello=nome)
+    except Exception as e:  # noqa: BLE001 - l'errore va all'app come testo
+        _IA.update(fase='errore', messaggio=str(e)[:300])
+
+
+def stato_ia(_q):
+    if _IA['fase'] in ('spenta', 'pronta', 'errore'):
+        acceso = _porta_aperta(PORTA_IA)
+        if _IA['fase'] == 'pronta' and not acceso:
+            _IA.update(fase='spenta', modello=None)
+        return dict(_IA, ponte=acceso)
+    return dict(_IA, ponte=False)
+
+
+def accendi_ia(corpo):
+    modello = (corpo or {}).get('modello') if isinstance(corpo, dict) else None
+    if modello is not None and (not isinstance(modello, str) or len(modello) > 200):
+        raise Errore(400, '"modello" deve essere un nome')
+    with _IA_LOCK:
+        if _IA['fase'] in ('lmstudio', 'ponte'):
+            return dict(_IA, gia=True)
+        _IA.update(fase='lmstudio', messaggio='parto', modello=None)
+        threading.Thread(target=_accendi_ia, args=((modello or '').strip(),), daemon=True).start()
+    return dict(_IA)
+
+
 # ---------------------------------------------------------------- server
 
-LETTURE = {'/stato': stato, '/aree': aree, '/valori': valori, '/documenti': documenti, '/registro': registro}
-SCRITTURE = {'/apri': apri, '/correzioni': correzioni, '/ocr': ocr_file}
+LETTURE = {'/stato': stato, '/aree': aree, '/valori': valori, '/documenti': documenti, '/registro': registro, '/ia': stato_ia}
+SCRITTURE = {'/apri': apri, '/correzioni': correzioni, '/ocr': ocr_file, '/accendi-ia': accendi_ia}
 MAX_CORPO = {'/ocr': MAX_FILE * 4 // 3 + 4096}     # il PDF arriva in base64
 
 

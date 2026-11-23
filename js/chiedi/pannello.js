@@ -102,7 +102,7 @@ function disegna() {
     <span class="sp"></span>
     <button class="iconbtn ghost" data-ch="nuova" title="Nuova conversazione" aria-label="Nuova conversazione"${conv.voci.length ? '' : ' disabled'}>${ic('trash-2')}</button>
     <button class="iconbtn ghost" data-ch="chiudi" aria-label="Chiudi">${ic('x')}</button></div>
-  <p class="ch-stato">${esc(statoMotore(p))}</p>
+  <p class="ch-stato">${esc(statoMotore(p))}${p.motore === 'locale' ? ` <button class="btn sm ghost" data-ch="accendi">${ic('zap')}Accendi l'IA sul PC</button>` : ''}</p>
   <div class="ch-msgs" id="chMsgs">${vuoto}${voci}${occupato ? `<div class="ch-msg ia busy"><span class="spinner"></span><span>${esc(passo || 'Ci penso…')}</span><button class="btn ghost sm" data-ch="ferma">Ferma</button></div>` : ''}</div>
   <form class="ch-bar" data-ch-form><textarea id="chTesto" rows="1" placeholder="Scrivi una domanda…" enterkeyhint="send"${occupato ? ' disabled' : ''}></textarea>${opz.dettatura ? `<button type="button" class="iconbtn ghost" data-ch="detta" aria-label="Detta">${ic('mic')}</button>` : ''}<button type="button" class="iconbtn ch-go" data-ch="invia" aria-label="Invia"${occupato ? ' disabled' : ''}>${ic('send')}</button></form>`;
   const box = el.querySelector('#chMsgs'); box.scrollTop = box.scrollHeight;
@@ -118,6 +118,7 @@ function clic(e) {
   if (k === 'esempio') { const t = el.querySelector('#chTesto'); t.value = b.textContent; return invia(); }
   if (k === 'invia') return invia();
   if (k === 'ferma') { ferma.si = true; return; }
+  if (k === 'accendi') { import('../ia-pc.js').then(m => m.accendiIaPC(b, disegna)); return; }
   if (k === 'riprova') { const ult = conv.voci.filter(v => v.ruolo === 'utente').pop(); conv.voci = conv.voci.filter(v => !v.errore); if (ult) { conv.voci.pop(); conv.api = { motore: null, msgs: [] }; invia(ult.testo); } return; }
   if (k === 'detta' && opz.dettatura) { const t = el.querySelector('#chTesto'); const on = opz.dettatura((txt, fin) => { t.value = txt; cresci(t); if (fin) invia(); }, () => b.classList.remove('on')); b.classList.toggle('on', on); }
 }
