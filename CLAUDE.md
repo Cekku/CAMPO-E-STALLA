@@ -8,7 +8,7 @@ Questo file riassume tutto il lavoro fatto e come proseguire. La guida per l'ute
 
 - Repository: `github.com/Cekku/CAMPO-E-STALLA` (ramo `main`; il ramo `conti` è tenuto allineato a `main` con `git branch -f conti main && git push -f origin conti`).
 - Pubblicazione: **GitHub Pages** dal ramo `main` (https://cekku.github.io/CAMPO-E-STALLA/). Il sito ha `noindex` e `robots.txt`: non deve comparire sui motori di ricerca.
-- Versione attuale: **1.73.1** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
+- Versione attuale: **1.74.0** (`js/version.js`) — a ogni rilascio aggiornare `js/version.js` e `VERSION` in `sw.js` (es. `ces-1.8.0`), e aggiungere i file nuovi alla lista `SHELL` del service worker.
 - Lingua dell'interfaccia e dei testi: **italiano semplice**, rivolto a un agricoltore, niente gergo tecnico.
 
 ## Architettura
@@ -52,6 +52,7 @@ Le note lunghe di ogni area sono in `.claude/rules/`: ognuna si carica da sola q
 | Centro automatico | `automazioni.md` | motore delle automazioni (`registra`, giri all'apertura e ogni 30 minuti, diario con annulla, lista Da controllare), pagina Automatico, agganci di archivio Conti, magazzino dalle fatture, fitofarmaci, razioni e controlli di paghe e fatture (1.63.0, 19/11/2026) |
 | Report del mese | `report.md` | pagina Report del mese con controllo di completezza, istantanee salvate dal Centro (`report-mese`), esportazione, aggancio `aggiungiSezione` per le altre parti (20/11/2026) |
 | Notizie e mercati | `notizie-mercati.md` | rassegna del giorno dai portali di settore con riassunto, analisi e prospettive (funzione Supabase `rassegna` con pg_cron, Claude o IA del PC), prezzi di latte, alimenti, concimi e gasolio da CLAL e Teseo con grafici e legami fra le serie (1.71.0) |
+| Sicurezza | `sicurezza.md` | controllo settimanale delle falle (funzione Supabase `sicurezza` con pg_cron, notizie di sicurezza, consigli di Claude; script del PC `strumenti/sicurezza/`), pagina Archivio → Sicurezza (1.74.0) |
 | Organizzazione | `organizzazione.md` | chi fa cosa fra i modelli (sempre caricata) |
 
 Quando aggiungi una funzione nuova: le note vanno nel file della sua area (e i file nuovi nei suoi `paths:`); qui solo se cambia qualcosa che vale per tutto il progetto. **E aggiorna sempre la Guida** (`js/guida.js`, chiesto da Marco il 17/11/2026): una scheda nuova per una pagina nuova, i passi cambiati per una funzione nuova o cambiata, parole chiave per la ricerca. Un'area nuova = un file nuovo in `.claude/rules/` e una riga in questa tabella.
@@ -64,12 +65,12 @@ Supabase in breve: progetto `vamcoyvunyjqgzxujsal`, URL e chiave anon in `js/con
 - **Il repository è pubblico** (GitHub Pages gratuito): niente nomi di dipendenti, codici fiscali, IBAN, importi o dati veri in questi file, nei commenti o negli esempi. Il nome di un dipendente comparso in CLAUDE.md è stato tolto nella 1.11.3 (resta nella storia dei commit).
 - Controllo del 26/10/2026: regole RLS corrette, nella storia git solo la chiave anon, librerie in `vendor/` senza problemi noti dopo l'aggiornamento di supabase-js (prima 2.45.4 con auth-js 2.65.0, avviso GHSA-8r88-6cj9-9fh5). La nuova build UMD è un solo file (`591.supabase.js` tolto) e crea lo stesso `window.supabase`.
 - Le librerie in `vendor/` si aggiornano a mano: scegliere versioni uscite da almeno due settimane e confrontare il file con il pacchetto npm (integrità sha512).
-- Controllo settimanale automatico delle vulnerabilità sul PC di Marco: `Desktop\CONTROLLO SICUREZZA\` (avviso su Telegram). Se aggiungi o aggiorni una libreria in `vendor/`, aggiorna anche l'elenco in `controllo_sicurezza.py`.
+- Controllo settimanale automatico della sicurezza (dalla 1.74.0, sostituisce il vecchio `Desktop\CONTROLLO SICUREZZA\` che non c'è più): funzione Supabase `sicurezza` + `strumenti/sicurezza/sicurezza-pc.py`, resoconto in Archivio → Sicurezza (vedi `.claude/rules/sicurezza.md`). Se aggiungi o aggiorni una libreria in `vendor/`, aggiorna `LIBRERIE` in `supabase/functions/_shared/sicurezza.js`.
 - Codice di invito dell'azienda: vale finché il titolare non lo rigenera; rigenerarlo quando un collaboratore lascia l'azienda.
 
 ## Come lavorare
 
-- Server locale per le prove: `python3 -m http.server 8765` nella cartella del progetto.
+- Server locale per le prove: `python3 -m http.server 8765 --bind 127.0.0.1` nella cartella del progetto (senza `--bind` la cartella, con i file locali non pubblicati, si apre a tutta la rete: lo segnala il controllo della sicurezza).
 - Prove nel browser con Playwright (Chromium headless): caricare file con `set_input_files` sull'input `data-act=c-files` (Carica documenti) o `c-pMovFile` (Pagamenti); azioni simulate creando un bottone con `data-act`. Moduli testabili anche in Node (pdf.js da `pdfjs-dist/legacy`, `globalThis.localStorage` finto, `S` da `js/state.js`).
 - Nelle prove nel browser integrato i pulsanti PDF aprono la vera finestra di stampa di Windows: prima mettere `localStorage` `ces.prova.nostampa` = `1` (lo leggono `conti/tabelle.js`, `registro.js`, `tracciabilita.js`) e toglierlo alla fine.
 - Controllo sintassi: `node --input-type=module --check < file.js`.

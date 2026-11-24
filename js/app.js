@@ -43,10 +43,11 @@ import { render as vGuida, schedaDi } from './views/guida.js';
 import { render as vAuto, auAct } from './views/automatico.js';
 import { render as vReport, rpAct } from './views/report.js';
 import { render as vNotizie, nzAct } from './views/notizie.js';
+import { render as vSicurezza, scAct, ultimoResoconto, gravi } from './views/sicurezza.js';
 import { initChiedi, apri as apriChiedi, alterna as alternaChiedi } from './chiedi/pannello.js';
 
-const VIEWS = { oggi: vOggi, campi: vCampi, attivita: vAtt, quaderno: vQuad, carichi: vCar, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida, automatico: vAuto, report: vReport, notizie: vNotizie };
-const TITLES = { oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', quaderno: 'Quaderno', carichi: 'Pesate del raccolto', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida', automatico: 'Automatico', report: 'Report del mese', notizie: 'Notizie e mercati' };
+const VIEWS = { sicurezza: vSicurezza, oggi: vOggi, campi: vCampi, attivita: vAtt, quaderno: vQuad, carichi: vCar, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida, automatico: vAuto, report: vReport, notizie: vNotizie };
+const TITLES = { sicurezza: 'Sicurezza', oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', quaderno: 'Quaderno', carichi: 'Pesate del raccolto', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida', automatico: 'Automatico', report: 'Report del mese', notizie: 'Notizie e mercati' };
 const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'quaderno', 'carichi', 'stalla', 'magazzino', 'mezzi', 'nitrati', 'conti']);
 // Voci del menu: [tab, sub, icona, etichetta]
 const MENU = {
@@ -75,13 +76,14 @@ const MENU = {
   // Archivio documenti: catalogo dei file sul PC, letto dal ponte locale (js/views/archivio.js)
   archivio: [
     ['Principale', [['archivio', 'scaffale', 'book-open', 'Scaffale'], ['archivio', 'raccoglitore', 'box', 'Raccoglitori'], ['archivio', 'cerca', 'search', 'Cerca'], ['archivio', 'rivedere', 'list-checks', 'Da rivedere']]],
-    ['Gestione', [['archivio', 'ponte', 'smartphone', 'Collegamento al PC'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['automatico', null, 'zap', 'Automatico'], ['guida', null, 'circle-help', 'Guida']]],
+    ['Gestione', [['archivio', 'ponte', 'smartphone', 'Collegamento al PC'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['automatico', null, 'zap', 'Automatico'], ['sicurezza', null, 'shield', 'Sicurezza'], ['guida', null, 'circle-help', 'Guida']]],
   ],
 };
 const TAB_OF = { campo: 'campi', capo: 'stalla', prodotto: 'magazzino', mezzo: 'mezzi', struttura: 'stalla' };
 const saveUI = () => lsSet('ces.ui', { sub: UI.sub, area: UI.area, view: UI.view });
 
 // Promemoria della copia di sicurezza (store.copiaDaFare): sta tra gli avvisi della dashboard e porta a La mia azienda → Dati
+extraAlerts.push(() => { if (!contiVisibili()) return []; const r = ultimoResoconto(); if (!r || r.stato !== 'rosso') return []; const n = gravi(r) || (r.falle || []).length; return [{ lv: 'bad', area: 'dati', t: 'Sicurezza: ' + n + (n === 1 ? ' problema grave da sistemare' : ' problemi gravi da sistemare'), s: 'Apri la pagina Sicurezza e segui i passi', go: { tab: 'sicurezza' } }]; });
 extraAlerts.push(() => { const c = store.copiaDaFare(); return c ? [{ lv: 'warn', area: 'dati', t: c.giorni === null ? 'Non hai ancora una copia di sicurezza' : 'Copia di sicurezza di ' + c.giorni + ' giorni fa', s: 'Scarica una copia di tutti i dati e conservala anche fuori da questo dispositivo', go: { tab: 'impostazioni', el: 'datiSez' } }] : []; });
 
 /* ---------- render ---------- */
@@ -174,9 +176,9 @@ function render() {
   derive();
   dopoDisegno();   // Centro automatico: riparte da solo con i dati cambiati (magazzino dalle fatture, fitofarmaci, razioni)
   if (UI.area === 'conti' && (!contiVisibili() || !['conti', 'impostazioni', 'guida', 'automatico', 'report'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'conti'; }
-  if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'impostazioni', 'guida', 'automatico', 'report'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
+  if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'sicurezza', 'impostazioni', 'guida', 'automatico', 'report'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
   if (UI.area !== 'conti' && UI.tab === 'conti') UI.area = 'conti';
-  if (UI.area !== 'archivio' && UI.tab === 'archivio') UI.area = 'archivio';
+  if (UI.area !== 'archivio' && (UI.tab === 'archivio' || UI.tab === 'sicurezza')) UI.area = 'archivio';
   if (UI.area === 'notizie' && !['notizie', 'impostazioni', 'guida'].includes(UI.tab)) UI.tab = 'notizie';
   if (UI.area !== 'notizie' && UI.tab === 'notizie') UI.area = 'notizie';
   document.body.dataset.area = UI.area;
@@ -544,6 +546,7 @@ async function clic(e) {
       case 'lockOff': try { toast(await disattivaDaForm($)); } catch (err) { toast(err.message, 'err'); } return render();
       case 'c-expAll': drawer(false); closeSheet(); b.disabled = true; try { await esportaTutto(UI.anno); } finally { b.disabled = false; } return;
       default: if (a.startsWith('rp-')) return rpAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+        if (a.startsWith('sc-')) return scAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('nz-')) return nzAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('au-')) return auAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
         if (a.startsWith('ar-')) return arAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
@@ -567,6 +570,7 @@ document.addEventListener('change', e => {
   if (t.dataset.act === 'p3dFile' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Carico il modello…'); import('./views/progetto3d.js').then(m => m.caricaModello(f)).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'misureImport' && t.files[0]) { const f = t.files[0]; t.value = ''; misureImport(f).catch(err => toast(err.message || 'File non valido', 'err')); return; }
   if (t.dataset.act === 'fitoImport' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Lettura della banca dati…'); importFito(f).then(n => toast('Banca dati caricata: ' + n + ' prodotti')).catch(err => toast(err.message || 'File non valido', 'err')); return; }
+  if (t.dataset.sc) return scAct('sc-' + t.dataset.sc, t, t.dataset).catch(err => toast(err.message || 'Operazione non riuscita', 'err'));
   if (t.dataset.nz) return nzAct(t.dataset.nz, t, t.dataset).catch(err => toast(err.message || 'Operazione non riuscita', 'err'));
   if (t.dataset.act && t.dataset.act.startsWith('nz-')) return nzAct(t.dataset.act, t, t.dataset).catch(err => toast(err.message || 'Operazione non riuscita', 'err'));
   if (t.dataset.act === 'authTab') { authUI.tab = t.value; return render(); }

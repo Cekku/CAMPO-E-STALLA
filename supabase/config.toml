@@ -19,3 +19,10 @@ entrypoint = "./functions/chiedi/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/rassegna/index.ts"
+
+# controllo della sicurezza: la chiama pg_cron ogni lunedì e il PC con il segreto SICUREZZA_SEGRETO
+# (supabase/aggiornamento-sicurezza.sql), oppure l'app del titolare con l'accesso; i controlli li fa la funzione
+[functions.sicurezza]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/sicurezza/index.ts"

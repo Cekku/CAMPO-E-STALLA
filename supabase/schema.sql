@@ -128,8 +128,8 @@ revoke all on function public.create_farm(text), public.join_farm(text), public.
 grant execute on function public.create_farm(text), public.join_farm(text), public.new_join_code(uuid), public.set_member_role(uuid, uuid, text, boolean) to authenticated;
 
 -- Versione dello schema (l'app la controlla per sapere se i conti sono protetti; 5 = permessi delle persone,
--- 6 = cartella degli originali dei Conti riservata al titolare)
-create or replace function public.ces_schema_version() returns int language sql immutable as $$ select 6 $$;
+-- 6 = cartella degli originali dei Conti riservata al titolare, 7 = raccolta della sicurezza riservata)
+create or replace function public.ces_schema_version() returns int language sql immutable as $$ select 7 $$;
 grant execute on function public.ces_schema_version() to authenticated;
 
 -- Regole di accesso -------------------------------------------------------
@@ -164,11 +164,11 @@ create policy members_delete on public.farm_members for delete to authenticated
 -- chi ha permessi ridotti non può togliersi da solo: rientrando con il codice tornerebbe collaboratore. Lo toglie il titolare.
 
 drop policy if exists records_select on public.records;
-create policy records_select on public.records for select to authenticated using (is_member(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti') or is_owner(farm_id)));
+create policy records_select on public.records for select to authenticated using (is_member(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti', 'sicurezza') or is_owner(farm_id)));
 drop policy if exists records_insert on public.records;
-create policy records_insert on public.records for insert to authenticated with check (can_write(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti') or is_owner(farm_id)));
+create policy records_insert on public.records for insert to authenticated with check (can_write(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti', 'sicurezza') or is_owner(farm_id)));
 drop policy if exists records_update on public.records;
-create policy records_update on public.records for update to authenticated using (can_write(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti') or is_owner(farm_id))) with check (can_write(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti') or is_owner(farm_id)));
+create policy records_update on public.records for update to authenticated using (can_write(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti', 'sicurezza') or is_owner(farm_id))) with check (can_write(farm_id) and (col not in ('fatture', 'bilanci', 'econfig', 'paghe', 'pagamenti', 'sicurezza') or is_owner(farm_id)));
 
 -- Aggiornamenti in tempo reale tra telefono e computer
 do $$ begin

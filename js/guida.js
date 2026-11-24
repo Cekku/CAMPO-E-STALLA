@@ -449,4 +449,9 @@ export const GUIDA = [
     passi: ['Sul PC avvia il programma del collegamento (il file "Archivio - ponte.bat").', 'Apri questa pagina e guarda se risulta collegato.', 'Se l\'app dice che il collegamento è vecchio, chiudi la finestra e riaprila.'],
     consigli: ['Il collegamento passa i file solo all\'app, solo su questo PC.', 'I documenti riservati con password dentro non passano mai.', 'Con il collegamento acceso, i PDF scansionati caricati nei Conti li legge il PC con la lettura ottica più precisa; il PC non ne tiene copia.'],
     parole: 'ponte collegamento pc connessione archivio avviare bat porta lettura ottica ocr scansione' },
+  { id: 'sicurezza', area: 'archivio', titolo: 'Sicurezza', icona: 'shield', vai: ['sicurezza', null],
+    cosa: 'Ogni lunedì l\'app controlla le librerie, l\'app Android, le regole dei dati, il sito e il PC, legge le notizie di sicurezza della settimana e scrive come sistemare quello che trova.',
+    passi: ['Premi "Attiva il controllo settimanale" (serve l\'azienda collegata online).', 'Guarda lo stato in alto: verde tutto a posto, giallo qualcosa da sistemare, rosso da sistemare subito.', 'In "Da sistemare" segui i rimedi dall\'alto, dalla gravità più alta alla più bassa.', 'Dopo aver sistemato premi "Controlla adesso": il nuovo resoconto arriva fra un paio di minuti.', 'In fondo c\'è la parte del PC: se manca, avvia il controllo sul PC come spiegato nel file strumenti/sicurezza/LEGGIMI.md.'],
+    consigli: ['Se la pagina dice di eseguire un file su Supabase, fallo prima: serve a tenere i resoconti riservati.', 'Puoi scaricare l\'elenco dei problemi in Excel, CSV o PDF.', 'La pagina la vede solo il titolare.'],
+    parole: 'sicurezza falle vulnerabilita virus aggiornamenti password chiavi notizie hacker cve attacchi controllo settimanale protezione' },
 ];

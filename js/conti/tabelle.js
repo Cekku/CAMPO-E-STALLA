@@ -28,7 +28,7 @@ const isNumF = f => f && f !== 'text' && f !== 'date';
 const xFmt = f => ({ eur: 'eur', eur2: 'eur2', eur3: 'eur3', eur4: 'eur4', num: 'num', num1: 'num1', num2: 'num2', n: 'num', n1: 'num1', n2: 'num2', qta: 'num2', pct: 'pct', x2: 'num2', gg: 'num', date: 'date', int: 'int' }[f] || '');
 
 /**
- * Tabella: id univoco nella vista, def = { title, cols: [{ k, h, fmt, cls, html(r) }], rows, tot, rowAttr(r), sort: true, note }.
+ * Tabella: id univoco nella vista, def = { title, cols: [{ k, h, fmt, cls, html(r) }], rows, tot, rowAttr(r), sort: true, note, piede (piè di pagina del PDF) }.
  * Le righe possono avere _cls (classe css) e _ind (rientro della prima colonna).
  */
 export function tabella(id, def) {
@@ -75,7 +75,7 @@ export async function esporta(ids, nome, fmt) {
     const it = (v, f) => typeof v === 'number' ? String(f === 'pct' ? Math.round(v * 10000) / 100 : v).replace('.', ',') : v;
     const parti = defs.map(d => { const cols = d.cols.filter(c => c.export !== false); const rr = righeExport(Object.assign({}, d, { cols })); const tot = d.tot ? [cols.map(c => valoreExport(c, d.tot))] : []; return [(defs.length > 1 ? [d.title || ''] : []), cols.map(c => c.h), ...rr.map(r => r.sez !== undefined ? [r.sez] : r.cells.map((v, i) => it(v, cols[i].fmt))), ...tot.map(r => r.map((v, i) => it(v, cols[i].fmt)))].filter(x => x.length).map(r => r.map(q).join(';')).join('\r\n'); });
     scarica(nomeFile(nome, 'csv'), new Blob(['﻿' + parti.join('\r\n\r\n')], { type: 'text/csv;charset=utf-8' }));
-  } else stampa(nome, defs.map(d => `<h2>${esc(d.title || '')}</h2>${d.sub ? `<p class="sub">${esc(d.sub)}</p>` : ''}${tabellaStampa(d)}${d.note ? [].concat(d.note).map(n => `<p class="nota">${esc(n)}</p>`).join('') : ''}`).join(''));
+  } else stampa(nome, defs.map(d => `<h2>${esc(d.title || '')}</h2>${d.sub ? `<p class="sub">${esc(d.sub)}</p>` : ''}${tabellaStampa(d)}${d.note ? [].concat(d.note).map(n => `<p class="nota">${esc(n)}</p>`).join('') : ''}`).join(''), defs[0].piede);
 }
 function tabellaStampa(d) {
   const cols = d.cols.filter(c => c.export !== false);
@@ -83,7 +83,7 @@ function tabellaStampa(d) {
   return `<table><thead><tr>${cols.map(c => `<th class="${isNumF(c.fmt) ? 'n' : ''}">${esc(c.h)}</th>`).join('')}</tr></thead><tbody>${d.rows.map(r => r._sez !== undefined ? `<tr class="sez"><td colspan="${cols.length}">${esc(r._sez)}</td></tr>` : `<tr class="${r._cls || ''}" style="--ind:${r._ind || 0}">${cols.map(c => td(c, r)).join('')}</tr>`).join('')}${d.tot ? `<tr class="tot">${cols.map(c => td(c, d.tot)).join('')}</tr>` : ''}</tbody></table>`;
 }
 /** Stampa (o salva in PDF dal dialogo di stampa) un documento impaginato. */
-export function stampa(titolo, corpo) {
+export function stampa(titolo, corpo, piede = 'Prospetto gestionale: non sostituisce il bilancio redatto dal commercialista.') {
   const az = azienda();
   const html = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>${esc(titolo)}</title><style>
   @page { size: A4 landscape; margin: 12mm 10mm 14mm; }
@@ -97,7 +97,7 @@ export function stampa(titolo, corpo) {
   td:first-child { padding-left: calc(6px + var(--ind, 0) * 12px); }
   tr.sez td { background: #3F7D5A; color: #fff; font-weight: 700; } tr.tot td { background: #CFE3D6; font-weight: 700; border-top: 0.5px solid #9DBFA9; } tr.grp td, tr.bold td { font-weight: 700; }
   thead { display: table-header-group; } footer { margin-top: 12px; color: #6B7A72; font-size: 8.5px; }
-  </style></head><body><header><div><h1>${esc(titolo)}</h1><span>${esc(az.nome || '')}${az.iva ? ' · P.IVA ' + esc(az.iva) : ''}</span></div><span>Campo e Stalla · ${new Date().toLocaleDateString('it-IT')}</span></header>${corpo}<footer>Prospetto gestionale: non sostituisce il bilancio redatto dal commercialista.</footer></body></html>`;
+  </style></head><body><header><div><h1>${esc(titolo)}</h1><span>${esc(az.nome || '')}${az.iva ? ' · P.IVA ' + esc(az.iva) : ''}</span></div><span>Campo e Stalla · ${new Date().toLocaleDateString('it-IT')}</span></header>${corpo}<footer>${esc(piede)}</footer></body></html>`;
   if (nativa) return stampaHtml(html, titolo);
   let fr = document.getElementById('printFrame'); if (fr) fr.remove();
   fr = document.createElement('iframe'); fr.id = 'printFrame'; fr.setAttribute('aria-hidden', 'true');

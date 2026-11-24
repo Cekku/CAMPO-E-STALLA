@@ -7,7 +7,9 @@
       "runtimeArgs": [
         "-m",
         "http.server",
-        "8765"
+        "8765",
+        "--bind",
+        "127.0.0.1"
       ],
       "port": 8765
     },
@@ -17,7 +19,9 @@
       "runtimeArgs": [
         "-m",
         "http.server",
-        "8767"
+        "8767",
+        "--bind",
+        "127.0.0.1"
       ],
       "port": 8767,
       "autoPort": false
@@ -28,7 +32,9 @@
       "runtimeArgs": [
         "-m",
         "http.server",
-        "8768"
+        "8768",
+        "--bind",
+        "127.0.0.1"
       ],
       "port": 8768,
       "autoPort": false

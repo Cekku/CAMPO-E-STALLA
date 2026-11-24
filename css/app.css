@@ -1956,3 +1956,11 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
   .nz-portali li > .nz-on, .nz-portali li > span { flex: 1 1 100%; }
   .nz-portali li span small { word-break: break-word; overflow-wrap: anywhere; }
 }
+
+/* Sicurezza (1.74.0) */
+.sc-stato { border-left: 6px solid var(--ok); } .sc-stato.sc-giallo { border-left-color: var(--warn); } .sc-stato.sc-rosso { border-left-color: var(--bad); }
+.sc-pallino { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; background: var(--ok); } .sc-giallo .sc-pallino { background: var(--warn); } .sc-rosso .sc-pallino { background: var(--bad); }
+.sc-falla { padding: 10px 0; border-top: 1px solid var(--line, var(--rule)); } .sc-falla:first-of-type { border-top: 0; } .sc-falla ol { margin: 6px 0 6px 20px; padding: 0; }
+.sc-grav { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--info-soft); color: var(--info); }
+.sc-g-alta { background: var(--bad-soft); color: var(--bad); } .sc-g-media { background: var(--warn-soft); color: var(--warn); } .sc-g-bassa { background: var(--info-soft); color: var(--info); }
+.sc-avviso p { display: flex; gap: 8px; align-items: center; margin: 0; }
