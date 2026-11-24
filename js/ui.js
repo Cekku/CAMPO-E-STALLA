@@ -11,6 +11,7 @@ export function openSheet(title, html, { wide = false, onClose = null, sub = '' 
   const body = $('#sheetBody'); body.onclick = body.onchange = body.oninput = null;
   body.innerHTML = html; body.scrollTop = 0;
   sh.classList.toggle('wide', wide);
+  finestraApri(sh, wide);
   sh.hidden = false; requestAnimationFrame(() => sh.classList.add('open'));
   document.documentElement.classList.add('locked');
   onCloseCb = onClose;
@@ -24,6 +25,134 @@ export function closeSheet() {
   if (cb) cb();
 }
 export const sheetOpen = () => !$('#sheet').hidden;
+
+/* ---------- finestra come in Windows (1.75.0) ----------
+   Sul computer la finestra si sposta trascinando il titolo, si allarga o stringe dai bordi e dagli angoli,
+   si ingrandisce col pulsante o col doppio clic sul titolo. La misura scelta resta per le finestre dopo
+   (in localStorage ces.finestra, una per le finestre normali e una per le larghe). Sul telefono solo ingrandisci.
+   Barra orizzontale ferma in fondo alla finestra (#sheetX): segue la tabella larga che si vede e la fa scorrere
+   di lato senza dover scendere in fondo alla tabella. */
+const FKEY = 'ces.finestra', FMIN_W = 340, FMIN_H = 220, FBORDO = 8;
+const fLeggi = () => { try { return JSON.parse(localStorage.getItem(FKEY)) || {}; } catch { return {}; } };
+const fScrivi = (o) => { try { localStorage.setItem(FKEY, JSON.stringify(o)); } catch {} };
+const pc = () => matchMedia('(min-width: 641px)').matches;
+let fTipo = 'n';
+function fLimita(r) {
+  const vw = innerWidth, vh = innerHeight;
+  r.w = Math.max(FMIN_W, Math.min(r.w, vw - 2 * FBORDO)); r.h = Math.max(FMIN_H, Math.min(r.h, vh - 2 * FBORDO));
+  r.x = Math.max(FBORDO - r.w + 120, Math.min(r.x, vw - 120)); r.y = Math.max(FBORDO, Math.min(r.y, vh - 48));
+  return r;
+}
+function fMetti(box, r) { Object.assign(box.style, { left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px' }); }
+function fTogli(box) { box.style.left = box.style.top = box.style.width = box.style.height = ''; }
+function fMax(sh, on, salva = true) {
+  sh.classList.toggle('max', on);
+  const b = $('#sheetMax'); if (b) { b.setAttribute('aria-label', on ? 'Riduci la finestra' : 'Ingrandisci la finestra'); b.title = on ? 'Riduci (doppio clic sul titolo)' : 'Ingrandisci (doppio clic sul titolo)'; }
+  if (salva) { const o = fLeggi(); o[fTipo] = { ...(o[fTipo] || {}), max: on }; fScrivi(o); }
+  fBarra();
+}
+function finestraApri(sh, wide) {
+  if (!sh.hidden && sh.classList.contains('open') && fTipo === (wide ? 'w' : 'n')) return; // già aperta (scheda aperta dall'interno): resta dov'è
+  fTipo = wide ? 'w' : 'n';
+  const box = sh.querySelector('.sheet-box'), m = fLeggi()[fTipo] || {};
+  sh.classList.remove('free'); fTogli(box);
+  if (pc() && m.w && m.h) { // misura scelta l'altra volta, al centro dello schermo
+    const r = fLimita({ w: m.w, h: m.h, x: 0, y: 0 }); r.x = Math.round((innerWidth - r.w) / 2); r.y = Math.round((innerHeight - r.h) / 2);
+    sh.classList.add('free'); fMetti(box, r);
+  }
+  fMax(sh, !!m.max, false);
+}
+function fTrascina(e, box, modo) { // modo: 'sposta' oppure i lati 'n','s','e','w','ne',…
+  if (e.button !== 0 || !pc()) return;
+  const sh = $('#sheet'); if (sh.classList.contains('max')) { if (modo !== 'sposta') return; }
+  e.preventDefault();
+  const a = box.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY;
+  let mosso = false;
+  const muovi = (ev) => {
+    const dx = ev.clientX - x0, dy = ev.clientY - y0;
+    if (!mosso) {
+      if (Math.abs(dx) + Math.abs(dy) < 4) return;
+      mosso = true; document.documentElement.classList.add('sh-drag');
+      if (sh.classList.contains('max')) { // trascinando il titolo di una finestra ingrandita torna alla misura di prima, sotto il puntatore
+        fMax(sh, false); const b = box.getBoundingClientRect();
+        a.x = Math.min(Math.max(FBORDO, x0 - b.width / 2), innerWidth - b.width - FBORDO); a.y = FBORDO; a.width = b.width; a.height = b.height;
+      }
+      sh.classList.add('free');
+    }
+    let r = { x: a.x, y: a.y, w: a.width, h: a.height };
+    if (modo === 'sposta') { r.x += dx; r.y += dy; }
+    else {
+      if (modo.includes('e')) r.w = a.width + dx;
+      if (modo.includes('s')) r.h = a.height + dy;
+      if (modo.includes('w')) { r.w = a.width - dx; r.x = a.x + dx; }
+      if (modo.includes('n')) { r.h = a.height - dy; r.y = a.y + dy; }
+      const w = Math.max(FMIN_W, Math.min(r.w, innerWidth - 2 * FBORDO)), h = Math.max(FMIN_H, Math.min(r.h, innerHeight - 2 * FBORDO));
+      if (modo.includes('w')) r.x += r.w - w; if (modo.includes('n')) r.y += r.h - h;
+      r.w = w; r.h = h; r.x = Math.max(FBORDO, r.x); r.y = Math.max(FBORDO, r.y);
+      if (r.x + r.w > innerWidth - FBORDO) r.w = innerWidth - FBORDO - r.x;
+      if (r.y + r.h > innerHeight - FBORDO) r.h = innerHeight - FBORDO - r.y;
+    }
+    if (modo === 'sposta') r = fLimita(r);
+    fMetti(box, r);
+  };
+  const fine = () => {
+    removeEventListener('pointermove', muovi); removeEventListener('pointerup', fine); removeEventListener('pointercancel', fine);
+    document.documentElement.classList.remove('sh-drag');
+    if (!mosso) return;
+    // il clic che segue il rilascio (anche fuori, sullo sfondo) non deve chiudere la finestra
+    const ferma = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+    addEventListener('click', ferma, { capture: true, once: true }); setTimeout(() => removeEventListener('click', ferma, true), 80);
+    const b = box.getBoundingClientRect(), o = fLeggi(); o[fTipo] = { w: Math.round(b.width), h: Math.round(b.height), max: false }; fScrivi(o);
+    fBarra();
+  };
+  addEventListener('pointermove', muovi); addEventListener('pointerup', fine); addEventListener('pointercancel', fine);
+}
+// barra orizzontale ferma in fondo
+let fSeg = null, fT = 0;
+const LARGHE = '.tablewrap, .ch-tab, .rowsgrid, .chart-scroll, .au-det, .mt-days';
+function fBarra() {
+  const sh = $('#sheet'), bar = $('#sheetX'); if (!sh || !bar || sh.hidden) return;
+  const body = $('#sheetBody'), vb = body.getBoundingClientRect();
+  let best = null, area = 0;
+  for (const el of body.querySelectorAll(LARGHE)) {
+    if (el.scrollWidth <= el.clientWidth + 2) continue;
+    const r = el.getBoundingClientRect(), vis = Math.min(r.bottom, vb.bottom) - Math.max(r.top, vb.top);
+    if (vis <= 30) continue;
+    if (r.bottom <= vb.bottom + 1) continue; // la sua barra si vede già: basta quella
+    if (vis * r.width > area) { area = vis * r.width; best = el; }
+  }
+  fSeg = best;
+  if (!best) { bar.hidden = true; return; }
+  const r = best.getBoundingClientRect(), bx = bar.parentElement.getBoundingClientRect();
+  bar.hidden = false;
+  bar.style.marginLeft = Math.max(0, r.left - bx.left) + 'px'; bar.style.width = best.clientWidth + 'px';
+  bar.firstElementChild.style.width = best.scrollWidth + 'px';
+  if (Math.abs(bar.scrollLeft - best.scrollLeft) > 1) bar.scrollLeft = best.scrollLeft;
+}
+const fBarraDopo = () => { clearTimeout(fT); fT = setTimeout(fBarra, 60); };
+function finestraPronta() {
+  const sh = $('#sheet'); if (!sh || sh.dataset.fin) return; sh.dataset.fin = '1';
+  const box = sh.querySelector('.sheet-box'), head = sh.querySelector('.sheet-h'), body = $('#sheetBody'), bar = $('#sheetX');
+  for (const d of ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']) {
+    const h = document.createElement('div'); h.className = 'rz rz-' + d; h.setAttribute('aria-hidden', 'true');
+    h.addEventListener('pointerdown', (e) => fTrascina(e, box, d)); box.appendChild(h);
+  }
+  head.addEventListener('pointerdown', (e) => { if (!e.target.closest('button, a, input, select, textarea')) fTrascina(e, box, 'sposta'); });
+  head.addEventListener('dblclick', (e) => { if (!e.target.closest('button, a, input, select, textarea')) fMax(sh, !sh.classList.contains('max')); });
+  $('#sheetMax').addEventListener('click', () => fMax(sh, !sh.classList.contains('max')));
+  body.addEventListener('scroll', (e) => {
+    if (e.target === body) return fBarra();
+    if (e.target === fSeg && Math.abs(bar.scrollLeft - fSeg.scrollLeft) > 1) bar.scrollLeft = fSeg.scrollLeft;
+  }, { passive: true, capture: true });
+  bar.addEventListener('scroll', () => { if (fSeg && Math.abs(bar.scrollLeft - fSeg.scrollLeft) > 1) fSeg.scrollLeft = bar.scrollLeft; }, { passive: true });
+  new ResizeObserver(() => { box.style.setProperty('--sb-h', body.clientHeight + 'px'); fBarraDopo(); }).observe(body);
+  new MutationObserver(fBarraDopo).observe(body, { childList: true, subtree: true });
+  addEventListener('resize', () => {
+    if (sh.classList.contains('free') && !sh.hidden) { const b = box.getBoundingClientRect(); fMetti(box, fLimita({ x: b.x, y: b.y, w: b.width, h: b.height })); }
+    fBarraDopo();
+  }, { passive: true });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', finestraPronta); else finestraPronta();
 
 /* ---------- avvisi ---------- */
 let tt = 0;
