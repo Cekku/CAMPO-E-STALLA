@@ -140,7 +140,8 @@ def pacchetti():
 
 
 # ---------- porte ----------
-PORTE = {1234: 'IA sul PC (LM Studio)', 1235: 'ponte dell\'IA', 1236: 'ponte dell\'archivio', 8765: 'server delle prove', 8767: 'server delle prove', 8768: 'server delle prove'}
+# i server delle prove delle chat di Claude Code usano le porte dalla 8765 alla 8799 (alcuni restano accesi per giorni)
+PORTE = {1234: 'IA sul PC (LM Studio)', 1235: 'ponte dell\'IA', 1236: 'ponte dell\'archivio', **{p: 'server delle prove' for p in range(8765, 8800)}}
 
 
 def porte():
