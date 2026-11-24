@@ -229,7 +229,8 @@ def fase_veloce(db, imps, percorsi, cfg):
             print(f'  ... {k}/{len(lavori)} ({time.time() - t0:.0f} s, {pag / (time.time() - t0):.2f} pagine/s)')
 
     try:
-        with ProcessPoolExecutor(max_workers=processi) as ex:
+        from figli import sorveglia_padre
+        with ProcessPoolExecutor(max_workers=processi, initializer=sorveglia_padre) as ex:
             futuri = [(ex.submit(leggi_veloce, lav), lav[0]) for lav in lavori]
             for k, (f, imp) in enumerate(futuri, 1):
                 try:
@@ -327,7 +328,8 @@ def fase_precisa(db, percorsi, cfg, minuti=None, solo=None):
             from concurrent.futures import ProcessPoolExecutor, FIRST_COMPLETED, wait
             os.environ['OCR_FILI'] = '4'
             processi = max(1, ((os.cpu_count() or 4) - 4) // 4)
-            with ProcessPoolExecutor(max_workers=processi) as ex:
+            from figli import sorveglia_padre
+            with ProcessPoolExecutor(max_workers=processi, initializer=sorveglia_padre) as ex:
                 coda = iter(lavori); in_corso = set(); ultimo = 0; attesi = {}
                 while True:
                     while len(in_corso) < processi and time.time() - t0 < minuti * 60:

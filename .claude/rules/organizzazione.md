@@ -45,4 +45,5 @@ Ogni messaggio a Marco che accompagna un passo comincia con una nota fra parente
 - Risposte degli agenti corte (le loro istruzioni lo dicono): solo il risultato, niente copia del codice.
 - Messaggi a Marco brevi e in italiano semplice; il dettaglio tecnico va in CLAUDE.md, non nella chat.
 - CLAUDE.md: aggiungere solo quello che serve a chi riprende il lavoro (cosa, dove, perché, cosa è stato provato), in poche righe. Le parti lunghe di un'area vanno in un file di `.claude/rules/` con `paths:` nell'intestazione, così si caricano solo quando si lavora su quei file.
+- **Chiudere quello che si apre** (chiesto da Marco il 24/11/2026): server delle prove, script e programmi avviati per un lavoro si chiudono appena il lavoro è finito, da chi li ha aperti (agente o chat principale).
 - Una chat per argomento: quando si cambia argomento, una chat nuova (il contesto vecchio si paga a ogni messaggio).

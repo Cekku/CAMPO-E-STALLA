@@ -406,7 +406,8 @@ def leggi():
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     t0 = time.time(); conta = {}
     quando = adesso()
-    with ProcessPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2)) as ex:
+    from figli import sorveglia_padre
+    with ProcessPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2), initializer=sorveglia_padre) as ex:
         for i, (imp, r) in enumerate(ex.map(_estrai, lavori, chunksize=8), 1):
             testo = r.get('testo') or ''
             db.execute('INSERT OR REPLACE INTO testi (impronta, esito, metodo, pagine, caratteri, testo, errore, letto) '
@@ -469,7 +470,8 @@ def leggi_scansioni_tesseract(solo_nuove=False):
         return
     t0 = time.time(); conta = {}; pagine = 0
     quando = adesso()
-    with ProcessPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2)) as ex:
+    from figli import sorveglia_padre
+    with ProcessPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2), initializer=sorveglia_padre) as ex:
         for i, (imp, r) in enumerate(ex.map(_ocr, lavori), 1):
             testo = r.get('testo') or ''
             if r['esito'] == 'errore':

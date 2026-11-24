@@ -70,7 +70,7 @@ Supabase in breve: progetto `vamcoyvunyjqgzxujsal`, URL e chiave anon in `js/con
 
 ## Come lavorare
 
-- Server locale per le prove: `python3 -m http.server 8765 --bind 127.0.0.1` nella cartella del progetto (senza `--bind` la cartella, con i file locali non pubblicati, si apre a tutta la rete: lo segnala il controllo della sicurezza).
+- Server locale per le prove: `python3 -m http.server 8765 --bind 127.0.0.1` nella cartella del progetto (senza `--bind` la cartella, con i file locali non pubblicati, si apre a tutta la rete: lo segnala il controllo della sicurezza). **A fine lavoro si chiude sempre** (preview_stop, o il programma avviato con Bash), chiesto da Marco il 24/11/2026; rete di sicurezza: il guardiano del ponte chiude i server delle prove (porte 8765-8799) accesi da più di 6 ore e i processi di lavoro di Python rimasti senza padre (`archivio-pc.md`).
 - Prove nel browser con Playwright (Chromium headless): caricare file con `set_input_files` sull'input `data-act=c-files` (Carica documenti) o `c-pMovFile` (Pagamenti); azioni simulate creando un bottone con `data-act`. Moduli testabili anche in Node (pdf.js da `pdfjs-dist/legacy`, `globalThis.localStorage` finto, `S` da `js/state.js`).
 - Nelle prove nel browser integrato i pulsanti PDF aprono la vera finestra di stampa di Windows: prima mettere `localStorage` `ces.prova.nostampa` = `1` (lo leggono `conti/tabelle.js`, `registro.js`, `tracciabilita.js`) e toglierlo alla fine.
 - Controllo sintassi: `node --input-type=module --check < file.js`.

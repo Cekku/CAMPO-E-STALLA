@@ -107,12 +107,74 @@ def avvia_ponte():
         creationflags=CREATE_NO_WINDOW, text=True, encoding='utf-8', errors='replace')
 
 
+# ---------- pulizia dei programmi dimenticati (24/11/2026, chiesto da Marco: "si devono chiudere sempre appena
+# finito il lavoro") ----------
+# Il 24/11 c'erano sei processi della lettura ottica rimasti senza il programma che li aveva aperti (19 e 21/11) e
+# server delle prove delle chat di Claude Code accesi da giorni, due aperti a tutta la rete. La causa dei primi è
+# corretta in figli.py; questa è la rete di sicurezza: ogni 10 minuti chiude
+#  - i processi di lavoro di Python (multiprocessing) il cui padre non esiste più;
+#  - i server delle prove (python -m http.server sulle porte 8765-8799) accesi da più di SERVER_ORE ore.
+PULIZIA_S = 600
+SERVER_ORE = 6
+ELENCO_PS = ("Get-CimInstance Win32_Process -Filter \"Name like 'python%'\" | "
+             "Select-Object ProcessId, ParentProcessId, CommandLine, @{n='Ore';e={((Get-Date) - $_.CreationDate).TotalHours}} | "
+             "ConvertTo-Json -Compress")
+
+
+def da_chiudere(processi, server_ore=SERVER_ORE):
+    """Dall'elenco dei processi Python sceglie quelli dimenticati: [(pid, motivo)]."""
+    import re
+    vivi = {p['ProcessId'] for p in processi}
+    tutti = set(vivi)
+    try:   # tutti i processi accesi, non solo Python: se il numero del padre è stato riusato, non si chiude niente
+        lista = subprocess.run(['tasklist', '/fo', 'csv', '/nh'], capture_output=True, text=True, errors='replace',
+                               creationflags=CREATE_NO_WINDOW, timeout=60).stdout
+        tutti |= {int(x) for x in re.findall(r'^"[^"]*","(\d+)"', lista, re.M)}
+    except Exception:
+        return []   # senza l'elenco completo non si chiude niente
+    scelti = []
+    for p in processi:
+        cmd = p.get('CommandLine') or ''
+        m = re.search(r'spawn_main\(parent_pid=(\d+)', cmd)
+        if m and int(m[1]) not in tutti:
+            scelti.append((p['ProcessId'], f'processo di lavoro rimasto senza padre (pid {m[1]})'))
+            continue
+        m = re.search(r'-m\s+http\.server\s+(\d+)', cmd)
+        if m and 8765 <= int(m[1]) <= 8799 and (p.get('Ore') or 0) > server_ore:
+            scelti.append((p['ProcessId'], f'server delle prove sulla porta {m[1]} acceso da {p["Ore"]:.0f} ore'))
+    return scelti
+
+
+def pulizia():
+    import json
+    try:
+        uscita = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', ELENCO_PS], capture_output=True,
+                                text=True, encoding='utf-8', errors='replace', creationflags=CREATE_NO_WINDOW, timeout=120).stdout
+        processi = json.loads(uscita or '[]')
+        processi = processi if isinstance(processi, list) else [processi]
+        for pid, motivo in da_chiudere(processi):
+            if pid == os.getpid():
+                continue
+            r = subprocess.run(['taskkill', '/PID', str(pid), '/F'], capture_output=True, text=True, creationflags=CREATE_NO_WINDOW, timeout=30)
+            scrivi(f'chiuso {pid}: {motivo}' + ('' if r.returncode == 0 else f' (non riuscito: {r.stdout.strip() or r.stderr.strip()})'))
+    except Exception as e:
+        scrivi(f'pulizia non riuscita: {type(e).__name__}: {e}')
+
+
+def giro_pulizia():
+    time.sleep(60)
+    while True:
+        pulizia()
+        time.sleep(PULIZIA_S)
+
+
 def main():
     h = mutex_unico()
     if h is None:
         scrivi('guardiano già acceso: esco')
         return
     scrivi(f'===== guardiano acceso (pid {os.getpid()}, {python_console()}) =====')
+    threading.Thread(target=giro_pulizia, daemon=True, name='pulizia').start()
     pausa = 5
     guasti = 0
     proc = None

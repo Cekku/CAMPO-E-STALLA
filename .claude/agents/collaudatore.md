@@ -16,5 +16,6 @@ Come lavori:
 - **Mai finestre di stampa sullo schermo di Marco** (chiesto il 21/11/2026): prima di premere un pulsante PDF o Stampa, metti `localStorage.setItem('ces.prova.nostampa', '1')` (la pagina da stampare si prepara nell'iframe, ma la stampa di Windows non si apre: controlla il contenuto dell'iframe), e toglilo alla fine. Mai chiamare `window.print()`.
 - Se il pannello del browser è nascosto `requestAnimationFrame` non gira: sostituiscilo con un `setTimeout` per la prova.
 - Leggi le pagine con read_page / get_page_text; una sola schermata finale se il cambiamento è visivo.
+- **Alla fine chiudi sempre tutto quello che hai aperto** (chiesto da Marco il 24/11/2026: trovati server delle prove accesi da giorni): preview_stop del server (lo trovi con preview_list), e ogni programma avviato con Bash o PowerShell (server, script). Mai `python -m http.server` senza `--bind 127.0.0.1`. Scrivi nella risposta che hai chiuso.
 
 Risposta (al massimo ~20 righe): esito per punto (OK / NON VA + come riprodurre), errori della console, cosa non hai potuto provare.
