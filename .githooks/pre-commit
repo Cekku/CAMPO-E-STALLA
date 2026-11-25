@@ -1,3 +1,5 @@
 #!/bin/sh
-# controllo della versione prima di ogni commit (vedi controlla-versione.py)
-exec python "$(git rev-parse --show-toplevel)/.githooks/controlla-versione.py"
+# prima di ogni commit: versione (controlla-versione.py) e prove automatiche (prove.py)
+R="$(git rev-parse --show-toplevel)"
+python "$R/.githooks/controlla-versione.py" || exit 1
+exec python "$R/.githooks/prove.py"

@@ -1,5 +1,5 @@
 // Prove del riconoscimento delle righe di fattura per il magazzino (js/magriconosci.js), con dati INVENTATI.
-// Da lanciare dalla cartella del progetto:  node strumenti/prove-magazzino/prove.mjs
+// Uso: npm test (tutte le prove), oppure dalla cartella del progetto:  node --import ./prove/avvio.mjs strumenti/prove-magazzino/prove.mjs
 // Parte 1: casi singoli (unità, confezioni, sconti, note di credito, copie, trappole). Parte 2: un anno simulato di fatture
 // di 6 fornitori finti, con le conferme di "Marco" ai dubbi: misura quante righe entrano da sole e che nessuna sia sbagliata.
 globalThis.window = globalThis.window || {}; globalThis.localStorage = { _d: {}, getItem(k) { return this._d[k] ?? null; }, setItem(k, v) { this._d[k] = String(v); }, removeItem(k) { delete this._d[k]; } };

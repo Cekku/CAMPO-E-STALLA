@@ -1,0 +1,49 @@
+# Prove automatiche e pubblicazione del sito (dalla 25/11/2026, chiesto da Marco: "pubblica solo se le prove passano").
+# A ogni push su main: npm test (prove/ e strumenti/prove*); solo se passano, il sito va su GitHub Pages.
+# Se una prova fallisce il sito resta alla versione di prima e GitHub manda una email.
+# Richiede Pages con "Source: GitHub Actions" (build_type workflow), non più "Deploy from a branch".
+name: Prove e pubblicazione
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pubblica-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 'lts/*'
+      - name: Prove automatiche
+        run: npm test
+
+  pubblica:
+    needs: prove
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.pagine.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: '.'
+      - id: pagine
+        uses: actions/deploy-pages@v4

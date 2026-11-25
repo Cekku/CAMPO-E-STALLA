@@ -1,0 +1,10 @@
+{
+  "name": "campo-e-stalla",
+  "private": true,
+  "type": "module",
+  "description": "Gestionale dell'azienda agricola e zootecnica (PWA senza build). Le prove: npm test",
+  "scripts": {
+    "test": "node --import ./prove/avvio.mjs --test --test-reporter=spec \"prove/*.test.mjs\" strumenti/prove/latte.mjs strumenti/prove-magazzino/prove.mjs"
+  },
+  "engines": { "node": ">=22" }
+}
