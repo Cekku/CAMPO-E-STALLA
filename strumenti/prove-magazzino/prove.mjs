@@ -101,7 +101,19 @@ const rUrea = (o = {}) => Object.assign({ descrizione: 'UREA 46% SACCO 25 KG', c
   // collaudo del 20/11: due fatture nello stesso giro, la seconda con i sacchi scritti kg
   const E4b = cl([f1, fatt(FA, '2026-03-02', [rUrea({ um: 'KG', quantita: 40, importo: 800 })])], [urea]);
   t('stesso giro: la riga con i sacchi scritti kg è un dubbio', E4b.pronte.length === 1 && E4b.pronte[0].q === 1000 && E4b.daFare.length === 1 && /prezzo molto diverso/.test(E4b.daFare[0].motivo), E4b.daFare.map(x => x.motivo));
-  t('filtro olio è un ricambio, olio motore un lubrificante', R.categoriaPer({ categoria: 'Ricambi e manutenzione', descrizione: 'FILTRO OLIO MOTORE 1234' }) === 'Ricambio' && R.categoriaPer({ categoria: 'Ricambi e manutenzione', descrizione: 'OLIO MOTORE 15W40' }) === 'Lubrificante' && R.categoriaPer({ categoria: 'Carburanti e lubrificanti', descrizione: 'OLIO IDRAULICO FUSTO 20 LT' }) === 'Lubrificante');
+  // scelta di Marco del 25/11/2026: dai ricambi entrano solo filtri, olio, grasso e AdBlue; lampade e il resto no
+  t('filtro olio fra i ricambi, olio motore un lubrificante', R.categoriaPer({ categoria: 'Ricambi e manutenzione', descrizione: 'FILTRO OLIO MOTORE 1234' }) === 'Ricambio' && R.categoriaPer({ categoria: 'Ricambi e manutenzione', descrizione: 'CARTUCCIA FILTRANTE IDRAULICA' }) === 'Ricambio' && R.categoriaPer({ categoria: 'Ricambi e manutenzione', descrizione: 'OLIO MOTORE 15W40' }) === 'Lubrificante' && R.categoriaPer({ categoria: 'Ricambi e manutenzione', descrizione: 'ADBLUE TANICA 10 LT' }) === 'AdBlue' && R.categoriaPer({ categoria: 'Carburanti e lubrificanti', descrizione: 'OLIO IDRAULICO FUSTO 20 LT' }) === 'Lubrificante');
+  const Efuori = cl([fatt(FA, '2026-03-01', [{ descrizione: 'LAMPADA LED H4 12V', categoria: 'Ricambi e manutenzione', quantita: 2, um: 'PZ', importo: 30 }, { descrizione: 'RETE ROTOPRESS 123 CM', categoria: 'Teli, film e reti', quantita: 2, um: 'PZ', importo: 300 }, { descrizione: 'DETERGENTE MUNGITRICE TANICA 25 KG', categoria: 'Igiene e mungitura', quantita: 2, um: 'NR', importo: 80 }, { descrizione: 'SYNULOX LC 24 SIRINGHE', categoria: 'Farmaci e prodotti veterinari', quantita: 1, um: 'CF', importo: 60 }, { descrizione: 'GRASSO AL LITIO SECCHIO 5 KG', categoria: 'Ricambi e manutenzione', quantita: 1, um: 'NR', importo: 40 }])], []);
+  t('ricambi, lampade, reti, igiene e farmaci: fuori; il grasso dal ricambista entra', Efuori.pronte.length + Efuori.daFare.length === 1 && Efuori.daFare[0].r.descrizione.startsWith('GRASSO') && Efuori.daFare[0].nuovo.categoria === 'Lubrificante', Efuori.daFare.map(x => x.r.descrizione));
+  const pezzi = ['MOTORE IDRAULICO ORBITALE', 'DISTRIBUTORE IDRAULICO', 'PISTONE IDRAULICO', 'INNESTO RAPIDO IDRAULICO', 'RADIATORE OLIO', 'COPPA OLIO', 'SPIA PRESSIONE OLIO', 'POMPA INGRASSATORE'];
+  const oli = ['OLIO IDRAULICO FUSTO 20 LT', 'OLIO MOTORE 15W40', 'GRASSO AL LITIO 5 KG', 'OLIO ATF TANICA 5 LT'];
+  t('dal ricambista: i pezzi con "olio" o "idraulico" fuori, oli e grassi dentro', pezzi.every(d => R.categoriaPer({ categoria: 'Ricambi e manutenzione', descrizione: d }) === null) && oli.every(d => R.categoriaPer({ categoria: 'Ricambi e manutenzione', descrizione: d }) === 'Lubrificante'), pezzi.concat(oli).map(d => d + '=' + R.categoriaPer({ categoria: 'Ricambi e manutenzione', descrizione: d })));
+  const Efil = cl([fatt(FA, '2026-03-01', [{ descrizione: 'FILTRO GASOLIO 5678', categoria: 'Ricambi e manutenzione', quantita: 2, um: 'PZ', importo: 40, codice: 'FG5678' }])], []);
+  t('filtro dal ricambista: proposto come ricambio nuovo', Efil.daFare.length === 1 && Efil.daFare[0].nuovo && Efil.daFare[0].nuovo.categoria === 'Ricambio', Efil.daFare.map(x => x.nuovo));
+  const Efil2 = cl([fatt(FA, '2026-04-01', [{ descrizione: 'FILTRO GASOLIO 5678', categoria: 'Ricambi e manutenzione', quantita: 3, um: 'PZ', importo: 60, codice: 'FG5678' }])], [P({ id: 'fg', nome: 'Filtro gasolio', categoria: 'Ricambio', unita: 'pz', codiciFatt: [KA + '|FG5678'] })]);
+  t('filtro già imparato: entra da solo', Efil2.pronte.length === 1 && Efil2.pronte[0].q === 3);
+  const Ealtro = cl([fatt(FA, '2026-03-01', [{ descrizione: 'LAMPADA LED H4 12V', categoria: 'Da classificare', quantita: 2, um: 'PZ', importo: 30, codice: 'LH4' }])], [P({ id: 'lamp', nome: 'Lampada H4', categoria: 'Ricambio', unita: 'pz', codiciFatt: [KA + '|LH4'] })]);
+  t('un ricambio già imparato a mano non entra più dalle fatture', Ealtro.pronte.length + Ealtro.daFare.length === 0);
   // codice imparato vince sulle parole, e due prodotti con lo stesso codice → dubbio
   const u2 = P({ id: 'u2', nome: 'Urea granulare', codiciFatt: [KA + '|UR46'] });
   const E6 = cl([f1], [urea, u2]);
@@ -158,11 +170,11 @@ const rUrea = (o = {}) => Object.assign({ descrizione: 'UREA 46% SACCO 25 KG', c
   const E17 = cl([fatt(FB, '2026-05-01', [{ descrizione: 'FIENO DI MEDICA IN BALLE', categoria: 'Mangimi e materie prime', quantita: 3000, um: 'KG', importo: 600 }])], []);
   t('prodotto nuovo: fieno fra i foraggi', E17.daFare[0].nuovo && E17.daFare[0].nuovo.categoria === 'Foraggio' && E17.daFare[0].nuovo.q === 3000);
   // impara
-  const fi = fatt(FB, '2026-05-01', [{ descrizione: 'SYNULOX LC 24 SIRINGHE LOTTO AB12', categoria: 'Farmaci e prodotti veterinari', quantita: 2, um: 'CF', importo: 120, codice: 'SYN24' }]);
-  const syn = P({ id: 'syn', nome: 'Synulox LC', categoria: 'Farmaco veterinario', unita: 'pz' });
+  const fi = fatt(FB, '2026-05-01', [{ descrizione: 'PASTA ENERGETICA 24 SIRINGHE LOTTO AB12', categoria: 'Integratori e additivi', quantita: 2, um: 'CF', importo: 120, codice: 'SYN24' }]);
+  const syn = P({ id: 'syn', nome: 'Pasta energetica', categoria: 'Integratore', unita: 'pz' });
   const imp = R.impara(syn, righeDi([fi])[0], 48);
-  t('impara: codice, descrizione senza lotto, fattore 24', imp.codiciFatt[0] === KB + '|SYN24' && imp.descrFatt[0] === KB + '|SYNULOX LC 24 SIRINGHE' && imp.convFatt['conf>pz'] === 24);
-  const fi2 = fatt(FB, '2026-06-01', [{ descrizione: 'SYNULOX LC 24 SIRINGHE LOTTO CD34', categoria: 'Farmaci e prodotti veterinari', quantita: 3, um: 'CF', importo: 180, codice: 'SYN24' }]);
+  t('impara: codice, descrizione senza lotto, fattore 24', imp.codiciFatt[0] === KB + '|SYN24' && imp.descrFatt[0] === KB + '|PASTA ENERGETICA 24 SIRINGHE' && imp.convFatt['conf>pz'] === 24);
+  const fi2 = fatt(FB, '2026-06-01', [{ descrizione: 'PASTA ENERGETICA 24 SIRINGHE LOTTO CD34', categoria: 'Integratori e additivi', quantita: 3, um: 'CF', importo: 180, codice: 'SYN24' }]);
   const E18 = cl([fi2], [imp]);
   t('dopo la prima conferma: entra da sola (72 pz)', E18.pronte.length === 1 && E18.pronte[0].q === 72);
 }
@@ -187,14 +199,14 @@ const C = [
   { f: F.MA, cat: 'Mangimi e materie prime', d: () => 'MANGIME VITELLI SACCO 25 KG', cod: 'MV25', um: 'NR', fx: 25, pr: 15, v: { nome: 'Mangime vitelli', categoria: 'Mangime', unita: 'kg' }, q: [20, 40] },
   { f: F.MA, cat: 'Mangimi e materie prime', d: () => 'FIENO DI MEDICA IN BALLE', cod: '', um: 'KG', fx: 1, pr: 0.2, v: { nome: 'Fieno di medica', categoria: 'Foraggio', unita: 'kg' }, q: [5000, 8000] },
   { f: F.MA, cat: 'Integratori e additivi', d: () => 'INTEGRATORE MINERALE VACCHE SACCO 25 KG', cod: 'IMV', um: 'SC', fx: 25, pr: 30, v: { nome: 'Integratore minerale vacche', categoria: 'Integratore', unita: 'kg' }, q: [10, 20] },
-  { f: F.VE, cat: 'Farmaci e prodotti veterinari', d: () => 'SYNULOX LC 24 SIRINGHE' + lotto(), cod: 'SYN24', um: 'CF', fx: 24, pr: 60, v: { nome: 'Synulox LC', categoria: 'Farmaco veterinario', unita: 'pz' }, q: [1, 2, 3] },
-  { f: F.VE, cat: 'Igiene e mungitura', d: () => 'DETERGENTE ALCALINO MUNGITRICE TANICA 25 KG', cod: 'DAM25', um: 'NR', fx: 25, pr: 40, v: { nome: 'Detergente alcalino mungitrice', categoria: 'Igiene e mungitura', unita: 'kg' }, q: [2, 4] },
-  { f: F.VE, cat: 'Igiene e mungitura', d: () => 'IODIO PRE-DIPPING CONF 4X5 LT', cod: 'IOD', um: 'CF', fx: 20, pr: 70, v: { nome: 'Iodio pre-dipping', categoria: 'Igiene e mungitura', unita: 'l' }, q: [1, 2] },
+  { f: F.VE, cat: 'Farmaci e prodotti veterinari', d: () => 'SYNULOX LC 24 SIRINGHE' + lotto(), fuori: true, cod: 'SYN24', um: 'CF', fx: 24, pr: 60, v: { nome: 'Synulox LC', categoria: 'Farmaco veterinario', unita: 'pz' }, q: [1, 2, 3] },
+  { f: F.VE, cat: 'Igiene e mungitura', d: () => 'DETERGENTE ALCALINO MUNGITRICE TANICA 25 KG', fuori: true, cod: 'DAM25', um: 'NR', fx: 25, pr: 40, v: { nome: 'Detergente alcalino mungitrice', categoria: 'Igiene e mungitura', unita: 'kg' }, q: [2, 4] },
+  { f: F.VE, cat: 'Igiene e mungitura', d: () => 'IODIO PRE-DIPPING CONF 4X5 LT', fuori: true, cod: 'IOD', um: 'CF', fx: 20, pr: 70, v: { nome: 'Iodio pre-dipping', categoria: 'Igiene e mungitura', unita: 'l' }, q: [1, 2] },
   { f: F.RI, cat: 'Ricambi e manutenzione', d: () => 'FILTRO OLIO MOTORE 1234', cod: 'FO-1234', um: 'PZ', fx: 1, pr: 25, v: { nome: 'Filtro olio motore', categoria: 'Ricambio', unita: 'pz' }, q: [1, 2, 4] },
   { f: F.RI, cat: 'Carburanti e lubrificanti', d: () => 'OLIO 15W40 FUSTO 20 LT', cod: 'OL1540', um: 'NR', fx: 20, pr: 80, v: { nome: 'Olio 15W40', categoria: 'Lubrificante', unita: 'l' }, q: [1, 2] },
   { f: F.RI, cat: 'Carburanti e lubrificanti', d: () => 'ADBLUE TANICA 10 LT', cod: 'ADB10', um: 'PZ', fx: 10, pr: 8, v: { nome: 'AdBlue', categoria: 'AdBlue', unita: 'l' }, q: [4, 8] },
-  { f: F.TE, cat: 'Teli, film e reti', d: () => 'RETE ROTOPRESS 123 CM X 3000 M', cod: 'RR3000', um: 'PZ', fx: 1, pr: 150, v: { nome: 'Rete rotopress', categoria: 'Materiale di consumo', unita: 'pz' }, q: [2, 4] },
-  { f: F.TE, cat: 'Teli, film e reti', d: () => 'SPAGO PER PRESSA 400 M', cod: 'SP400', um: 'PZ', fx: 1, pr: 12, v: { nome: 'Spago per pressa', categoria: 'Materiale di consumo', unita: 'pz' }, q: [6, 12] },
+  { f: F.TE, cat: 'Teli, film e reti', d: () => 'RETE ROTOPRESS 123 CM X 3000 M', fuori: true, cod: 'RR3000', um: 'PZ', fx: 1, pr: 150, v: { nome: 'Rete rotopress', categoria: 'Materiale di consumo', unita: 'pz' }, q: [2, 4] },
+  { f: F.TE, cat: 'Teli, film e reti', d: () => 'SPAGO PER PRESSA 400 M', fuori: true, cod: 'SP400', um: 'PZ', fx: 1, pr: 12, v: { nome: 'Spago per pressa', categoria: 'Materiale di consumo', unita: 'pz' }, q: [6, 12] },
   // fornitore nuovo a metà anno, senza codici: la stessa urea si riconosce dalle parole
   { f: F.NU, cat: 'Concimi', d: () => 'UREA AGRICOLA 46% SACCO DA 25 KG', cod: '', um: 'SC', fx: 25, pr: 21, v: { nome: 'Urea 46%', categoria: 'Concime', unita: 'kg' }, q: [40, 80], dal: 6 },
 ];
@@ -212,8 +224,8 @@ const TRAPPOLE = [
   { f: F.CA, cat: 'Carburanti e lubrificanti', d: 'GASOLIO AGRICOLO', cod: '', um: '', qf: 3000, imp: 3300, deve: 'dubbio' },
   // NON trappole: sacco di un'altra misura (la descrizione lo dice) e olio senza categoria ma con la descrizione già imparata dallo stesso fornitore
   { f: F.CA, cat: 'Concimi', d: 'UREA 46% SACCO 50 KG', cod: 'UR46B', um: 'SC', qf: 20, imp: 800, vero: { nome: 'Urea 46%', q: 1000 } },
-  // farmaco senza unità
-  { f: F.VE, cat: 'Farmaci e prodotti veterinari', d: 'SYNULOX LC 24 SIRINGHE', cod: 'SYN24', um: '', qf: 2, imp: 120, deve: 'dubbio' },
+  // integratore senza unità
+  { f: F.MA, cat: 'Integratori e additivi', d: 'INTEGRATORE MINERALE VACCHE SACCO 25 KG', cod: 'IMV', um: '', qf: 10, imp: 300, deve: 'dubbio' },
   // olio senza categoria nei Conti
   { f: F.RI, cat: 'Da classificare', d: 'OLIO 15W40 FUSTO 20 LT', cod: '', um: 'NR', qf: 1, imp: 80, vero: { nome: 'Olio 15W40', q: 20 } },
 ];
@@ -240,7 +252,7 @@ for (let mese = 1; mese <= 12; mese++) {
     const tr = mese >= 3 ? TRAPPOLE[(mese - 3) % TRAPPOLE.length] : null; if (tr && tr.f === forn) righe.push({ _t: tr, descrizione: tr.d, categoria: tr.cat, codice: tr.cod, quantita: tr.qf, um: tr.um, importo: tr.imp });
     if (rnd() < 0.2) righe.push({ descrizione: 'TRASPORTO', categoria: 'Trasporti e pedaggi', quantita: 1, um: 'NR', importo: 50 });
     const f = fatt(forn, data, righe.map(({ _c, _t, ...r }) => r));
-    righe.forEach((r, i) => { const k = f.id + ':' + i; if (r._c) vero.set(k, { nome: r._c.v.nome, q: r.quantita * r._c.fx, v: r._c.v }); else if (r._t) vero.set(k, r._t.vero ? Object.assign({ v: {} }, r._t.vero) : { dubbio: true, t: r._t }); });
+    righe.forEach((r, i) => { const k = f.id + ':' + i; if (r._c) vero.set(k, { nome: r._c.v.nome, q: r.quantita * r._c.fx, v: r._c.v, fuori: r._c.fuori }); else if (r._t) vero.set(k, r._t.vero ? Object.assign({ v: {} }, r._t.vero) : { dubbio: true, t: r._t }); });
     fatture.push(f); nuove.push(f);
     if (rnd() < 0.15) fatture.push(Object.assign({}, f, { id: 'pdf-' + f.id, fonte: 'pdf', numero: f.numero + '/' })); // PDF di cortesia della stessa fattura
   }
@@ -258,7 +270,8 @@ for (let mese = 1; mese <= 12; mese++) {
   let a = 0, dd = 0;
   for (const x of E.pronte) {
     const v = vero.get(x.k);
-    if (!v || v.dubbio) { errori++; console.log('  ERRORE: trappola entrata da sola', x.r.descrizione, x.prodotto.nome, x.q); }
+    if (v && v.fuori) { errori++; console.log('  ERRORE: riga fuori dal magazzino entrata', x.r.descrizione); }
+    else if (!v || v.dubbio) { errori++; console.log('  ERRORE: trappola entrata da sola', x.r.descrizione, x.prodotto.nome, x.q); }
     else if (v.prezzo) { if (x.origine !== v.origine) { errori++; console.log('  ERRORE: correzione sul carico sbagliato'); } }
     else if (x.prodotto.nome !== v.nome || !uguale(x.q, v.q) || (x.tipo === 'reso') !== !!v.reso) { errori++; console.log('  ERRORE', x.r.descrizione, '→', x.prodotto.nome, x.q, 'invece di', v.nome, v.q); }
     if (x.tipo === 'prezzo') fatti[x.k] = 'r>' + x.origine; else applica(x, x.prodotto, x.q, x.tipo);
@@ -267,6 +280,7 @@ for (let mese = 1; mese <= 12; mese++) {
   for (const x of E.daFare) {
     dd++; const v = vero.get(x.k); if (process.env.VERBOSE && mese > 2) console.log("   dubbio", mese, x.tipo, x.r.descrizione, "|", x.motivo, v && v.dubbio ? "(trappola)" : "");
     if (!v) { console.log('  riga senza verità', x.r.descrizione); continue; }
+    if (v.fuori) { errori++; console.log('  ERRORE: riga fuori dal magazzino fra i dubbi', x.r.descrizione); continue; }
     if (v.dubbio) { trappoleOk++; trappoleTot++; fatti[x.k] = 'no'; continue; }   // Marco scarta (o sistema a mano)
     if (v.prezzo) { fatti[x.k] = 'r>' + v.origine; continue; }
     let p = prodotti.find(y => y.nome === v.nome);

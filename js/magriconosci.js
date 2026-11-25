@@ -11,9 +11,21 @@ import { umNorm, convertiQ } from './conti/preventivi.js';
 export const NOTE = new Set(['TD04', 'TD08']);
 const DA_CLASS = 'Da classificare';
 /** Categorie del magazzino caricabili dalle fatture (le stesse di CATEGORIE in domain.js, senza Effluente). */
-export const CAT_MAG = ['Fitofarmaco', 'Diserbante', 'Concime', 'Seme', 'Mangime', 'Integratore', 'Foraggio', 'Farmaco veterinario', 'Igiene e mungitura', 'Gasolio', 'Lubrificante', 'AdBlue', 'Ricambio', 'Materiale di consumo', 'Altro'];
+/** Categorie che si caricano dalle fatture: solo merce di uso comune (scelta di Marco del 25/11/2026: niente ricambi,
+ *  lampade, materiale di consumo, igiene, farmaci, "Altro"; dei ricambi solo i filtri). Il resto si carica a mano. */
+export const CAT_MAG = ['Fitofarmaco', 'Diserbante', 'Concime', 'Seme', 'Mangime', 'Integratore', 'Foraggio', 'Gasolio', 'Lubrificante', 'AdBlue', 'Ricambio'];
+const FILTRO = /\bFILTR\w*/;
+/** Prodotto che si può caricare dalle fatture: dei ricambi solo i filtri (dal nome). */
+export const daFatture = p => CAT_MAG.includes(p.categoria) && (p.categoria !== 'Ricambio' || FILTRO.test(norm(p.nome)));
 const FITO_CAT = ['Fitofarmaco', 'Diserbante'];
-/** Categoria dei Conti → categoria del magazzino per un prodotto nuovo, e categorie dei prodotti che possono combaciare. */
+const ADBLUE = /\bAD ?BLUE\b|\bUREA (TECNICA|AUTOTRAZ)/;
+// "filtro olio", "tubo idraulico", "pompa olio" sono ricambi, non lubrificanti
+const LUBRIF = /^(?!.*\b(FILTR\w*|TUB[OI]|POMPA|GUARNIZ\w*|TAPP[OI]|ASTINA|RACCORD\w*|CILINDR\w*|VALVOL\w*|PARAOLIO|SENSORE)\b).*(\bOLIO\b|LUBRIF|\bGRASSO\b|\bATF\b|IDRAULIC)/;
+// dal ricambista: serve la parola dell'olio (non basta "idraulico") e niente pezzi ("radiatore olio", "pistone idraulico")
+const OLIO_RIC = /\b(OLIO|OLI|LUBRIF\w*|GRASSO|ATF|FLUIDO)\b/;
+const PEZZO = /\b(MOTORE IDRAUL\w*|DISTRIBUT\w*|PISTON\w*|INNEST\w*|RADIATOR\w*|COPPA|SPIA|PRESSOSTAT\w*|MARTINETT\w*|KIT|BULBO|ORBITAL\w*|MANOMETR\w*|SERBATOI\w*|CUSCINETT\w*|INGRASSATOR\w*|PISTOLA|POMPA|CILINDR\w*|SENSORE|TERMOSTAT\w*|SCAMBIATOR\w*)\b/;
+/** Categoria dei Conti → categoria del magazzino per un prodotto nuovo, e categorie dei prodotti che possono combaciare.
+ *  `solo`: la famiglia vale solo per le righe con queste parole (dai ricambi entrano olio, grasso e AdBlue, il resto no). */
 export const FAMIGLIE = {
   'Sementi': { cat: 'Seme', ok: ['Seme'] },
   'Concimi': { cat: 'Concime', ok: ['Concime'] },
@@ -21,19 +33,20 @@ export const FAMIGLIE = {
   'Carburanti e lubrificanti': { cat: 'Gasolio', ok: ['Gasolio', 'Lubrificante', 'AdBlue'] },
   'Mangimi e materie prime': { cat: 'Mangime', ok: ['Mangime', 'Foraggio', 'Integratore'] },
   'Integratori e additivi': { cat: 'Integratore', ok: ['Integratore', 'Mangime'] },
-  'Farmaci e prodotti veterinari': { cat: 'Farmaco veterinario', ok: ['Farmaco veterinario', 'Igiene e mungitura'] },
-  'Igiene e mungitura': { cat: 'Igiene e mungitura', ok: ['Igiene e mungitura', 'Farmaco veterinario'] },
-  'Ricambi e manutenzione': { cat: 'Ricambio', ok: ['Ricambio', 'Lubrificante', 'Materiale di consumo'] },
-  'Teli, film e reti': { cat: 'Materiale di consumo', ok: ['Materiale di consumo'] },
+  'Ricambi e manutenzione': { cat: 'Lubrificante', ok: ['Lubrificante', 'AdBlue', 'Ricambio'], solo: d => FILTRO.test(d) || (LUBRIF.test(d) && OLIO_RIC.test(d) && !PEZZO.test(d)) || ADBLUE.test(d) },
 };
+/** Famiglia della riga (null se la riga non è merce del magazzino). */
+function famDi(r) {
+  const fam = FAMIGLIE[r.categoria]; if (!fam) return null;
+  return fam.solo && !fam.solo(norm(r.descrizione)) ? null : fam;
+}
 /** Parole che spostano la categoria del prodotto nuovo dentro la stessa famiglia dei Conti. */
 const PAROLE_CAT = [
-  [/\bAD ?BLUE\b|\bUREA (TECNICA|AUTOTRAZ)/, 'AdBlue', ['Carburanti e lubrificanti']],
-  // "filtro olio", "tubo idraulico", "pompa olio" sono ricambi, non lubrificanti
-  [/^(?!.*\b(FILTR\w*|TUB[OI]|POMPA|GUARNIZ\w*|TAPP[OI]|ASTINA|RACCORD\w*|CILINDR\w*|VALVOL\w*|PARAOLIO|SENSORE)\b).*(\bOLIO\b|LUBRIF|\bGRASSO\b|\bATF\b|IDRAULIC)/, 'Lubrificante', ['Carburanti e lubrificanti', 'Ricambi e manutenzione']],
+  [FILTRO, 'Ricambio', ['Ricambi e manutenzione']],
+  [ADBLUE, 'AdBlue', ['Carburanti e lubrificanti', 'Ricambi e manutenzione']],
+  [LUBRIF, 'Lubrificante', ['Carburanti e lubrificanti', 'Ricambi e manutenzione']],
   [/\bFIENO\b|\bPAGLIA\b|\bMEDICA\b|\bINSILATO\b|\bFASCIAT|\bLOIESSA\b|\bPOLIFITA\b|\bLOIETTO\b/, 'Foraggio', ['Mangimi e materie prime']],
   [/DISERB|ERBICID|GLIFOS/, 'Diserbante', ['Fitofarmaci']],
-  [/\bSPAGO\b|\bRETE\b|\bTELO\b|\bFILM\b/, 'Materiale di consumo', ['Ricambi e manutenzione']],
 ];
 /** Righe di servizio (trasporto, contributi, manodopera…): fuori dal magazzino, come prima. */
 export const SERVIZIO = /\b(TRASPORT|CONTRIBUT|NOLO|NOLEGG|SPESE|SPESA|CAUZION|IMBALL|CONAI|SPEDIZ|CONSEGNA|INCASSO|BOLLO|ACCONTO|MANODOPERA|MANO D|INTERVENTO|DIRITTO)/;
@@ -228,7 +241,7 @@ function riconosci(r, ps, fam, fito) {
   const perCod = ck ? ps.filter(p => (p.codiciFatt || []).includes(ck)) : [];
   const perDes = dk ? ps.filter(p => (p.descrFatt || []).includes(dk)) : [];
   const perReg = nr ? ps.filter(p => FITO_CAT.includes(p.categoria) && regN(p.nReg) === nr) : [];
-  const okCat = p => !fam || fam.ok.includes(p.categoria) || p.categoria === 'Altro';
+  const okCat = p => !fam || fam.ok.includes(p.categoria);
   const sc = []; for (const p of ps) { if (!p.paroleFatt || !okCat(p)) continue; const m = migliore(p.paroleFatt, r.descrizione); if (m.s > 0) sc.push([m.s, p, m.a]); }
   sc.sort((a, b) => b[0] - a[0]); const best = sc.length ? sc[0][0] : 0; const tops = sc.filter(z => z[0] === best).map(z => z[1]);
   // codice e descrizione imparati vincono sul numero di registrazione (due confezioni dello stesso fitofarmaco hanno lo stesso numero)
@@ -250,7 +263,7 @@ function riconosci(r, ps, fam, fito) {
 }
 /** Categoria del magazzino per un prodotto nuovo dalla riga (null se la riga non ha una categoria del magazzino). */
 export function categoriaPer(r) {
-  const fam = FAMIGLIE[r.categoria]; if (!fam) return null;
+  const fam = famDi(r); if (!fam) return null;
   const d = norm(r.descrizione);
   for (const [re, cat, fams] of PAROLE_CAT) if (fams.includes(r.categoria) && re.test(d)) return cat;
   return fam.cat;
@@ -267,7 +280,7 @@ const FMT = v => (Math.round(v * 100) / 100).toLocaleString('it-IT', { minimumFr
 export function classifica({ righe, fatture, prodotti, movimenti = [], fatti = {}, da = '0000-00-00', fito = null, dataDi = r => ({ data: r.data, num: '' }) }) {
   const out = { da, fatte: [], tolte: [], doppie: [], pronte: [], daFare: [] };
   const doppie = copieDoppie(fatture, fatti);
-  const ps = prodotti.filter(p => CAT_MAG.includes(p.categoria));
+  const ps = prodotti.filter(daFatture);
   const pid = new Map(prodotti.map(p => [p.id, p]));
   const fat = new Map(fatture.map(f => [f.id, f]));
   const PZ = prezzi({ fatture, movimenti, fatti });
@@ -287,7 +300,7 @@ export function classifica({ righe, fatture, prodotti, movimenti = [], fatti = {
       tipo = q0 > 0 && !SCONTO.test(d) ? 'reso' : 'prezzo';
       if (!nota && tipo === 'prezzo') continue;   // sconto scritto nella fattura: entra nel prezzo da solo (quotaSconti)
     } else { if (!(q0 > 0) || !(imp > 0)) continue; tipo = 'carico'; }
-    const fam = FAMIGLIE[r.categoria];
+    const fam = famDi(r);
     const ric = riconosci(r, ps, fam, fito);
     const forte = ['codice', 'descrizione'].includes(ric.come);
     // parole di servizio (trasporto, consegna…): fuori, salvo merce vera (peso, litri, confezione o prodotto riconosciuto) che diventa un dubbio

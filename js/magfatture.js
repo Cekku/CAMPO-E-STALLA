@@ -18,7 +18,7 @@ export const CAT_MAG = MR.CAT_MAG;
 export const CAT_CAMPAGNA = MR.CAT_MAG;   // nome di prima (1.59.0)
 /** Categoria dei Conti → categoria del magazzino per un prodotto nuovo. */
 export const CAT_FATT = Object.fromEntries(Object.entries(MR.FAMIGLIE).map(([k, v]) => [k, v.cat]));
-export const { paroleDa, unitaPer, categoriaPer } = MR;
+export const { paroleDa, unitaPer, categoriaPer, daFatture } = MR;
 
 const norm = MR.norm;
 const r3 = x => Math.round(x * 1000) / 1000;
@@ -112,8 +112,11 @@ async function abbina1(k, { pid, nuovo, q, ricorda, paroleR, origine, tipo }) {
   let p;
   if (nuovo) {
     const nome = String(nuovo.nome || '').trim(); if (!nome) throw new Error('Scrivi il nome del prodotto.');
-    if (S.prodotti.some(y => norm(y.nome) === norm(nome))) throw new Error('C\'è già un prodotto con questo nome: sceglilo dall\'elenco.');
-    p = { id: uid(), nome, categoria: CAT_MAG.includes(nuovo.categoria) ? nuovo.categoria : (MR.categoriaPer(x.r) || 'Altro'), unita: nuovo.unita || unitaPer(x.r.um), giacenzaIniziale: 0 };
+    const omonimo = S.prodotti.find(y => norm(y.nome) === norm(nome));
+    if (omonimo) throw new Error(MR.daFatture(omonimo) ? 'C\'è già un prodotto con questo nome: sceglilo dall\'elenco.' : `C'è già un prodotto con questo nome fra «${omonimo.categoria}», che non si carica dalle fatture: cambia il nome o la sua categoria.`);
+    const cat = CAT_MAG.includes(nuovo.categoria) ? nuovo.categoria : MR.categoriaPer(x.r);
+    if (!cat) throw new Error('Scegli la categoria.');
+    p = { id: uid(), nome, categoria: cat, unita: nuovo.unita || unitaPer(x.r.um), giacenzaIniziale: 0 };
     const fx = nuovo.nReg ? fitoLookup(nuovo.nReg) : null;
     if (fx) { p.nReg = fx.nReg; p.nRegAuto = fx.nReg; if (fx.sostanze) p.sostanze = fx.sostanze; if (fx.impresa) p.impresa = fx.impresa; if (fx.scadenza) p.scadenzaAut = fx.scadenza; }
   } else { p = get('prodotti', pid); if (!p) throw new Error('Scegli il prodotto.'); p = Object.assign({}, p); }

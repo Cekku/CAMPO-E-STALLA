@@ -61,7 +61,7 @@ function foglio(k) {
         : '<p class="muted small">Non trovo carichi dallo stesso fornitore negli ultimi 6 mesi da correggere. Se la nota non riguarda il magazzino, usa "Non caricare".</p>'}
       <div class="factions"><span class="sp"></span><button class="btn ghost" data-act="close">Annulla</button>${o.length ? `<button class="btn primary" data-act="mf-salva" data-k="${esc(k)}">${ic('check')}Correggi</button>` : ''}</div></div>`);
   }
-  const ps = S.prodotti.filter(p => MF.CAT_MAG.includes(p.categoria)).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'it'));
+  const ps = S.prodotti.filter(MF.daFatture).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'it'));
   const sel = x.proposto ? x.proposto.id : '__nuovo';
   const nv = x.nuovo || {};
   const uNuovo = nv.unita || MF.unitaPer(x.r.um); const cat = nv.categoria || MF.categoriaPer(x.r) || 'Altro';
@@ -72,7 +72,7 @@ function foglio(k) {
     <label class="fld"><span class="flabel">Prodotto del magazzino</span><select class="inp" id="mfProd" data-act="mf-scegli">${reso ? (x.proposto ? '' : opt('', 'Scegli il prodotto', true)) : opt('__nuovo', '+ Prodotto nuovo', sel === '__nuovo')}${ps.map(p => opt(p.id, `${p.nome} (${p.unita || ''})`, p.id === sel)).join('')}</select></label>
     <div id="mfNuovo" class="fgrid"${sel === '__nuovo' && !reso ? '' : ' hidden'}>
       <label class="fld"><span class="flabel">Nome del prodotto nuovo</span><input class="inp" id="mfNome" type="text" value="${esc(nv.nome || String(x.r.descrizione || '').slice(0, 60))}" autocomplete="off"></label>
-      <label class="fld half"><span class="flabel">Categoria</span><select class="inp" id="mfCat">${MF.CAT_MAG.map(c => opt(c, c, c === cat)).join('')}</select></label>
+      <label class="fld half"><span class="flabel">Categoria</span><select class="inp" id="mfCat">${MF.CAT_MAG.includes(cat) ? '' : opt('', 'Scegli la categoria', true)}${MF.CAT_MAG.map(c => opt(c, c, c === cat)).join('')}</select></label>
       <label class="fld half"><span class="flabel">Unità di misura</span><select class="inp" id="mfUm" data-act="mf-scegli">${UNITA.map(u => opt(u, u, u === uNuovo)).join('')}</select></label>
     </div>
     <label class="fld"><span class="flabel">Quantità da ${reso ? 'scaricare' : 'caricare'} (<span id="mfUnita">${esc(x.proposto ? x.proposto.unita || '' : uNuovo)}</span>)</span><input class="inp" id="mfQ" type="number" step="any" min="0" value="${q === '' || q === null ? '' : esc(String(q))}"><small>In fattura: ${nf(x.r.quantita, 2)} ${esc(x.r.um || 'senza unità')}. Se la fattura conta sacchi o confezioni, scrivi quanti kg, litri o pezzi sono in tutto.</small></label>
