@@ -1997,3 +1997,138 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 .sc-grav { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--info-soft); color: var(--info); }
 .sc-g-alta { background: var(--bad-soft); color: var(--bad); } .sc-g-media { background: var(--warn-soft); color: var(--warn); } .sc-g-bassa { background: var(--info-soft); color: var(--info); }
 .sc-avviso p { display: flex; gap: 8px; align-items: center; margin: 0; }
+/* ---------- telefono: scritte piccole più grandi (generato) ---------- */
+@media (max-width: 640px) {
+  .eyebrow { font-size: 12.5px; letter-spacing: .04em; }
+  .dr-head span { font-size: 13px; }
+  .dr-user small { font-size: 13px; }
+  .dr-tiles button { font-size: 13px; }
+  .badge { font-size: 12.5px; }
+  .count { font-size: 13px; }
+  .k-l { font-size: 12.5px; letter-spacing: .04em; }
+  .k-cmp { font-size: 13px; }
+  .mt-desc .muted { font-size: 13px; }
+  .mt-sum dt { font-size: 13px; }
+  .mt-day { font-size: 13px; }
+  .mt-t { font-size: 13px; }
+  .mt-r { font-size: 13px; }
+  .mt-w { font-size: 12.5px; }
+  .mt-legend { font-size: 13px; }
+  .chart .ax { font-size: 12.5px; }
+  .datebox { font-size: 12px; letter-spacing: .04em; }
+  .tabs .n { font-size: 13px; }
+  .chipbar .n { font-size: 13px; }
+  .crop-legend em { font-size: 13px; }
+  .fc-meta { font-size: 13px; }
+  .fact dt { font-size: 12.5px; letter-spacing: .04em; }
+  th { font-size: 12.5px; letter-spacing: .04em; }
+  td:first-child small { font-size: 13px; }
+  .cy-mk em { font-size: 13px; }
+  .cm-h { font-size: 13px; letter-spacing: .04em; }
+  .tl-d { font-size: 13px; }
+  .ration-stats dt { font-size: 12.5px; letter-spacing: .04em; }
+  .ration-stats dd small { font-size: 13px; }
+  .fld small { font-size: 13px; }
+  .fsec { font-size: 12.5px; letter-spacing: .04em; }
+  .leaflet-control-attribution { font-size: 12px; }
+  .field-label span { font-size: 13px; }
+  .lm-title { font-size: 12.5px; letter-spacing: .04em; }
+  .lm-bases button { font-size: 13px; }
+  .lm-row small { font-size: 13px; }
+  .map-legend { font-size: 13px; }
+  .map-legend em { font-size: 13px; }
+  .mc-stats dt { font-size: 12px; letter-spacing: .04em; }
+  .hero-meteo { font-size: 13px; }
+  .op-date { font-size: 13px; }
+  .pc-h span { font-size: 13px; }
+  .donut small { font-size: 12px; }
+  .chart.cols .lab { font-size: 13px; }
+  .note-card small { font-size: 13px; }
+  .fl-sel > span { font-size: 11.5px; letter-spacing: .04em; }
+  .fc-crop-tag { font-size: 13px; }
+  .fc-ha { font-size: 13px; }
+  .wz-types span:not(.q-ic) { font-size: 13px; }
+  .mh-facts dt { font-size: 12.5px; letter-spacing: .04em; }
+  .mh-facts small { font-size: 13px; }
+  .md-d small, .md-ic small { font-size: 13px; }
+  .md-et { font-size: 13px; }
+  .map-weather { font-size: 13px; }
+  .map-legend b { font-size: 13px; letter-spacing: .04em; }
+  .lp-row small { font-size: 13px; }
+  .ck-h span { font-size: 13px; }
+  .checks li small { font-size: 13px; }
+  .rowsgrid .rg-h { font-size: 12.5px; letter-spacing: .04em; }
+  .rowsgrid.stack .rg-c > span { font-size: 12px; letter-spacing: .04em; }
+  .db-row span { font-size: 13px; }
+  .db-hit span { font-size: 13px; }
+  .rot-table td:first-child small { font-size: 13px; }
+  .rot-cell em { font-size: 11.5px; }
+  .sc-h span { font-size: 13px; }
+  .comp-leg { font-size: 13px; }
+  .box-chips span { font-size: 13px; }
+  .box-chips em { font-size: 13px; }
+  .box-chips b { font-size: 13px; }
+  .cow-chips button small { font-size: 13px; }
+  .mini-stalls span { font-size: 13px; }
+  .nd-dates button { font-size: 13px; }
+  .nd-dates button small { font-size: 12px; }
+  .nd-leg em { font-size: 12px; }
+  .ndvi-big small { font-size: 13px; }
+  .bnav button { font-size: 13px; }
+  .hb-v small { font-size: 13px; }
+  .dr-areas button { font-size: 13px; }
+  .etab td .sub { font-size: 13px; }
+  .k-delta { font-size: 13px; }
+  .pie-l { font-size: 12px; }
+  .blk td.h small { font-size: 13px; }
+  .inv-head dt { font-size: 12px; letter-spacing: .04em; }
+  .pmat th { font-size: 12.5px; letter-spacing: .04em; }
+  .pm { font-size: 13px; }
+  .dr-areas button { font-size: 13px; }
+  .ag-date span { font-size: 13px; }
+  .ag-tx small { font-size: 13px; }
+  .ag-q { font-size: 13px; }
+  .ag-q { font-size: 13px; }
+  .mz-top small { font-size: 13px; }
+  .mz-l span { font-size: 13px; }
+  .reg-pct span { font-size: 11.5px; letter-spacing: .04em; }
+  .reg-miss i { font-size: 13px; }
+  .pl-h { font-size: 12.5px; letter-spacing: .04em; }
+  .pl-n small { font-size: 13px; }
+  .pl-bar b { font-size: 13px; }
+  .op-meta { font-size: 13px; }
+  .dr-sec.left { font-size: 13px; letter-spacing: .04em; }
+  kbd { font-size: 13px; }
+  .ag-more { font-size: 13px; }
+  .cd-d small { font-size: 13px; }
+  .cd-s, .cd-h { font-size: 13px; }
+  .lib-pezzi { font-size: 13px; }
+  .s3d-chip { font-size: 13px; }
+  .lib3d-credit { font-size: 12.5px; }
+  .ck-h { font-size: 13px; letter-spacing: .04em; }
+  .all-open small { font-size: 13px; }
+  .ar-pill { font-size: 13px; }
+  .ar-ss { font-size: 13px; }
+  .ar-tr .mono { font-size: 13px; }
+  .ar-tr .n { font-size: 13px; }
+  .ar-dt { font-size: 13px; }
+  .ar-copia small { font-size: 13px; }
+  .ar-reg .mono { font-size: 13px; }
+  .ar-sel { font-size: 13px; }
+  .ar-dt { font-size: 13px; }
+  .multi-bar .mb-voci > span { font-size: 13px; }
+  .multi-bar .mb-voci button em { font-size: 13px; }
+  .fx-s { font-size: 12.5px; }
+  .sal-ring .s { font-size: 12px; }
+  .xml-vista .xr.h { font-size: 12px; letter-spacing: .04em; }
+  .ch-stato { font-size: 13px; }
+  .ch-fonti { font-size: 13px; }
+  .tr-desc { font-size: 13px; }
+  .vt-f > span:first-child { font-size: 13px; }
+  .vt-f small.muted { font-size: 13px; }
+  .qd-manca { font-size: 13px; }
+  .nz-meta { font-size: 13px; }
+  .kpi .k-c { font-size: 13px; }
+  .sc-grav { font-size: 13px; }
+}
+/* ---------- fine telefono ---------- */
