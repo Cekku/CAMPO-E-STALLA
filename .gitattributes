@@ -1,0 +1,2 @@
+# lo script del controllo prima del commit deve restare con gli a capo Unix, altrimenti sh non lo esegue
+.githooks/pre-commit text eol=lf

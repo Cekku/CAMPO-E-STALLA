@@ -212,7 +212,7 @@ Librerie: Leaflet, Leaflet-Geoman, supabase-js, pdf.js (Mozilla, Apache 2.0), th
 
 ## Aggiornare l'app
 
-Ogni modifica pubblicata sul repository arriva da sola sui dispositivi: alla riapertura compare "Nuova versione disponibile". Quando modifichi i file, aumenta `VERSION` in `sw.js` e in `js/version.js`.
+L'app si apre dalla copia salvata sul dispositivo (dalla 1.76.0), quindi parte subito anche con poco segnale. Ogni versione pubblicata si scarica da sola mentre si usa l'app: compare "Versione nuova pronta" con "Aggiorna ora", altrimenti si mette alla prossima apertura. Quando modifichi i file del sito, aumenta **sempre** `VERSION` in `sw.js` e in `js/version.js`: senza, la modifica non arriva a nessuno (il controllo `.githooks/controlla-versione.py` ferma il commit).
 
 ## Immagini della mappa
 

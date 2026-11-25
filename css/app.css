@@ -583,7 +583,7 @@ html.sh-drag .sheet-box { transition: none; }
 .q-ic .ic { width: 21px; height: 21px; }
 
 /* ---------- avvisi temporanei ---------- */
-.toast { position: fixed; left: 50%; bottom: calc(28px + var(--sab)); transform: translate(-50%, 16px); opacity: 0; z-index: 200; display: flex; align-items: center; gap: 10px; background: var(--ink); color: var(--bg); padding: 11px 16px; border-radius: 6px; font-weight: 600; box-shadow: var(--shadow-2); max-width: calc(100vw - 32px); transition: transform .2s, opacity .2s; }
+.toast { position: fixed; left: 50%; bottom: calc(28px + var(--sab)); transform: translate(-50%, 16px); opacity: 0; z-index: 200; display: flex; align-items: center; gap: 10px; background: var(--ink); color: var(--bg); padding: 11px 16px; border-radius: 6px; font-weight: 600; box-shadow: var(--shadow-2); width: max-content; max-width: calc(100vw - 32px); transition: transform .2s, opacity .2s; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 .toast.err { background: var(--bad); color: #fff; }
 .toast .ic { flex: none; }

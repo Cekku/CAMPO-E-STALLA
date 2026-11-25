@@ -1,5 +1,5 @@
 // Service worker: app disponibile offline, mappe e meteo in copia locale
-const VERSION = 'ces-1.75.1';
+const VERSION = 'ces-1.76.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/state.js', './js/util.js', './js/icons.js', './js/geo.js', './js/confine-fvg.js', './js/domain.js', './js/store.js', './js/config.js', './js/ui.js', './js/forms.js', './js/elenchi.js', './js/map.js', './js/meteo.js', './js/install.js', './js/nativo.js', './js/esempi.js', './js/version.js', './js/checks.js', './js/fitodb.js', './js/fitoabbina.js', './js/registro.js', './js/pcg.js', './js/particelle.js', './js/nlp.js', './js/herd.js', './js/ndvi.js',
@@ -10,12 +10,21 @@ const SHELL = [
   './vendor/pdfjs/pdf.min.mjs', './vendor/pdfjs/pdf.worker.min.mjs',
   './vendor/leaflet/leaflet.js', './vendor/leaflet/leaflet.css', './vendor/geoman/leaflet-geoman.min.js', './vendor/geoman/leaflet-geoman.css', './vendor/supabase/supabase.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon-64.png',
+  './fonts/fonts.css', './fonts/plex-sans-latin.woff2', './fonts/plex-sans-latin-ext.woff2', './fonts/newsreader-latin.woff2', './fonts/newsreader-latin-ext.woff2',
+  './fonts/newsreader-italic-latin.woff2', './fonts/newsreader-italic-latin-ext.woff2', './fonts/plex-mono-500-latin.woff2', './fonts/plex-mono-500-latin-ext.woff2',
+  './fonts/plex-mono-600-latin.woff2', './fonts/plex-mono-600-latin-ext.woff2',
 ];
 const TILE_CACHE = 'ces-tiles-2', TILE_MAX = 3000, RT_CACHE = 'ces-runtime', CAT_CACHE = 'ces-catasto-1'; // CAT_CACHE: catasto disegnato (js/catastomappa.js)
 const ALL_CACHE = 'ces-allegati-1'; // fatture e foto degli interventi sui mezzi (js/allegati.js): mai cancellata
+// librerie grandi e modelli 3D fuori da SHELL (lettura ottica 9 MB, three.js, shapefile, caratteri di pdf.js, modelli/*.glb): restano
+// fra una versione e l'altra, così non si riscaricano a ogni rilascio. CAMBIARE IL NOME quando si aggiorna una di queste librerie in vendor/.
+const LIB_CACHE = 'ces-librerie-1';
 
-self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL))); });
-self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('ces-') && ![VERSION, TILE_CACHE, RT_CACHE, CAT_CACHE, ALL_CACHE].includes(k)).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+// dalla 1.76.0 l'app si apre dalla copia di questa versione (prima chiedeva alla rete ogni file a ogni apertura: con poco segnale restava
+// ferma). Il service worker nuovo scarica la sua copia e poi aspetta: la pagina lo mette alla prossima apertura o con "Aggiorna" (js/app.js).
+// 'no-cache': ogni file si ricontrolla con il server (se non è cambiato risponde 304 e non si riscarica).
+self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'no-cache' }))))); });
+self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('ces-') && ![VERSION, TILE_CACHE, RT_CACHE, CAT_CACHE, ALL_CACHE, LIB_CACHE].includes(k)).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
 
 async function trim(name, max) { const c = await caches.open(name); const keys = await c.keys(); if (keys.length > max) for (const k of keys.slice(0, keys.length - max)) await c.delete(k); }
@@ -51,14 +60,48 @@ self.addEventListener('fetch', e => {
     }));
     return;
   }
-  // meteo e caratteri: rete con ripiego sulla copia
-  if (/open-meteo|fonts\.(googleapis|gstatic)/.test(url.hostname)) {
+  // caratteri: dalla copia (il foglio dei caratteri bloccava la pagina finché la rete non rispondeva); la prima volta dalla rete,
+  // il foglio di Google si rinfresca dietro le quinte
+  if (/fonts\.(googleapis|gstatic)/.test(url.hostname)) {
+    e.respondWith(caches.open(RT_CACHE).then(async c => {
+      const hit = await c.match(req);
+      const net = fetch(req).then(r => r && (r.ok || r.type === 'opaque') ? c.put(req, r.clone()).then(() => r) : r);
+      if (!hit) return net;
+      if (url.hostname.startsWith('fonts.googleapis')) e.waitUntil(net.catch(() => { }));
+      return hit;
+    }));
+    return;
+  }
+  // meteo: rete con ripiego sulla copia
+  if (/open-meteo/.test(url.hostname)) {
     e.respondWith(caches.open(RT_CACHE).then(async c => { try { const r = await fetch(req); if (r && (r.ok || r.type === 'opaque')) c.put(req, r.clone()); return r; } catch (err) { const hit = await c.match(req); if (hit) return hit; throw err; } }));
     return;
   }
-  // app: prima la rete (così gli aggiornamenti arrivano subito), copia locale se offline
-  if (url.origin === location.origin) {
-    e.respondWith(fetch(req, { cache: 'no-cache' }).then(r => { if (r.ok) { const cp = r.clone(); caches.open(VERSION).then(c => c.put(req, cp)); } return r; })
-      .catch(() => caches.match(req, { ignoreSearch: req.mode === 'navigate' }).then(hit => hit || caches.match('./index.html'))));
+  if (url.origin !== location.origin) return;
+  // dati che cambiano senza una versione nuova (data/fitosanitari.json, scritto dallo script del PC e letto con fetch e cache 'no-cache'):
+  // prima la rete, copia in ces-runtime (resta fra le versioni). Solo le letture fatte con fetch (destination vuota): pagine, moduli, fogli
+  // di stile e caratteri restano dalla copia anche quando il browser li chiede 'no-cache' ricaricando (Firefox lo fa anche per i moduli)
+  const dati = req.destination === '' && (req.cache === 'no-cache' || req.cache === 'reload' || req.cache === 'no-store');
+  if (dati || url.pathname.endsWith('/data/fitosanitari.json')) {
+    e.respondWith(caches.open(RT_CACHE).then(c => fetch(req).then(r => { if (r.ok) { const cp = r.clone(); e.waitUntil(c.put(req, cp)); } return r; })
+      .catch(err => caches.match(req).then(hit => { if (hit) return hit; throw err; }))));
+    return;
   }
+  // app: dalla copia di questa versione, anche con la rete (si apre subito); un file che manca si prende dalla rete e si tiene
+  e.respondWith((async () => {
+    const nav = req.mode === 'navigate';
+    const hit = await caches.match(req, { cacheName: VERSION, ignoreSearch: nav });
+    if (hit) return hit;
+    const lib = /\/(vendor|modelli)\//.test(url.pathname);
+    if (lib) { const v = await caches.match(req, { cacheName: LIB_CACHE }); if (v) return v; }
+    try {
+      const r = await fetch(req);
+      if (r.ok && r.type === 'basic') { const cp = r.clone(); e.waitUntil(caches.open(lib ? LIB_CACHE : VERSION).then(c => c.put(req, cp))); }
+      return r;
+    } catch (err) {
+      const old = await caches.match(req, { ignoreSearch: nav }) || (nav && await caches.match('./index.html', { cacheName: VERSION }));
+      if (old) return old;
+      throw err;
+    }
+  })());
 });

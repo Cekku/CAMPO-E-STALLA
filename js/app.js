@@ -686,17 +686,49 @@ function pagineChat() {
   });
   controllaAggiornamento(VERSION);
   // l'app Android dalla 1.70.0 apre il sito e usa anche lei il service worker (copie per lavorare senza rete, aggiornamento da solo);
-  // solo i file dentro l'APK (https://localhost, APK vecchi) non lo usano
-  if ('serviceWorker' in navigator && location.protocol === 'https:' && !(nativa && location.hostname === 'localhost')) {
+  // solo i file dentro l'APK (https://localhost, APK vecchi) non lo usano. Nelle prove sul PC (http://127.0.0.1) solo con ces.prova.sw = 1.
+  // Dalla 1.76.0 l'app si apre dalla copia (sw.js): la versione nuova si scarica dietro le quinte e si mette
+  // alla prossima apertura, tornando all'app dopo 10 minuti senza niente di aperto, o subito con "Aggiorna"
+  const provaSW = location.protocol === 'http:' && /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && localStorage.getItem('ces.prova.sw') === '1';
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || provaSW) && !(nativa && location.hostname === 'localhost')) {
+    const avevaSW = !!navigator.serviceWorker.controller;
+    // si mette senza chiedere solo se non si sta scrivendo niente: nessun foglio aperto né casella con il cursore dentro
+    const libera = () => !sheetOpen() && !(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName));
     navigator.serviceWorker.register('./sw.js').then(reg => {
-      reg.addEventListener('updatefound', () => { const w = reg.installing; if (!w) return; w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(w); }); });
+      // scaricata in un'apertura di prima: si mette subito, prima di cominciare a lavorare (la pagina si ricarica dalla copia nuova)
+      if (reg.waiting && avevaSW) { reg.waiting.postMessage('skipWaiting'); return; }
+      const segui = w => { if (w) w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(w); }); };
+      segui(reg.installing);   // scaricamento già partito prima di register()
+      reg.addEventListener('updatefound', () => segui(reg.installing));
+      // sul telefono l'app resta aperta per giorni e il browser cerca la versione nuova solo all'apertura: la cerca anche lei
+      let ultimo = Date.now(), nascosta = 0;
+      const cerca = () => { if (Date.now() - ultimo < 30 * 60e3) return; ultimo = Date.now(); reg.update().catch(() => { }); };
+      setInterval(cerca, 60 * 60e3);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) { nascosta = Date.now(); return; }
+        if (reg.waiting && navigator.serviceWorker.controller && nascosta && Date.now() - nascosta > 10 * 60e3 && libera()) { reg.waiting.postMessage('skipWaiting'); return; }
+        cerca();
+      });
     }).catch(() => { });
-    let reloaded = false; navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloaded) return; reloaded = true; location.reload(); });
+    // ricarica quando il service worker nuovo prende il posto del vecchio (anche se l'ha messo un'altra scheda); non alla prima installazione
+    // (la pagina è già quella giusta). Con un foglio aperto aspetta che si chiuda, così non si perde quello che si sta scrivendo
+    let controllata = avevaSW, reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!controllata) { controllata = true; return; }
+      if (reloaded) return; reloaded = true;
+      if (sheetOpen()) toast('Versione nuova: la pagina si ricarica quando chiudi la finestra');
+      const ricarica = () => { if (sheetOpen()) setTimeout(ricarica, 1000); else location.reload(); };
+      ricarica();
+    });
+  } else if ('serviceWorker' in navigator && !nativa && location.protocol === 'http:' && /^(127\.0\.0\.1|localhost)$/.test(location.hostname)) {
+    // prove sul PC senza ces.prova.sw: via il service worker di prova e la sua copia, altrimenti darebbe ancora i file vecchi
+    navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => { });
+    if (window.caches) caches.keys().then(ks => ks.filter(k => k.startsWith('ces-1.') || k.startsWith('ces-librerie')).forEach(k => caches.delete(k))).catch(() => { });
   }
 })();
 // Centro automatico (automazioni.js): da un dubbio "Apri" porta alla sua pagina, nella sua area
 setNaviga(({ area, tab, sub, el }) => { if (sheetOpen()) closeSheet(); if (area) { UI.area = area; saveUI(); } setTab(tab, sub); const e = el && document.getElementById(el); if (e) e.scrollIntoView(); });
 function showUpdate(worker) {
-  const t = $('#toast'); t.innerHTML = ic('refresh-cw') + '<span>Nuova versione disponibile</span><button class="btn sm" id="updBtn">Aggiorna</button>'; t.className = 'toast show sticky'; t.hidden = false;
+  const t = $('#toast'); t.innerHTML = ic('refresh-cw') + '<span>Versione nuova pronta: si mette da sola alla prossima apertura</span><button class="btn sm" id="updBtn">Aggiorna ora</button>'; t.className = 'toast show sticky'; t.hidden = false;
   $('#updBtn').onclick = () => worker.postMessage('skipWaiting');
 }
