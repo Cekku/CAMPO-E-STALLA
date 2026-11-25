@@ -441,6 +441,14 @@ export function leggiFatturaXml(bytes, p7m = false) {
       const n = parseInt(T(l, 'NumeroLinea') || '0') || 0;
       return { codice, descrizione: T(l, 'Descrizione'), quantita: F(T(l, 'Quantita')), um: T(l, 'UnitaMisura'), prezzo: F(T(l, 'PrezzoUnitario')), sconto: sc.join(' '), aliquota: T(l, 'AliquotaIVA') || T(l, 'Natura'), importo: F(T(l, 'PrezzoTotale')) || 0, ddt: ddtLinee[n] ?? ddtLinee[0] ?? '' };
     });
+    // contributo della cassa previdenziale (ENPAV del veterinario, EPAP, INPS 4%…): per la norma sta dentro l'imponibile
+    // del riepilogo ma non fra le linee. Diventa una riga ("CONTRIBUTO…" → spese accessorie, che seguono le altre righe
+    // della fattura), così righe e riepilogo tornano: prima il controllo diceva "righe ≠ imponibile" (1.76.1)
+    for (const c of figli(gen, 'DatiCassaPrevidenziale')) {
+      const imp = F(T(c, 'ImportoContributoCassa')); if (!imp) continue;
+      const al = F(T(c, 'AlCassa')), tipo = T(c, 'TipoCassa');
+      righe.push({ codice: '', descrizione: `CONTRIBUTO CASSA PREVIDENZIALE${tipo ? ' ' + tipo : ''}${al ? ' ' + String(al).replace('.', ',') + '%' : ''}`, quantita: null, um: '', prezzo: imp, sconto: '', aliquota: T(c, 'AliquotaIVA') || T(c, 'Natura'), importo: imp, ddt: '' });
+    }
     const riep = tutti(body, 'DatiRiepilogo').map(r => ({ aliquota: F(T(r, 'AliquotaIVA')) || 0, imponibile: F(T(r, 'ImponibileImporto')) || 0, imposta: F(T(r, 'Imposta')) || 0, natura: T(r, 'Natura') }));
     const pag = tutti(body, 'DettaglioPagamento').map(p => ({ modalita: T(p, 'ModalitaPagamento'), scadenza: D(T(p, 'DataScadenzaPagamento')), importo: F(T(p, 'ImportoPagamento')) }));
     const rit = r2(figli(gen, 'DatiRitenuta').reduce((t, d) => t + (F(T(d, 'ImportoRitenuta')) || 0), 0));

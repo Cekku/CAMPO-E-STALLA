@@ -1,2 +1,6 @@
 # lo script del controllo prima del commit deve restare con gli a capo Unix, altrimenti sh non lo esegue
 .githooks/pre-commit text eol=lf
+# documenti finti delle prove (prove/documenti/): restano byte per byte come li crea genera.mjs, anche gli a capo
+# (con core.autocrlf i PDF senza byte zero passerebbero per testo e il telematico perderebbe i CRLF)
+prove/documenti/** -text
+prove/documenti/*.mjs text

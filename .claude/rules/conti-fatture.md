@@ -35,6 +35,11 @@ paths:
 - Provato nel browser in locale con fatture e confronti finti (poi cancellati): costi, conversioni, costo a oggi e risparmi uguali al conto a mano, prezzi pagati, prodotti dalle fatture, caricamento di un file e lettura, archivio di prova, agenda e Panoramica, nuovo confronto ed eliminazione, computer e telefono 375 px senza scorrimento di lato. Il browser di prova teneva in cache i moduli vecchi: prima di ricaricare, `fetch(file, {cache: 'reload'})`.
 - Per un'altra azienda: niente nomi di ditte o prodotti nel codice; categorie dei generi per espressione sul nome della categoria.
 
+### Cassa previdenziale nelle parcelle XML (1.76.1, 25/11/2026)
+
+- Trovato dalle prove dei lettori (`prove/lettori-fatture.test.mjs`, documento finto `prove/documenti/parcella-cassa.xml`), corretto su richiesta di Marco. Per la norma il contributo della cassa (ENPAV 2% del veterinario, EPAP, INPS 4%…) sta in `DatiCassaPrevidenziale` e dentro l'imponibile del riepilogo, non fra le linee: il controllo diceva "righe 1.000,00 ≠ imponibile 1.020,00" anche con la fattura giusta (e non riconosceva la ritenuta).
+- `leggiFatturaXml` aggiunge una riga per ogni `DatiCassaPrevidenziale` con importo: descrizione `CONTRIBUTO CASSA PREVIDENZIALE <TipoCassa> <AlCassa>%`, importo = prezzo = `ImportoContributoCassa`, aliquota o natura della cassa. "CONTRIBUTO" la porta in "Spese accessorie e contributi" (regola predefinita), che come centro di costo segue le altre righe della fattura. Vale per le fatture lette da ora; quelle già salvate restano come sono. Il PDF dell'Agenzia della stessa parcella ha ancora l'avviso: serve un PDF vero per vedere dove stampa la cassa.
+
 ### Regole delle categorie e lettore delle fatture (1.35.1, 13/11/2026)
 
 - Errori trovati correggendo a mano i dati veri (i numeri restano fuori dal repository). I dati salvati non si toccano: le correzioni valgono per le fatture nuove (e per "riapplica regole", che non cambia mai le righe `catManuale`).

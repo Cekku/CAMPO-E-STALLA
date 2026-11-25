@@ -29,6 +29,7 @@ paths:
 ### Personale (paghe) — `paghe-parse.js`, `paghe.js`, `views/conti-personale.js`
 
 - **Cedolini** (modulo Data Services, un dipendente per pagina + pagina "Totali generali"): lettura per posizione (riferimento: la riga più bassa del modulo a y≈797; la riga del mese a 792). Campi: anagrafica, CF, qualifica, scadenze TD e permesso di soggiorno, ore, lordo, contributi, IRPEF, netto, TFR, voci, ferie/permessi. Mensilità aggiuntive: "13-esima", "14-esima", "tredicesima", "13ª" → mese 13/14 (periodo `AAAA-13`, `AAAA-14`; si pagano da dicembre / da giugno, `pagabileDa`).
+- **1.76.1** (25/11/2026, trovato dalle prove dei lettori, `prove/documenti/cedolino-senza-ferie.pdf`): una pagina senza la riga delle ferie e dei permessi in fondo non si scarta più. `lettorePagina` prendeva la riga del mese come "la più bassa" e spostava tutto di −4,5 pt (fuori dalla tolleranza): ora la riga più bassa vale solo se sta fra 2 e 8 pt sotto il mese, altrimenti il riferimento è il mese.
 - **Bilancino paghe** mensile: lordo, ritenute, netto, contributi ditta/dipendente, INAIL, TFR al fondo, IRPEF, costo aziendale, versamenti.
 - **Pagamenti** (raccolta `pagamenti`): stipendio, anticipo (recupero dal bonifico o in busta), prestito, restituzione (dal bonifico / in busta / versata), F24, contributi INPS agricoli (trimestrali), fondo pensione, altro.
 - **Abbinamento pagamenti → mesi** (`abbina` in `paghe.js`, testato con `t_abb.mjs`):

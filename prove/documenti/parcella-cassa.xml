@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- fattura FINTA per le prove -->
+<p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <FatturaElettronicaHeader>
+    <DatiTrasmissione><IdTrasmittente><IdPaese>IT</IdPaese><IdCodice>01234567890</IdCodice></IdTrasmittente><ProgressivoInvio>00001</ProgressivoInvio><FormatoTrasmissione>FPR12</FormatoTrasmissione><CodiceDestinatario>0000000</CodiceDestinatario></DatiTrasmissione>
+    <CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>06789012345</IdCodice></IdFiscaleIVA><CodiceFiscale>NREPLA75A01L483X</CodiceFiscale><Anagrafica><Nome>PAOLO</Nome><Cognome>NERI</Cognome></Anagrafica><RegimeFiscale>RF01</RegimeFiscale></DatiAnagrafici><Sede><Indirizzo>VIA DELLE PROVE 10</Indirizzo><CAP>33100</CAP><Comune>PAESE FINTO</Comune><Nazione>IT</Nazione></Sede></CedentePrestatore>
+    <CessionarioCommittente><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>09876543210</IdCodice></IdFiscaleIVA><CodiceFiscale>09876543210</CodiceFiscale><Anagrafica><Denominazione>AZIENDA AGRICOLA FINTA S.S.</Denominazione></Anagrafica><RegimeFiscale>RF01</RegimeFiscale></DatiAnagrafici><Sede><Indirizzo>VIA DEI CAMPI 1</Indirizzo><CAP>33040</CAP><Comune>PAESE FINTO</Comune><Nazione>IT</Nazione></Sede></CessionarioCommittente>
+  </FatturaElettronicaHeader>
+  <FatturaElettronicaBody>
+    <DatiGenerali><DatiGeneraliDocumento><TipoDocumento>TD06</TipoDocumento><Divisa>EUR</Divisa><Data>2025-09-30</Data><Numero>V/31</Numero>
+      <DatiRitenuta><TipoRitenuta>RT01</TipoRitenuta><ImportoRitenuta>200.00</ImportoRitenuta><AliquotaRitenuta>20.00</AliquotaRitenuta><CausalePagamento>A</CausalePagamento></DatiRitenuta>
+      <DatiCassaPrevidenziale><TipoCassa>TC11</TipoCassa><AlCassa>2.00</AlCassa><ImportoContributoCassa>20.00</ImportoContributoCassa><ImponibileCassa>1000.00</ImponibileCassa><AliquotaIVA>22.00</AliquotaIVA></DatiCassaPrevidenziale>
+      <ImportoTotaleDocumento>1044.40</ImportoTotaleDocumento></DatiGeneraliDocumento></DatiGenerali>
+    <DatiBeniServizi>
+      <DettaglioLinee><NumeroLinea>1</NumeroLinea><Descrizione>VISITE E INTERVENTI IN STALLA SETTEMBRE</Descrizione><PrezzoUnitario>1000.00</PrezzoUnitario><PrezzoTotale>1000.00</PrezzoTotale><AliquotaIVA>22.00</AliquotaIVA><Ritenuta>SI</Ritenuta></DettaglioLinee>
+      <DatiRiepilogo><AliquotaIVA>22.00</AliquotaIVA><ImponibileImporto>1020.00</ImponibileImporto><Imposta>224.40</Imposta></DatiRiepilogo>
+    </DatiBeniServizi>
+  </FatturaElettronicaBody>
+</p:FatturaElettronica>

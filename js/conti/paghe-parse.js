@@ -40,9 +40,11 @@ function lettorePagina(p) {
   const ws = parole(p).map(w => Object.assign({}, w, { text: pulisci(w.text) })).filter(w => w.text);
   const mw = ws.filter(w => MESE_RE.test(w.text) && w.top > p.height * 0.8).sort((a, b) => b.top - a.top)[0];
   if (!mw) return null;
-  // la riga più bassa del modulo (ferie, ore annuali) sta a 797: è il riferimento più stabile
+  // la riga più bassa del modulo (ferie, ore annuali) sta a 797: è il riferimento più stabile. Se manca (ferie e ore
+  // non stampate) la più bassa è la riga del mese stessa: allora vale il mese (prima tutto si spostava di 4,5 e la
+  // pagina si scartava, 1.76.1)
   const basso = Math.max(...ws.filter(w => w.top > mw.top - 30).map(w => w.top));
-  const dy = (basso - mw.top < 8 ? basso - 4.5 : mw.top) - Y_MESE;
+  const dy = (basso - mw.top > 2 && basso - mw.top < 8 ? basso - 4.5 : mw.top) - Y_MESE;
   const riga = (top, tol = 2.6) => ws.filter(w => Math.abs(w.top - (top + dy)) <= tol).sort((a, b) => a.x0 - b.x0);
   // numero con il bordo destro in [a, b]
   const n = (top, a, b) => { const w = riga(top).find(w => w.x1 >= a && w.x1 <= b && isNum(w.text)); return w ? numIt(w.text) : null; };

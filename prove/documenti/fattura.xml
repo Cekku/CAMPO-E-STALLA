@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- fattura FINTA per le prove -->
+<p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <FatturaElettronicaHeader>
+    <DatiTrasmissione><IdTrasmittente><IdPaese>IT</IdPaese><IdCodice>01234567890</IdCodice></IdTrasmittente><ProgressivoInvio>00001</ProgressivoInvio><FormatoTrasmissione>FPR12</FormatoTrasmissione><CodiceDestinatario>0000000</CodiceDestinatario></DatiTrasmissione>
+    <CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>01234567890</IdCodice></IdFiscaleIVA><Anagrafica><Denominazione>MANGIMI FINTI SRL</Denominazione></Anagrafica><RegimeFiscale>RF01</RegimeFiscale></DatiAnagrafici><Sede><Indirizzo>VIA DELLE PROVE 10</Indirizzo><CAP>33100</CAP><Comune>PAESE FINTO</Comune><Nazione>IT</Nazione></Sede></CedentePrestatore>
+    <CessionarioCommittente><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>09876543210</IdCodice></IdFiscaleIVA><CodiceFiscale>09876543210</CodiceFiscale><Anagrafica><Denominazione>AZIENDA AGRICOLA FINTA S.S.</Denominazione></Anagrafica><RegimeFiscale>RF01</RegimeFiscale></DatiAnagrafici><Sede><Indirizzo>VIA DEI CAMPI 1</Indirizzo><CAP>33040</CAP><Comune>PAESE FINTO</Comune><Nazione>IT</Nazione></Sede></CessionarioCommittente>
+  </FatturaElettronicaHeader>
+  <FatturaElettronicaBody>
+    <DatiGenerali>
+      <DatiGeneraliDocumento><TipoDocumento>TD01</TipoDocumento><Divisa>EUR</Divisa><Data>2025-03-10</Data><Numero>123/A</Numero>
+        <DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>2.00</ImportoBollo></DatiBollo><ImportoTotaleDocumento>1181.60</ImportoTotaleDocumento></DatiGeneraliDocumento>
+      <DatiDDT><NumeroDDT>45</NumeroDDT><DataDDT>2025-03-05</DataDDT><RiferimentoNumeroLinea>1</RiferimentoNumeroLinea></DatiDDT>
+      <DatiDDT><NumeroDDT>46</NumeroDDT><DataDDT>2025-03-07</DataDDT><RiferimentoNumeroLinea>2</RiferimentoNumeroLinea></DatiDDT>
+    </DatiGenerali>
+    <DatiBeniServizi>
+      <DettaglioLinee><NumeroLinea>1</NumeroLinea><CodiceArticolo><CodiceTipo>EAN</CodiceTipo><CodiceValore>8000000000001</CodiceValore></CodiceArticolo><CodiceArticolo><CodiceTipo>FORNITORE</CodiceTipo><CodiceValore>MAN01</CodiceValore></CodiceArticolo><Descrizione>MANGIME VACCHE IN LATTAZIONE &amp; ASCIUTTA</Descrizione><Quantita>1000.00</Quantita><UnitaMisura>KG</UnitaMisura><PrezzoUnitario>0.45000</PrezzoUnitario><PrezzoTotale>450.00</PrezzoTotale><AliquotaIVA>22.00</AliquotaIVA></DettaglioLinee>
+      <DettaglioLinee><NumeroLinea>2</NumeroLinea><Descrizione>SEMENTE ERBA MEDICA</Descrizione><Quantita>10.00</Quantita><UnitaMisura>KG</UnitaMisura><PrezzoUnitario>60.00</PrezzoUnitario><ScontoMaggiorazione><Tipo>SC</Tipo><Percentuale>10.00</Percentuale></ScontoMaggiorazione><PrezzoTotale>540.00</PrezzoTotale><AliquotaIVA>10.00</AliquotaIVA></DettaglioLinee>
+      <DettaglioLinee><NumeroLinea>3</NumeroLinea><Descrizione>SPESE DI TRASPORTO – CONSEGNA IN AZIENDA</Descrizione><PrezzoUnitario>30.00</PrezzoUnitario><PrezzoTotale>30.00</PrezzoTotale><AliquotaIVA>22.00</AliquotaIVA></DettaglioLinee>
+      <DatiRiepilogo><AliquotaIVA>22.00</AliquotaIVA><ImponibileImporto>480.00</ImponibileImporto><Imposta>105.60</Imposta><EsigibilitaIVA>I</EsigibilitaIVA></DatiRiepilogo>
+      <DatiRiepilogo><AliquotaIVA>10.00</AliquotaIVA><ImponibileImporto>540.00</ImponibileImporto><Imposta>54.00</Imposta><EsigibilitaIVA>I</EsigibilitaIVA></DatiRiepilogo>
+    </DatiBeniServizi>
+    <DatiPagamento><CondizioniPagamento>TP02</CondizioniPagamento><DettaglioPagamento><ModalitaPagamento>MP05</ModalitaPagamento><DataScadenzaPagamento>2025-04-30</DataScadenzaPagamento><ImportoPagamento>1181.60</ImportoPagamento><IBAN>IT60X0542811101000000123456</IBAN></DettaglioPagamento></DatiPagamento>
+  </FatturaElettronicaBody>
+</p:FatturaElettronica>
