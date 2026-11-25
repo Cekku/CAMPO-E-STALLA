@@ -1,3 +1,4 @@
+import { registra as registraErrore, sembraGuasto } from './errori.js';   // per primo: sente anche gli errori degli altri moduli mentre partono (1.77.0)
 // Avvio, navigazione (menu in alto sul computer, laterale e barra in basso sul telefono) e azioni dell'app
 import { S, UI, D, bus, get, azienda, COLS } from './state.js';
 import { $, $$, esc, N, nf, fd, today, addDays, yearOf, byDate, byName, lsSet, debounce, sum } from './util.js';
@@ -44,10 +45,11 @@ import { render as vAuto, auAct } from './views/automatico.js';
 import { render as vReport, rpAct } from './views/report.js';
 import { render as vNotizie, nzAct } from './views/notizie.js';
 import { render as vSicurezza, scAct, ultimoResoconto, gravi } from './views/sicurezza.js';
+import { render as vErrori, erAct, nuovi as erroriNuovi } from './views/errori.js';
 import { initChiedi, apri as apriChiedi, alterna as alternaChiedi } from './chiedi/pannello.js';
 
-const VIEWS = { sicurezza: vSicurezza, oggi: vOggi, campi: vCampi, attivita: vAtt, quaderno: vQuad, carichi: vCar, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida, automatico: vAuto, report: vReport, notizie: vNotizie };
-const TITLES = { sicurezza: 'Sicurezza', oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', quaderno: 'Quaderno', carichi: 'Pesate del raccolto', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida', automatico: 'Automatico', report: 'Report del mese', notizie: 'Notizie e mercati' };
+const VIEWS = { errori: vErrori, sicurezza: vSicurezza, oggi: vOggi, campi: vCampi, attivita: vAtt, quaderno: vQuad, carichi: vCar, note: vNote, meteo: vMeteo, stalla: vStalla, magazzino: vMag, mezzi: vMezzi, nitrati: vNit, impostazioni: vImp, conti: vConti, archivio: vArchivio, guida: vGuida, automatico: vAuto, report: vReport, notizie: vNotizie };
+const TITLES = { errori: "Errori dell'app", sicurezza: 'Sicurezza', oggi: 'Dashboard', mappa: 'Mappa', campi: 'Campi', attivita: 'Attività', quaderno: 'Quaderno', carichi: 'Pesate del raccolto', note: 'Note', meteo: 'Meteo', stalla: 'Stalla', magazzino: 'Magazzino', mezzi: 'Mezzi', nitrati: 'Azoto e nitrati', impostazioni: 'La mia azienda', conti: 'Conti', archivio: 'Archivio', guida: 'Guida', automatico: 'Automatico', report: 'Report del mese', notizie: 'Notizie e mercati' };
 const YEARLY = new Set(['oggi', 'mappa', 'campi', 'attivita', 'quaderno', 'carichi', 'stalla', 'magazzino', 'mezzi', 'nitrati', 'conti']);
 // Voci del menu: [tab, sub, icona, etichetta]
 const MENU = {
@@ -76,7 +78,7 @@ const MENU = {
   // Archivio documenti: catalogo dei file sul PC, letto dal ponte locale (js/views/archivio.js)
   archivio: [
     ['Principale', [['archivio', 'scaffale', 'book-open', 'Scaffale'], ['archivio', 'raccoglitore', 'box', 'Raccoglitori'], ['archivio', 'cerca', 'search', 'Cerca'], ['archivio', 'rivedere', 'list-checks', 'Da rivedere']]],
-    ['Gestione', [['archivio', 'ponte', 'smartphone', 'Collegamento al PC'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['automatico', null, 'zap', 'Automatico'], ['sicurezza', null, 'shield', 'Sicurezza'], ['guida', null, 'circle-help', 'Guida']]],
+    ['Gestione', [['archivio', 'ponte', 'smartphone', 'Collegamento al PC'], ['impostazioni', null, 'building-2', 'La mia azienda'], ['automatico', null, 'zap', 'Automatico'], ['sicurezza', null, 'shield', 'Sicurezza'], ['errori', null, 'bug', "Errori dell'app"], ['guida', null, 'circle-help', 'Guida']]],
   ],
 };
 const TAB_OF = { campo: 'campi', capo: 'stalla', prodotto: 'magazzino', mezzo: 'mezzi', struttura: 'stalla' };
@@ -84,6 +86,7 @@ const saveUI = () => lsSet('ces.ui', { sub: UI.sub, area: UI.area, view: UI.view
 
 // Promemoria della copia di sicurezza (store.copiaDaFare): sta tra gli avvisi della dashboard e porta a La mia azienda → Dati
 extraAlerts.push(() => { if (!contiVisibili()) return []; const r = ultimoResoconto(); if (!r || r.stato !== 'rosso') return []; const n = gravi(r) || (r.falle || []).length; return [{ lv: 'bad', area: 'dati', t: 'Sicurezza: ' + n + (n === 1 ? ' problema grave da sistemare' : ' problemi gravi da sistemare'), s: 'Apri la pagina Sicurezza e segui i passi', go: { tab: 'sicurezza' } }]; });
+extraAlerts.push(() => { if (!contiVisibili()) return []; const n = erroriNuovi(); return n ? [{ lv: 'warn', area: 'dati', t: n === 1 ? "Un errore nuovo dell'app" : n + " errori nuovi dell'app", s: "Apri Archivio → Errori dell'app per vedere cosa è successo", go: { tab: 'errori' } }] : []; });
 extraAlerts.push(() => { const c = store.copiaDaFare(); return c ? [{ lv: 'warn', area: 'dati', t: c.giorni === null ? 'Non hai ancora una copia di sicurezza' : 'Copia di sicurezza di ' + c.giorni + ' giorni fa', s: 'Scarica una copia di tutti i dati e conservala anche fuori da questo dispositivo', go: { tab: 'impostazioni', el: 'datiSez' } }] : []; });
 
 /* ---------- render ---------- */
@@ -176,9 +179,9 @@ function render() {
   derive();
   dopoDisegno();   // Centro automatico: riparte da solo con i dati cambiati (magazzino dalle fatture, fitofarmaci, razioni)
   if (UI.area === 'conti' && (!contiVisibili() || !['conti', 'impostazioni', 'guida', 'automatico', 'report'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'conti'; }
-  if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'sicurezza', 'impostazioni', 'guida', 'automatico', 'report'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
+  if (UI.area === 'archivio' && (!contiVisibili() || !['archivio', 'sicurezza', 'errori', 'impostazioni', 'guida', 'automatico', 'report'].includes(UI.tab))) { if (!contiVisibili()) UI.area = 'campagna'; else UI.tab = 'archivio'; }
   if (UI.area !== 'conti' && UI.tab === 'conti') UI.area = 'conti';
-  if (UI.area !== 'archivio' && (UI.tab === 'archivio' || UI.tab === 'sicurezza')) UI.area = 'archivio';
+  if (UI.area !== 'archivio' && (UI.tab === 'archivio' || UI.tab === 'sicurezza' || UI.tab === 'errori')) UI.area = 'archivio';
   if (UI.area === 'notizie' && !['notizie', 'impostazioni', 'guida'].includes(UI.tab)) UI.tab = 'notizie';
   if (UI.area !== 'notizie' && UI.tab === 'notizie') UI.area = 'notizie';
   document.body.dataset.area = UI.area;
@@ -406,7 +409,7 @@ async function razScarico(id) {
 async function restore(file) {
   try {
     const o = JSON.parse(await file.text()); const rows = [];
-    COLS.forEach(c => (o[c] || []).forEach(x => { if (x && x.id) { const { id, ...data } = x; rows.push({ col: c, id, data }); } }));
+    COLS.filter(c => c !== 'errori').forEach(c => (o[c] || []).forEach(x => { if (x && x.id) { const { id, ...data } = x; rows.push({ col: c, id, data }); } }));   // gli errori dell'app non si ripristinano (1.77.0)
     if (!rows.length) throw new Error('Il file non contiene dati di Campo e Stalla.');
     await store.bulkPut(rows); toast('Caricate ' + rows.length + ' registrazioni');
   } catch (e) { toast(e.message || 'File non valido', 'err'); }
@@ -545,19 +548,20 @@ async function clic(e) {
       case 'lockNow': return blocca();
       case 'lockOff': try { toast(await disattivaDaForm($)); } catch (err) { toast(err.message, 'err'); } return render();
       case 'c-expAll': drawer(false); closeSheet(); b.disabled = true; try { await esportaTutto(UI.anno); } finally { b.disabled = false; } return;
-      default: if (a.startsWith('rp-')) return rpAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
-        if (a.startsWith('sc-')) return scAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
-        if (a.startsWith('nz-')) return nzAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
-        if (a.startsWith('au-')) return auAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
-        if (a.startsWith('ar-')) return arAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
-        if (a.startsWith('p3d') && a !== 'p3dFile') return import('./views/progetto3d.js').then(x => x.p3dAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
-        if (a.startsWith('lib-')) return import('./views/libretto.js').then(x => x.libAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
-        if (a.startsWith('qd-')) return qdAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
-        if (a.startsWith('tr-')) return import('./views/tracciabilita.js').then(x => x.trAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
-        if (a.startsWith('mf-')) return import('./views/magfatture.js').then(x => x.mfAct(a, b, d)).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
-        if (a === 'tsort' || a === 'texp' || a.startsWith('c-')) return contiAct(a, b, d).catch(err => { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); });
+      default: if (a.startsWith('er-')) return erAct(a, b, d).catch(nonRiuscita);
+        if (a.startsWith('rp-')) return rpAct(a, b, d).catch(nonRiuscita);
+        if (a.startsWith('sc-')) return scAct(a, b, d).catch(nonRiuscita);
+        if (a.startsWith('nz-')) return nzAct(a, b, d).catch(nonRiuscita);
+        if (a.startsWith('au-')) return auAct(a, b, d).catch(nonRiuscita);
+        if (a.startsWith('ar-')) return arAct(a, b, d).catch(nonRiuscita);
+        if (a.startsWith('p3d') && a !== 'p3dFile') return import('./views/progetto3d.js').then(x => x.p3dAct(a, b, d)).catch(nonRiuscita);
+        if (a.startsWith('lib-')) return import('./views/libretto.js').then(x => x.libAct(a, b, d)).catch(nonRiuscita);
+        if (a.startsWith('qd-')) return qdAct(a, b, d).catch(nonRiuscita);
+        if (a.startsWith('tr-')) return import('./views/tracciabilita.js').then(x => x.trAct(a, b, d)).catch(nonRiuscita);
+        if (a.startsWith('mf-')) return import('./views/magfatture.js').then(x => x.mfAct(a, b, d)).catch(nonRiuscita);
+        if (a === 'tsort' || a === 'texp' || a.startsWith('c-')) return contiAct(a, b, d).catch(nonRiuscita);
     }
-  } catch (err) { console.warn(err); toast(err.message || 'Operazione non riuscita', 'err'); }
+  } catch (err) { nonRiuscita(err); }
 }
 
 document.addEventListener('change', e => {
@@ -566,21 +570,21 @@ document.addEventListener('change', e => {
   if (t.dataset.filter && t.tagName === 'SELECT') { UI.f[t.dataset.filter] = t.value; return render(); }
   if (t.dataset.act === 'mapImport' && t.files[0]) { MAP.importFile(t.files[0]); t.value = ''; return; }
   if (t.dataset.act === 'restore' && t.files[0]) { restore(t.files[0]); t.value = ''; return; }
-  if (t.dataset.act === 'aiaImport' && t.files.length) { const fs = [...t.files]; t.value = ''; import('./views/aia-view.js').then(m => m.aiaImport(fs)).catch(err => toast(err.message || 'File non valido', 'err')); return; }
-  if (t.dataset.act === 'p3dFile' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Carico il modello…'); import('./views/progetto3d.js').then(m => m.caricaModello(f)).catch(err => toast(err.message || 'File non valido', 'err')); return; }
-  if (t.dataset.act === 'misureImport' && t.files[0]) { const f = t.files[0]; t.value = ''; misureImport(f).catch(err => toast(err.message || 'File non valido', 'err')); return; }
-  if (t.dataset.act === 'fitoImport' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Lettura della banca dati…'); importFito(f).then(n => toast('Banca dati caricata: ' + n + ' prodotti')).catch(err => toast(err.message || 'File non valido', 'err')); return; }
-  if (t.dataset.sc) return scAct('sc-' + t.dataset.sc, t, t.dataset).catch(err => toast(err.message || 'Operazione non riuscita', 'err'));
-  if (t.dataset.nz) return nzAct(t.dataset.nz, t, t.dataset).catch(err => toast(err.message || 'Operazione non riuscita', 'err'));
-  if (t.dataset.act && t.dataset.act.startsWith('nz-')) return nzAct(t.dataset.act, t, t.dataset).catch(err => toast(err.message || 'Operazione non riuscita', 'err'));
+  if (t.dataset.act === 'aiaImport' && t.files.length) { const fs = [...t.files]; t.value = ''; import('./views/aia-view.js').then(m => m.aiaImport(fs)).catch(err => fileNonValido(err)); return; }
+  if (t.dataset.act === 'p3dFile' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Carico il modello…'); import('./views/progetto3d.js').then(m => m.caricaModello(f)).catch(err => fileNonValido(err)); return; }
+  if (t.dataset.act === 'misureImport' && t.files[0]) { const f = t.files[0]; t.value = ''; misureImport(f).catch(err => fileNonValido(err)); return; }
+  if (t.dataset.act === 'fitoImport' && t.files[0]) { const f = t.files[0]; t.value = ''; toast('Lettura della banca dati…'); importFito(f).then(n => toast('Banca dati caricata: ' + n + ' prodotti')).catch(err => fileNonValido(err)); return; }
+  if (t.dataset.sc) return scAct('sc-' + t.dataset.sc, t, t.dataset).catch(err => nonRiuscita(err));
+  if (t.dataset.nz) return nzAct(t.dataset.nz, t, t.dataset).catch(err => nonRiuscita(err));
+  if (t.dataset.act && t.dataset.act.startsWith('nz-')) return nzAct(t.dataset.act, t, t.dataset).catch(err => nonRiuscita(err));
   if (t.dataset.act === 'authTab') { authUI.tab = t.value; return render(); }
   if (t.dataset.act === 'tema') { setTema(t.value); return; }
   if (t.dataset.act === 'memberRole') { store.setMemberRole(t.dataset.id, t.value).then(() => toast('Permessi aggiornati')).catch(err => toast(traduci(err), 'err')).finally(() => render()); return; }
   if (t.dataset.act === 'view') { UI.view = t.dataset.v; saveUI(); return render(); }
   if (t.dataset.act && t.dataset.act.startsWith('ar-')) return arChange(t);
-  if (t.dataset.act && t.dataset.act.startsWith('mf-')) { import('./views/magfatture.js').then(x => x.mfChange(t)).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); return; }
-  if (t.dataset.act && t.dataset.act.startsWith('tr-')) { import('./views/tracciabilita.js').then(x => x.trChange(t)).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); return; }
-  if (t.dataset.act && t.dataset.act.startsWith('c-')) { contiChange(t).catch(err => toast(err.message || 'Salvataggio non riuscito', 'err')); return; }
+  if (t.dataset.act && t.dataset.act.startsWith('mf-')) { import('./views/magfatture.js').then(x => x.mfChange(t)).catch(err => nonRiuscita(err, 'Salvataggio non riuscito')); return; }
+  if (t.dataset.act && t.dataset.act.startsWith('tr-')) { import('./views/tracciabilita.js').then(x => x.trChange(t)).catch(err => nonRiuscita(err, 'Salvataggio non riuscito')); return; }
+  if (t.dataset.act && t.dataset.act.startsWith('c-')) { contiChange(t).catch(err => nonRiuscita(err, 'Salvataggio non riuscito')); return; }
 });
 ['dragover', 'dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => { if (ev === 'dragleave') { const z = e.target.closest && e.target.closest('#dropzone'); if (z) z.classList.remove('over'); return; } contiDrop(e); }));
 document.addEventListener('input', e => {
@@ -628,6 +632,12 @@ document.addEventListener('submit', async e => {
   } catch (err) { toast(traduci(err), 'err'); }
   if (btn && btn.isConnected) btn.disabled = false; render();
 });
+// Pulsante non riuscito: il guasto vero (TypeError, errore del database…) va nel registro degli errori (js/errori.js, 1.77.0);
+// gli avvisi scritti apposta per l'utente con new Error('…') no
+function nonRiuscita(err, testo = 'Operazione non riuscita') { console.warn(err); if (sembraGuasto(err)) registraErrore(err, 'azione'); toast((err && err.message) || testo, 'err'); }
+// File sbagliato dato dall'utente (importazioni): non è un guasto dell'app, non va nel registro degli errori
+function fileNonValido(err) { console.warn(err); toast((err && err.message) || 'File non valido', 'err'); }
+
 function traduci(err) {
   const m = (err && err.message) || String(err);
   if (/Invalid login credentials/i.test(m)) return 'Email o password non corretti.';

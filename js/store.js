@@ -55,8 +55,8 @@ export async function initStore() {
 }
 
 /* ---------------- Protezione dei dati sul dispositivo (dalla 1.32.0) ---------------- */
-const haDatiVeri = () => COLS.some(c => c !== 'config' && S[c].some(r => !r.esempio));
-const contaVeri = () => COLS.reduce((n, c) => n + (c === 'config' ? 0 : S[c].filter(r => !r.esempio).length), 0);
+const haDatiVeri = () => COLS.some(c => c !== 'config' && c !== 'errori' && S[c].some(r => !r.esempio));
+const contaVeri = () => COLS.reduce((n, c) => n + (c === 'config' || c === 'errori' ? 0 : S[c].filter(r => !r.esempio).length), 0);
 // Archiviazione permanente: senza, il browser può cancellare da solo i dati del sito quando sul dispositivo manca spazio.
 // Chrome la concede senza chiedere (app installata o usata spesso), Firefox chiede il permesso: per questo si domanda
 // una volta sola per apertura e solo quando ci sono dati veri. stato: null = non si sa, true = permanente, false = non concessa.
@@ -105,7 +105,7 @@ function osserva(col, id, deleted) {
 }
 async function writeLocal(col, id, data, deleted) {
   if (soloLettura()) throw new Error(NO_SCRITTURA);
-  osserva(col, id, deleted);
+  if (col !== 'errori') osserva(col, id, deleted);   // il registro degli errori non va nel diario del Centro automatico
   const k = col + '/' + id; const rec = { k, col, id, data, deleted, ts: Date.now() };
   if (deleted) mem[col].delete(id); else mem[col].set(id, Object.assign({}, data, { id }));
   rebuild([col]); schedule();
@@ -210,7 +210,7 @@ export async function joinFarm(code) {
 }
 
 // Registrazioni vere del dispositivo: gli esempi e le impostazioni (config) non contano, quelle dell'azienda condivisa vincono
-const datoVero = r => !r.deleted && r.col !== 'config' && !(r.data && r.data.esempio);
+const datoVero = r => !r.deleted && r.col !== 'config' && r.col !== 'errori' && !(r.data && r.data.esempio);
 
 // Dopo l'accesso su un dispositivo senza azienda: cerca le aziende di cui l'utente è già membro.
 // Una sola azienda e nessun dato vero sul dispositivo → collegamento automatico; altrimenti la scelta la fa l'utente.
@@ -294,19 +294,34 @@ async function push() {
     await tx(['outbox'], 'readwrite', t => { const os = t.objectStore('outbox'); chunk.forEach(r => { const g = os.get(r.k); g.onsuccess = () => { if (g.result && g.result.ts === r.ts) os.delete(r.k); }; }); });
   }
 }
-async function pull() {
-  const t0 = sync.lastSync ? Date.parse(String(sync.lastSync).replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1')) : NaN;
-  let since = isFinite(t0) ? new Date(t0 - 15000).toISOString() : '1970-01-01T00:00:00Z';
-  let maxTs = sync.lastSync;
+// Scarica le righe cambiate dopo `since` (solo delle raccolte `cols`, se date) → ora dell'ultima scaricata
+async function scarica(since, cols) {
+  let maxTs = null;
   for (let guard = 0; guard < 200; guard++) {
-    const { data, error } = await sb.from('records').select('col,id,data,deleted,updated_at').eq('farm_id', sync.farm.id).gt('updated_at', since).order('updated_at', { ascending: true }).limit(1000);
+    let q = sb.from('records').select('col,id,data,deleted,updated_at').eq('farm_id', sync.farm.id).gt('updated_at', since);
+    if (cols) q = q.in('col', cols);
+    const { data, error } = await q.order('updated_at', { ascending: true }).limit(1000);
     if (error) throw error;
     if (!data.length) break;
     await applyRemote(data);
     since = data[data.length - 1].updated_at; if (!maxTs || since > maxTs) maxTs = since;
     if (data.length < 1000) break;
   }
+  return maxTs;
+}
+async function pull() {
+  // Raccolte nuove (es. `errori` dalla 1.77.0): con la versione di prima il dispositivo ne saltava le righe (applyRemote non
+  // conosce la raccolta) ma andava avanti con lastSync, quindi non arriverebbero più. La prima volta si scaricano dall'inizio.
+  // L'elenco delle raccolte conosciute sta in meta 'cols' (dalla 1.77.0: se manca, la sola nuova è `errori`).
+  const note = await metaGet('cols');
+  const nuove = sync.lastSync ? (Array.isArray(note) ? COLS.filter(c => !note.includes(c)) : ['errori']) : [];
+  if (nuove.length) await scarica('1970-01-01T00:00:00Z', nuove);
+  const t0 = sync.lastSync ? Date.parse(String(sync.lastSync).replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1')) : NaN;
+  const since = isFinite(t0) ? new Date(t0 - 15000).toISOString() : '1970-01-01T00:00:00Z';
+  const m = await scarica(since, null);
+  const maxTs = m && (!sync.lastSync || m > sync.lastSync) ? m : sync.lastSync;
   if (maxTs) { sync.lastSync = maxTs; await metaSet('lastSync', maxTs); }
+  if (!Array.isArray(note) || nuove.length) await metaSet('cols', COLS);
 }
 // JSON con le chiavi in ordine: il database (jsonb) può restituire le chiavi in un altro ordine
 const stabile = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, c) => { o[c] = x[c]; return o; }, {}) : x));

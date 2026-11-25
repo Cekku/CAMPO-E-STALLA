@@ -134,7 +134,7 @@ async function segnaScartato(d, id) {
 let cacheD = null;
 /** Tutti i dubbi da controllare delle automazioni visibili, senza gli scartati: { id, area, aut, testo, proposta, conferma?, scarta?, apri? }. */
 export function dubbi() {
-  const deps = [...COLS.map(c => S[c]), ver, contiVisibili()];
+  const deps = [...COLS.filter(c => c !== 'errori').map(c => S[c]), ver, contiVisibili()];
   if (cacheD && cacheD.deps.length === deps.length && cacheD.deps.every((x, i) => x === deps[i])) return cacheD.v;
   const out = []; const visti = new Set();
   for (const d of visibili()) {

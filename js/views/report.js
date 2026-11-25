@@ -20,7 +20,7 @@ const ora = iso => { const d = new Date(iso); return isNaN(d) ? '' : fd(iso.slic
 // il report di adesso si ricalcola solo quando cambiano i dati, il mese o la scelta dei Conti
 let cache = null;
 function adesso(m, cc) {
-  const deps = [m, cc, numeroDubbi(), ...COLS.map(c => S[c])];
+  const deps = [m, cc, numeroDubbi(), ...COLS.filter(c => c !== 'errori').map(c => S[c])];
   if (cache && cache.deps.every((x, i) => x === deps[i])) return cache.v;
   const v = R.prepara(m, { conti: cc }); cache = { deps, v }; return v;
 }

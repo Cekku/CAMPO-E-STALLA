@@ -1996,6 +1996,13 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
 .sc-falla { padding: 10px 0; border-top: 1px solid var(--line, var(--rule)); } .sc-falla:first-of-type { border-top: 0; } .sc-falla ol { margin: 6px 0 6px 20px; padding: 0; }
 .sc-grav { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--info-soft); color: var(--info); }
 .sc-g-alta { background: var(--bad-soft); color: var(--bad); } .sc-g-media { background: var(--warn-soft); color: var(--warn); } .sc-g-bassa { background: var(--info-soft); color: var(--info); }
+/* Errori dell'app (1.77.0) */
+.er-riga { padding: 10px 0; border-top: 1px solid var(--rule); }
+.er-riga:first-of-type { border-top: 0; }
+.er-msg { font-family: var(--f-mono); font-size: 13px; margin: 4px 0; overflow-wrap: anywhere; }
+.er-pila { margin: 4px 0 6px; padding-left: 18px; }
+.er-pila code { font-size: 13px; overflow-wrap: anywhere; }
+.er-riga .btns { margin-top: 6px; }
 .sc-avviso p { display: flex; gap: 8px; align-items: center; margin: 0; }
 /* ---------- telefono: scritte piccole più grandi (generato) ---------- */
 @media (max-width: 640px) {
