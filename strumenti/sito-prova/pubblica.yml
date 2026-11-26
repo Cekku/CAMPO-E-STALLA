@@ -1,0 +1,86 @@
+# BOZZA (26/11/2026), NON ATTIVA: sostituisce .github/workflows/pubblica.yml quando Marco attiva il sito di prova
+# (passi in strumenti/sito-prova/LEGGIMI.md). Fino ad allora vale il pubblica.yml di adesso.
+#
+# Prove automatiche, sito di prova e uscita settimanale del sito vero.
+# - push su main: npm test; se passa, il sito va sul SITO DI PROVA (Cloudflare Pages, campo-e-stalla-prova.pages.dev).
+# - lunedì alle 8:00 ora italiana (7:00 UTC d'inverno; d'estate sono le 9:00): npm test e, se passa, uscita
+#   della settimana sul SITO VERO (GitHub Pages), prima del controllo settimanale delle 8:30.
+# - correzione urgente: messaggio del commit con [urgente] (va anche sul sito vero subito) oppure
+#   Actions → "Prove e pubblicazione" → Run workflow (sito vero subito).
+# Se una prova non passa non si pubblica niente e GitHub manda una email.
+# Segreti richiesti: CLOUDFLARE_API_TOKEN (permesso "Cloudflare Pages: Edit"), CLOUDFLARE_ACCOUNT_ID.
+name: Prove e pubblicazione
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      motivo:
+        description: 'Perché esce subito sul sito vero (correzione urgente)'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pubblica-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 'lts/*'
+      - name: Prove automatiche
+        run: npm test
+
+  sito-di-prova:
+    needs: prove
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Pubblica sul sito di prova
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy . --project-name=campo-e-stalla-prova --branch=main --commit-dirty=true
+
+  sito-vero:
+    needs: prove
+    if: >-
+      github.ref == 'refs/heads/main' && (
+        github.event_name == 'schedule' ||
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && contains(github.event.head_commit.message, '[urgente]'))
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.pagine.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Perché esce
+        run: |
+          echo "Evento: ${{ github.event_name }}"
+          echo "Motivo: ${MOTIVO:-uscita della settimana o commit [urgente]}"
+        env:
+          MOTIVO: ${{ github.event.inputs.motivo }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: '.'
+      - id: pagine
+        uses: actions/deploy-pages@v4
