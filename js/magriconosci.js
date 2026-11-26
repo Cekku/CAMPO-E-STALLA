@@ -24,13 +24,17 @@ const LUBRIF = /^(?!.*\b(FILTR\w*|TUB[OI]|POMPA|GUARNIZ\w*|TAPP[OI]|ASTINA|RACCO
 // dal ricambista: serve la parola dell'olio (non basta "idraulico") e niente pezzi ("radiatore olio", "pistone idraulico")
 const OLIO_RIC = /\b(OLIO|OLI|LUBRIF\w*|GRASSO|ATF|FLUIDO)\b/;
 const PEZZO = /\b(MOTORE IDRAUL\w*|DISTRIBUT\w*|PISTON\w*|INNEST\w*|RADIATOR\w*|COPPA|SPIA|PRESSOSTAT\w*|MARTINETT\w*|KIT|BULBO|ORBITAL\w*|MANOMETR\w*|SERBATOI\w*|CUSCINETT\w*|INGRASSATOR\w*|PISTOLA|POMPA|CILINDR\w*|SENSORE|TERMOSTAT\w*|SCAMBIATOR\w*)\b/;
+// dal fornitore di carburanti e lubrificanti (1.78.0): entrano gasolio, oli e grassi (anche coi nomi di marca: Mobil, Delvac, 15W40), AdBlue e filtri;
+// antigelo, liquido dei radiatori, lavavetri, contributi e imposte restano fuori (prima diventavano "Gasolio")
+const GASOL = /^(?!.*\b(ANTIGEL\w*|ADDITIV\w*|TANIC\w*)\b).*(\bGASOLI?O?\b|DIESEL\b|\bCARBURANT\w*|\bBENZIN\w*)/;
+const OLIO_MARCA = /^(?!.*\b(FILTR\w*|TUB[OI]|POMPA|GUARNIZ\w*|TAPP[OI]|ASTINA|RACCORD\w*|CILINDR\w*|VALVOL\w*|PARAOLIO|SENSORE|RADIATOR\w*|ANTIGEL\w*|LAVAVETR\w*|REFRIGERANT\w*|COOL\w*)\b).*\b(OLIO|OLI|OIL|LUBRIF\w*|GRASSO|GREASE|ATF|SYNTH\w*|MOBIL\w*|DELVAC|UNIVIS|HYGARD|IDRAUL\w*|HYDRAUL\w*|TELLUS|AMBRA|TUTELA|UTTO|STOU|\d{1,2}W-?\d{2,3})\b/;
 /** Categoria dei Conti → categoria del magazzino per un prodotto nuovo, e categorie dei prodotti che possono combaciare.
  *  `solo`: la famiglia vale solo per le righe con queste parole (dai ricambi entrano olio, grasso e AdBlue, il resto no). */
 export const FAMIGLIE = {
   'Sementi': { cat: 'Seme', ok: ['Seme'] },
   'Concimi': { cat: 'Concime', ok: ['Concime'] },
   'Fitofarmaci': { cat: 'Fitofarmaco', ok: FITO_CAT },
-  'Carburanti e lubrificanti': { cat: 'Gasolio', ok: ['Gasolio', 'Lubrificante', 'AdBlue'] },
+  'Carburanti e lubrificanti': { cat: 'Gasolio', ok: ['Gasolio', 'Lubrificante', 'AdBlue', 'Ricambio'], solo: d => FILTRO.test(d) || ADBLUE.test(d) || (!PEZZO.test(d) && (GASOL.test(d) || OLIO_MARCA.test(d))) },
   'Mangimi e materie prime': { cat: 'Mangime', ok: ['Mangime', 'Foraggio', 'Integratore'] },
   'Integratori e additivi': { cat: 'Integratore', ok: ['Integratore', 'Mangime'] },
   'Ricambi e manutenzione': { cat: 'Lubrificante', ok: ['Lubrificante', 'AdBlue', 'Ricambio'], solo: d => FILTRO.test(d) || (LUBRIF.test(d) && OLIO_RIC.test(d) && !PEZZO.test(d)) || ADBLUE.test(d) },
@@ -42,14 +46,16 @@ function famDi(r) {
 }
 /** Parole che spostano la categoria del prodotto nuovo dentro la stessa famiglia dei Conti. */
 const PAROLE_CAT = [
-  [FILTRO, 'Ricambio', ['Ricambi e manutenzione']],
+  [FILTRO, 'Ricambio', ['Ricambi e manutenzione', 'Carburanti e lubrificanti']],
   [ADBLUE, 'AdBlue', ['Carburanti e lubrificanti', 'Ricambi e manutenzione']],
   [LUBRIF, 'Lubrificante', ['Carburanti e lubrificanti', 'Ricambi e manutenzione']],
+  [OLIO_MARCA, 'Lubrificante', ['Carburanti e lubrificanti']],   // prima del gasolio: "olio motore diesel" è un lubrificante
+  [GASOL, 'Gasolio', ['Carburanti e lubrificanti']],
   [/\bFIENO\b|\bPAGLIA\b|\bMEDICA\b|\bINSILATO\b|\bFASCIAT|\bLOIESSA\b|\bPOLIFITA\b|\bLOIETTO\b/, 'Foraggio', ['Mangimi e materie prime']],
   [/DISERB|ERBICID|GLIFOS/, 'Diserbante', ['Fitofarmaci']],
 ];
 /** Righe di servizio (trasporto, contributi, manodopera…): fuori dal magazzino, come prima. */
-export const SERVIZIO = /\b(TRASPORT|CONTRIBUT|NOLO|NOLEGG|SPESE|SPESA|CAUZION|IMBALL|CONAI|SPEDIZ|CONSEGNA|INCASSO|BOLLO|ACCONTO|MANODOPERA|MANO D|INTERVENTO|DIRITTO)/;
+export const SERVIZIO = /\b(TRASPORT|CONTRIBUT|NOLO|NOLEGG|SPESE|SPESA|CAUZION|IMBALL|CONAI|SPEDIZ|CONSEGNA|INCASSO|BOLLO|ACCONTO|MANODOPERA|MANO D|INTERVENTO|DIRITTO|IMPOSTA\b|IMPOSTE\b|ACCIS|CONOU|COBAT)/;
 /** Sconti e abbuoni: correggono il prezzo, non la quantità. */
 export const SCONTO = /\b(SCONT|ABBUON|OMAGGI|PREMIO|BONUS|DIFF(ERENZA)?\.? ?(DI )?PREZZ|STORNO PREZZ|RIDUZIONE PREZZ|ADEGUAMENTO PREZZ)/;
 const RESO = /\bRES[OI]\b|\bRESTITUZ/;
@@ -374,6 +380,14 @@ export function classifica({ righe, fatture, prodotti, movimenti = [], fatti = {
   const ord = (y, z) => z.data.localeCompare(y.data);
   out.fatte.sort(ord); out.tolte.sort(ord); out.daFare.sort(ord); out.doppie.sort(ord);
   return out;
+}
+/** Articolo della riga, per mettere insieme nella pagina le righe dello stesso articolo dello stesso fornitore (1.78.0):
+ *  codice del fornitore, altrimenti descrizione senza lotti e date. Le correzioni di prezzo restano una per una. */
+export const gruppoDi = x => x.tipo === 'prezzo' ? 'k:' + x.k : x.tipo + '|' + (codChiave(x.r) || descrK(x.r) || (fornK(x.r) + '|' + descrChiave(x.r.descrizione)));
+/** Righe da controllare messe insieme per articolo: [{ g, righe (dalla più recente) }], i gruppi più numerosi prima. */
+export function gruppi(daFare) {
+  const m = new Map(); for (const x of daFare) { const g = gruppoDi(x); if (!m.has(g)) m.set(g, []); m.get(g).push(x); }
+  return [...m].map(([g, righe]) => ({ g, righe })).sort((a, b) => b.righe.length - a.righe.length || b.righe[0].data.localeCompare(a.righe[0].data));
 }
 /** Il prodotto impara la riga confermata: codice, descrizione del fornitore, parole e fattore di conversione. Ritorna una copia. */
 export function impara(p0, r, q, paroleR = '') {

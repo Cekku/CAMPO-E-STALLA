@@ -114,6 +114,23 @@ const rUrea = (o = {}) => Object.assign({ descrizione: 'UREA 46% SACCO 25 KG', c
   t('filtro già imparato: entra da solo', Efil2.pronte.length === 1 && Efil2.pronte[0].q === 3);
   const Ealtro = cl([fatt(FA, '2026-03-01', [{ descrizione: 'LAMPADA LED H4 12V', categoria: 'Da classificare', quantita: 2, um: 'PZ', importo: 30, codice: 'LH4' }])], [P({ id: 'lamp', nome: 'Lampada H4', categoria: 'Ricambio', unita: 'pz', codiciFatt: [KA + '|LH4'] })]);
   t('un ricambio già imparato a mano non entra più dalle fatture', Ealtro.pronte.length + Ealtro.daFare.length === 0);
+  // 1.78.0: dal fornitore di carburanti e lubrificanti solo gasolio, oli e grassi (anche di marca), AdBlue e filtri; il resto non è "Gasolio"
+  const CL = 'Carburanti e lubrificanti';
+  const dentroCL = { 'GASOLIO AGRICOLO 0,001%S': 'Gasolio', 'FILTRO GASOLIO FS1234': 'Ricambio', 'MOBIL UNIVIS N 46 L20': 'Lubrificante', 'MOBILGREASE XHP 222 KG 0,39': 'Lubrificante',
+    'MOBILUBE HD 80W-90 L20': 'Lubrificante', 'TITAN AGRI MILKING MACH.OIL 1X5': 'Lubrificante', 'OLIO TRASMISSIONE': 'Lubrificante', 'ADBLUE SFUSO': 'AdBlue',
+    'OLIO MOTORE DIESEL 15W40 L20': 'Lubrificante', 'BIODIESEL B100': 'Gasolio', 'SHELL TELLUS S2 M 46': 'Lubrificante', 'AMBRA MULTI G': 'Lubrificante' };
+  const fuoriCL = ['FLUIDO PROTET. RADIATORI ROSSO', 'LIQUIDO LAVAVETRI', 'ANTIGELO', 'COOL-GARD', 'SERBATOIO GASOLIO DA TRASP. LT 220', 'CONTR. CONOU D.LGS 152/2006 ART. 1', 'IMPOSTA DI CONSUMO', 'ADDITIVO ANTIGELO GASOLIO LT 1', 'TANICA GASOLIO 20 L'];
+  t('carburanti e lubrificanti: gasolio, oli, filtri e AdBlue nella loro categoria; antigelo, lavavetri, serbatoio e imposte fuori',
+    Object.entries(dentroCL).every(([d, c]) => R.categoriaPer({ categoria: CL, descrizione: d }) === c) && fuoriCL.every(d => R.categoriaPer({ categoria: CL, descrizione: d }) === null),
+    [...Object.keys(dentroCL), ...fuoriCL].map(d => d + '=' + R.categoriaPer({ categoria: CL, descrizione: d })));
+  const Eimp = cl([fatt(FA, '2026-03-01', [{ descrizione: 'CONTR. CONOU D.LGS 152/2006 ART. 1', categoria: CL, quantita: 20, um: 'LT', importo: 2, codice: '9999999999991' }, { descrizione: 'IMPOSTA DI CONSUMO', categoria: CL, quantita: 20, um: 'LT', importo: 9, codice: '9999999999992' }, { descrizione: 'LIQUIDO LAVAVETRI', categoria: CL, quantita: 5, um: 'LT', importo: 10 }])], []);
+  t('contributo CONOU, imposta di consumo e lavavetri: non entrano in magazzino', Eimp.pronte.length + Eimp.daFare.length === 0, Eimp.daFare.map(x => x.r.descrizione));
+  // righe dello stesso articolo messe insieme: 3 fatture con lo stesso codice (lotti diversi) + un altro articolo = 2 gruppi, il primo con 3 righe
+  const art = (data, lotto) => fatt(FA, data, [{ descrizione: 'NUCLEO VACCHE SACCO 25 KG LOTTO ' + lotto, categoria: 'Integratori e additivi', quantita: 10, um: 'PZ', importo: 300, codice: 'NV25' }]);
+  const Egr = cl([art('2026-03-01', 'A1'), art('2026-04-01', 'B2'), art('2026-05-01', 'C3'), fatt(FA, '2026-05-02', [{ descrizione: 'LIEVITO VIVO 25 KG', categoria: 'Integratori e additivi', quantita: 4, um: 'PZ', importo: 200, codice: 'LV25' }])], []);
+  const G = R.gruppi(Egr.daFare);
+  t('righe dello stesso articolo insieme: 2 gruppi, il primo con 3 righe dalla più recente', Egr.daFare.length === 4 && G.length === 2 && G[0].righe.length === 3 && G[0].righe[0].data === '2026-05-01' && G[1].righe.length === 1, G.map(g => g.g + ' ' + g.righe.length));
+  t('prodotto nuovo proposto con la quantità dai sacchi (10 × 25 kg)', G[0].righe.every(x => x.nuovo && x.nuovo.unita === 'kg' && x.nuovo.q === 250), G[0].righe.map(x => x.nuovo));
   // codice imparato vince sulle parole, e due prodotti con lo stesso codice → dubbio
   const u2 = P({ id: 'u2', nome: 'Urea granulare', codiciFatt: [KA + '|UR46'] });
   const E6 = cl([f1], [urea, u2]);

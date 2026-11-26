@@ -2139,3 +2139,13 @@ kbd { font-family: var(--f-mono); font-size: 11.5px; padding: 1px 6px; border-ra
   .sc-grav { font-size: 13px; }
 }
 /* ---------- fine telefono ---------- */
+
+/* Magazzino → Da fatture: righe dello stesso articolo insieme (1.78.0) */
+.mf-altre { margin: 0 0 6px 12px; }
+.mf-tanti { display: flex; flex-direction: column; gap: 6px; }
+.mf-tanti .mf-art span { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .mf-altre { margin-left: 0; } .mf-art { margin-left: 8px; } }
+.mf-altre summary { cursor: pointer; padding: 2px 0 6px; }
+.mf-altre .list { border-left: 2px solid var(--line, #ddd); padding-left: 8px; }
+.mf-forn { border-top: 1px solid var(--line, #ddd); padding-top: 8px; }
+.mf-art { margin-left: 22px; }

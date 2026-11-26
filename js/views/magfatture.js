@@ -3,10 +3,10 @@
 import { S, get } from '../state.js';
 import { esc, nf, eur, fd, N } from '../util.js';
 import { ic } from '../icons.js';
-import { empty, openSheet, closeSheet, toast } from '../ui.js';
+import { empty, openSheet, closeSheet, toast, arm } from '../ui.js';
 import { UNITA } from '../domain.js';
 import * as MF from '../magfatture.js';
-import { importoNetto } from '../magriconosci.js';
+import { importoNetto, gruppi, qta } from '../magriconosci.js';
 import { movRow } from './magazzino.js';
 
 const quanti = (n, uno, tanti) => n === 1 ? '1 ' + uno : n + ' ' + tanti;
@@ -30,15 +30,45 @@ function proposta(x) {
 
 export const contaDaFare = () => MF.elenco().daFare.length;
 
+/* ---------------- righe messe insieme per articolo (1.78.0) ---------------- */
+const bottoni = x => `<button class="btn sm primary" data-act="mf-abbina" data-k="${esc(x.k)}">${ic('link')}${x.tipo === 'prezzo' ? 'Correggi' : 'Abbina'}</button><button class="btn sm ghost" data-act="mf-togli" data-k="${esc(x.k)}">Non caricare</button>`;
+const dettaglio = x => proposta(x) + (x.motivo ? `<br><small class="muted">${esc(x.motivo)}</small>` : '');
+function gruppoRiga({ righe: rr }) {
+  const x = rr[0]; if (rr.length === 1) return riga(x, bottoni(x), dettaglio(x));
+  const ks = rr.map(y => y.k).join('|'); const dal = rr[rr.length - 1].data;
+  const testa = riga(x, `<button class="btn sm primary" data-act="mf-abbina" data-k="${esc(x.k)}">${ic('link')}Abbina</button><button class="btn sm ghost" data-act="mf-togli-tutte" data-ks="${esc(ks)}">Non caricare (${rr.length})</button>`,
+    ` · <b>${rr.length} righe</b> dal ${fd(dal)}` + dettaglio(x));
+  return `<div class="mf-gr">${testa}<details class="mf-altre"><summary class="muted small">Vedi le ${rr.length} righe una per una</summary><div class="list">${rr.map(y => riga(y, bottoni(y), y.motivo ? `<br><small class="muted">${esc(y.motivo)}</small>` : '')).join('')}</div></details></div>`;
+}
+/** Articoli con un prodotto nuovo proposto e la quantità calcolata: quelli che "Crea tutti i proposti" può fare in un colpo. */
+function proposti(G) {
+  const out = [];
+  for (const { righe: rr } of G) { const x = rr.find(y => y.tipo === 'carico' && !y.proposto && y.nuovo && N(y.nuovo.q) > 0); if (x) out.push({ x, n: rr.length }); }
+  return out;
+}
+function foglioTanti() {
+  const P = proposti(gruppi(MF.elenco().daFare)); if (!P.length) return toast('Nessun prodotto nuovo da proporre', 'err');
+  const forn = new Map(); for (const z of P) { const f = z.x.r.controparte || 'Senza fornitore'; if (!forn.has(f)) forn.set(f, []); forn.get(f).push(z); }
+  const blocchi = [...forn].sort((a, b) => b[1].length - a[1].length).map(([f, l], i) => `<div class="mf-forn"><label class="fld chk"> <input type="checkbox" checked data-act="mf-forn" data-f="${i}"> <b>${esc(f)}</b> <span class="muted">· ${quanti(l.length, 'articolo', 'articoli')}</span></label>
+    ${l.map(({ x, n }) => { const certa = qta(x.r, { unita: x.nuovo.unita }).certa;   // quantità non sicura (senza unità, confezione dubbia): senza spunta
+      const altro = String(x.motivo || '').split('; ').filter(m => m && m !== 'prodotto mai caricato da una fattura');   // servizi, reso…: senza spunta e col motivo
+      const ok = certa && !altro.length;
+      return `<label class="fld chk mf-art"><input type="checkbox"${ok ? ' checked' : ''} data-mfk="${esc(x.k)}" data-f="${i}"> <span><b>${esc(x.nuovo.nome)}</b> · ${esc(x.nuovo.categoria)} · ${nf(x.nuovo.q, 3)} ${esc(x.nuovo.unita)}${certa ? '' : ' · <b>quantità da controllare</b>'}${altro.length ? ' · <b>' + esc(altro.join('; ')) + '</b>' : ''}<br><small class="muted">In fattura: ${esc(String(x.r.descrizione || '').slice(0, 80))} · ${nf(x.r.quantita, 2)} ${esc(x.r.um || 'senza unità')}${n > 1 ? ' · ' + n + ' righe' : ''}</small></span></label>`; }).join('')}</div>`).join('');
+  openSheet('Crea tutti i prodotti proposti', `<div class="mf-tanti"><p class="muted small">Per ogni articolo spuntato nasce il prodotto con il nome, la categoria e l'unità proposti, e si carica la riga della fattura; le altre righe dello stesso articolo entrano da sole se la quantità è sicura (le altre restano da controllare). Quelli con la quantità da controllare (riga senza unità o confezione non chiara) sono senza spunta: controllali prima. Togli la spunta a quelli sbagliati: li abbini dopo uno per uno. Nomi e categorie si cambiano anche dopo, dalla scheda del prodotto.</p>
+    ${blocchi}
+    <div class="factions"><span class="sp"></span><button class="btn ghost" data-act="close">Annulla</button><button class="btn primary" data-act="mf-tanti">${ic('check')}Crea e carica</button></div></div>`);
+}
+
 export function sezione() {
   const E = MF.elenco();
   const fatte = S.movimenti.filter(m => m.fattRiga && m.data >= E.da).sort((a, b) => b.data.localeCompare(a.data));
   const testa = `<section class="card"><div class="card-h"><h2>${ic('file-down')}Carico dalle fatture</h2><button class="btn sm primary" data-act="mf-controlla">${ic('refresh-cw')}Controlla le fatture</button></div>
     <p class="muted small">Le righe delle fatture d'acquisto (mangimi, foraggi, farmaci, prodotti per la mungitura, ricambi, lubrificanti, teli e reti, sementi, concimi, fitofarmaci, gasolio) entrano in magazzino come carichi. Entra da sola solo una riga con il prodotto riconosciuto con certezza e la quantità sicura; le altre restano qui e fra i dubbi del Centro automatico, con la proposta pronta. Confermata una volta, quel prodotto entra da solo nelle fatture dopo.</p>
     <label class="fld"><span class="flabel">Carica le fatture dal</span><input class="inp" type="date" data-act="mf-da" value="${esc(E.da)}"><small>Le fatture più vecchie non entrano, così non diventano doppi i carichi già scritti a mano.</small></label></section>`;
-  const daFare = `<section class="card"><div class="card-h"><h2>Da controllare</h2><span class="count">${E.daFare.length}</span></div><div class="list">${E.daFare.length ? E.daFare.map(x => riga(x,
-    `<button class="btn sm primary" data-act="mf-abbina" data-k="${esc(x.k)}">${ic('link')}${x.tipo === 'prezzo' ? 'Correggi' : 'Abbina'}</button><button class="btn sm ghost" data-act="mf-togli" data-k="${esc(x.k)}">Non caricare</button>`,
-    proposta(x) + (x.motivo ? `<br><small class="muted">${esc(x.motivo)}</small>` : ''))).join('') : empty('circle-check', 'Niente da controllare', S.fatture.length ? 'Tutte le righe di magazzino dal ' + fd(E.da) + ' sono a posto.' : 'Non ci sono ancora fatture: caricale dai Conti.')}</div></section>`;
+  const G = gruppi(E.daFare); const nProp = proposti(G).length;
+  const daFare = `<section class="card"><div class="card-h"><h2>Da controllare</h2><span class="count" title="righe di fattura">${E.daFare.length}</span>${nProp ? `<button class="btn sm primary" data-act="mf-tanti-apri">${ic('list-checks')}Crea tutti i proposti (${nProp})</button>` : ''}</div>
+    ${G.length ? `<p class="muted small">${quanti(E.daFare.length, 'riga', 'righe')} di fattura, ${G.length === 1 ? '1 articolo' : G.length + ' articoli diversi'}: le righe dello stesso articolo sono messe insieme. Abbinato il primo, le altre entrano da sole se sono sicure.</p>` : ''}
+    <div class="list">${G.length ? G.map(gruppoRiga).join('') : empty('circle-check', 'Niente da controllare', S.fatture.length ? 'Tutte le righe di magazzino dal ' + fd(E.da) + ' sono a posto.' : 'Non ci sono ancora fatture: caricale dai Conti.')}</div></section>`;
   const caricate = `<section class="card"><div class="card-h"><h2>Caricate dalle fatture</h2><span class="count">${fatte.length}</span></div><div class="list">${fatte.length ? fatte.slice(0, 60).map(movRow).join('') : '<div class="empty slim">Ancora nessun carico dalle fatture.</div>'}</div>${fatte.length > 60 ? `<p class="muted small">Le altre sono in Movimenti.</p>` : ''}</section>`;
   const corr = E.fatte.filter(x => String(x.fatto).startsWith('r>'));
   const correzioni = corr.length ? `<section class="card"><div class="card-h"><h2>Correzioni di prezzo</h2><span class="count">${corr.length}</span></div><div class="list">${corr.map(x => riga(x, '', ` · su <b>${esc(descOrig(String(x.fatto).slice(2)))}</b>`)).join('')}</div></section>` : '';
@@ -93,6 +123,20 @@ export async function mfAct(a, b, d) {
     }
     case 'mf-abbina': return foglio(d.k);
     case 'mf-togli': await MF.togli(d.k, true); return toast('Riga tolta: non entra in magazzino');
+    case 'mf-togli-tutte': { if (!b.dataset.armed) return arm(b, 'Tocca ancora per togliere', () => {}); delete b.dataset.armed; const ks = String(d.ks || '').split('|').filter(Boolean); await MF.togliTante(ks); return toast(quanti(ks.length, 'riga tolta', 'righe tolte') + ': non entrano in magazzino'); }
+    case 'mf-tanti-apri': return foglioTanti();
+    case 'mf-tanti': {
+      const box = document.getElementById('sheetBody') || document;
+      const scelti = [...box.querySelectorAll('input[data-mfk]:checked')].map(i => i.dataset.mfk);
+      if (!scelti.length) return toast('Spunta almeno un articolo', 'err');
+      const P = new Map(proposti(gruppi(MF.elenco().daFare)).map(z => [z.x.k, z.x]));
+      const lista = scelti.map(k => P.get(k)).filter(Boolean).map(x => ({ k: x.k, nuovo: x.nuovo, q: x.nuovo.q }));
+      b.disabled = true;
+      try {
+        const n = await MF.abbinaTanti(lista); closeSheet();
+        return toast(`Creati e caricati ${quanti(n.fatte, 'articolo', 'articoli')}` + (n.altre ? ` e altre ${quanti(n.altre, 'riga', 'righe')} entrate da sole` : '') + (n.saltate ? ` · ${n.saltate} saltati (da fare a mano)` : ''));
+      } finally { b.disabled = false; }
+    }
     case 'mf-rimetti': await MF.togli(d.k, false); return toast('Riga rimessa fra quelle da controllare');
     case 'mf-salva': {
       b.disabled = true;
@@ -109,6 +153,11 @@ export async function mfAct(a, b, d) {
 }
 export async function mfChange(t) {
   if (t.dataset.act === 'mf-da') { await MF.salvaDa(t.value); return toast('Data salvata'); }
+  if (t.dataset.act === 'mf-forn') {   // spunta o toglie tutti gli articoli del fornitore
+    const box = document.getElementById('sheetBody') || document;
+    box.querySelectorAll(`input[data-mfk][data-f="${t.dataset.f}"]`).forEach(i => { i.checked = t.checked; });
+    return;
+  }
   if (t.dataset.act === 'mf-scegli') {
     const pid = val('mfProd'); const nuovo = pid === '__nuovo';
     const box = document.getElementById('mfNuovo'); if (box) box.hidden = !nuovo;

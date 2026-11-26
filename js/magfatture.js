@@ -127,8 +127,45 @@ async function abbina1(k, { pid, nuovo, q, ricorda, paroleR, origine, tipo }) {
   await salvaStato({ fatti: { [k]: mid } });
   return ricorda ? caricaPronte() : 0;
 }
+/** Tanti prodotti nuovi in un colpo (1.78.0, "Crea tutti i proposti"): lista di { k, nuovo: { nome, categoria, unita, nReg? }, q }
+ *  (una riga per articolo, scelta da Marco nell'anteprima). Ogni prodotto impara la sua riga; due articoli con lo stesso nome
+ *  vanno nello stesso prodotto. Poi entrano da sole le altre righe degli stessi articoli. Ritorna { fatte, altre, saltate }. */
+export async function abbinaTanti(lista) {
+  corre++;
+  try {
+    const E = elenco(); const daFare = new Map(E.daFare.map(x => [x.k, x]));
+    const nuovi = new Map();   // nome normalizzato → prodotto (creato in questo giro)
+    const movs = []; const fatti = {}; let saltate = 0;
+    for (const { k, nuovo, q: q0 } of lista) {
+      const x = daFare.get(k); const q = N(q0); const nome = String(nuovo && nuovo.nome || '').trim();
+      if (!x || x.tipo !== 'carico' || !(q > 0) || !nome) { saltate++; continue; }
+      let p = nuovi.get(norm(nome));
+      if (!p) {
+        const omonimo = S.prodotti.find(y => norm(y.nome) === norm(nome));
+        if (omonimo) { if (!MR.daFatture(omonimo)) { saltate++; continue; } p = Object.assign({}, omonimo); }
+        else {
+          const cat = CAT_MAG.includes(nuovo.categoria) ? nuovo.categoria : MR.categoriaPer(x.r); if (!cat) { saltate++; continue; }
+          p = { id: uid(), nome, categoria: cat, unita: nuovo.unita || unitaPer(x.r.um), giacenzaIniziale: 0 };
+          const fx = nuovo.nReg ? fitoLookup(nuovo.nReg) : null;
+          if (fx) { p.nReg = fx.nReg; p.nRegAuto = fx.nReg; if (fx.sostanze) p.sostanze = fx.sostanze; if (fx.impresa) p.impresa = fx.impresa; if (fx.scadenza) p.scadenzaAut = fx.scadenza; }
+        }
+      }
+      let qq = q;   // prodotto già fatto (stesso nome) con un'altra unità: quantità rifatta nella sua unità, e solo se sicura
+      if (p.unita !== (nuovo.unita || unitaPer(x.r.um))) { const z = MR.qta(x.r, p); if (!z.certa || !(z.q > 0)) { saltate++; continue; } qq = z.q; }
+      p = MR.impara(p, x.r, qq); nuovi.set(norm(nome), p);
+      const mid = idMov(k); movs.push({ col: 'movimenti', id: mid, data: movimento(x, p, qq) }); fatti[k] = mid;
+    }
+    if (!movs.length) return { fatte: 0, altre: 0, saltate };
+    const prod = [...nuovi.values()].map(p => { const { id, ...dp } = p; return { col: 'prodotti', id, data: dp }; });
+    await store.bulkPut([...prod, ...movs]);
+    await salvaStato({ fatti });
+    return { fatte: movs.length, altre: await caricaPronte(), saltate };
+  } finally { corre--; ridisegna(); }
+}
 /** "Non caricare" (o rimetti fra quelle da fare). */
 export async function togli(k, si = true) { await (si ? salvaStato({ fatti: { [k]: 'no' } }) : salvaStato({}, [k])); }
+/** "Non caricare" per tutte le righe di un articolo. */
+export async function togliTante(ks) { await salvaStato({ fatti: Object.fromEntries(ks.map(k => [k, 'no'])) }); }
 /** Per l'annulla del Centro: il prodotto dimentica codice, descrizione e parole imparati dalla riga k, se li ha ancora
  *  e se non li sapeva già prima della conferma (prima = versione del prodotto di prima, dal diario). */
 export async function dimentica(pid, k, prima = {}) {
