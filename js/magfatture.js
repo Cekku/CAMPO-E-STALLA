@@ -45,11 +45,11 @@ export const quantita = (r, p) => MR.qta(r, p).q;
 /** Righe d'acquisto dal giorno scelto: fatte, tolte, doppie (copia della stessa fattura), pronte (sicure) e daFare (dubbi). */
 let memo = null;
 export function elenco() {
-  if (!contiVisibili()) return { da: daData(), fatte: [], tolte: [], doppie: [], daFare: [], pronte: [] };
+  if (!contiVisibili()) return { da: daData(), fatte: [], tolte: [], doppie: [], daFare: [], pronte: [], officina: [] };
   const da = daData(); const dep = [S.fatture, S.prodotti, S.movimenti, S.econfig, fitoMeta.n, fitoMeta.versione, da];
   if (memo && dep.every((d, i) => d === memo.dep[i])) return memo.E;
   const E = MR.classifica({ righe: righe(), fatture: S.fatture, prodotti: S.prodotti, movimenti: S.movimenti, fatti: stato().fatti || {}, da,
-    fito: n => fitoLookup(n), dataDi: r => leggiDdt(r.ddt, r.data) });
+    fito: n => fitoLookup(n), dataDi: r => leggiDdt(r.ddt, r.data), officine: new Set(stato().officine || []) });
   memo = { dep, E }; return E;
 }
 let memoP = null;
@@ -161,6 +161,32 @@ export async function abbinaTanti(lista) {
     await salvaStato({ fatti });
     return { fatte: movs.length, altre: await caricaPronte(), saltate };
   } finally { corre--; ridisegna(); }
+}
+/* ---------------- officine e meccanici (1.78.2) ---------------- */
+/** Fornitori che possono essere officine: hanno almeno una fattura di lavorazione o righe di ricambi, lubrificanti o carburanti.
+ *  [{ k: impronta del fornitore, nome, fatture, lavoro, segnato }], prima i segnati, poi per quota di fatture con manodopera. */
+export function fornitoriOfficina() {
+  const lav = MR.fattureDiLavoro(S.fatture); const seg = new Set(stato().officine || []); const m = new Map();
+  for (const f of S.fatture) {
+    if (f.tipo !== 'Acquisto') continue;
+    const k = MR.fornK(f); if (!k) continue;
+    const ric = (f.righe || []).some(r => ['Ricambi e manutenzione', 'Carburanti e lubrificanti', 'Lavori e riparazioni'].includes(r.categoria));
+    if (!m.has(k)) m.set(k, { k, nome: f.controparte || '', fatture: 0, lavoro: 0, ric: false, segnato: seg.has(k) });
+    const z = m.get(k); z.fatture++; if (lav.has(f.id)) z.lavoro++; if (ric) z.ric = true;
+  }
+  return [...m.values()].filter(z => z.segnato || z.lavoro || z.ric).sort((a, b) => b.segnato - a.segnato || b.lavoro / b.fatture - a.lavoro / a.fatture || a.nome.localeCompare(b.nome, 'it'));
+}
+/** Segna o toglie un fornitore fra le officine (le sue fatture non caricano niente in magazzino). */
+export async function segnaOfficina(k, si) {
+  const l = new Set(stato().officine || []); if (si) l.add(k); else l.delete(k);
+  await salvaStato({ officine: [...l] });
+}
+/** Toglie dal magazzino i carichi già fatti da fatture di lavorazione o di officine (elenco().officina). Ritorna quanti. */
+export async function togliCarichiOfficina() {
+  const l = elenco().officina; if (!l.length) return 0;
+  for (const x of l) await store.remove('movimenti', x.mov);
+  await salvaStato({}, l.map(x => x.k));   // il segno si toglie: la riga resta fuori da sola finché è di un'officina
+  return l.length;
 }
 /** "Non caricare" (o rimetti fra quelle da fare). */
 export async function togli(k, si = true) { await (si ? salvaStato({ fatti: { [k]: 'no' } }) : salvaStato({}, [k])); }

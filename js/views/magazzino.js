@@ -17,7 +17,7 @@ export function render() {
   if (UI.detail && UI.detail.type === 'prodotto') { const p = get('prodotti', UI.detail.id); if (p) return detail(p); UI.detail = null; }
   const conti = contiVisibili(); let sub = UI.sub.magazzino; if (sub === 'fatture' && !conti) sub = 'prodotti';
   const t = tabs('magazzino', [['prodotti', 'Prodotti', S.prodotti.length], ['movimenti', 'Movimenti'], ...(conti ? [['fatture', 'Da fatture', contaDaFare() || undefined]] : [])], sub);
-  return { title: 'Magazzino', html: `<header class="pagehead"><h1>Magazzino</h1><div class="btns"><button class="btn sm" data-act="new" data-form="movimenti" data-tipo="Inventario">${ic('clipboard-list')}Inventario</button><button class="btn sm" data-act="new" data-form="movimenti" data-tipo="Scarico">${ic('upload')}Scarico</button>${newBtn('movimenti', 'Carico', 'data-tipo="Carico"')}</div></header>` + t + (sub === 'movimenti' ? movimenti() : sub === 'fatture' ? sezione() : prodotti()) };
+  return { title: 'Magazzino', html: `<header class="pagehead"><h1>Magazzino</h1><div class="btns"><button class="btn sm" data-act="inv-apri">${ic('clipboard-list')}Inventario</button><button class="btn sm" data-act="new" data-form="movimenti" data-tipo="Scarico">${ic('upload')}Scarico</button>${newBtn('movimenti', 'Carico', 'data-tipo="Carico"')}</div></header>` + t + (sub === 'movimenti' ? movimenti() : sub === 'fatture' ? sezione() : prodotti()) };
 }
 
 function chips(p) {

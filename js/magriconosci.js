@@ -281,6 +281,21 @@ export function categoriaPer(r) {
   return fam.cat;
 }
 
+/** Fatture di lavorazione del meccanico o dell'officina (1.78.2, chiesto da Marco): una riga di manodopera o di ore di lavoro;
+ *  riparazione, tagliando, uscita del tecnico o diritto di chiamata solo se la riga non è merce (niente "KIT", "PER", "MASTICE";
+ *  in ore, a corpo o senza unità). I ricambi, l'olio e il gasolio di queste fatture sono già nei mezzi, non in magazzino;
+ *  il resto della fattura (mangimi, sementi…) si guarda come sempre. La categoria dei Conti non conta: la mettono regole larghe. */
+export const LAVORO = /\b(MANODOPERA|MANO D.?OPERA|ORE (DI )?LAVOR\w*|ORE (DI )?MANODOPERA)\b/;
+const LAVORO_FORSE = /\b(RIPARAZION\w*|TAGLIANDO|USCITA (DEL )?TECNIC\w*|DIRITTO (DI )?CHIAMATA|INTERVENTO TECNIC\w*)\b/;
+const MERCE = /\b(KIT|PER|MASTICE|BLOCCHETT\w*|COLLA|SET)\b/;
+export const rigaDiLavoro = r => { const d = norm(r.descrizione); if (LAVORO.test(d)) return true; if (!LAVORO_FORSE.test(d) || MERCE.test(d)) return false; const u = umNorm(r.um); return !u || /^(h|ore|ora)$/i.test(String(r.um || '').trim()) || ['pz', 'conf'].includes(u) && N(r.quantita) <= 1; };
+export const OFFICINA_FAM = ['Ricambi e manutenzione', 'Carburanti e lubrificanti'];
+export function fattureDiLavoro(fatture) {
+  const out = new Set();
+  for (const f of fatture || []) if ((f.righe || []).some(rigaDiLavoro)) out.add(f.id);
+  return out;
+}
+
 /* ---------------- classificazione ---------------- */
 const FMT = v => (Math.round(v * 100) / 100).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 /**
@@ -289,8 +304,9 @@ const FMT = v => (Math.round(v * 100) / 100).toLocaleString('it-IT', { minimumFr
  * Ogni voce: { r, k, data, ddt, tipo: 'carico'|'reso'|'prezzo', prodotto (sicuro), q, proposto, qProp, motivo, come,
  *              alt: [{ p, q }], nuovo: { nome, categoria, unita, q, nReg? } | null, origine, origini: [k] }.
  */
-export function classifica({ righe, fatture, prodotti, movimenti = [], fatti = {}, da = '0000-00-00', fito = null, dataDi = r => ({ data: r.data, num: '' }) }) {
-  const out = { da, fatte: [], tolte: [], doppie: [], pronte: [], daFare: [] };
+export function classifica({ righe, fatture, prodotti, movimenti = [], fatti = {}, da = '0000-00-00', fito = null, dataDi = r => ({ data: r.data, num: '' }), officine = new Set() }) {
+  const out = { da, fatte: [], tolte: [], doppie: [], pronte: [], daFare: [], officina: [] };
+  const lavoro = fattureDiLavoro(fatture);
   const doppie = copieDoppie(fatture, fatti);
   const ps = prodotti.filter(daFatture);
   const pid = new Map(prodotti.map(p => [p.id, p]));
@@ -302,7 +318,16 @@ export function classifica({ righe, fatture, prodotti, movimenti = [], fatti = {
   const puGiro = new Map();     // prezzo unitario dei carichi pronti in questo giro (controllo del prezzo fra fatture dello stesso giro)
   for (const r of righe) {
     if (r.tipo !== 'Acquisto' || r.rett || !(r.i >= 0)) continue;
-    const a = dataDi(r); if (!okD(a.data) || a.data < da) continue;
+    const a = dataDi(r);
+    // fornitore segnato come officina: niente in magazzino; fattura di lavorazione: niente ricambi, olio e gasolio (1.78.2).
+    // Prima del filtro della data: anche i carichi d'officina più vecchi vanno tolti
+    const offF = officine.size && officine.has(fornK(r)), lavF = lavoro.has(r.fid) && OFFICINA_FAM.includes(r.categoria);
+    if (offF || lavF) {
+      const k0 = r.fid + ':' + r.i;
+      if (conMov.has(k0)) out.officina.push({ r, k: k0, data: a.data, mov: conMov.get(k0), lavoro: !offF });
+      continue;
+    }
+    if (!okD(a.data) || a.data < da) continue;
     const d = norm(r.descrizione); const servizio = SERVIZIO.test(d);
     const f = fat.get(r.fid) || {}; const nota = NOTE.has(r.tipoDoc);
     const imp = importoNetto(r); const q0 = Math.abs(N(r.quantita));

@@ -134,6 +134,20 @@ const rUrea = (o = {}) => Object.assign({ descrizione: 'UREA 46% SACCO 25 KG', c
   // codice imparato vince sulle parole, e due prodotti con lo stesso codice → dubbio
   const u2 = P({ id: 'u2', nome: 'Urea granulare', codiciFatt: [KA + '|UR46'] });
   const E6 = cl([f1], [urea, u2]);
+  // 1.78.2: fatture del meccanico. Con la manodopera niente entra (filtro e olio montati sul trattore); un carico già fatto va tolto
+  const fLav = fatt(FB, '2026-06-01', [{ descrizione: 'MANODOPERA ORE 3', categoria: 'Lavori e riparazioni', quantita: 3, um: 'H', importo: 150 }, { descrizione: 'FILTRO OLIO LF1234', categoria: 'Ricambi e manutenzione', quantita: 1, um: 'PZ', importo: 30, codice: 'LF1234' }, { descrizione: 'OLIO MOTORE 15W40', categoria: 'Carburanti e lubrificanti', quantita: 10, um: 'LT', importo: 60 }]);
+  const Elav = cl([fLav], [], [{ id: 'mf-x', tipo: 'Carico', prodottoId: 'p-olio', data: '2026-06-01', quantita: 10, fattRiga: fLav.id + ':2' }]);
+  t('fattura con la manodopera: filtro e olio non entrano; il carico già fatto dell olio è da togliere', Elav.pronte.length + Elav.daFare.length === 0 && Elav.officina.length === 1 && Elav.officina[0].mov === 'mf-x' && Elav.officina[0].lavoro, [Elav.daFare.map(x => x.r.descrizione), Elav.officina]);
+  const lav = (descrizione, um = '', quantita = 1) => R.rigaDiLavoro({ descrizione, um, quantita });
+  t('manodopera riconosciuta; kit, mastice e trasferta no', lav('MANODOPERA') && lav("MANO D'OPERA OFFICINA", 'H', 3) && lav('ORE DI LAVORO', 'ORE', 2) && lav('RIPARAZIONE TRATTORE') && lav('TAGLIANDO 500 ORE', 'PZ', 1)
+    && !lav('KIT TAGLIANDO 500 ORE', 'PZ', 1) && !lav('KIT RIPARAZIONE POMPA', 'PZ', 2) && !lav('MASTICE PER RIPARAZIONE', 'PZ', 1) && !lav('TRASFERTA TECNICO') && !lav('SENSORE TEMPERATURA') && !lav('FILTRO OLIO', 'PZ', 1));
+  // fattura con la manodopera e anche un mangime: il mangime si guarda come sempre
+  const fMix = fatt(FB, '2026-06-03', [{ descrizione: 'MANODOPERA', categoria: 'Lavori e riparazioni', quantita: 1, um: '', importo: 50 }, { descrizione: 'NUCLEO VACCHE SACCO 25 KG', categoria: 'Mangimi e materie prime', quantita: 10, um: 'PZ', importo: 300 }]);
+  t('nella fattura con la manodopera il mangime resta', cl([fMix], []).daFare.length === 1);
+  const fPezzi = fatt(FB, '2026-06-02', [{ descrizione: 'FILTRO GASOLIO FF5039', categoria: 'Ricambi e manutenzione', quantita: 2, um: 'PZ', importo: 40, codice: 'FF5039' }]);
+  const Eoff = R.classifica({ righe: righeDi([fPezzi]), fatture: [fPezzi], prodotti: [], movimenti: STORIA, officine: new Set([KB]) });
+  const Eoff2 = cl([fPezzi], []);
+  t('fornitore segnato come officina: anche i filtri senza manodopera restano fuori; senza il segno sono proposti', Eoff.pronte.length + Eoff.daFare.length === 0 && Eoff2.daFare.length === 1, [Eoff.daFare.length, Eoff2.daFare.length]);
   // 1.78.1: un fornitore con un codice solo per tanti ricambi (RICROT): il filtro imparato non prende il controcoltello
   const fRic = P({ id: 'fah', nome: 'Filtro Argo Hytos', categoria: 'Ricambio', unita: 'pz', codiciFatt: [KA + '|RICROT'], descrFatt: [KA + '|FILTRO ARGO HYTOS'], paroleFatt: 'FILTRO ARGO HYTOS' });
   const Ecod = cl([fatt(FA, '2026-04-01', [{ descrizione: 'CONTROCOLTELLO A PINNA DI SQUALO L500', categoria: 'Ricambi e manutenzione', quantita: 1, um: 'PZ', importo: 150, codice: 'RICROT' }, { descrizione: 'FILTRO ARGO HYTOS', categoria: 'Ricambi e manutenzione', quantita: 1, um: 'PZ', importo: 150, codice: 'RICROT' }])], [fRic]);

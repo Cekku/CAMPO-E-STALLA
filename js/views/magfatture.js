@@ -30,6 +30,22 @@ function proposta(x) {
 
 export const contaDaFare = () => MF.elenco().daFare.length;
 
+/* ---------------- officine e meccanici (1.78.2) ---------------- */
+function officina(E) {
+  const l = E.officina; if (!l.length) return '';
+  return `<section class="card"><div class="card-h"><h2>${ic('wrench')}Carichi da fatture dell'officina</h2><span class="count">${l.length}</span><button class="btn sm primary" data-act="mf-togli-officina">${ic('trash-2')}Togli questi carichi</button></div>
+    <p class="muted small">Queste righe sono entrate in magazzino da fatture di lavorazione (con la manodopera) o da fornitori segnati come officina: i pezzi e l'olio sono già nei mezzi, non in magazzino. Togliendo i carichi le giacenze tornano giuste; i prodotti restano (senza quei carichi).</p>
+    <div class="list">${l.slice(0, 40).map(x => riga(x, '', x.lavoro ? ' · fattura con manodopera' : ' · fornitore segnato come officina')).join('')}</div>${l.length > 40 ? `<p class="muted small">E altre ${l.length - 40}.</p>` : ''}</section>`;
+}
+let offAperto = false;   // il riquadro resta aperto dopo una spunta (la pagina si ridisegna)
+function officine() {
+  const F = MF.fornitoriOfficina(); if (!F.length) return '';
+  const n = F.filter(z => z.segnato).length;
+  return `<section class="card"><details class="mf-off"${offAperto ? ' open' : ''}><summary><h2 style="display:inline">${ic('wrench')}Officine e meccanici</h2> <span class="muted small">· ${n ? quanti(n, 'fornitore segnato', 'fornitori segnati') : 'nessuno segnato'}</span></summary>
+    <p class="muted small">Le fatture con la manodopera (lavorazioni, riparazioni, tagliandi) non caricano mai niente in magazzino. Spunta qui i fornitori che sono officine o meccanici: anche le loro fatture senza manodopera (filtri, olio, pezzi montati da loro) restano fuori. Fra parentesi quante fatture hanno la manodopera.</p>
+    <div class="list">${F.map(z => `<label class="mf-of"><input type="checkbox" data-act="mf-officina" data-k="${esc(z.k)}"${z.segnato ? ' checked' : ''}> <span>${esc(z.nome || 'senza nome')} <small class="muted">(${z.lavoro} su ${quanti(z.fatture, 'fattura', 'fatture')})</small></span></label>`).join('')}</div></details></section>`;
+}
+
 /* ---------------- righe messe insieme per articolo (1.78.0) ---------------- */
 const bottoni = x => `<button class="btn sm primary" data-act="mf-abbina" data-k="${esc(x.k)}">${ic('link')}${x.tipo === 'prezzo' ? 'Correggi' : 'Abbina'}</button><button class="btn sm ghost" data-act="mf-togli" data-k="${esc(x.k)}">Non caricare</button>`;
 const dettaglio = x => proposta(x) + (x.motivo ? `<br><small class="muted">${esc(x.motivo)}</small>` : '');
@@ -74,7 +90,7 @@ export function sezione() {
   const correzioni = corr.length ? `<section class="card"><div class="card-h"><h2>Correzioni di prezzo</h2><span class="count">${corr.length}</span></div><div class="list">${corr.map(x => riga(x, '', ` · su <b>${esc(descOrig(String(x.fatto).slice(2)))}</b>`)).join('')}</div></section>` : '';
   const tolte = E.tolte.length ? `<section class="card"><div class="card-h"><h2>Non caricate</h2><span class="count">${E.tolte.length}</span></div><div class="list">${E.tolte.map(x => riga(x, `<button class="btn sm ghost" data-act="mf-rimetti" data-k="${esc(x.k)}">${ic('rotate-ccw')}Rimetti</button>`)).join('')}</div></section>` : '';
   const doppie = E.doppie.length ? `<section class="card"><div class="card-h"><h2>Copie della stessa fattura</h2><span class="count">${E.doppie.length}</span></div><p class="muted small">La stessa fattura salvata due volte (per esempio il file XML e il PDF di cortesia): queste righe non entrano, si carica l'altra copia.</p><div class="list">${E.doppie.slice(0, 30).map(x => riga(x, '')).join('')}</div></section>` : '';
-  return testa + daFare + caricate + correzioni + tolte + doppie;
+  return testa + officina(E) + daFare + caricate + correzioni + tolte + doppie + officine();
 }
 
 /* ---------------- foglio per abbinare una riga ---------------- */
@@ -125,6 +141,11 @@ export async function mfAct(a, b, d) {
     case 'mf-togli': await MF.togli(d.k, true); return toast('Riga tolta: non entra in magazzino');
     case 'mf-togli-tutte': { if (!b.dataset.armed) return arm(b, 'Tocca ancora per togliere', () => {}); delete b.dataset.armed; const ks = String(d.ks || '').split('|').filter(Boolean); await MF.togliTante(ks); return toast(quanti(ks.length, 'riga tolta', 'righe tolte') + ': non entrano in magazzino'); }
     case 'mf-tanti-apri': return foglioTanti();
+    case 'mf-togli-officina': {
+      if (!b.dataset.armed) return arm(b, 'Tocca ancora per togliere', () => {}); delete b.dataset.armed;
+      b.disabled = true;
+      try { const n = await MF.togliCarichiOfficina(); return toast(n ? (n === 1 ? 'Tolto 1 carico' : `Tolti ${n} carichi`) + " dell'officina dal magazzino" : 'Niente da togliere'); } finally { b.disabled = false; }
+    }
     case 'mf-tanti': {
       const box = document.getElementById('sheetBody') || document;
       const scelti = [...box.querySelectorAll('input[data-mfk]:checked')].map(i => i.dataset.mfk);
@@ -153,6 +174,7 @@ export async function mfAct(a, b, d) {
 }
 export async function mfChange(t) {
   if (t.dataset.act === 'mf-da') { await MF.salvaDa(t.value); return toast('Data salvata'); }
+  if (t.dataset.act === 'mf-officina') { offAperto = true; await MF.segnaOfficina(t.dataset.k, t.checked); return toast(t.checked ? 'Segnato come officina: le sue fatture non caricano il magazzino' : 'Tolto dalle officine'); }
   if (t.dataset.act === 'mf-forn') {   // spunta o toglie tutti gli articoli del fornitore
     const box = document.getElementById('sheetBody') || document;
     box.querySelectorAll(`input[data-mfk][data-f="${t.dataset.f}"]`).forEach(i => { i.checked = t.checked; });
