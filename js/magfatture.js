@@ -185,7 +185,8 @@ export async function segnaOfficina(k, si) {
 export async function togliCarichiOfficina() {
   const l = elenco().officina; if (!l.length) return 0;
   for (const x of l) await store.remove('movimenti', x.mov);
-  await salvaStato({}, l.map(x => x.k));   // il segno si toglie: la riga resta fuori da sola finché è di un'officina
+  // segno 'no' (non caricare), non tolto: un dispositivo con l'app di prima vedrebbe la riga libera e la ricaricherebbe (successo il 26/11)
+  await salvaStato({ fatti: Object.fromEntries(l.map(x => [x.k, 'no'])) });
   return l.length;
 }
 /** "Non caricare" (o rimetti fra quelle da fare). */
