@@ -61,11 +61,23 @@ export function coltureNote() {
   }));
   return out.concat(extra.sort((a, b) => a.localeCompare(b, 'it')));
 }
-// Coltura di un campo in una data annata: storico per anno, altrimenti la coltura in atto
+// Coltura pluriennale (come xFarm, chiesto da Marco il 26/11/2026): una sola riga nell'annata di impianto con `pluri: true`,
+// `semina` = data di impianto ed `estirpo` = data di estirpazione (vuota = continua). Vale anche per gli anni dopo, fino
+// all'anno dell'estirpazione compreso; una riga scritta per un anno preciso (es. mais dopo la rottura) vince sempre.
+export const finePluri = e => okD(e && e.estirpo) ? yearOf(e.estirpo) : Infinity;
+export function pluriDi(c, anno) {
+  const st = c && Array.isArray(c.colture) ? c.colture : []; let p = null;
+  for (const x of st) if (x && x.pluri && +x.anno < +anno && finePluri(x) >= +anno && (!p || +x.anno > +p.anno)) p = x;
+  return p;
+}
+// Coltura di un campo in una data annata: storico per anno, poi una pluriennale impiantata prima, altrimenti la coltura in atto.
+// Per gli anni dopo l'impianto la riga ha `daAnno` = anno di impianto (da lì si modifica) e niente seconda coltura.
 export function colturaOf(c, anno = UI.anno) {
   if (!c) return null; const st = Array.isArray(c.colture) ? c.colture : [];
   const e = st.find(x => +x.anno === +anno); if (e) return e;
-  if (+anno === new Date().getFullYear()) return c.coltura ? { anno, coltura: c.coltura, varieta: c.varieta || '' } : null;
+  const p = pluriDi(c, anno); if (p) { const r = Object.assign({}, p, { anno: +anno, daAnno: +p.anno }); delete r.secondo; return r; }
+  // la coltura "di adesso" salvata nel campo non vale se è una pluriennale già estirpata prima di quest'anno
+  if (+anno === new Date().getFullYear()) return c.coltura && !st.some(x => x && x.pluri && x.coltura === c.coltura && finePluri(x) < +anno) ? { anno, coltura: c.coltura, varieta: c.varieta || '' } : null;
   return null;
 }
 export const cropOf = (c, anno) => { if (c && !c.id && c.coltura !== undefined && !c.colture) return c.coltura; const e = colturaOf(c, anno); return e ? e.coltura : ''; };
@@ -133,7 +145,10 @@ export const cropOra = (c, anno) => {
 export const cropColorOra = (c, anno) => cropColorName(cropOra(c, anno));
 export function storicoColture(c) {
   const m = new Map(); (c.colture || []).forEach(e => m.set(+e.anno, e));
-  const y = new Date().getFullYear(); if (c.coltura && !m.has(y)) m.set(y, { anno: y, coltura: c.coltura, varieta: c.varieta || '' });
+  const y = new Date().getFullYear();
+  // anni coperti da una pluriennale: fino all'estirpazione, ma non oltre l'anno prossimo (o l'annata scelta, se è più avanti)
+  (c.colture || []).forEach(e => { if (!e || !e.pluri) return; const fine = Math.min(finePluri(e), Math.max(y + 1, +UI.anno || y)); for (let a = +e.anno + 1; a <= fine; a++) if (!m.has(a)) { const r = colturaOf(c, a); if (r) m.set(a, r); } });
+  if (c.coltura && !m.has(y)) m.set(y, { anno: y, coltura: c.coltura, varieta: c.varieta || '' });
   return [...m.values()].sort((a, b) => b.anno - a.anno);
 }
 export const isFatto = o => o.stato !== 'Pianificata';

@@ -4,7 +4,7 @@ import { N, nf, fd, today, addDays, byName, okD, yearOf } from './util.js';
 import * as store from './store.js';
 import { openForm, openSheet, closeSheet, setVal, setHint, setUnit, toast, FORM, readForm } from './ui.js';
 import { ic } from './icons.js';
-import { COLTURE, coltureNote, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, TIPI_MOV, TIPOLOGIE, TIPI_NOTA, giacAl, prodottiOp, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo, cropOf, kgUnita, colturaAlla } from './domain.js';
+import { COLTURE, coltureNote, TIPI_OP, OP_PROD, CATEGORIE, UNITA, TIPI_MEZZO, TIPI_MAN, TIPI_MOV, TIPOLOGIE, TIPI_NOTA, giacAl, prodottiOp, RAZZE, GRUPPI, TIPI_EV, giac, capoI, campoHa, numCapo, nomeCapoLungo, cropOf, colturaOf, kgUnita, colturaAlla, pluriDi, finePluri } from './domain.js';
 import { areaHa } from './geo.js';
 import { meteoAlMomento } from './meteo.js';
 import { controlliOp, checksHTML, forceOk, isFitoOp, FITO, impiegoPer, avversitaAmmesse } from './checks.js';
@@ -708,39 +708,89 @@ const camposColtura = () => [
 // riga di un campo usata per riempire il modulo di più campi: solo i dati della coltura, non la seconda coltura
 const pulita = r => { const o = Object.assign({}, r); delete o.secondo; return o; };
 // Coltura di un'annata dentro la scheda del campo
+// Coltura pluriennale (come xFarm): interruttore, data di impianto (= `semina`) obbligatoria, estirpazione facoltativa.
+// L'annata si ricava dalla data di impianto; la riga vale anche per gli anni dopo (pluriDi/colturaOf in domain.js).
+const ANNI_AVANTI = 3;
+const anniScelta = () => { const o = new Date().getFullYear(), r = []; for (let a = o + ANNI_AVANTI; a >= o - 8; a--) r.push(String(a)); return r; };
+const isPluri = v => v.pluri === 'Sì';
+const campiPluri = () => [
+  { k: 'pluri', l: 'Coltura pluriennale', t: 'seg', opts: ['No', 'Sì'], hint: 'Medica, prato stabile e simili: Sì = la scrivi una volta sola, dalla data di impianto vale anche per gli anni dopo, finché non la estirpi.' }];
+const campiDate = () => [
+  { k: 'semina', l: 'Data di semina o trapianto', t: 'date', half: 1, show: v => !isPluri(v) },
+  { k: 'impianto', l: 'Data di impianto', t: 'date', half: 1, show: isPluri, hint: AVVISO_IMPIANTO },
+  { k: 'estirpo', l: 'Data di estirpazione', t: 'date', half: 1, show: isPluri, hint: 'Vuota = la coltura continua negli anni dopo' }];
+const erroriPluri = v => !isPluri(v) ? null : !okD(v.impianto) ? 'Scrivi la data di impianto della coltura pluriennale.' : okD(v.estirpo) && v.estirpo < v.impianto ? "L'estirpazione non può essere prima dell'impianto." : null;
+// riga dell'annata pronta da salvare: con la pluriennale l'annata è quella dell'impianto e la data va in `semina`
+function rigaColtura(prima, v) {
+  const riga = Object.assign({}, prima || {}, v); delete riga.impianto;
+  if (isPluri(v)) { riga.anno = yearOf(v.impianto); riga.semina = v.impianto; riga.pluri = true; riga.estirpo = okD(v.estirpo) ? v.estirpo : ''; }
+  else { riga.anno = +v.anno; delete riga.pluri; delete riga.estirpo; }
+  return riga;
+}
+// Medica seminata in autunno dopo un cereale dello stesso anno: l'annata dell'impianto resta al cereale e la
+// pluriennale si scrive nell'anno dopo (la data di impianto resta quella vera)
+const annoPluri = (riga, list) => list.some(x => +x.anno === +riga.anno && !x.pluri && x.coltura && x.coltura !== riga.coltura) ? +riga.anno + 1 : +riga.anno;
+const copreOggi = r => { const o = new Date().getFullYear(); return !!r && (+r.anno === o || (!!r.pluri && +r.anno < o && finePluri(r) >= o)); };
+// la coltura "di adesso" del campo (c.coltura) dopo un salvataggio: la riga di quest'anno o la pluriennale che lo copre;
+// vuota se non c'è più niente e la riga cambiata o tolta copriva quest'anno
+function allinea(upd, prima) {
+  const o = new Date().getFullYear(); const e = upd.colture.find(x => +x.anno === o) || pluriDi(upd, o);
+  if (e) { upd.coltura = e.coltura; upd.varieta = e.varieta || ''; }
+  else if (copreOggi(prima)) { upd.coltura = ''; upd.varieta = ''; }
+  return upd;
+}
+const AVVISO_IMPIANTO = "Se nell'anno di impianto c'era già un'altra coltura (es. frumento trebbiato prima della semina), resta lei: la pluriennale conta dall'anno dopo.";
 export function openColtura(campoId, anno) {
   const c = get('campi', campoId); if (!c) return;
-  const y = anno || new Date().getFullYear();
+  const toccato = +(anno || new Date().getFullYear()); let y = toccato;
   const st = Array.isArray(c.colture) ? c.colture : [];
+  // un anno coperto da una pluriennale impiantata prima apre la riga dell'impianto
+  if (!st.some(x => +x.anno === +y)) { const p = pluriDi(c, y); if (p) y = +p.anno; }
   const cur = st.find(x => +x.anno === +y) || (+y === new Date().getFullYear() && c.coltura ? { anno: y, coltura: c.coltura, varieta: c.varieta } : null);
-  const anni = []; for (let a = new Date().getFullYear() + 1; a >= new Date().getFullYear() - 8; a--) anni.push(String(a));
+  const anni = anniScelta();
+  const avvisoAnno = a => { const p = pluriDi(c, a); return p && !st.some(x => +x.anno === +a) ? `Nel ${a} c'è già ${p.coltura} (pluriennale dal ${p.anno}): una coltura scritta qui la sostituisce solo per quest'anno.` : ''; };
   openForm({
-    title: cur ? 'Modifica coltura' : 'Aggiungi coltura', sub: c.nome,
+    title: cur ? 'Modifica coltura' : 'Aggiungi coltura', sub: c.nome + (cur && cur.pluri ? ` · pluriennale dal ${y}: Elimina la toglie da tutti gli anni` : ''),
     fields: [
-      { k: 'anno', l: 'Annata', t: 'select', opts: anni, req: 1, half: 1, blank: false },
+      ...campiPluri(),
+      { k: 'anno', l: 'Annata', t: 'select', opts: anni, req: 1, half: 1, blank: false, show: v => !isPluri(v), hint: avvisoAnno(y) || ' ' },
       { k: 'coltura', l: 'Coltura', req: 1, half: 1, list: coltureNote() },
       { k: 'varieta', l: 'Varietà o ibrido', half: 1 },
-      { k: 'semina', l: 'Data di semina o trapianto', t: 'date', half: 1 },
+      ...campiDate(),
       ...camposColtura(),
-      { k: 's_sez', l: 'Dopo questa coltura, nello stesso anno', t: 'section' },
-      { k: 's_uso', l: "Che cos'è", t: 'seg', opts: ['Secondo raccolto', 'Coltura di copertura'] },
-      { k: 's_coltura', l: 'Seconda coltura', half: 1, list: coltureNote(), ph: 'Es. soia, loiessa, sorgo' },
-      { k: 's_varieta', l: 'Varietà', half: 1 },
-      { k: 's_semina', l: 'Data di semina', t: 'date', half: 1 },
-      { k: 's_resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha' },
-      { k: 's_destinazione', l: 'Destinazione', half: 1 }],
-    values: Object.assign({ anno: String(y), resaUnita: 't/ha' }, cur || {}, { anno: String(y) }, secondoValori(cur && cur.secondo)),
+      { k: 's_sez', l: 'Dopo questa coltura, nello stesso anno', t: 'section', show: v => !isPluri(v) },
+      { k: 's_uso', l: "Che cos'è", t: 'seg', opts: ['Secondo raccolto', 'Coltura di copertura'], show: v => !isPluri(v) },
+      { k: 's_coltura', l: 'Seconda coltura', half: 1, list: coltureNote(), ph: 'Es. soia, loiessa, sorgo', show: v => !isPluri(v) },
+      { k: 's_varieta', l: 'Varietà', half: 1, show: v => !isPluri(v) },
+      { k: 's_semina', l: 'Data di semina', t: 'date', half: 1, show: v => !isPluri(v) },
+      { k: 's_resa', l: 'Resa attesa', t: 'number', half: 1, unit: 't/ha', show: v => !isPluri(v) },
+      { k: 's_destinazione', l: 'Destinazione', half: 1, show: v => !isPluri(v) }],
+    values: Object.assign({ anno: String(y), resaUnita: 't/ha', pluri: 'No' }, cur || {}, { anno: String(y) }, cur && cur.pluri ? { pluri: 'Sì', impianto: cur.semina || '', estirpo: cur.estirpo || '' } : {}, secondoValori(cur && cur.secondo)),
+    validate: erroriPluri,
+    onChange(ch, v) {
+      // aperta da un anno dopo l'impianto e messa a No: si scrive la coltura di quell'anno, non si cambia la pluriennale
+      if (ch === 'pluri' && !isPluri(v) && cur && cur.pluri && toccato !== y) { setVal('anno', String(toccato)); setHint('anno', avvisoAnno(toccato)); return; }
+      if (ch === 'anno') setHint('anno', avvisoAnno(v.anno));
+    },
     onSave: async v => {
-      const list = (Array.isArray(c.colture) ? c.colture : []).filter(x => +x.anno !== +v.anno);
-      const prima = st.find(x => +x.anno === +v.anno); const riga = Object.assign({}, prima || {}, v, { anno: +v.anno }); const sec = secondoDa(v);
+      // dalla riga di una pluriennale si può scrivere la coltura di un altro anno (mais dopo la rottura): niente dati della
+      // pluriennale nella riga nuova, e la data di impianto rimasta nella casella della semina non diventa la sua semina
+      const altroAnno = cur && cur.pluri && !isPluri(v) && +v.anno !== +y;
+      if (altroAnno && v.semina === cur.semina) v.semina = '';
+      const riga = rigaColtura(altroAnno ? null : st.find(x => +x.anno === +y), v); const sec = isPluri(v) ? null : secondoDa(v);
+      // se resta pluriennale si toglie la riga aperta (l'impianto può cambiare anno); una pluriennale aperta e salvata
+      // come coltura di un altro anno resta: la nuova riga la sostituisce solo in quell'anno
+      const base = st.filter(x => !(cur && riga.pluri && +x.anno === +y));
+      if (riga.pluri) riga.anno = annoPluri(riga, base);
+      const list = base.filter(x => +x.anno !== +riga.anno);
       Object.keys(riga).forEach(k => { if (k.startsWith('s_')) delete riga[k]; });
       delete riga.secondo; if (sec) riga.secondo = sec;
       list.push(riga);
-      const upd = Object.assign({}, c, { colture: list.sort((a, b) => b.anno - a.anno) });
-      if (+v.anno === new Date().getFullYear()) { upd.coltura = v.coltura; upd.varieta = v.varieta; }
-      await store.put('campi', c.id, upd);
+      await store.put('campi', c.id, allinea(Object.assign({}, c, { colture: list.sort((p, q) => q.anno - p.anno) }), cur));
     },
-    onDelete: cur && st.some(x => +x.anno === +y) ? async () => { await store.put('campi', c.id, Object.assign({}, c, { colture: st.filter(x => +x.anno !== +y) })); return true; } : null,
+    onDelete: cur && st.some(x => +x.anno === +y) ? async () => {
+      await store.put('campi', c.id, allinea(Object.assign({}, c, { colture: st.filter(x => +x.anno !== +y) }), cur)); return true;
+    } : null,
   });
 }
 
@@ -762,41 +812,50 @@ function dbBox(v) {
 // se un campo ne aveva già una per quell'anno viene sostituita (come nel modulo del singolo campo).
 export function openColturaGruppo(ids, anno) {
   const campi = ids.map(id => get('campi', id)).filter(Boolean); if (!campi.length) return;
-  const y = +(anno || UI.anno || new Date().getFullYear()); const oggi = new Date().getFullYear();
-  const anni = []; for (let a = oggi + 1; a >= oggi - 8; a--) anni.push(String(a));
+  const y = +(anno || UI.anno || new Date().getFullYear());
+  const anni = anniScelta();
   const ha = campi.reduce((t, c) => t + campoHa(c), 0);
-  const giaDi = a => campi.filter(c => (c.colture || []).some(x => +x.anno === +a) || (+a === oggi && c.coltura));
+  // contano anche gli anni coperti da una pluriennale impiantata prima
+  const giaDi = a => campi.filter(c => colturaOf(c, +a));
   // se hanno tutti la stessa coltura per l'annata, il modulo parte da quella
-  const righe = campi.map(c => (c.colture || []).find(x => +x.anno === y) || (y === oggi && c.coltura ? { coltura: c.coltura, varieta: c.varieta } : null));
+  const righe = campi.map(c => colturaOf(c, y));
   const uguale = righe.every(r => r && r.coltura === (righe[0] && righe[0].coltura)) ? righe[0] : null;
   const avviso = a => { const g = giaDi(a); return g.length ? `${g.length} ${g.length === 1 ? 'campo ha' : 'campi hanno'} già una coltura nel ${a}: verrà sostituita` : `Nessuno dei campi ha già una coltura nel ${a}`; };
   openForm({
     title: 'Coltura su ' + campi.length + (campi.length === 1 ? ' campo' : ' campi'), sub: nf(ha, 2) + ' ha · ' + campi.map(c => c.nome).slice(0, 4).join(', ') + (campi.length > 4 ? ' e altri ' + (campi.length - 4) : ''),
     fields: [
-      { k: 'anno', l: 'Annata', t: 'select', opts: anni, req: 1, half: 1, blank: false, hint: avviso(y) },
+      ...campiPluri(),
+      { k: 'anno', l: 'Annata', t: 'select', opts: anni, req: 1, half: 1, blank: false, hint: avviso(y), show: v => !isPluri(v) },
       { k: 'coltura', l: 'Coltura', req: 1, half: 1, list: coltureNote() },
       { k: 'varieta', l: 'Varietà o ibrido', half: 1 },
-      { k: 'semina', l: 'Data di semina o trapianto', t: 'date', half: 1 },
+      ...campiDate(),
       ...camposColtura()],
-    values: Object.assign({ resaUnita: 't/ha' }, uguale ? pulita(uguale) : {}, { anno: String(y) }),
+    values: Object.assign({ resaUnita: 't/ha', pluri: 'No' }, uguale ? pulita(uguale) : {}, { anno: String(y) }, uguale && uguale.pluri ? { pluri: 'Sì', impianto: uguale.semina || '', estirpo: uguale.estirpo || '' } : {}),
     saveLabel: 'Salva su ' + campi.length + (campi.length === 1 ? ' campo' : ' campi'),
+    validate: erroriPluri,
     onChange(ch, v) { if (ch === 'anno') setHint('anno', avviso(v.anno)); },
     onSave: async v => {
-      const a = +v.anno; const riga = Object.assign({}, v, { anno: a });
+      const riga = rigaColtura(null, v); delete riga.daAnno;
       const rows = campi.map(c => {
-        const prec = (Array.isArray(c.colture) ? c.colture : []).find(x => +x.anno === a); const list = (Array.isArray(c.colture) ? c.colture : []).filter(x => +x.anno !== a); list.push(Object.assign({}, prec && +prec.anno === a ? prec : {}, riga, prec && prec.secondo ? { secondo: prec.secondo } : {}));
-        const upd = Object.assign({}, c, { colture: list.sort((p, q) => q.anno - p.anno) });
-        if (a === oggi) { upd.coltura = v.coltura; upd.varieta = v.varieta; }
-        return { col: 'campi', id: c.id, data: upd };
+        const st = Array.isArray(c.colture) ? c.colture : []; const vecchia = colturaOf(c, y);
+        // salvando ancora una pluriennale si sostituisce quella aperta (anche se aperta da un anno dopo l'impianto)
+        const base = st.filter(x => !(riga.pluri && vecchia && vecchia.pluri && +x.anno === +(vecchia.daAnno || vecchia.anno)));
+        const r0 = Object.assign({}, riga); if (r0.pluri) r0.anno = annoPluri(r0, base); const a = r0.anno;
+        const prec = base.find(x => +x.anno === a); const list = base.filter(x => +x.anno !== a);
+        const r = Object.assign({}, prec || {}, r0, prec && prec.secondo && !r0.pluri ? { secondo: prec.secondo } : {});
+        if (!r0.pluri) { delete r.pluri; delete r.estirpo; } else delete r.secondo;
+        list.push(r);
+        return { col: 'campi', id: c.id, data: allinea(Object.assign({}, c, { colture: list.sort((p, q) => q.anno - p.anno) }), vecchia) };
       });
       await store.bulkPut(rows);
-      if (FORM) FORM.done = `${v.coltura} ${a} su ${campi.length} ${campi.length === 1 ? 'campo' : 'campi'} (${nf(ha, 2)} ha)`;
+      if (FORM) FORM.done = `${v.coltura} ${riga.pluri ? 'pluriennale' : riga.anno} su ${campi.length} ${campi.length === 1 ? 'campo' : 'campi'} (${nf(ha, 2)} ha)`;
     },
     onDelete: giaDi(y).length ? async () => {
-      const a = +(readForm().anno || y);
-      const rows = giaDi(a).map(c => { const upd = Object.assign({}, c, { colture: (c.colture || []).filter(x => +x.anno !== a) }); if (a === oggi) { upd.coltura = ''; upd.varieta = ''; } return { col: 'campi', id: c.id, data: upd }; });
+      const a = +(readForm().anno || y); let pluri = 0;
+      // in un anno coperto da una pluriennale si toglie la riga dell'impianto (tutti gli anni)
+      const rows = giaDi(a).map(c => { const e = colturaOf(c, a); const da = +(e.daAnno || a); if (e.daAnno) pluri++; const prima = e.daAnno ? (c.colture || []).find(x => +x.anno === da) : e; return { col: 'campi', id: c.id, data: allinea(Object.assign({}, c, { colture: (c.colture || []).filter(x => +x.anno !== da) }), prima) }; });
       if (rows.length) await store.bulkPut(rows);
-      toast('Coltura ' + a + ' tolta da ' + rows.length + (rows.length === 1 ? ' campo' : ' campi'));
+      toast('Coltura ' + a + ' tolta da ' + rows.length + (rows.length === 1 ? ' campo' : ' campi') + (pluri ? ` (la pluriennale su ${pluri} tolta da tutti gli anni)` : ''));
       return true;
     } : null,
   });

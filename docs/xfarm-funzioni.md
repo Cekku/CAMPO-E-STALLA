@@ -164,6 +164,8 @@ Aperti uno per uno senza salvare (controllato: nessuna scrittura partita verso x
 ### Coltura di un campo (Aggiungi coltura)
 Anno colturale (2021-2028), coltura*, colture pluriennali, periodo di inizio (non specificato, primavera, inverno), OGM sì/no, nota colturale, superficie, tipologia di lotta (integrata volontaria, integrata obbligatoria, biologico), regione, lotto, resa prevista (kg/ha, q/ha, t/ha), **destinazione d'uso, qualità, uso** (voci del fascicolo/PAC: insilato, fieno, trinciato, pastone, da foraggio, granella…), filiera di destinazione, sotto unità.
 
+**Colture pluriennali** (provato il 26/11/2026 senza salvare): è un interruttore in cima al modulo. Acceso, l'"Anno colturale" sparisce e al suo posto ci sono **Data di impianto*** e **Data di estirpazione** (facoltativa). Avviso di xFarm: coltura, varietà, sesto d'impianto e tutte le altre impostazioni valgono per tutto il periodo; le attività restano comunque divise per annata agraria (scegliendo un'annata si vedono le attività di quella stagione); si può mettere una sola coltura. Quindi una sola riga dalla data di impianto a quella di estirpazione (aperta finché non si estirpa), non una copia per ogni anno.
+
 ### Particella catastale del campo
 Identificativo, nazione, comune, foglio, particella, sotto particella, area catastale, **proprietario**, area utilizzata, **tipo di gestione** (proprietà, preso in affitto, comproprietà, concessioni, condivisione del profitto, preso da permuta, dato in affitto, dato in permuta, comodato d'uso), **qualità catastale** (31 voci: seminativo, seminativo irriguo, seminativo arborato, prato, prato irriguo, pascolo, bosco ceduo, vigneto, frutteto, incolto produttivo…), riportato in PAC sì/no.
 

@@ -2,7 +2,7 @@
 import { S, D, UI, azienda, get } from '../state.js';
 import { esc, nf, eur, fd, fdPeriodo, fineDi, fdShort, fdLong, today, sum, byDate, N, plural, yearOf, diff, okD, addDays } from '../util.js';
 import { ic } from '../icons.js';
-import { allAlerts, campoHa, capoI, giac, cropColor, cropColorName, cropOf, colturaAlla, cropOra, cropColorOra, VUOTO, opCosto, mezzoOre, mezzoTagliando, segnoMov, prodottiOp } from '../domain.js';
+import { allAlerts, campoHa, capoI, giac, cropColor, cropColorName, cropOf, colturaOf, colturaAlla, cropOra, cropColorOra, VUOTO, opCosto, mezzoOre, mezzoTagliando, segnoMov, prodottiOp } from '../domain.js';
 import { isTrattore, compDi, stato } from '../trattori.js';
 import { farmSvg, thumb, satSvg } from '../geo.js';
 import { getMeteo, wmo } from '../meteo.js';
@@ -106,7 +106,7 @@ export function render() {
   // avanzamento per coltura: campi seminati e raccolti nell'annata
   const prod = parts.filter(([k]) => k !== 'Senza coltura').slice(0, 6).map(([k, v]) => {
     const cs = S.campi.filter(c => cropOf(c, Y) === k);
-    const sem = cs.filter(c => S.operazioni.some(o => o.campoId === c.id && o.stato !== 'Pianificata' && yearOf(o.data) === Y && /Semina/.test(o.tipo || '')) || (c.colture || []).some(e => +e.anno === Y && e.semina));
+    const sem = cs.filter(c => S.operazioni.some(o => o.campoId === c.id && o.stato !== 'Pianificata' && yearOf(o.data) === Y && /Semina/.test(o.tipo || '')) || (e => !!(e && (e.semina || e.daAnno)))(colturaOf(c, Y)));
     const rac = cs.filter(c => S.operazioni.some(o => o.campoId === c.id && o.stato !== 'Pianificata' && yearOf(o.data) === Y && /Raccolta|Sfalcio/.test(o.tipo || '')));
     return { k, v, n: cs.length, sem: cs.length ? sem.length / cs.length * 100 : 0, rac: cs.length ? rac.length / cs.length * 100 : 0 };
   });
