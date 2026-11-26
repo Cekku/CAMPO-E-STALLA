@@ -36,8 +36,9 @@ import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import archivio as A  # noqa: E402
+import copie as CS  # noqa: E402  copie di sicurezza dell'app (1.80.0)
 
-VERSIONE = 4
+VERSIONE = 5
 PORTA = 1236
 ORIGINI = {
     'https://cekku.github.io',
@@ -615,9 +616,12 @@ def accendi_ia(corpo):
 
 # ---------------------------------------------------------------- server
 
-LETTURE = {'/stato': stato, '/aree': aree, '/valori': valori, '/documenti': documenti, '/registro': registro, '/ia': stato_ia}
-SCRITTURE = {'/apri': apri, '/correzioni': correzioni, '/ocr': ocr_file, '/accendi-ia': accendi_ia}
-MAX_CORPO = {'/ocr': MAX_FILE * 4 // 3 + 4096}     # il PDF arriva in base64
+LETTURE = {'/stato': stato, '/aree': aree, '/valori': valori, '/documenti': documenti, '/registro': registro, '/ia': stato_ia,
+           '/copie': CS.elenco}
+SCRITTURE = {'/apri': apri, '/correzioni': correzioni, '/ocr': ocr_file, '/accendi-ia': accendi_ia,
+             '/copia': CS.salva_copia, '/copia/allegato': CS.salva_allegato, '/copia/prova': CS.prova_ripristino}
+MAX_CORPO = {'/ocr': MAX_FILE * 4 // 3 + 4096,      # il PDF arriva in base64
+             '/copia': 300 * 1024 * 1024, '/copia/allegato': CS.MAX_ALLEGATO * 4 // 3 + 4096}
 
 
 class Ponte(http.server.BaseHTTPRequestHandler):
@@ -668,7 +672,7 @@ class Ponte(http.server.BaseHTTPRequestHandler):
     def _esegui(self, origine, fn, arg):
         try:
             self._json(200, fn(arg), origine)
-        except Errore as e:
+        except (Errore, CS.Errore) as e:
             self._json(e.codice, {'errore': e.testo}, origine)
         except Exception as e:                              # niente traccia completa verso il browser
             self.log_message('ERRORE %s: %s', type(e).__name__, e)

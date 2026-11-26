@@ -21,6 +21,7 @@ paths:
 - **Cosa c'è**:
   - `conti-paghe.test.mjs` (70): le prove delle paghe della 1.6x, prima fuori dal repository: controlli del cedolino, salvataggio automatico e dubbi, mese dalla causale, abbinamento non esatto, doppioni (CRO, stesse righe, fonti diverse), riconoscimento del dipendente (CF, nome, IBAN condiviso, omonimi), note di credito, TD02, elenco.
   - `conti-calcoli.test.mjs` (65): numeri e date italiani, `controlloTotale` (bollo, ritenuta con e senza cassa, sconto), `completa` (riepilogo, totale senza decimali, nota di credito, senza riepilogo), `statoPagamento`, `candidateFatture` (numero, nome, più fatture insieme, solo importo, fatture vecchie o future, già pagata), `registraSuFatture` (ordine di data, niente doppi), `quote` e `annoRegistro` degli ammortamenti, `regime.anno` (compensazioni, dichiarazione, niente credito nello speciale).
+  - `copia-pc.test.mjs` (24 + le 25 di `strumenti/archivio/copie.py --prova`): copia di sicurezza sul PC (1.80.0, dettagli in `archivio-ponte.md`).
   - `errori.test.mjs` (96): registro degli errori dell'app (1.77.0): pulizia dei dati dal testo, pila, firma, doppioni, limite di 200 righe, pulizia dopo 90 giorni (dettagli in `errori.md`).
   - `strumenti/prove/latte.mjs` (lettore delle fatture del latte) e `strumenti/prove-magazzino/prove.mjs` (71: riconoscimento delle righe per il magazzino; dal 25/11 non partiva più perché `magriconosci.js` carica `ui.js`: ora gira con `avvio.mjs`).
   - **Lettori dei documenti dei Conti** (25/11/2026), con documenti FINTI in `prove/documenti/`:

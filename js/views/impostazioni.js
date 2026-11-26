@@ -13,6 +13,7 @@ const sceltaDi = m => m.role === 'lettore' ? 'lettore' : m.allegati === false ? 
 const ruoloTxt = m => m.role === 'titolare' ? 'Titolare' : PERMESSI[sceltaDi(m)];
 import { canInstall, isStandalone } from '../install.js';
 import { VERSION } from '../version.js';
+import { contiVisibili } from './conti.js';
 
 export const authUI = { tab: 'login' };
 
@@ -23,7 +24,20 @@ function statoDati() {
     : `<div class="note-box${c ? ' warn' : ''}">${ic(c ? 'triangle-alert' : 'info')}<span>Non hai ancora scaricato una copia di sicurezza${sync.farm ? '' : ' da questo dispositivo'}.</span></div>`;
   const prot = protezione.stato === true ? `<div class="note-box">${ic('shield-check')}<span>Il browser conserva questi dati in modo permanente: non li cancella da solo.</span></div>`
     : protezione.stato === false ? `<div class="note-box${sync.farm ? '' : ' warn'}">${ic('shield-alert')}<span>Se sul dispositivo manca spazio, il browser può cancellare da solo i dati salvati qui. Per proteggerli ${isStandalone() ? '' : "installa l'app, "}${sync.farm ? '' : 'attiva la sincronizzazione, '}tieni una copia di sicurezza recente.</span></div>` : '';
-  return copia + prot;
+  return copia + copiaPC() + prot;
+}
+// Copia settimanale sul PC e prova di ripristino mensile (1.80.0, js/copia-pc.js): solo il titolare
+const quandoTxt = g => { const n = diff(g, today()); return fd(g) + ' (' + (n <= 0 ? 'oggi' : n === 1 ? 'ieri' : n + ' giorni fa') + ')'; };
+function copiaPC() {
+  if (!contiVisibili()) return '';
+  const st = S.econfig.find(x => x.id === 'copia-pc') || {}, r = st.ripristino;
+  const vecchia = st.giorno && diff(st.giorno, today()) > 10;
+  const c = st.giorno ? `<div class="note-box${vecchia ? ' warn' : ''}">${ic(vecchia ? 'triangle-alert' : 'database')}<span>Copia sul PC (fuori da internet): l'ultima il <b>${quandoTxt(st.giorno)}</b>, ${nf(st.registrazioni || 0)} registrazioni e ${nf(st.allegati || 0)} allegati${st.mancati ? `, ${st.mancati} allegati non trovati` : ''}.${vecchia ? " Apri l'app sul PC con il ponte acceso: la copia si fa da sola." : ''}</span></div>`
+    : `<div class="note-box">${ic('database')}<span>Copia sul PC: non ancora fatta. Si fa da sola una volta alla settimana quando apri l'app sul PC con il ponte dell'archivio acceso.</span></div>`;
+  const p = r ? `<div class="note-box${r.esito === 'ok' ? '' : ' warn'}">${ic(r.esito === 'ok' ? 'circle-check' : 'triangle-alert')}<span>Prova di ripristino ${r.esito === 'ok' ? 'riuscita' : '<b>non riuscita</b>'} il <b>${quandoTxt(r.giorno)}</b>${r.esito === 'ok' ? `: ${nf(r.trovate || 0)} registrazioni e ${nf((r.allegati && r.allegati.trovati) || 0)} allegati tornati tutti.` : ': ' + esc(r.errore || ('registrazioni diverse in ' + (r.diverse || []).join(', '))) + '.'}</span></div>`
+    : st.giorno ? `<div class="note-box">${ic('info')}<span>Prova di ripristino: ${st.provaChiesta ? 'in corso sul PC.' : st.provaErrore ? 'non è partita: ' + esc(st.provaErrore) + '.' : 'non ancora fatta (una al mese, dopo la copia).'}</span></div>` : '';
+  const errProva = r && st.provaErrore ? `<div class="note-box warn">${ic('triangle-alert')}<span>L'ultima prova di ripristino non è partita: ${esc(st.provaErrore)}.</span></div>` : '';
+  return c + p + errProva + `<div class="btns"><button class="btn" data-act="copiaPC">${ic('database')}Copia sul PC ora</button></div>`;
 }
 
 function cloudSection() {

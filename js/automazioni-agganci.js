@@ -12,6 +12,7 @@ import { scaricaRazioni } from './razauto.js';
 import * as DZ from './conti/dubbi.js';
 import * as TR from './tracciabilita.js';
 import './quaderno.js'; // quaderno di campagna automatico (1.65.0)
+import './copia-pc.js'; // copia di sicurezza sul PC (1.80.0)
 
 /* ---------- documenti dell'archivio del PC nei Conti (conti/automatico.js) ---------- */
 const PAGHE = /^(Busta-paga|Bilancino-paghe)$/;

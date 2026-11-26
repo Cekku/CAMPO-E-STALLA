@@ -13,6 +13,7 @@ Partono solo se l'app Claude è aperta; se era chiusa, partono alla prima apertu
 | Nome | Quando | Cosa fa | Resoconto |
 |---|---|---|---|
 | Controllo settimanale dell'app e delle pubblicazioni (`controllo-settimanale-app`, dal 26/11/2026) | lunedì alle 8:30 | Pubblicazioni dei 7 giorni (sito e APK riusciti o falliti e perché, sito alla versione giusta, sito nascosto ai motori di ricerca), `npm test` su una copia pulita di main, giro di tutte le pagine del sito pubblicato da computer e da telefono (`strumenti/prove/giro-pagine.mjs`), cause probabili e correzioni proposte | `%USERPROFILE%\ArchivioAzienda\controlli-settimanali\AAAA-MM-GG.md` |
+| Piano 10/10 (`piano-10-su-10`, dal 26/11/2026 al 30/11/2026, poi si spegne da sola) | ogni 2 ore (:45) | Porta avanti un passo alla volta della lista "10/10" in una chat nuova, solo se il consumo di Claude lo permette (limite di 5 ore quasi libero, settimanale dentro la quota del giorno); domande per Marco nello stato. **Questa cambia il codice**: commit e push solo se prove, collaudo e revisione passano | `%USERPROFILE%\ArchivioAzienda\piano-10\stato.md` |
 | Ricerca settimanale modelli IA per il PC (`ricerca-modelli-ia-pc`, dal 24/11/2026) | lunedì alle 8:00 | Cerca su siti indipendenti modelli locali migliori per LM Studio; non scarica e non prova niente | `%USERPROFILE%\ArchivioAzienda\prove-ia\ricerca-modelli\AAAA-MM-GG.md` |
 
 ## 2. Attività di Windows sul PC (Utilità di pianificazione)
@@ -47,6 +48,7 @@ Programmate con `pg_cron`; per vederle: `select * from cron.job;` nell'editor SQ
 | Nome | Quando | Cosa fa |
 |---|---|---|
 | Centro automatico (pagina Automatico) | all'apertura e ogni 30 minuti | Documenti dell'archivio nei Conti, magazzino dalle fatture, fitofarmaci, scarico delle razioni, controlli di paghe e fatture, report del mese; i dati non sicuri vanno in "Da controllare", ogni passo si può annullare dal diario (`.claude/rules/automazioni.md`) |
+| Copia di sicurezza sul PC (Centro automatico, `copia-pc`, dalla 1.80.0) | una volta alla settimana, con l'app aperta sul PC del titolare e il ponte acceso | Manda tutte le registrazioni e gli allegati al ponte, che li salva in `ArchivioAzienda\copie-sicurezza` (8 settimanali + 12 mensili); una volta al mese il ponte lancia la prova di ripristino (`strumenti/copie/prova-ripristino.mjs`: browser vuoto, conta registrazioni e allegati). Esito in La mia azienda → Dati (`.claude/rules/archivio-ponte.md`) |
 | Aggiornamento dell'app | ogni ora e al ritorno sull'app | Scarica la versione nuova e la mette alla prossima apertura (o con "Aggiorna ora") |
 | Registro degli errori | sempre | Annota gli errori di ogni dispositivo, ripuliti dai dati; si vedono in Archivio → Errori dell'app |
 

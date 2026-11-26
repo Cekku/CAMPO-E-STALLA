@@ -489,6 +489,12 @@ async function clic(e) {
       case 'loadExamples': await store.bulkPut(exampleRows()); toast('Dati di esempio caricati'); return setTab('oggi');
       case 'delExamples': return arm(b, 'Conferma: elimina gli esempi', delExamples);
       case 'backup': { const o = await store.exportAll(); download(`campo-e-stalla-${today()}.json`, JSON.stringify(o), 'application/json'); await store.segnaCopia(); toast('Copia scaricata: conservala anche fuori da questo dispositivo'); return; }
+      case 'copiaPC': {      // copia di sicurezza sul PC adesso (1.80.0, js/copia-pc.js)
+        b.disabled = true; toast('Copia sul PC in corso…');
+        try { const { copiaSulPC } = await import('./copia-pc.js'); const c = await copiaSulPC(); toast(`Copia sul PC fatta: ${c.registrazioni} registrazioni e ${c.allegati} allegati` + (c.mancati ? ` (${c.mancati} allegati non trovati)` : '')); }
+        catch (err) { toast(err.message || String(err), 'err'); }
+        b.disabled = false; return render();
+      }
       case 'wipe': return arm(b, 'Conferma: cancella tutto da questo dispositivo', () => store.wipeLocal());
       case 'syncNow': return store.syncNow();
       case 'findFarms': return store.findFarms();

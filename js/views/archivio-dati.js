@@ -33,6 +33,9 @@ async function chiama(percorso, { metodo = 'GET', corpo, tempo = 8000 } = {}) {
   return j;
 }
 
+/** Chiamata diretta al ponte (copia di sicurezza sul PC, copia-pc.js). */
+export const chiamaPonte = (percorso, opz) => chiama(percorso, opz);
+
 /** Lettura per la vista: risponde subito con quello che c'è (carico/dati/err) e ridisegna quando arriva la risposta. */
 export function leggi(percorso) {
   let e = cache.get(percorso);

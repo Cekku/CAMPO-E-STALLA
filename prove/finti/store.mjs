@@ -15,4 +15,5 @@ export async function bulkPut(rows) { for (const r of rows) { scritti.push(['put
 export const sync = { mode: 'local', farm: null, user: null, members: [] };
 export const onSync = () => { };
 export const cloudConfig = () => null;
+export const puoAllegati = () => !sync.farm;   // come quello vero: senza azienda collegata gli allegati si vedono
 export const schemaVersion = () => 0;
