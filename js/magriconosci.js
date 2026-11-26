@@ -257,7 +257,13 @@ function riconosci(r, ps, fam, fito) {
   if (forti.size === 1) {
     const [p, come] = [...forti.values()][0];
     // un numero messo dall'abbinamento dal nome (nRegAuto) non basta: lo conferma Marco la prima volta
-    Object.assign(out, { p, come, certo: !(come === 'registrazione' && p.nRegAuto && regN(p.nRegAuto) === regN(p.nReg)) });
+    // codice uguale ma descrizione che non c'entra (fornitori con un codice solo per tanti ricambi, es. "RICROT" per filtro, manicotto
+    // e controcoltello: 1.78.1): non è certo, va fra i dubbi
+    // basta una parola del nome o delle parole imparate: intera, o con le prime 4 lettere uguali ("FILT." = FILTRO), o una sigla con cifre ("18-46")
+    const dw = parole(r.descrizione); const pw = parole([p.nome, p.paroleFatt].join(' ')).filter(w => w.length >= 4 || (/\d/.test(w) && w.length >= 2));
+    const tocca = pw.some(w => dw.some(d => d === w || (w.length >= 4 && d.length >= 4 && /^[A-Z]{4}/.test(w) && d.slice(0, 4) === w.slice(0, 4))));
+    const altraCosa = come === 'codice' && !(dk && (p.descrFatt || []).includes(dk)) && !tocca;
+    Object.assign(out, { p, come, certo: !altraCosa && !(come === 'registrazione' && p.nRegAuto && regN(p.nRegAuto) === regN(p.nReg)), altraCosa });
     out.cand = sc.map(z => z[1]).filter(q => q !== p).slice(0, 3); return out;
   }
   if (tops.length === 1) { const gen = specifiche(sc[0][2]) < 2; Object.assign(out, { p: tops[0], come: 'parole', certo: !!fam && !gen, generiche: gen }); out.cand = sc.slice(1).map(z => z[1]).slice(0, 3); return out; }
@@ -308,7 +314,7 @@ export function classifica({ righe, fatture, prodotti, movimenti = [], fatti = {
     } else { if (!(q0 > 0) || !(imp > 0)) continue; tipo = 'carico'; }
     const fam = famDi(r);
     const ric = riconosci(r, ps, fam, fito);
-    const forte = ['codice', 'descrizione'].includes(ric.come);
+    const forte = ric.come === 'descrizione' || (ric.come === 'codice' && (!ric.altraCosa || nota || imp < 0));   // note di credito col codice: fra i dubbi, non fuori
     // parole di servizio (trasporto, consegna…): fuori, salvo merce vera (peso, litri, confezione o prodotto riconosciuto) che diventa un dubbio
     // ("TRASPORTO" a quintale resta fuori: tolte le parole di servizio non resta niente)
     const resto = servizio ? parole(descrChiave(r.descrizione)).filter(w => !SERVIZIO.test(w) && vera(w) && !/^(INCLUS|COMPRES|QUINTAL|AZIENDA|FRANCO|DOMICILIO|PORTO)/.test(w)) : [];
@@ -328,7 +334,7 @@ export function classifica({ righe, fatture, prodotti, movimenti = [], fatti = {
     const perche = [];
     if (!ric.p) perche.push(ric.come === 'conflitto' ? 'il codice o la descrizione portano a più prodotti' : ric.come === 'pari' ? 'le parole vanno bene per più prodotti'
       : ric.come === 'nome' ? 'riconosciuto solo dal nome' : tipo === 'prezzo' ? 'non so a quale prodotto va la correzione' : 'prodotto mai caricato da una fattura');
-    else if (!ric.certo) perche.push(ric.generiche ? 'le parole imparate sono troppo generiche' : ric.come === 'registrazione' ? "numero di registrazione messo dall'app dal nome: confermalo la prima volta" : 'la riga non ha una categoria del magazzino nei Conti');
+    else if (!ric.certo) perche.push(ric.altraCosa ? 'stesso codice del fornitore ma descrizione diversa' : ric.generiche ? 'le parole imparate sono troppo generiche' : ric.come === 'registrazione' ? "numero di registrazione messo dall'app dal nome: confermalo la prima volta" : 'la riga non ha una categoria del magazzino nei Conti');
     if (servizio && !forte) perche.push('la descrizione parla anche di trasporto o servizi');
     if (nota && imp > 0 && !f.segnoOk) perche.push('nota di credito con importi positivi: va sistemata nei Conti');
     if (p && tipo !== 'prezzo' && !qq.certa) perche.push(qq.q === null ? `quantità non chiara (${N(r.quantita)} ${r.um || 'senza unità'} in ${p.unita || ''})` : `quantità da controllare (${N(r.quantita)} ${r.um || 'senza unità'} → ${qq.q} ${p.unita || ''})`);

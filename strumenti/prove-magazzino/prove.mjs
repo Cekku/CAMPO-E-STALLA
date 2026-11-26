@@ -134,6 +134,14 @@ const rUrea = (o = {}) => Object.assign({ descrizione: 'UREA 46% SACCO 25 KG', c
   // codice imparato vince sulle parole, e due prodotti con lo stesso codice → dubbio
   const u2 = P({ id: 'u2', nome: 'Urea granulare', codiciFatt: [KA + '|UR46'] });
   const E6 = cl([f1], [urea, u2]);
+  // 1.78.1: un fornitore con un codice solo per tanti ricambi (RICROT): il filtro imparato non prende il controcoltello
+  const fRic = P({ id: 'fah', nome: 'Filtro Argo Hytos', categoria: 'Ricambio', unita: 'pz', codiciFatt: [KA + '|RICROT'], descrFatt: [KA + '|FILTRO ARGO HYTOS'], paroleFatt: 'FILTRO ARGO HYTOS' });
+  const Ecod = cl([fatt(FA, '2026-04-01', [{ descrizione: 'CONTROCOLTELLO A PINNA DI SQUALO L500', categoria: 'Ricambi e manutenzione', quantita: 1, um: 'PZ', importo: 150, codice: 'RICROT' }, { descrizione: 'FILTRO ARGO HYTOS', categoria: 'Ricambi e manutenzione', quantita: 1, um: 'PZ', importo: 150, codice: 'RICROT' }])], [fRic]);
+  t('stesso codice, descrizione diversa: il ricambio non entra, il filtro sì', Ecod.pronte.length === 1 && /FILTRO/.test(Ecod.pronte[0].r.descrizione) && Ecod.daFare.length === 0, [Ecod.pronte, Ecod.daFare].map(l => l.map(x => x.r.descrizione + ' ' + x.motivo)));
+  const Ecod2 = cl([fatt(FA, '2026-05-01', [{ descrizione: 'FILT. NUOVO TIPO 10 MICRON', categoria: 'Ricambi e manutenzione', quantita: 1, um: 'PZ', importo: 150, codice: 'RICROT' }])], [fRic]);
+  t('stesso codice, descrizione cambiata ma abbreviata ("FILT." = FILTRO): entra da solo', Ecod2.pronte.length === 1 && Ecod2.daFare.length === 0, Ecod2.daFare.map(x => x.motivo));
+  const Ecod3 = cl([fatt(FA, '2026-05-02', [{ descrizione: 'STORNO ART. RIF FT 123', categoria: 'Ricambi e manutenzione', quantita: 1, um: 'PZ', importo: -150, codice: 'RICROT' }], { tipoDoc: 'TD04' })], [fRic], [{ id: 'mv1', tipo: 'Carico', prodottoId: 'fah', data: '2026-04-01', quantita: 1, fattRiga: 'x:0' }]);
+  t('nota di credito con il codice ma descrizione diversa: fra i dubbi, non sparisce', Ecod3.daFare.length === 1 && Ecod3.pronte.length === 0, [Ecod3.pronte.length, Ecod3.daFare.map(x => x.motivo)]);
   t('codice del fornitore: certo', E6.pronte.length === 1 && E6.pronte[0].prodotto === u2 && E6.pronte[0].come === 'codice');
   const u3 = P({ id: 'u3', nome: 'Urea bis', descrFatt: [KA + '|UREA 46% SACCO 25 KG'] });
   const E7 = cl([f1], [u2, u3]);
