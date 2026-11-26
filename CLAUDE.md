@@ -90,6 +90,10 @@ Supabase in breve: progetto `vamcoyvunyjqgzxujsal`, URL e chiave anon in `js/con
 - Ogni tabella esportabile in Excel, CSV e PDF.
 - I controlli non devono dare incongruenze: abbinamenti dei pagamenti per data e causale, niente doppioni.
 
+## Automazioni
+
+**Elenco di tutto quello che parte da solo in `AUTOMAZIONI.md`** (attività di Claude e di Windows, pg_cron di Supabase, GitHub Actions, Centro automatico, controlli prima del commit), chiesto da Marco il 26/11/2026. Chi crea, cambia o toglie un'automazione lo aggiorna nella stessa volta. Controllo settimanale dell'app (lunedì 8:30, attività di Claude `controllo-settimanale-app`): pubblicazioni, `npm test` su una copia pulita di main e giro di tutte le pagine del sito con `strumenti/prove/giro-pagine.mjs` (vedi `prove.md`).
+
 ## Lavori fuori dall'app
 
 Timestral (previsioni), analisi del meteo di Povoletto, fotovoltaico Fronius e l'archivio dei documenti in Python: vedi `.claude/rules/archivio-pc.md`.
