@@ -4,7 +4,10 @@ import { S } from '../../js/state.js';
 // Come quello vero (js/store.js put/bulkPut): senza id ne crea uno nuovo, e l'id passato vince su quello dentro i dati.
 export const scritti = [];
 let n = 0;
+// Come quello vero: chi è in osservatori riceve (raccolta, id, versione di prima, cancellato) a ogni scrittura (Centro automatico).
+export const osservatori = new Set();
 const metti = (col, id, data) => {
+  if (osservatori.size) { const prima = (S[col] || []).find(x => x.id === id) || null; for (const f of osservatori) f(col, id, prima, !data); }
   const a = (S[col] || []).filter(x => x.id !== id);
   if (data) a.push(Object.assign({}, data, { id }));
   S[col] = a;
@@ -13,6 +16,7 @@ export async function put(col, id, data) { const nid = id || 'finto-' + (++n); s
 export async function remove(col, id) { scritti.push(['remove', col, id]); metti(col, id, null); }
 export async function bulkPut(rows) { for (const r of rows) { scritti.push(['put', r.col, r.id]); metti(r.col, r.id, r.data); } }
 export const sync = { mode: 'local', farm: null, user: null, members: [] };
+export const soloLettura = () => !!(sync.farm && sync.perm && sync.perm.role === 'lettore');
 export const onSync = () => { };
 export const cloudConfig = () => null;
 export const puoAllegati = () => !sync.farm;   // come quello vero: senza azienda collegata gli allegati si vedono

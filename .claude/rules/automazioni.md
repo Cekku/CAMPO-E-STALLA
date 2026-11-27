@@ -84,3 +84,5 @@ In `magfatture.js` aggiunte solo `pulisciSeServe()` e `occupato()` (per il conte
 ## Provato
 
 Vedi il collaudo del 19/11/2026 nel commit: pulsanti Avvia tutto, area, singola, Conferma, Scarta, Annulla, anche da collaboratore; 375 px e tema scuro.
+
+Prove automatiche del motore (27/11/2026): `prove/automazioni.test.mjs`, 79 prove con automazioni finte (diario, annulla, dubbi, a mano, riservate, collaboratore); cosa c'è e cosa manca in `prove.md`.
