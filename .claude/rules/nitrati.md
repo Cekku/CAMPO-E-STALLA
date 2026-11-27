@@ -15,3 +15,4 @@ Chiesto da Marco il 18/11/2026: prima delle funzioni prese da xFarm (`docs/xfarm
 - `azotoStalla(anno)`: capi presenti **oggi** per stato (non la media dell'anno), SAU = somma di `campoHa` di tutti i campi, carico = N prodotto / SAU, ettari minimi = N / limite; `distribuito` = N da effluenti registrato nell'annata.
 - Pagina: Campagna → Agronomia → Azoto e nitrati (`tab: 'nitrati'`, sotto-schede `bilancio` / `valori`); tabelle `nit_campi` e `nit_stalla` esportabili con `bottoniExport`. Salvataggio dei valori: submit `data-form-act="nitrati"` → `salvaNitrati($)`; `nitReset` rimette i valori di partenza (tiene la zona).
 - Da fare se Marco lo chiede: media dei capi nell'anno, Comunicazione/PUA in PDF, analisi del suolo per il fabbisogno di P e K.
+- Prove automatiche: `prove/nitrati.test.mjs` (45, dati finti, 27/11/2026), vedi `prove.md`.
