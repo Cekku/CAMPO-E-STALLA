@@ -1,0 +1,16 @@
+{
+  "//": "Controllo dei tipi dei Conti e dei lettori dei documenti (prove/tipi.test.mjs). Solo verifica: niente build, niente file creati.",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["../../js/conti/*.js", "../../js/views/conti*.js", "globali.d.ts"]
+}

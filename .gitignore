@@ -22,3 +22,6 @@ campo-e-stalla-*.json
 
 # indice di lavoro dello scarico delle etichette dei fitosanitari
 strumenti/fitosanitari/etichette-indice.json
+
+# strumenti per le prove (npm ci): TypeScript per il controllo dei tipi
+node_modules/

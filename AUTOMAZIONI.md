@@ -40,7 +40,7 @@ Programmate con `pg_cron`; per vederle: `select * from cron.job;` nell'editor SQ
 
 | Nome | Quando | Cosa fa |
 |---|---|---|
-| Prove e pubblicazione (`.github/workflows/pubblica.yml`) | a ogni invio su `main` | Fa girare `npm test`; **il sito si pubblica solo se le prove passano**, altrimenti resta com'era e arriva una email |
+| Prove e pubblicazione (`.github/workflows/pubblica.yml`) | a ogni invio su `main` | Mette TypeScript (`npm ci`) e fa girare `npm test`, compreso il controllo dei tipi dei Conti e dei lettori (`prove/tipi.test.mjs`, dal 27/11/2026); **il sito si pubblica solo se le prove passano**, altrimenti resta com'era e arriva una email |
 | APK Android (`.github/workflows/apk.yml`) | a ogni invio che tocca `app-android/`, o a mano | Crea e firma l'app Android e la mette nella Release della versione |
 
 ## 5. Dentro l'app (sui dispositivi, mentre l'app è aperta)

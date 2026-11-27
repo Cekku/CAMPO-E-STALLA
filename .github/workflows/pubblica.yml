@@ -1,5 +1,5 @@
 # Prove automatiche e pubblicazione del sito (dalla 25/11/2026, chiesto da Marco: "pubblica solo se le prove passano").
-# A ogni push su main: npm test (prove/ e strumenti/prove*); solo se passano, il sito va su GitHub Pages.
+# A ogni push su main: npm test (prove/ e strumenti/prove*, con il controllo dei tipi dei Conti); solo se passano, il sito va su GitHub Pages.
 # Se una prova fallisce il sito resta alla versione di prima e GitHub manda una email.
 # Richiede Pages con "Source: GitHub Actions" (build_type workflow), non più "Deploy from a branch".
 name: Prove e pubblicazione
@@ -25,6 +25,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 'lts/*'
+      - name: Strumenti delle prove (TypeScript per il controllo dei tipi, versione fissata in package-lock.json)
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prove automatiche
         run: npm test
 

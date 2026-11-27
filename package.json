@@ -6,5 +6,10 @@
   "scripts": {
     "test": "node --import ./prove/avvio.mjs --test --test-reporter=spec \"prove/*.test.mjs\" strumenti/prove/latte.mjs strumenti/prove-magazzino/prove.mjs"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3"
+  }
 }
