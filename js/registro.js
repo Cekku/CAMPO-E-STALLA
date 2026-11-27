@@ -29,6 +29,35 @@ export function righeTrattamenti(y) {
   });
 }
 
+// Controllo dell'annata (1.81.0): errori che i dati mancanti non mostrano e che un controllo della Regione troverebbe.
+// Un elenco di { tipo, id (attività da aprire), testo }; si guarda tutta l'annata, non solo l'ultimo trattamento.
+export function controlloAnno(y) {
+  const out = [], righe = righeTrattamenti(y), oggi = today(), visti = new Set(), doppi = new Map();
+  const campoData = r => `${r.c.nome || 'campo'} il ${fd(r.o.data)}`, nome = r => campoData(r) + (r.p.nome ? ' (' + r.p.nome + ')' : '');
+  // chiave: errori di tutta l'attività una volta sola (non una per prodotto in botte); EPPO una volta per coltura
+  const add = (tipo, r, testo, k = tipo + ':' + r.o.id + ':' + (r.o.riga || 0)) => { if (!visti.has(k)) { visti.add(k); out.push({ tipo, id: r.o.id, testo }); } };
+  // raccolte e sfalci del foraggio (non il taglio di capezzagne e fossi)
+  const raccolte = S.operazioni.filter(o => (o.tipo === 'Raccolta' || (o.tipo === 'Sfalcio' && !/capezzagn|foss/i.test(o.sottotipo || ''))) && o.stato !== 'Pianificata' && okD(o.data));
+  for (const r of righe) {
+    const scritto = N(r.o.haTrattati);
+    // margine dell'1%: la superficie disegnata sulla mappa può differire di pochi metri quadri
+    if (scritto > 0 && r.haCampo > 0 && scritto > r.haCampo * 1.01) add('superficie', r, `${campoData(r)}: superficie trattata ${nf(scritto, 2)} ha, più grande del campo (${nf(r.haCampo, 2)} ha). Nel registro va tutto il campo: correggi la superficie.`, 'superficie:' + r.o.id);
+    const dose = N(r.o.dose), q = N(r.o.quantita), atteso = dose * r.ha;
+    if (dose > 0 && q > 0 && atteso > 0 && Math.abs(q - atteso) / atteso > 0.15) add('quantita', r, `${nome(r)}: dose e quantità non tornano (${nf(dose, 2)} per ettaro su ${nf(r.ha, 2)} ha fa ${nf(atteso, 2)}, scritto ${nf(q, 2)}).`);
+    if (okD(r.p.scadenzaAut) && r.p.scadenzaAut < r.o.data) add('autorizzazione', r, `${nome(r)}: il prodotto aveva l'autorizzazione scaduta (${fd(r.p.scadenzaAut)}). Controlla se era ancora nel periodo di smaltimento.`);
+    if (r.o.data > oggi) add('futuro', r, `${campoData(r)}: è segnato come fatto ma la data è nel futuro.`, 'futuro:' + r.o.id);
+    if (r.coltura && !r.eppo) add('eppo', r, `La coltura «${r.coltura}» (es. ${campoData(r)}) non ha un codice EPPO conosciuto dall'app: nel registro digitale va scelto dall'elenco del Ministero. È solo un avviso.`, 'eppo:' + r.coltura.toLowerCase());
+    if (r.raccoltaDal && r.c.id) {
+      const x = raccolte.find(o => o.campoId === r.c.id && o.data > fineDi(r.o) && o.data < r.raccoltaDal);
+      if (x) add('carenza', r, `${nome(r)}: ${x.tipo === 'Sfalcio' ? 'sfalcio' : 'raccolta'} il ${fd(x.data)}, prima della fine del tempo di carenza (si poteva dal ${fd(r.raccoltaDal)}).`);
+    }
+    if (r.c.id && r.p.id) { const k = r.c.id + '|' + r.p.id + '|' + r.o.data; const a = doppi.get(k); if (a && a !== r.o.id) add('doppione', r, `${nome(r)}: c'è già un trattamento con lo stesso prodotto sullo stesso campo e nello stesso giorno. Se è lo stesso, cancellane uno.`); else doppi.set(k, r.o.id); }
+  }
+  // prima gli errori veri, gli avvisi EPPO in fondo (la scheda ne mostra solo 8)
+  const peso = { carenza: 0, autorizzazione: 1, superficie: 2, doppione: 3, quantita: 4, futuro: 5, eppo: 9 };
+  return out.map((x, i) => [x, i]).sort((a, b) => peso[a[0].tipo] - peso[b[0].tipo] || a[1] - b[1]).map(x => x[0]);
+}
+
 function head(a, y, titolo) {
   return `<header class="doc-h"><div><h1>${esc(titolo)}</h1><p>Annata agraria ${y}</p></div><table class="kv"><tr><th>Azienda</th><td>${esc(a.nome || (sync.farm && sync.farm.name) || '')}</td></tr><tr><th>CUAA / P. IVA</th><td>${esc(a.iva || '')}</td></tr><tr><th>Sede</th><td>${esc(a.indirizzo || '')}</td></tr><tr><th>Superficie</th><td>${nf(S.campi.reduce((t, c) => t + campoHa(c), 0), 4)} ha · ${S.campi.length} appezzamenti</td></tr></table></header>`;
 }

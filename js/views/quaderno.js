@@ -4,7 +4,7 @@ import { UI, bus } from '../state.js';
 import { esc, nf, byDate } from '../util.js';
 import { ic } from '../icons.js';
 import { empty, toast } from '../ui.js';
-import { righeTrattamenti } from '../registro.js';
+import { righeTrattamenti, controlloAnno } from '../registro.js';
 import { registroCard } from '../agenda.js';
 import { dubbi, avvia } from '../automazioni.js';
 import { tabella, bottoniExport } from '../conti/tabelle.js';
@@ -21,6 +21,16 @@ function cardLegge() {
     <li>Il registro si conserva almeno 3 anni.</li>
   </ul>
   <p class="muted small">Le linee guida del Ministero sul formato sono ancora attese: l'app prepara già il file dati (JSON) con tutti i campi.</p></details>`;
+}
+
+function cardControllo(y) {
+  if (!righeTrattamenti(y).length) return '';
+  const pp = controlloAnno(y);
+  if (!pp.length) return `<section class="card qd-ctr"><div class="card-h"><h2>${ic('shield-check')}Controllo dell'annata ${y}</h2></div><p>Nessun errore trovato: superfici, dosi, autorizzazioni dei prodotti e tempi di carenza tornano.</p></section>`;
+  const max = 8;
+  return `<section class="card qd-ctr"><div class="card-h"><h2>${ic('triangle-alert')}Controllo dell'annata ${y}</h2></div>
+  <p class="muted">Errori che un controllo troverebbe. Tocca una riga per aprire il trattamento e correggerlo.</p>
+  <div class="list">${pp.slice(0, max).map(x => `<button class="row" data-act="edit" data-form="operazioni" data-id="${esc(x.id)}"><span class="r-icon">${ic('triangle-alert')}</span><span class="r-main"><span>${esc(x.testo)}</span></span>${ic('chevron-right', 'chev')}</button>`).join('')}${pp.length > max ? `<p class="more">e altri ${pp.length - max} da controllare</p>` : ''}</div></section>`;
 }
 
 function cardAuto() {
@@ -71,7 +81,7 @@ export function render() {
   const y = UI.anno;
   const reg = registroCard(y);
   const intro = `<p class="muted">Il registro dei trattamenti dell'annata ${y}, pronto per la stampa e per il registro digitale.</p>`;
-  return { title: 'Quaderno di campagna', html: intro + cardLegge() + (reg || '') + cardAuto() + cardScarica() + cardTabella(y) };
+  return { title: 'Quaderno di campagna', html: intro + cardLegge() + (reg || '') + cardControllo(y) + cardAuto() + cardScarica() + cardTabella(y) };
 }
 
 export async function qdAct(a, b) {

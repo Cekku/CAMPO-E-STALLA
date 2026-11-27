@@ -1,5 +1,5 @@
 // Service worker: app disponibile offline, mappe e meteo in copia locale
-const VERSION = 'ces-1.80.0';
+const VERSION = 'ces-1.81.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/state.js', './js/util.js', './js/icons.js', './js/geo.js', './js/confine-fvg.js', './js/domain.js', './js/store.js', './js/config.js', './js/ui.js', './js/forms.js', './js/elenchi.js', './js/map.js', './js/meteo.js', './js/install.js', './js/nativo.js', './js/esempi.js', './js/version.js', './js/checks.js', './js/fitodb.js', './js/fitoabbina.js', './js/registro.js', './js/pcg.js', './js/particelle.js', './js/nlp.js', './js/herd.js', './js/ndvi.js',
